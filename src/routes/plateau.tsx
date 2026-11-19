@@ -71,7 +71,7 @@ import { BoardWindows } from './-plateau/BoardWindows';
 import { SheetCount } from './-plateau/Window';
 import { Shell } from '@/shell/Shell';
 import { SelectionSheetReport, sheetHeight, sheetLift } from '@/shell/BottomSheet';
-import { useBareMapTap } from '@/shell/sole-surface';
+import { BareMapPort } from '@/shell/sole-surface';
 import { retouches } from './-plateau/retouch';
 import { tallest, useFrameOnOpen } from './-plateau/useFrameOnOpen';
 import { MAT_LIFT, boardBottomPx, useNarrowScreen } from '@/shell/viewport';
@@ -2234,7 +2234,8 @@ function BoardContent({
   );
   /** **La carte nue** (#584) : un toucher sur le sol ferme la surface ouverte, seulement ; sans
    *  surface, il lit le sol. Une pile en main garde sa place (la visée est #586). */
-  const readBare = useBareMapTap(readGround, hand.kind === 'held');
+  const bareTap = useRef<(name: string | null) => void>(readGround);
+  const readBare = useCallback((name: string | null) => bareTap.current(name), []);
   const startPicking = useCallback(() => {
     dropHand();
     setPicking(true);
@@ -3037,6 +3038,7 @@ function BoardContent({
               })}
             >
               <div ref={board} className="relative min-w-0 flex-1">
+                <BareMapPort read={readGround} keep={hand.kind === 'held'} port={bareTap} />
                 {blitzTheatre !== null && view.me.hqLevel === 0 && !view.me.defeated && (
                   <div
                     role="status"

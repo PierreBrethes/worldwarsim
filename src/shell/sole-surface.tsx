@@ -30,6 +30,10 @@ type Sole = { readonly claim: Claim; readonly closeCurrent: () => boolean };
 const SoleSurfaceContext = createContext<Sole | null>(null);
 
 export function SoleSurfaceProvider({ children }: { children: ReactNode }) {
+  /* Le compilateur lierait `claim` à `history.location`, qui change à chaque navigation : toute
+     surface ouverte se réclamerait alors sous le même geste, et la dernière fermerait la
+     précédente. */
+  'use no memo';
   const history = useRouter({ warn: false })?.history;
   const current = useRef<{ close: () => void; marks: boolean } | null>(null);
   /** L'index de l'entrée que nous avons posée, `null` quand il n'y en a pas. */
@@ -145,4 +149,25 @@ export function useBareMapTap(
     },
     [read, keep, closeSurface],
   );
+}
+
+/**
+ * **Le port de la carte nue** : le plateau rend son `Shell`, donc le fournisseur est sous lui et
+ * le plateau ne peut pas lire `useBareMapTap` lui-même. Ce composant, posé dans le cadre, y lit le
+ * toucher et le dépose dans `port`, que la carte appelle.
+ */
+export function BareMapPort({
+  read,
+  keep,
+  port,
+}: {
+  read: (name: string | null) => void;
+  keep: boolean;
+  port: { current: (name: string | null) => void };
+}): null {
+  const tap = useBareMapTap(read, keep);
+  useEffect(() => {
+    port.current = tap;
+  });
+  return null;
 }
