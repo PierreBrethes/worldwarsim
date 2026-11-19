@@ -3,7 +3,7 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fr } from '@/i18n/fr';
-import { BottomSheet } from './BottomSheet';
+import { BottomSheet, FULL_SHARE_OF_ROOM, sheetHeight } from './BottomSheet';
 import { SoleSurfaceProvider } from './sole-surface';
 
 /**
@@ -14,7 +14,13 @@ import { SoleSurfaceProvider } from './sole-surface';
  * Le glisser est donné en événements souris nommés comme ceux du pointeur : jsdom n'a pas de
  * `PointerEvent`, et la feuille ne lit que `clientY` et `button`.
  */
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  delete document.documentElement.dataset.motion;
+  document.documentElement.style.removeProperty('--board-top');
+  document.documentElement.style.removeProperty('--board-bottom');
+  vi.restoreAllMocks();
+});
 
 /** Un toucher entier : l'appui, le relâché sur place, puis le clic que le navigateur en tire. */
 function tap(target: HTMLElement): void {
@@ -127,6 +133,54 @@ describe('the bottom sheet', () => {
     expect(sheet().dataset.height).toBe('peek');
   });
 
+  it('leaves a skylight of map above the top step: a share of what the band and bar leave', () => {
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(844);
+    document.documentElement.style.setProperty('--board-top', '100px');
+    document.documentElement.style.setProperty('--board-bottom', '80px');
+    expect(sheetHeight('full')).toBeCloseTo(FULL_SHARE_OF_ROOM * (844 - 100 - 80));
+    expect(sheetHeight('half')).toBe(422);
+  });
+
+  describe('at each animation setting', () => {
+    const mountWithAnimate = () => {
+      const animate = vi.fn();
+      Object.defineProperty(HTMLElement.prototype, 'animate', {
+        value: animate,
+        configurable: true,
+      });
+      render(
+        <BottomSheet title="Calques de la carte" onClose={() => {}}>
+          <p>huit bascules</p>
+        </BottomSheet>,
+      );
+      return animate;
+    };
+    afterEach(() => {
+      delete (HTMLElement.prototype as { animate?: unknown }).animate;
+    });
+
+    it('fades over 120 ms when reduced, and only when the step changes', () => {
+      document.documentElement.dataset.motion = 'reduced';
+      const animate = mountWithAnimate();
+      swipe(12);
+      expect(animate).not.toHaveBeenCalled();
+      swipe(-120);
+      expect(animate).toHaveBeenCalledWith({ opacity: [0.4, 1] }, { duration: 120 });
+      expect(sheet().style.transform).toBe('');
+    });
+
+    it('settles without frame nor fade when off', () => {
+      document.documentElement.dataset.motion = 'off';
+      const raf = vi.spyOn(window, 'requestAnimationFrame');
+      const animate = mountWithAnimate();
+      swipe(-120);
+      expect(sheet().dataset.height).toBe('full');
+      expect(raf).not.toHaveBeenCalled();
+      expect(animate).not.toHaveBeenCalled();
+      expect(sheet().style.transform).toBe('');
+    });
+  });
+
   /** **La feuille d'une sélection se réduit, elle ne se ferme pas au glisser** (décision 3a). */
   describe('when it carries a selection', () => {
     const mount = () => {
@@ -167,6 +221,16 @@ describe('the bottom sheet', () => {
       swipe(120);
       act(() => screen.getByRole('button', { name: fr.common.close }).click());
       expect(onClose).toHaveBeenCalledTimes(1);
+      expect(sheet().dataset.height).toBe('collapsed');
+    });
+
+    it('does not reopen from the touch that follows a short, quick flick down', () => {
+      mount();
+      flick(25, 60);
+      expect(sheet().dataset.height).toBe('collapsed');
+      act(() =>
+        sheet().firstElementChild!.dispatchEvent(new MouseEvent('click', { bubbles: true })),
+      );
       expect(sheet().dataset.height).toBe('collapsed');
     });
 

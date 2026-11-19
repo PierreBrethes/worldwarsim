@@ -27,23 +27,27 @@ type KeepingHeight = (typeof KEEPING_HEIGHTS)[number];
 /**
  * **La part d'écran de chaque cran** — les mêmes fractions que `.board-sheet` (`index.css`), lues
  * par ce qui doit garder un point visible au-dessus d'une feuille : la carte qui remonte, la rose
- * qui se recale. `full` est un plafond : la feuille haute laisse ~20 % de carte, jamais plus que
- * ce que `--board-room` ouvre (`@a-mesurer`, d'après la capture 390×844 du finaliste).
+ * qui se recale. Le cran haut n'est pas une part de l'écran : c'est `FULL_SHARE_OF_ROOM` de ce que
+ * laissent le bandeau et la barre (`--board-room`), pour qu'il reste une lucarne de carte.
  */
-const SHEET_SHARE = { peek: 0.3, half: 0.5, full: 0.8 } as const;
+const SHEET_SHARE = { peek: 0.3, half: 0.5 } as const;
+
+/** @a-mesurer : la part de `--board-room` que prend le cran haut (même valeur dans `index.css`) ;
+ *  à 390×844 il reste environ 20 % de l'écran en carte. */
+export const FULL_SHARE_OF_ROOM = 0.75;
 
 /** La hauteur d'une feuille à ce cran, en pixels d'écran. */
-export const sheetHeight = (height: keyof typeof SHEET_SHARE): number => {
-  const share = window.innerHeight * SHEET_SHARE[height];
-  if (height !== 'full') return share;
-  const edges = ['--board-top', '--board-bottom'].map(
-    (name) => parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || 0,
+export const sheetHeight = (height: SheetHeight): number => {
+  if (height !== 'full') return window.innerHeight * SHEET_SHARE[height];
+  const style = getComputedStyle(document.documentElement);
+  const [top, bottom] = ['--board-top', '--board-bottom'].map(
+    (name) => parseFloat(style.getPropertyValue(name)) || 0,
   );
-  return Math.min(share, window.innerHeight - edges[0]! - edges[1]!);
+  return FULL_SHARE_OF_ROOM * (window.innerHeight - top! - bottom!);
 };
 
 /** Ce dont un point cadré au centre doit monter pour tomber au milieu de ce qui reste visible. */
-export const sheetLift = (height: keyof typeof SHEET_SHARE): number => sheetHeight(height) / 2;
+export const sheetLift = (height: SheetHeight): number => sheetHeight(height) / 2;
 
 /** Ce qu'un doigt doit parcourir pour changer de cran : en deçà, c'est un toucher qui a tremblé. */
 const STEP_PX = 40;
@@ -163,10 +167,15 @@ export function BottomSheet({
   const stop = () => {
     cancelAnimationFrame(frame.current);
     live.current = null;
-    sheet.current?.style.removeProperty('transform');
-    sheet.current?.style.removeProperty('clip-path');
     setMoving(false);
   };
+  /** Les styles du ressort partent avec `data-moving`, dans le même rendu : sans cela, la feuille
+   *  reprendrait un instant la hauteur du cran sous la translation d'avant. */
+  useLayoutEffect(() => {
+    if (moving) return;
+    sheet.current?.style.removeProperty('transform');
+    sheet.current?.style.removeProperty('clip-path');
+  }, [moving]);
 
   const steps: ReadonlyArray<KeepingHeight> = keepsSelection ? KEEPING_HEIGHTS : SHEET_HEIGHTS;
   const grip = useSwipe(
@@ -186,7 +195,7 @@ export function BottomSheet({
       } else if (thrown < -STEP_PX && rank < steps.length - 1) {
         target = rank + 1;
       }
-      swiped.current = Math.abs(travel) > STEP_PX;
+      swiped.current = target !== rank || closing || Math.abs(travel) > STEP_PX;
       const goal = measured.current[steps[target]!] ?? 0;
       const from = live.current;
       const motion = motionNow();
@@ -207,7 +216,7 @@ export function BottomSheet({
       let state: Spring = { h: from.h, v: -velocity };
       let last = performance.now();
       const tick = (now: number) => {
-        state = stepSpring(state, goal, ceiling, now - last);
+        state = stepSpring(state, goal, ceiling, Math.round(now - last));
         last = now;
         live.current = state;
         place(state.h);
