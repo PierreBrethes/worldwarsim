@@ -134,6 +134,7 @@ export function MapLabels({
   poster,
   onSelect,
   onOpenBuilding,
+  onOpenWork,
   onOpenStack,
   onOpenLoot,
   onOpenCamp,
@@ -202,6 +203,7 @@ export function MapLabels({
   onSelect: (name: string | null) => void;
   /** The click's screen point travels with it: what a mast opens is anchored to the mast. */
   onOpenBuilding: (buildingId: string, clientX: number, clientY: number) => void;
+  onOpenWork?: ((workId: string) => void) | undefined;
   /** **Une pile à moi se lève, une adresse de garnison s'ouvre** (ADR 0026 §6) : l'étiquette
    *  entière, la carte en tire la pile ou la cible de la pose. */
   onOpenStack: (label: MapLabel, clientX: number, clientY: number) => void;
@@ -1095,6 +1097,8 @@ export function MapLabels({
         onOpenLoot(nearbyLootSightings(label, labels, states.current), clientX, clientY);
       } else if (label.building !== null) {
         onOpenBuilding(label.building.id, clientX, clientY);
+      } else if (label.works !== null && onOpenWork !== undefined) {
+        onOpenWork(label.works.workId);
       } else if (label.station !== null) {
         onOpenStack(label, clientX, clientY);
         // Lever ne fait que lever (ADR 0026 §6) : la pile ne rouvre pas de rose au même clic.

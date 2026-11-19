@@ -393,6 +393,7 @@ describe('posterOf', () => {
 
   it('says nothing of a network a barracks does not belong to, and counts its raise down', () => {
     const raise: WorkSite = {
+      workId: 'w',
       phase: 'raising',
       key: 'barracks',
       regionId: 'r-plain',
@@ -443,6 +444,7 @@ describe('posterOf', () => {
 
   it('names a site where nothing stands yet: rising by what is left, queued by its rank', () => {
     const rising: WorkSite = {
+      workId: 'w',
       phase: 'rising',
       key: 'farm',
       regionId: 'r-a',

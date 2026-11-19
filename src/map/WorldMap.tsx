@@ -217,6 +217,8 @@ type Props = {
   onSelect: (name: string | null) => void;
   /** A click on a building's mast opens its surface instead of selecting the country. */
   onOpenBuilding?: (buildingId: string, clientX: number, clientY: number) => void;
+  /** Le mât d'un chantier que rien ne tient encore (#587) : la ligne de travail qu'il porte. */
+  onOpenWork?: ((workId: string) => void) | undefined;
   /**
    * **Le clic sur l'étiquette d'une adresse à moi** : une pile posée se lève (toute la pile), un
    * mât d'avant-poste ouvre sa garnison. Il rend vrai quand le clic **pose** la pièce en main sur
@@ -566,6 +568,7 @@ export function WorldMap({
   quietRouteScale = false,
   onSelect,
   onOpenBuilding,
+  onOpenWork,
   onOpenStack,
   holding = null,
   departures = 0,
@@ -2236,6 +2239,7 @@ export function WorldMap({
         poster={poster ?? noPoster}
         onSelect={onSelect}
         onOpenBuilding={onOpenBuilding ?? (() => {})}
+        onOpenWork={onOpenWork}
         onOpenStack={onLabelOpen}
         onOpenLoot={onOpenLoot ?? (() => {})}
         onOpenCamp={onOpenCamp ?? (() => {})}

@@ -162,6 +162,8 @@ describe('the site sheet of one of my buildings, under a finger', () => {
   it('offers « raser » for that building, which opens the confirmation card', () => {
     render(<Board buildingId="B-1" />);
     expect(screen.queryByText(fr.demolition.submit)).toBeNull();
+    /* « Raser » vit dans l'onglet « fiche » de la feuille (#587). */
+    act(() => screen.getByRole('tab', { name: new RegExp(fr.production.sheet.tabs.site) }).click());
     act(() => screen.getByRole('button', { name: fr.compass.razeNamed('Caserne') }).click());
     expect(screen.getByText(fr.demolition.submit)).toBeTruthy();
   });

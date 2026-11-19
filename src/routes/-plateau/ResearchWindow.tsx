@@ -25,6 +25,7 @@ import { notify } from '@/shell/notifications';
 import { Price } from '@/shell/Price';
 import { Stamp } from '@/shell/Stamp';
 import { useNarrowScreen } from '@/shell/viewport';
+import { BottomSheet } from '@/shell/BottomSheet';
 import { FloatingWindow, type WindowProps, WindowHead } from './Window';
 import { RazeButton } from './RazeButton';
 
@@ -98,6 +99,7 @@ export function ResearchWindow({
   focused?: string | undefined;
 }) {
   const narrow = useNarrowScreen();
+  const [tab, setTab] = useState<'post' | 'tree'>('post');
   const now = useClock(30_000);
   const start = useMutation(api.research.start);
   const dequeue = useMutation(api.research.dequeue);
@@ -139,6 +141,83 @@ export function ResearchWindow({
         : fr.research.noCenter
       : fr.research.subtitle(place ?? center.regionId, center.level);
 
+  const legend = (
+    <div className="flex flex-wrap gap-x-[14px] gap-y-[6px] pt-[10px] text-[11px] text-[var(--ink-soft)]">
+      <span>{fr.research.legendDone}</span>
+      <span>{fr.research.legendAhead}</span>
+      <span>{fr.research.legendHow}</span>
+    </div>
+  );
+  const raze =
+    razable === undefined ? null : (
+      <RazeButton
+        view={view}
+        building={razable}
+        region={view.me.regions.find((one) => one.id === razable.regionId)?.name}
+        className="px-[10px] pb-[9px]"
+      />
+    );
+
+  /** **Au téléphone, la fiche du Centre** (#587) : une feuille basse à deux onglets, « poste » et
+   *  « arbre » — plus de fenêtre plein écran. */
+  if (narrow)
+    return (
+      <BottomSheet
+        title={fr.research.title}
+        aside={
+          <span className="min-w-0 truncate text-[12px] text-[var(--ink-soft)] italic">
+            {subtitle}
+          </span>
+        }
+        onClose={onClose}
+        initial="peek"
+        hug
+        keepsSelection
+        pinned={
+          <div
+            role="tablist"
+            className="grid h-[40px] grid-cols-2 border-b border-(color:--ink)/35"
+          >
+            {(['post', 'tree'] as const).map((id) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={tab === id}
+                onClick={() => setTab(id)}
+                className={`flex cursor-pointer items-center justify-center border-b-[3px] text-[10.5px] tracking-[.14em] uppercase ${
+                  tab === id
+                    ? 'border-[var(--ink)] font-bold text-[var(--ink)]'
+                    : 'border-transparent font-semibold text-[var(--ink-soft)]'
+                }`}
+              >
+                {fr.research.tabs[id]}
+              </button>
+            ))}
+          </div>
+        }
+      >
+        {tab === 'post' ? (
+          <>
+            <Margin view={view} level={level} now={now} narrow remove={remove} />
+            {raze}
+          </>
+        ) : (
+          <div className="px-[14px] pt-[10px] pb-[18px]">
+            <Tree
+              view={view}
+              now={now}
+              level={level}
+              narrow
+              refusalOf={(card) => researchRefusalOf(card, situation)}
+              pose={pose}
+            />
+            {legend}
+          </div>
+        )}
+      </BottomSheet>
+    );
+
   return (
     <FloatingWindow
       name="research"
@@ -179,21 +258,10 @@ export function ResearchWindow({
               refusalOf={(card) => researchRefusalOf(card, situation)}
               pose={pose}
             />
-            <div className="flex flex-wrap gap-x-[14px] gap-y-[6px] pt-[10px] text-[11px] text-[var(--ink-soft)]">
-              <span>{fr.research.legendDone}</span>
-              <span>{fr.research.legendAhead}</span>
-              <span>{fr.research.legendHow}</span>
-            </div>
+            {legend}
           </main>
         </div>
-        {razable !== undefined && (
-          <RazeButton
-            view={view}
-            building={razable}
-            region={view.me.regions.find((one) => one.id === razable.regionId)?.name}
-            className="px-[10px] pb-[9px]"
-          />
-        )}
+        {raze}
       </div>
     </FloatingWindow>
   );

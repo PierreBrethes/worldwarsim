@@ -176,12 +176,9 @@ describe('the sheets that cover the map', () => {
     return { count: () => count, unmount };
   };
 
-  it('counts a site sheet while it stands, and no more once it leaves', () => {
+  it('counts nothing for a site sheet: it is a low sheet, the map stays in view (#587)', () => {
     workshop = workshopWith([]);
-    const sheet = covering('B-1');
-    expect(sheet.count()).toBe(1);
-    sheet.unmount();
-    expect(sheet.count()).toBe(0);
+    expect(covering('B-1').count()).toBe(0);
   });
 
   it('counts nothing for the sheet of a fallen building that the URL still names', () => {
@@ -234,5 +231,52 @@ describe('a site sheet on a phone', () => {
 
     act(() => screen.getByRole('tab', { name: /garnison/ }).click());
     expect(screen.getByText(fr.production.sheet.garrisonEmpty.land)).toBeTruthy();
+  });
+
+  it('puts « +1 troupe » on each queue line, the same order as « Former » for that role (#587)', () => {
+    workshop = workshopWith([
+      { id: 'R-1', role: 'infantry', tier: 1, strength: 50, started: true, minutesLeft: 12 },
+      { id: 'R-2', role: 'landTransport', tier: 1, strength: 24, started: false, minutesLeft: 38 },
+    ]);
+    mount();
+
+    act(() => screen.getByRole('tab', { name: /file/ }).click());
+    const more = screen.getAllByRole('button', { name: fr.production.sheet.plusOne });
+    expect(more).toHaveLength(2);
+    act(() => more[1]!.click());
+    expect(sent).toHaveBeenCalledWith(
+      expect.objectContaining({ buildingId: 'B-1', role: 'landTransport', tier: 1 }),
+    );
+  });
+
+  it('says one sentence on an empty queue (#587)', () => {
+    workshop = workshopWith([]);
+    mount();
+
+    act(() => screen.getByRole('tab', { name: /file/ }).click());
+    expect(screen.getByText(fr.personalBoard.siteQueueEmpty)).toBeTruthy();
+  });
+
+  it("closes by the sheet's own header, which names the building", () => {
+    workshop = workshopWith([]);
+    const onClose = vi.fn();
+    render(
+      <ConvexProvider client={client}>
+        <SiteModal
+          view={view}
+          seat={SEAT}
+          buildingId="B-1"
+          rank={0}
+          inFront
+          onBringForward={() => {}}
+          onOpenGunnery={() => {}}
+          onPrepare={() => {}}
+          onClose={onClose}
+        />
+      </ConvexProvider>,
+    );
+    expect(screen.getByRole('heading', { name: 'Caserne' })).toBeTruthy();
+    act(() => screen.getByRole('button', { name: fr.common.close }).click());
+    expect(onClose).toHaveBeenCalled();
   });
 });

@@ -12,7 +12,7 @@ import {
 import { createPortal } from 'react-dom';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
-import { spedMinutes, speedsUp, worksMinutes } from '@/domain/level-speed';
+import { spedMinutes, speedsUp } from '@/domain/level-speed';
 import { countdownLabel, fr, roleLabel, upgradeHoldText } from '@/i18n/fr';
 import { handleError } from '@/data/errors';
 import { keepTilesStep, readTilesStep } from '@/data/settings';
@@ -30,6 +30,7 @@ import { useSurfaceHeld } from '@/shell/sole-surface';
 import { useNarrowScreen } from '@/shell/viewport';
 import {
   keptLevelOf,
+  cancelWorkRefusalOf,
   keptOf,
   placementOf,
   reachesOf,
@@ -54,6 +55,7 @@ import { isSupplyKey, type SupplyLoad } from '@/domain/logistics';
 import type { MapMotion } from '@/domain/map-motion';
 import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
 import { UnitSprite } from '@/emblems/UnitSprite';
+import { worksOf, useCancelWork } from './works';
 import { buildingsOfMaquette, type MaquetteAt } from './board-markers';
 import { conditionText } from './FoundationRows';
 import { LotControl } from './LotControl';
@@ -1598,42 +1600,6 @@ function WorkLine({ view, now }: { view: PlayerView; now: number }) {
   );
 }
 
-/** Le chantier en tête puis la file, avec ce qui reste à chacun : le temps de la tête se lit
- *  depuis sa date, celui d'une ligne en file est sa durée entière. */
-function worksOf(view: PlayerView, now: number) {
-  const head = view.me.construction;
-  return [
-    ...(head === null ? [] : [{ work: head, running: true as const }]),
-    ...view.me.constructionQueue.map((work) => ({ work, running: false as const })),
-  ].map(({ work, running }) => {
-    const total =
-      (running ? work.minutes : undefined) ?? worksMinutes(work.key, work.level, view.me.hqLevel);
-    return {
-      work,
-      running,
-      total,
-      left: running ? currentMinutes(work.minutesLeft, view.loadedAt, now) : total,
-      name: fr.personalBoard.work(
-        work.name,
-        work.kept === undefined ? work.level : keptLevelOf(work.kept, view.me.hqLevel),
-      ),
-    };
-  });
-}
-
-/** Une ligne en file se retire et se rembourse (`constructions.cancel`) ; son refus se dit. */
-function useCancelWork(seat: Seat, onSpent: () => void) {
-  const drop = useMutation(api.constructions.cancel);
-  const [error, setError] = useState<string | null>(null);
-  const cancel = (id: string) => {
-    setError(null);
-    drop({ ...seat, constructionId: id as Id<'constructions'> }).then(onSpent, (problem: unknown) =>
-      handleError(problem, setError),
-    );
-  };
-  return { cancel, error };
-}
-
 /** La barre du chantier en tête : la part déjà bâtie. */
 function WorkBar({ total, left, className }: { total: number; left: number; className: string }) {
   return (
@@ -1732,7 +1698,7 @@ function Works({ view, seat, now, observing, ledger, onReplay, onSpent }: WorksP
                 {countdownLabel(left * 60_000)}
               </small>
             )}
-            {!running && !observing && (
+            {cancelWorkRefusalOf({ started: running }) === null && !observing && (
               <button
                 type="button"
                 title={fr.economy.queueCancelTitle}
@@ -1745,6 +1711,11 @@ function Works({ view, seat, now, observing, ledger, onReplay, onSpent }: WorksP
             )}
           </span>
           {running && <WorkBar total={total} left={left} className="" />}
+          {cancelWorkRefusalOf({ started: running }) !== null && (
+            <small className="block text-[10.5px] leading-[1.3] text-[var(--ink-soft)]">
+              {fr.errors.CONSTRUCTION_ALREADY_STARTED()}
+            </small>
+          )}
           <small className="block truncate font-(family-name:--font-mono) text-[9.5px] leading-[1.2] text-[var(--ink-soft)]">
             {running
               ? fr.personalBoard.runningAt(work.regionName)
@@ -1844,7 +1815,7 @@ function Volet({ view, seat, now, observing, ledger, onReplay, onSpent }: WorksP
                       </span>
                     </small>
                   </span>
-                  {running ? (
+                  {cancelWorkRefusalOf({ started: running }) !== null ? (
                     <WorkBar total={total} left={left} className="w-[52px]" />
                   ) : (
                     !observing && (

@@ -38,6 +38,7 @@ import { UpgradeControl } from './UpgradeControl';
 import { RaiseControl } from './RaiseControl';
 import { GunneryButton } from './GunneryButton';
 import { GarrisonStack } from './GarrisonStack';
+import { BottomSheet } from '@/shell/BottomSheet';
 import { FloatingWindow, useWindowSized, type WindowProps, WindowHead } from './Window';
 import { useNarrowScreen } from '@/shell/viewport';
 import { RazeButton } from './RazeButton';
@@ -73,10 +74,36 @@ export function SiteModal({
   onOpenGunnery: () => void;
   onPrepare: (station: TroopStation, troopIds: ReadonlyArray<string>) => void;
 }) {
+  const narrow = useNarrowScreen();
   const building = view.me.buildings.find((candidate) => candidate.id === buildingId) ?? null;
   /** Un lien mort — le bâtiment est tombé, l'URL le nomme encore — n'ouvre pas un cadre vide :
    *  il n'ouvre rien, et la carte reste ce qu'elle est. */
   if (building === null || !hasSiteSheet(view.mode, building.key)) return null;
+
+  /** **Sous le seuil, la feuille est son propre cadre** (#587) : une feuille basse qui laisse la
+   *  carte en vue, jamais une fenêtre plein écran. Son en-tête est celui de la feuille. */
+  if (narrow)
+    return view.mode === 'blitz' ? (
+      <BlitzSite
+        key={building.id}
+        view={view}
+        seat={seat}
+        building={building}
+        onOpenGunnery={onOpenGunnery}
+        onPrepare={onPrepare}
+        onClose={onClose}
+      />
+    ) : (
+      <Site
+        key={building.id}
+        view={view}
+        seat={seat}
+        building={building}
+        onOpenGunnery={onOpenGunnery}
+        onPrepare={onPrepare}
+        onClose={onClose}
+      />
+    );
 
   return (
     <FloatingWindow name="site" onClose={onClose} {...windowProps} alignment="top" width={1180}>
@@ -436,24 +463,10 @@ function BlitzSite({
   const army = view.me.troops.length + (workshop?.troopsQueued ?? 0);
   const income = incomePerMinute([building.key]);
   const mending = held.filter((troop) => troop.mending).length;
+  const narrow = useNarrowScreen();
 
-  return (
+  const body = (
     <>
-      <WindowHead
-        lead={<BuildingPlate building={building.key} height={30} />}
-        eyebrow={fr.economy.inRegion(region?.name ?? building.regionId)}
-        title={fr.buildings[building.key]}
-        onClose={onClose}
-      >
-        {income > 0 && (
-          <span className="font-(family-name:--font-mono) text-[12px] text-[var(--ink)]">
-            {fr.blitz.siteIncome(income)}
-          </span>
-        )}
-        <span className="font-(family-name:--font-mono) text-[12px] text-[var(--ink-soft)]">
-          {fr.blitz.fundsHeld(funds)}
-        </span>
-      </WindowHead>
       <UnderCapture view={view} buildingId={building.id} />
       {error && (
         <p className="shrink-0 border-b border-[var(--critical)] px-4 py-[9px] text-[12.5px] text-[var(--critical)]">
@@ -582,6 +595,46 @@ function BlitzSite({
       </div>
     </>
   );
+  /** **Sous le seuil, la feuille de la Blitz** (#587) : sans onglets, au cran moitié ; l'en-tête est
+   *  celui de la feuille, ce que le site verse et les fonds sur sa ligne. */
+  if (narrow)
+    return (
+      <BottomSheet
+        title={fr.buildings[building.key]}
+        aside={
+          <span className="min-w-0 truncate font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
+            {income > 0 ? `${fr.blitz.siteIncome(income)} · ` : ''}
+            {fr.blitz.fundsHeld(funds)}
+          </span>
+        }
+        onClose={onClose}
+        initial="half"
+        keepsSelection
+      >
+        {body}
+        <RazeButton view={view} building={building} className="px-4 py-3" />
+      </BottomSheet>
+    );
+  return (
+    <>
+      <WindowHead
+        lead={<BuildingPlate building={building.key} height={30} />}
+        eyebrow={fr.economy.inRegion(region?.name ?? building.regionId)}
+        title={fr.buildings[building.key]}
+        onClose={onClose}
+      >
+        {income > 0 && (
+          <span className="font-(family-name:--font-mono) text-[12px] text-[var(--ink)]">
+            {fr.blitz.siteIncome(income)}
+          </span>
+        )}
+        <span className="font-(family-name:--font-mono) text-[12px] text-[var(--ink-soft)]">
+          {fr.blitz.fundsHeld(funds)}
+        </span>
+      </WindowHead>
+      {body}
+    </>
+  );
 }
 
 type WorkshopView = NonNullable<ReturnType<typeof useQuery<typeof api.troops.workshop>>>;
@@ -695,7 +748,7 @@ function NarrowSite({
   const sheet = useRef<HTMLElement>(null);
   const pick = (next: SheetTab) => {
     setTab(next);
-    if (sheet.current !== null) sheet.current.scrollTop = 0;
+    sheet.current?.parentElement?.scrollTo?.(0, 0);
   };
 
   const ready = workshop !== undefined && facility !== null;
@@ -743,220 +796,218 @@ function NarrowSite({
   const running = queue.filter((batch) => batch.started);
   const waiting = queue.filter((batch) => !batch.started);
 
+  const pinned = (
+    <div className="paper-grain border-b border-[var(--ink)]">
+      {/* Un état, jamais une action (ADR 0020 §6) : ce qui se reprend se reprend sur la carte. */}
+      {unlinked && (
+        <div className="px-4 pt-2 pb-2">
+          <Stamp label={fr.stamps.unlinkedBy(view.me.unlinkedShare)} tone="critical" size="small" />
+        </div>
+      )}
+      <UnderCapture view={view} buildingId={building.id} />
+      <div role="tablist" className="grid h-[40px] grid-cols-4">
+        {(['form', 'queue', 'garrison', 'site'] as const).map((id) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            onClick={() => pick(id)}
+            className={`flex cursor-pointer items-center justify-center gap-[6px] border-b-[3px] text-[10.5px] tracking-[.14em] uppercase ${
+              tab === id
+                ? 'border-[var(--ink)] font-bold text-[var(--ink)]'
+                : 'border-transparent font-semibold text-[var(--ink-soft)]'
+            }`}
+          >
+            {fr.production.sheet.tabs[id]}
+            {counts[id] !== '' && (
+              <span className="font-(family-name:--font-mono) text-[11px] tracking-normal">
+                {counts[id]}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+      {ready && (
+        <div className="flex min-h-[42px] items-center border-t border-(color:--ink)/25 py-[6px] pr-[14px] pl-4">
+          <span className="truncate text-[12.5px] leading-[1.1]">
+            {fr.production.sheet.capLine(workshop.troopsInService, workshop.troopsQueued)}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+
   return (
-    <article
-      ref={sheet}
-      className="paper-grain min-h-0 w-full flex-1 overflow-y-auto overscroll-contain text-[var(--ink)]"
-    >
-      <div className="paper-grain sticky top-0 z-[2] border-b border-[var(--ink)]">
-        <div className="flex min-h-[56px] items-center gap-[10px] py-[6px] pr-3 pl-[14px]">
-          <BuildingPlate building={building.key} height={40} />
-          <div className="min-w-0 flex-1">
-            <div className="truncate font-(family-name:--font-display) text-[21px] leading-[1.05] font-extrabold">
-              {fr.buildings[building.key]}
-            </div>
-            <div className="mt-[2px] truncate text-[12.5px] text-[var(--ink-soft)]">
-              {fr.production.siteLevel(building.level)} · {fr.economy.inRegion(regionName)}
-            </div>
-          </div>
+    /* **Une feuille basse, la carte en vue** (#587) : l'en-tête est celui de la feuille, les onglets
+       et le plafond restent épinglés dessous, la caserne touchée reste au-dessus d'elle. */
+    <BottomSheet
+      title={fr.buildings[building.key]}
+      aside={
+        <>
+          <span className="min-w-0 truncate text-[12px] text-[var(--ink-soft)]">
+            {fr.production.siteLevel(building.level)} · {fr.economy.inRegion(regionName)}
+          </span>
           <span className="flex h-[36px] w-[44px] shrink-0 [&>button]:h-full [&>button]:w-full [&>button]:justify-center">
             <GunneryButton onOpen={onOpenGunnery} />
           </span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-[36px] shrink-0 cursor-pointer border border-[var(--ink)] px-3 text-[10px] font-semibold tracking-[.18em] uppercase"
-          >
-            {fr.common.close}
-          </button>
-        </div>
-        {/* Un état, jamais une action (ADR 0020 §6) : ce qui se reprend se reprend sur la carte. */}
-        {unlinked && (
-          <div className="px-4 pb-2">
-            <Stamp
-              label={fr.stamps.unlinkedBy(view.me.unlinkedShare)}
-              tone="critical"
-              size="small"
-            />
-          </div>
-        )}
-        <UnderCapture view={view} buildingId={building.id} />
-        <div role="tablist" className="grid h-[40px] grid-cols-4">
-          {(['form', 'queue', 'garrison', 'site'] as const).map((id) => (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              aria-selected={tab === id}
-              onClick={() => pick(id)}
-              className={`flex cursor-pointer items-center justify-center gap-[6px] border-b-[3px] text-[10.5px] tracking-[.14em] uppercase ${
-                tab === id
-                  ? 'border-[var(--ink)] font-bold text-[var(--ink)]'
-                  : 'border-transparent font-semibold text-[var(--ink-soft)]'
-              }`}
-            >
-              {fr.production.sheet.tabs[id]}
-              {counts[id] !== '' && (
-                <span className="font-(family-name:--font-mono) text-[11px] tracking-normal">
-                  {counts[id]}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-        {ready && (
-          <div className="flex min-h-[42px] items-center border-t border-(color:--ink)/25 py-[6px] pr-[14px] pl-4">
-            <span className="truncate text-[12.5px] leading-[1.1]">
-              {fr.production.sheet.capLine(workshop.troopsInService, workshop.troopsQueued)}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {error && (
-        <p className="border-b border-[var(--critical)] px-4 py-[9px] text-[12.5px] text-[var(--critical)]">
-          {error}
-        </p>
-      )}
-
-      {!ready ? (
-        <p className="px-4 py-6 text-[13px] text-[var(--ink-soft)]">{fr.production.opening}</p>
-      ) : tab === 'form' ? (
-        <>
-          {!view.me.defeated && (
-            <SiteLadder
-              building={building}
-              view={view}
-              seat={seat}
-              now={now}
-              siteLevel={siteLevel}
-            />
-          )}
-          <SheetHeading
-            title={fr.production.sheet.formHeader}
-            note={fr.production.sheet.formNote}
-          />
-          {open.map((entry) => (
-            <RoleSheetCard
-              key={entry.role}
-              entry={entry}
-              nation={nation}
-              tier={tiers[entry.role] ?? 1}
-              onTier={(picked) => onTier(entry.role, picked)}
-              owned={workshop.roster.filter((row) => row.role === entry.role)}
-              cost={termsOf(entry).cost}
-              siteName={facility.regionName}
-              blocked={blockOf(entry)}
-              lacking={lackOf(view, now, termsOf(entry).cost.costs)}
-              onEnqueue={enqueueOf(entry.role, (id) => setRecruited({ id, at: Date.now() }))}
-            />
-          ))}
-          {locked.length > 0 && (
-            <>
-              <div className="mt-[18px] flex items-baseline justify-between gap-[10px] border-t-2 border-[var(--ink)] px-4 pt-3 pb-[6px]">
-                <span className="font-(family-name:--font-display) text-[18px] font-extrabold">
-                  {fr.production.sheet.lockedHeader}
-                </span>
-                <span className="text-[12px] text-[var(--ink-quiet)]">
-                  {fr.production.sheet.lockedNote}
-                </span>
-              </div>
-              {locked.map((entry) => (
-                <LockedRoleLine key={entry.role} entry={entry} nation={nation} />
-              ))}
-            </>
-          )}
         </>
-      ) : tab === 'queue' ? (
-        <>
-          {running.map((batch) => (
-            <RunningCard
-              key={batch.id}
-              batch={batch}
-              nation={nation}
-              loadedAt={workshop.loadedAt}
-              now={now}
-              totalMinutes={minutesOf(batch)}
-              deliveredAt={deliveredAt(batch)}
-            />
-          ))}
-          {waiting.length > 0 && (
-            <>
-              <SheetHeading
-                title={fr.production.sheet.waitingHeader}
-                note={fr.production.sheet.waitingNote}
+      }
+      onClose={onClose}
+      initial="peek"
+      hug
+      keepsSelection
+      pinned={pinned}
+    >
+      <article ref={sheet} className="text-[var(--ink)]">
+        {error && (
+          <p className="border-b border-[var(--critical)] px-4 py-[9px] text-[12.5px] text-[var(--critical)]">
+            {error}
+          </p>
+        )}
+
+        {tab === 'site' ? (
+          <>
+            <SiteStats view={view} building={building} />
+            {/* **« Raser » vit dans la fiche** (#587) : la confirmation dit ce qui est perdu. */}
+            <RazeButton view={view} building={building} className="px-4 py-3" />
+          </>
+        ) : !ready ? (
+          <p className="px-4 py-6 text-[13px] text-[var(--ink-soft)]">{fr.production.opening}</p>
+        ) : tab === 'form' ? (
+          <>
+            {!view.me.defeated && (
+              <SiteLadder
+                building={building}
+                view={view}
+                seat={seat}
+                now={now}
+                siteLevel={siteLevel}
               />
-              {waiting.map((batch, index) => (
-                <WaitingLine
-                  key={batch.id}
-                  batch={batch}
-                  rank={index + running.length + 1}
-                  nation={nation}
-                  minutes={minutesOf(batch)}
-                  deliveredAt={deliveredAt(batch)}
-                  onCancel={cancelOf(batch)}
+            )}
+            <SheetHeading
+              title={fr.production.sheet.formHeader}
+              note={fr.production.sheet.formNote}
+            />
+            {open.map((entry) => (
+              <RoleSheetCard
+                key={entry.role}
+                entry={entry}
+                nation={nation}
+                tier={tiers[entry.role] ?? 1}
+                onTier={(picked) => onTier(entry.role, picked)}
+                owned={workshop.roster.filter((row) => row.role === entry.role)}
+                cost={termsOf(entry).cost}
+                siteName={facility.regionName}
+                blocked={blockOf(entry)}
+                lacking={lackOf(view, now, termsOf(entry).cost.costs)}
+                onEnqueue={enqueueOf(entry.role, (id) => setRecruited({ id, at: Date.now() }))}
+              />
+            ))}
+            {locked.length > 0 && (
+              <>
+                <div className="mt-[18px] flex items-baseline justify-between gap-[10px] border-t-2 border-[var(--ink)] px-4 pt-3 pb-[6px]">
+                  <span className="font-(family-name:--font-display) text-[18px] font-extrabold">
+                    {fr.production.sheet.lockedHeader}
+                  </span>
+                  <span className="text-[12px] text-[var(--ink-quiet)]">
+                    {fr.production.sheet.lockedNote}
+                  </span>
+                </div>
+                {locked.map((entry) => (
+                  <LockedRoleLine key={entry.role} entry={entry} nation={nation} />
+                ))}
+              </>
+            )}
+          </>
+        ) : tab === 'queue' ? (
+          <>
+            {running.map((batch) => (
+              <RunningCard
+                key={batch.id}
+                batch={batch}
+                nation={nation}
+                loadedAt={workshop.loadedAt}
+                now={now}
+                totalMinutes={minutesOf(batch)}
+                deliveredAt={deliveredAt(batch)}
+                onMore={enqueueOf(batch.role, () => {})}
+              />
+            ))}
+            {waiting.length > 0 && (
+              <>
+                <SheetHeading
+                  title={fr.production.sheet.waitingHeader}
+                  note={fr.production.sheet.waitingNote}
                 />
-              ))}
-            </>
-          )}
-          {queue.length === 0 && (
-            <div className="px-4 pt-7 pb-1">
-              <div className="font-(family-name:--font-display) text-[19px] leading-[1.2] font-extrabold">
-                {fr.production.sheet.queueEmptyTitle}
+                {waiting.map((batch, index) => (
+                  <WaitingLine
+                    key={batch.id}
+                    batch={batch}
+                    rank={index + running.length + 1}
+                    nation={nation}
+                    minutes={minutesOf(batch)}
+                    deliveredAt={deliveredAt(batch)}
+                    onCancel={cancelOf(batch)}
+                    onMore={enqueueOf(batch.role, () => {})}
+                  />
+                ))}
+              </>
+            )}
+            {queue.length === 0 && (
+              <div className="px-4 pt-7 pb-1">
+                <div className="text-[13.5px] leading-[1.45] text-[var(--ink-soft)]">
+                  {fr.personalBoard.siteQueueEmpty}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => pick('form')}
+                  className="mt-[14px] h-[48px] cursor-pointer border border-[var(--ink)] px-[18px] text-[11px] font-bold tracking-[.16em] uppercase"
+                >
+                  {fr.production.sheet.formHeader}
+                </button>
               </div>
-              <div className="mt-[6px] text-[13.5px] leading-[1.45] text-[var(--ink-soft)]">
-                {fr.production.sheet.queueEmptyNote}
-              </div>
-              <button
-                type="button"
-                onClick={() => pick('form')}
-                className="mt-[14px] h-[48px] cursor-pointer border border-[var(--ink)] px-[18px] text-[11px] font-bold tracking-[.16em] uppercase"
-              >
-                {fr.production.sheet.formHeader}
-              </button>
+            )}
+            <div className="mx-4 mt-[18px] mb-6">
+              <HelpMark>{fr.production.sheet.queueNote(aSecondBuilding(building.key))}</HelpMark>
             </div>
-          )}
-          <div className="mx-4 mt-[18px] mb-6">
-            <HelpMark>{fr.production.sheet.queueNote(aSecondBuilding(building.key))}</HelpMark>
+          </>
+        ) : held.length === 0 ? (
+          <div className="px-4 pt-7 pb-6">
+            <div className="font-(family-name:--font-display) text-[19px] leading-[1.2] font-extrabold">
+              {fr.production.sheet.garrisonEmpty[facility.domain]}
+            </div>
+            <div className="mt-[6px] text-[13.5px] leading-[1.45] text-[var(--ink-soft)]">
+              {fr.production.sheet.garrisonEmptyNote}
+            </div>
           </div>
-        </>
-      ) : tab === 'site' ? (
-        <SiteStats view={view} building={building} />
-      ) : held.length === 0 ? (
-        <div className="px-4 pt-7 pb-6">
-          <div className="font-(family-name:--font-display) text-[19px] leading-[1.2] font-extrabold">
-            {fr.production.sheet.garrisonEmpty[facility.domain]}
-          </div>
-          <div className="mt-[6px] text-[13.5px] leading-[1.45] text-[var(--ink-soft)]">
-            {fr.production.sheet.garrisonEmptyNote}
-          </div>
-        </div>
-      ) : (
-        /* La garnison du site est la composition même de 1e : la feuille la porte telle quelle
+        ) : (
+          /* La garnison du site est la composition même de 1e : la feuille la porte telle quelle
            plutôt qu'un bouton « composer une pile » qui n'ouvrirait qu'elle. */
-        <div className="px-3 pt-3 pb-4">
-          <GarrisonStack
-            view={view}
-            station={station}
-            held={held}
-            preselect={[]}
-            canPrepare
-            observing={view.me.defeated}
-            onPrepare={onPrepare}
-          />
-        </div>
-      )}
+          <div className="px-3 pt-3 pb-4">
+            <GarrisonStack
+              view={view}
+              station={station}
+              held={held}
+              preselect={[]}
+              canPrepare
+              observing={view.me.defeated}
+              onPrepare={onPrepare}
+            />
+          </div>
+        )}
 
-      {noticed !== undefined && (
-        <RecruitedNotice
-          batch={noticed}
-          rank={noticeIndex + 1}
-          deliveredAt={deliveredAt(noticed)}
-          onUndo={noticed.started ? null : cancelOf(noticed)}
-          onDone={() => setRecruited(null)}
-        />
-      )}
-    </article>
+        {noticed !== undefined && (
+          <RecruitedNotice
+            batch={noticed}
+            rank={noticeIndex + 1}
+            deliveredAt={deliveredAt(noticed)}
+            onUndo={noticed.started ? null : cancelOf(noticed)}
+            onDone={() => setRecruited(null)}
+          />
+        )}
+      </article>
+    </BottomSheet>
   );
 }
 
@@ -1176,6 +1227,7 @@ function RunningCard({
   now,
   totalMinutes,
   deliveredAt,
+  onMore,
 }: {
   batch: Batch;
   nation: string;
@@ -1183,6 +1235,7 @@ function RunningCard({
   now: number;
   totalMinutes: number;
   deliveredAt: string;
+  onMore: (() => void) | null;
 }) {
   const left = currentMinutes(batch.minutesLeft, loadedAt, now);
   const done = totalMinutes > 0 ? Math.min(1, Math.max(0, 1 - left / totalMinutes)) : 0;
@@ -1222,7 +1275,22 @@ function RunningCard({
       <div className="mt-2 text-[12px] text-[var(--ink-quiet)] italic">
         {fr.production.sheet.deliveredAround(deliveredAt)} · {fr.production.cancelStarted}
       </div>
+      <MoreButton onMore={onMore} />
     </div>
+  );
+}
+
+/** **« +1 troupe »** (#587) : la même commande que « Former » pour ce rôle, `enqueueOf(role)`. */
+function MoreButton({ onMore, inline = false }: { onMore: (() => void) | null; inline?: boolean }) {
+  if (onMore === null) return null;
+  return (
+    <button
+      type="button"
+      onClick={onMore}
+      className={`h-[44px] shrink-0 cursor-pointer border border-[var(--ink)] px-[10px] text-[10.5px] font-semibold tracking-[.12em] uppercase ${inline ? '' : 'mt-[10px] w-full'}`}
+    >
+      {fr.production.sheet.plusOne}
+    </button>
   );
 }
 
@@ -1234,6 +1302,7 @@ function WaitingLine({
   minutes,
   deliveredAt,
   onCancel,
+  onMore,
 }: {
   batch: Batch;
   rank: number;
@@ -1241,6 +1310,7 @@ function WaitingLine({
   minutes: number;
   deliveredAt: string;
   onCancel: (() => void) | null;
+  onMore: (() => void) | null;
 }) {
   return (
     <div className="flex min-h-[58px] items-center gap-[10px] border-b border-(color:--ink)/18 py-[2px] pr-[10px] pl-4">
@@ -1262,6 +1332,7 @@ function WaitingLine({
           {asDuration(minutes)} · {fr.production.sheet.deliveredAround(deliveredAt)}
         </span>
       </span>
+      <MoreButton onMore={onMore} inline />
       {onCancel !== null && (
         <button
           type="button"

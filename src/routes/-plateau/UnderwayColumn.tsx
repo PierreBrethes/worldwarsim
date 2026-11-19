@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { fr } from '@/i18n/fr';
 import { asDuration, asShortDuration } from '@/domain/duration';
 import type { Underway, UnderwayFace } from '@/domain/underway';
@@ -7,6 +7,48 @@ import { BuildingPlate } from '@/emblems/Plate';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { Pictogram } from '@/shell/IndicatorGlyph';
 import { useClock } from '@/shell/clock';
+import { crowdedBy } from './underway-room';
+
+/** La hauteur d'un onglet et d'une ligne, et l'écart entre elles : la pile dépliée se calcule. */
+const HEAD_PX = 28;
+const ROW_PX = 44;
+const ROW_GAP_PX = 5;
+
+/**
+ * **La pile se replie sur son onglet quand ce qui monte du bas de la carte la recouvrirait**
+ * (#587) : les boutons et « Sonder » (`data-poster-floor`) suivent l'étage. Mesuré sur l'écran, à
+ * chaque changement d'étage (`--mat-rise` s'écrit sur la racine), de taille ou de lignes.
+ */
+function useCrowded(section: React.RefObject<HTMLElement | null>, count: number): boolean {
+  const [crowded, setCrowded] = useState(false);
+  useLayoutEffect(() => {
+    const measure = () => {
+      const head = section.current?.firstElementChild;
+      if (!head) return;
+      const at = head.getBoundingClientRect();
+      const scale = at.height / HEAD_PX || 1;
+      const pile = {
+        left: at.left,
+        right: at.left + 174 * scale,
+        top: at.top,
+        bottom: at.top + (HEAD_PX + count * (ROW_PX + ROW_GAP_PX)) * scale,
+      };
+      const floors = [...document.querySelectorAll('[data-poster-floor]')].map((node) =>
+        node.getBoundingClientRect(),
+      );
+      setCrowded(crowdedBy(pile, floors));
+    };
+    measure();
+    const watch = new MutationObserver(measure);
+    watch.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
+    addEventListener('resize', measure);
+    return () => {
+      watch.disconnect();
+      removeEventListener('resize', measure);
+    };
+  }, [section, count]);
+  return crowded;
+}
 
 /**
  * **« En cours », sous le bandeau du téléphone** (refonte mobile, 1a et 1d) : les horaires sans
@@ -35,14 +77,16 @@ export function UnderwayColumn({
 }) {
   const now = useClock();
   const [folded, setFolded] = useState(readUnderwayFolded);
+  const section = useRef<HTMLElement>(null);
+  const crowded = useCrowded(section, lines.length);
   if (lines.length === 0) return null;
 
   return (
-    <section className="hud flex flex-col items-start gap-[5px]">
+    <section ref={section} className="hud flex flex-col items-start gap-[5px]">
       <button
         type="button"
-        aria-expanded={!folded}
-        title={folded ? fr.underway.unfold : fr.underway.fold}
+        aria-expanded={!folded && !crowded}
+        title={folded || crowded ? fr.underway.unfold : fr.underway.fold}
         onClick={() => {
           keepUnderwayFolded(!folded);
           setFolded(!folded);
@@ -54,10 +98,10 @@ export function UnderwayColumn({
           {lines.length}
         </span>
         <span aria-hidden className="tracking-normal text-[var(--ink)]">
-          {folded ? '›' : '‹'}
+          {folded || crowded ? '›' : '‹'}
         </span>
       </button>
-      {lines.map((line) => {
+      {(crowded ? [] : lines).map((line) => {
         const isFresh = line.id === fresh;
         const open = !folded || isFresh;
         const minutesLeft = (line.endsAt - now) / 60_000;

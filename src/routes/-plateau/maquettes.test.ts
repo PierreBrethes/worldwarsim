@@ -179,6 +179,7 @@ describe('maquettesOf', () => {
       level: number,
       finishesAt: number | null,
     ): WorkSite => ({
+      workId: 'w',
       phase,
       key: 'mine',
       regionId: 'FRA-5328',
@@ -295,6 +296,7 @@ describe('maquettesOf', () => {
 
   it('serves the level a site stands at: mine, the one before a raise, and 1 for a survey', () => {
     const works = (phase: WorkSite['phase'], level: number): WorkSite => ({
+      workId: 'w',
       phase,
       key: 'mine',
       regionId: 'FRA-5328',

@@ -3986,9 +3986,7 @@ export const fr = {
       waitingHeader: 'en attente',
       waitingNote: 'payé d’avance · remboursé si annulé',
       rank: (rank: number) => `${rank}ᵉ`,
-      queueEmptyTitle: 'Aucune troupe en chaîne.',
-      queueEmptyNote:
-        'La première troupe enfilée commence aussitôt ; les suivantes attendent leur tour et restent remboursables.',
+      plusOne: '+1 troupe',
       queueNote: (aSecond: string) =>
         `Les files continuent pendant la plage de repos, comme les chantiers. Chaque bâtiment tient sa propre file : ${aSecond} forme en parallèle.`,
       garrisonEmpty: {
@@ -4145,7 +4143,7 @@ export const fr = {
     siteLeave: 'bâtiments',
     siteLeaveTitle: 'Revenir aux tuiles de bâtiments (Échap)',
     siteQueue: 'en formation',
-    siteQueueEmpty: 'Rien en formation : cliquez une carte.',
+    siteQueueEmpty: 'Rien en formation : touchez une troupe à former.',
     /** Ce que dit la main au-dessus d'une cible. */
     raise: (building: string, level: number) => `Élever ${lowerFirst(building)} au niveau ${level}`,
     /** Un bâtiment qu'un niveau accélère dit ce que le suivant rend (ADR 0031). */
@@ -4159,7 +4157,11 @@ export const fr = {
     hqSpeed: (line: string) => `QG ${line} sur chaque chantier`,
     worksFold: 'chantiers',
     /** **Le volet du bureau** (#580) : sous la file, ce que coûte un « annuler ». */
-    refundNote: 'En file, un chantier se rembourse ; commencé, non.',
+    refundNote: 'Un chantier en file s’annule et se rembourse ; commencé, il ne s’annule plus.',
+    /** La fiche d’un chantier (#587) : ce qu’il ne forme pas encore, et son rang. */
+    workSiteNothing: 'en chantier : rien ne s’y forme encore',
+    workSiteHead: 'en cours',
+    workSiteRank: (rank: number) => `${rank}ᵉ en file`,
     cancelWork: (work: string) => `Annuler ${work} : remboursé`,
     lotsHeader: 'arsenal · lots',
     noLots: 'aucun lot',
@@ -4185,6 +4187,8 @@ export const fr = {
 
   /** **Les cartes de recherche** (ADR 0028 §5) : dans l'arbre, sur le Centre de recherche. */
   research: {
+    /** Les deux onglets de la fiche du Centre au téléphone (#587). */
+    tabs: { post: 'poste', tree: 'arbre' },
     header: 'recherche',
     /** **La fenêtre de l'arbre** (#123, variante A « l'éventail ») : le Centre, ses postes en
      *  marge, l'arbre de haut en bas. */

@@ -71,6 +71,7 @@ import { BareMapPort } from '@/shell/sole-surface';
 import {
   forgetThen,
   garrisonRetouched as garrisonRetouchedBy,
+  retouches,
   sheetAfterTouch,
   siteRetouched,
 } from './-plateau/retouch';
@@ -284,6 +285,10 @@ const pileIdOf = (station: MarchStation): string =>
  *  1d) : de quoi le suivre, et le nom de l'ordre que la branche portait. */
 type SentOrder = Sent & { readonly order: string };
 
+const WorkSheet = lazy(() =>
+  import('./-plateau/WorkSheet').then((module) => ({ default: module.WorkSheet })),
+);
+
 const PersonalBoard = lazy(() =>
   import('./-plateau/PersonalBoard').then((module) => ({ default: module.PersonalBoard })),
 );
@@ -472,6 +477,8 @@ function BoardContent({
    * the guarantee rather than a missing button (decision 13a).
    */
   const [garrison, setGarrison] = useState<OpenGarrison | null>(null);
+  /** **La fiche d'un chantier**, au téléphone (#587) : la ligne de travail touchée sur la carte. */
+  const [workId, setWorkId] = useState<string | null>(null);
   /** **La pièce en main, seule source** (ADR 0026 §6) : la colonne armée et la main du moteur
    *  en dérivent, et `clickPile` est la seule règle qui la change sur la carte. */
   const [hand, setHand] = useState<Hand>(EMPTY_HAND);
@@ -1014,7 +1021,7 @@ function BoardContent({
        *  l'anneau sur son mât, et la bande du plateau personnel montre ce qu'il forme. Sa fiche
        *  s'ouvre depuis la bande. */
       /** Retoucher ce mât ne ferme rien : c'est une sélection, pas une feuille. */
-      if (!blitz && isProjectionKey(standing.key)) {
+      if (!blitz && !narrow && isProjectionKey(standing.key)) {
         setGarrison(null);
         setHand(EMPTY_HAND);
         if (narrow) frameOnOpen({ kind: 'journey', ids: [buildingLabelId(standing)] });
@@ -1037,11 +1044,24 @@ function BoardContent({
         void navigate({ search: (previous) => withoutWindow(previous, 'site') });
         return;
       }
-      if (siteModal) {
+      /** Le Centre de recherche a sa fiche au téléphone, comme un site : le retoucher la ferme. */
+      const research = narrow && standing.key === 'researchCenter';
+      if (
+        research &&
+        retouches(narrow, windows.includes('research') ? { id: focused ?? '' } : null, buildingId)
+      ) {
+        void navigate({ search: (previous) => withoutWindow(previous, 'research') });
+        return;
+      }
+      if (siteModal || research) {
         setGarrison(null);
         setHand(EMPTY_HAND);
-        forgetFrame();
-        setFocus({ ids: [buildingLabelId(standing)], nonce: Date.now() });
+        setWorkId(null);
+        if (narrow) frameOnOpen({ kind: 'journey', ids: [buildingLabelId(standing)] });
+        else {
+          forgetFrame();
+          setFocus({ ids: [buildingLabelId(standing)], nonce: Date.now() });
+        }
       } else if (!view.me.defeated) {
         /** **L'observateur garde la ligne, pas la pile** (décision du 31/08) : le panneau de
          *  garnison n'a qu'une sortie — « préparer » — et l'ouvrir à un défait promettrait
@@ -1101,6 +1121,20 @@ function BoardContent({
       windows,
       goTo,
     ],
+  );
+
+  /** **Le mât d'un chantier ouvre sa fiche** (#587), au téléphone : le doigt qui y revient la ferme. */
+  const openWork = useCallback(
+    (id: string) => {
+      setGarrison(null);
+      setHand(EMPTY_HAND);
+      setWorkId((open) => (retouches(narrow, open === null ? null : { id: open }, id) ? null : id));
+      const at = [view.me.construction, ...view.me.constructionQueue].find(
+        (work) => work?.id === id,
+      )?.point;
+      if (at) frameOnOpen({ kind: 'reveal', at });
+    },
+    [narrow, view.me.construction, view.me.constructionQueue, frameOnOpen],
   );
 
   /**
@@ -2296,7 +2330,7 @@ function BoardContent({
   /** **Le site de projection sélectionné** (#163) : celui que la bande fait former, tant
    *  qu'elle est dépliée et que sa fiche n'est pas devant. */
   const selectedSite =
-    blitz || !windows.includes('personalBoard') || windows.includes('site')
+    blitz || narrow || !windows.includes('personalBoard') || windows.includes('site')
       ? null
       : (view.me.buildings.find(
           (building) => building.id === focused && isProjectionKey(building.key),
@@ -3229,6 +3263,7 @@ function BoardContent({
                   }
                   onSelect={aimingOnPhone ? keepSelection : readBare}
                   onOpenBuilding={openBuilding}
+                  onOpenWork={narrow ? openWork : undefined}
                   onOpenStack={openStack}
                   holding={holding}
                   departures={departures}
@@ -3413,6 +3448,16 @@ function BoardContent({
                       setDismantling({ outpostId, x: window.innerWidth, y: at.y });
                     }}
                   />
+                )}
+                {narrow && workId !== null && (
+                  <Suspense fallback={null}>
+                    <WorkSheet
+                      view={view}
+                      seat={seat}
+                      workId={workId}
+                      onClose={() => setWorkId(null)}
+                    />
+                  </Suspense>
                 )}
                 {/* **La feuille de route d'un transport** (#551) : ouverte depuis son étiquette. */}
                 {!blitz && <TourSheet sheet={tourSheet} />}

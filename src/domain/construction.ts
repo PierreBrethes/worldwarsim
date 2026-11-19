@@ -846,6 +846,8 @@ export const riseOf = (minutesLeft: number, totalMinutes: number): number =>
  * its own mast.
  */
 export type WorkSite = {
+  /** La ligne de travail (`me.construction` ou `me.constructionQueue`) que ce mât porte. */
+  readonly workId: string;
   readonly phase: 'queued' | 'rising' | 'raising';
   readonly key: BuildingKey;
   readonly regionId: string;
@@ -863,7 +865,7 @@ export type WorkSite = {
 
 type RisingWork = Pick<
   NonNullable<PlayerView['me']['construction']>,
-  'key' | 'outpostId' | 'point' | 'regionId' | 'regionName' | 'minutesLeft'
+  'id' | 'key' | 'outpostId' | 'point' | 'regionId' | 'regionName' | 'minutesLeft'
 > & { readonly minutes?: number; readonly kept?: number };
 
 export function workSitesOf(
@@ -882,6 +884,7 @@ export function workSitesOf(
         ? undefined
         : me.buildings.find((building) => samePoint(building.point, at) && building.key === key);
     sites.push({
+      workId: work.id,
       phase: standing === undefined ? 'rising' : 'raising',
       key,
       regionId: work.regionId,
@@ -904,6 +907,7 @@ export function workSitesOf(
   me.constructionQueue.forEach((queued, k) => {
     if (queued.outpostId !== null || queued.key === 'outpost' || queued.level !== 1) return;
     sites.push({
+      workId: queued.id,
       phase: 'queued',
       key: queued.key,
       regionId: queued.regionId,
