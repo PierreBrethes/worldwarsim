@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { useMapMotion } from '@/data/mapMotion';
 import { fr } from '@/i18n/fr';
 import { motionNow, useLeaveGhost } from './paper-motion';
 import { isSettled, stepSpring, type Spring } from './sheet-spring';
@@ -62,6 +63,23 @@ const THROW_MS = 150;
 
 /** La vitesse du doigt se mesure sur ses dernières millisecondes de mouvement. */
 const VELOCITY_WINDOW_MS = 80;
+
+/**
+ * **Passer à l'objet voisin de sa famille** (#593) : ‹ et › de l'en-tête. `at` est l'objet ouvert ;
+ * son changement renouvelle le contenu en fondu de 120 ms, sauf réglage « coupées ».
+ */
+export type SheetCycle = {
+  readonly at: string;
+  readonly onPrev: () => void;
+  readonly onNext: () => void;
+};
+
+/** **Le contenu d'une fiche qui change d'objet** : il se renouvelle en fondu de 120 ms, sauf réglage
+ *  « coupées » (`useMapMotion`). Un composant à part : une feuille sans ‹ › ne lit pas le réglage. */
+function CycleFade({ children }: { children: ReactNode }) {
+  const fade = useMapMotion() === 'off' ? undefined : 'tab-fade';
+  return <div className={fade}>{children}</div>;
+}
 
 const SheetCloseContext = createContext<(() => void) | null>(null);
 
@@ -123,6 +141,7 @@ export function BottomSheet({
   crest,
   pinned,
   unfolds = false,
+  cycle,
   children,
 }: {
   title: string;
@@ -165,6 +184,8 @@ export function BottomSheet({
   /** **Toucher la ligne de titre déroule** : à l'aperçu, un toucher sur l'en-tête passe au cran
    *  moitié, comme tirer vers le haut (#587). */
   unfolds?: boolean;
+  /** Les voisins de l'objet ouvert dans sa famille, au téléphone ; sans lui, pas de ‹ ›. */
+  cycle?: SheetCycle | undefined;
   children: ReactNode;
 }) {
   const [own, setOwn] = useState<KeepingHeight>(initial);
@@ -388,7 +409,9 @@ export function BottomSheet({
                   aria-hidden
                   className="mx-auto mt-[6px] block h-[3px] w-[40px] bg-(--ink)/35"
                 />
-                <div className="flex items-center gap-3 border-b border-[var(--ink)] px-4 pt-[6px] pb-[8px]">
+                <div
+                  className={`flex items-center border-b border-[var(--ink)] pt-[6px] pb-[8px] ${cycle === undefined ? 'gap-3 px-4' : 'gap-2 px-3'}`}
+                >
                   <h2
                     className={
                       kicker
@@ -400,11 +423,29 @@ export function BottomSheet({
                   </h2>
                   {aside}
                   <span className="flex-1" />
+                  {cycle !== undefined &&
+                    (
+                      [
+                        ['‹', fr.common.previous, cycle.onPrev],
+                        ['›', fr.common.next, cycle.onNext],
+                      ] as const
+                    ).map(([glyph, label, go]) => (
+                      <button
+                        key={glyph}
+                        type="button"
+                        aria-label={label}
+                        onClick={go}
+                        onPointerDown={(event) => event.stopPropagation()}
+                        className="min-h-[44px] min-w-[40px] shrink-0 cursor-pointer text-[20px] leading-none text-[var(--ink)]"
+                      >
+                        {glyph}
+                      </button>
+                    ))}
                   <button
                     type="button"
                     onClick={onClose}
                     onPointerDown={(event) => event.stopPropagation()}
-                    className="min-h-[44px] shrink-0 cursor-pointer border border-[var(--ink)] px-[12px] text-[10px] tracking-[.18em] text-[var(--ink)] uppercase"
+                    className={`min-h-[44px] shrink-0 cursor-pointer border border-[var(--ink)] text-[10px] tracking-[.18em] text-[var(--ink)] uppercase ${cycle === undefined ? 'px-[12px]' : 'px-[8px]'}`}
                   >
                     {fr.common.close}
                   </button>
@@ -414,7 +455,7 @@ export function BottomSheet({
           </div>
           {pinned !== undefined && (
             <div ref={pin} className="shrink-0" hidden={collapsed && !moving}>
-              {pinned}
+              {cycle === undefined ? pinned : <CycleFade key={cycle.at}>{pinned}</CycleFade>}
             </div>
           )}
           {/* Caché plutôt que démonté : ce qu'il porte garde son état, et revient tel quel. */}
@@ -427,7 +468,7 @@ export function BottomSheet({
             }
             hidden={collapsed && !moving}
           >
-            {children}
+            {cycle === undefined ? children : <CycleFade key={cycle.at}>{children}</CycleFade>}
           </div>
           <div ref={setFoot} className="shrink-0 empty:hidden" hidden={collapsed && !moving} />
         </section>

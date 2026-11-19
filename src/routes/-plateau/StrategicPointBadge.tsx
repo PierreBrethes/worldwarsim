@@ -13,6 +13,7 @@ import type { StrategicPointView } from '@/domain/player-view';
 import { Flag } from '@/emblems/Flag';
 import type { Offer } from '@/domain/offers';
 import { useNarrowScreen } from '@/shell/viewport';
+import type { SheetCycle } from '@/shell/BottomSheet';
 import { MapCard } from './MapCard';
 import { leadOffersOf, StrikeOrders } from './StrikeOrders';
 
@@ -31,6 +32,7 @@ export function StrategicPointBadge({
   at,
   offers = [],
   onOffer,
+  cycle,
   onClose,
 }: {
   point: StrategicPointView;
@@ -42,6 +44,8 @@ export function StrategicPointBadge({
   /** Une offre par pile du joueur (`offersOf`), au téléphone : la prise part d'un toucher. */
   offers?: ReadonlyArray<Offer>;
   onOffer?: (offer: Offer) => void;
+  /** ‹ › de la fiche au téléphone : l'objet voisin de sa famille (#593). */
+  cycle?: SheetCycle | undefined;
   onClose: () => void;
 }) {
   const now = useClock(60_000);
@@ -64,6 +68,7 @@ export function StrategicPointBadge({
       at={at}
       gap={{ x: 64, y: 14 }}
       width={248}
+      cycle={cycle}
       onClose={onClose}
       sheet={{
         summary: (

@@ -57,6 +57,7 @@ export function BoardWindows({
   onShowBriefing,
   onBringForward,
   onClose,
+  siteCycle,
 }: {
   surfaces: ReadonlyArray<SurfaceName>;
   view: PlayerView;
@@ -80,6 +81,8 @@ export function BoardWindows({
   onShowBriefing: () => void;
   onBringForward: (name: BoardWindow) => void;
   onClose: (name: BoardWindow) => void;
+  /** ‹ › de la fiche du site au téléphone (#593). */
+  siteCycle?: ComponentProps<typeof SiteModal>['cycle'];
 }) {
   const surface = (name: SurfaceName, rank: number) => {
     const windowProps = {
@@ -119,6 +122,7 @@ export function BoardWindows({
             buildingId={focused}
             onOpenGunnery={() => onOpenWindow('gunnery')}
             onPrepare={onPrepare}
+            cycle={siteCycle}
             {...windowProps}
           />
         );

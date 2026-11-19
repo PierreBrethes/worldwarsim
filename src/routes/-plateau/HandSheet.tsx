@@ -9,6 +9,7 @@ import type { Offer } from '@/domain/offers';
 import { outpostNameIn, patrolLineOf } from '@/domain/patrol';
 import { unitsOf, type MarchStation } from '@/domain/troops';
 import type { PlayerView, TroopView } from '@/domain/player-view';
+import type { SheetCycle } from '@/shell/BottomSheet';
 import { useNarrowScreen } from '@/shell/viewport';
 import { GarrisonStack } from './GarrisonStack';
 import { GunneryButton } from './GunneryButton';
@@ -42,6 +43,7 @@ export function HandSheet({
   onOpenGunnery,
   onDrop,
   onApproach,
+  cycle,
 }: {
   view: PlayerView;
   station: MarchStation;
@@ -66,6 +68,8 @@ export function HandSheet({
   onDrop: () => void;
   /** La caméra descend sur la pile en main : au loin, au doigt, elle n'est qu'une épingle. */
   onApproach: () => void;
+  /** ‹ › : la pile voisine, au téléphone (#593). Jamais en Blitz, où le toucher défile les unités. */
+  cycle?: SheetCycle | undefined;
 }) {
   const narrow = useNarrowScreen();
   const [tab, setTab] = useState<PileTab>('troops');
@@ -125,6 +129,7 @@ export function HandSheet({
         width={240}
         hug={false}
         pinned={pinned}
+        cycle={cycle}
         onClose={onDrop}
       >
         <div className="mt-[6px] flex items-center gap-[8px]">
@@ -184,6 +189,7 @@ export function HandSheet({
          et la carte où l'on pose reste en vue ; les onglets se lisent en la déroulant. */
       hug={false}
       pinned={pinned}
+      cycle={cycle}
       onClose={onDrop}
     >
       {narrow && (

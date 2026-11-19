@@ -66,7 +66,9 @@ import { usePlacing } from './-plateau/usePlacing';
 import { BoardWindows } from './-plateau/BoardWindows';
 import { SheetCount } from './-plateau/Window';
 import { Shell } from '@/shell/Shell';
-import { SelectionSheetReport, sheetHeight, sheetLift } from '@/shell/BottomSheet';
+import { SelectionSheetReport, sheetHeight, sheetLift, type SheetCycle } from '@/shell/BottomSheet';
+import { cycleOf, type FamilySpot } from '@/domain/family-cycle';
+import { familiesOf } from './-plateau/board-families';
 import { BareMapPort } from '@/shell/sole-surface';
 import {
   forgetThen,
@@ -1868,6 +1870,71 @@ function BoardContent({
     ],
   );
 
+  /**
+   * **‹ et › de l'en-tête d'une fiche, au téléphone** (#593) : l'objet voisin de sa famille, qui
+   * prend la place de la fiche ouverte — la carte y va par `frameOnOpen`, jamais `journeyTo`, et
+   * rien ne s'empile dans l'historique : Retour ferme, il ne revient pas à la précédente.
+   */
+  const families = useMemo(() => familiesOf(view, markers, marching), [view, markers, marching]);
+  const cycleOfFamily = (
+    family: ReadonlyArray<FamilySpot>,
+    openId: string | null | undefined,
+    go: (id: string) => void,
+  ): SheetCycle | undefined => {
+    const around = narrow && openId ? cycleOf(family, openId) : null;
+    return around === null
+      ? undefined
+      : { at: openId!, onPrev: () => go(around.prev), onNext: () => go(around.next) };
+  };
+  const frameMarker = (marker: string | null) => {
+    if (marker !== null) frameOnOpen({ kind: 'journey', ids: [marker] });
+  };
+  const handCycle = cycleOfFamily(
+    families.pile,
+    hand.kind === 'held' ? stationKeyOf(hand.station) : null,
+    (key) => {
+      const station = families.stations.get(key);
+      if (station === undefined) return;
+      clearSelection();
+      liftHand({
+        kind: 'held',
+        station,
+        troopIds: troopsAt(view.me, key, marching).map((troop) => troop.id),
+      });
+      frameMarker(markerOfStation({ me: view.me }, station));
+    },
+  );
+  const outpostCycle = cycleOfFamily(
+    families.outpost,
+    garrison?.station.kind === 'outpost' ? garrison.station.outpostId : null,
+    (outpostId) => openGarrison({ kind: 'outpost', outpostId }, [], boardPoint()),
+  );
+  const siteCycle = cycleOfFamily(
+    families.building,
+    windows.includes('site') ? focused : null,
+    (buildingId) => {
+      const standing = view.me.buildings.find((candidate) => candidate.id === buildingId);
+      if (standing === undefined) return;
+      frameMarker(buildingLabelId(standing));
+      void navigate({
+        search: (previous) => ({ ...previous, building: buildingId }),
+        replace: true,
+      });
+    },
+  );
+  const campCycle = cycleOfFamily(families.camp, selectedCamp?.id, (id) => {
+    setSelectedCamp({ id, ...boardPoint() });
+    frameMarker(campPinId(id));
+  });
+  const objectiveCycle = cycleOfFamily(families.objective, selectedObjective?.id, (id) => {
+    setSelectedObjective({ id, ...boardPoint() });
+    frameMarker(objectiveMarkerId(id));
+  });
+  const pointCycle = cycleOfFamily(families.point, selectedPoint?.id, (id) => {
+    setSelectedPoint({ id, ...boardPoint() });
+    frameMarker(strategicMarkerId(id));
+  });
+
   const { arcs, loadedAt, captures, mode, journal } = view;
   const raceRings = useRaceRings(
     view.season.race,
@@ -3514,6 +3581,7 @@ function BoardContent({
                     offers={campOffers}
                     onOffer={strikeFrom}
                     onOpenGunnery={() => openWindow('gunnery')}
+                    cycle={campCycle}
                     onClose={closeCamp}
                   />
                 )}
@@ -3524,6 +3592,7 @@ function BoardContent({
                     at={selectedObjective}
                     offers={objectiveOffers}
                     onOffer={strikeFrom}
+                    cycle={objectiveCycle}
                     onClose={closeObjective}
                   />
                 )}
@@ -3537,6 +3606,7 @@ function BoardContent({
                     at={selectedPoint}
                     offers={pointOffers}
                     onOffer={strikeFrom}
+                    cycle={pointCycle}
                     onClose={closePoint}
                   />
                 )}
@@ -3590,6 +3660,7 @@ function BoardContent({
                     onClose={closeGarrison}
                     onPrepare={prepareColumn}
                     onPickedChange={setGarrisonPicked}
+                    cycle={outpostCycle}
                     onDismantle={(outpostId, at) => {
                       setGarrison(null);
                       setOrderError(null);
@@ -3644,6 +3715,7 @@ function BoardContent({
                     onOffer={runOffer}
                     onOpenGunnery={() => openWindow('gunnery')}
                     onDrop={dropHand}
+                    cycle={handCycle}
                   />
                 )}
                 <CombatToasts
@@ -3867,6 +3939,7 @@ function BoardContent({
                 ending={ending.facts}
                 blitz={blitz}
                 focused={focused}
+                siteCycle={siteCycle}
                 journalLead={journalLead}
                 rumors={lootRumors}
                 selectedRumorId={selectedRumorId}

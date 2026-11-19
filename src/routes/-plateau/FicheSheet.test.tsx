@@ -43,6 +43,53 @@ function Sheet() {
   );
 }
 
+describe('FicheSheet cycle (#593)', () => {
+  const tabs = [{ id: 'a', label: 'relevé' }];
+  const at = (id: string, go: { prev: () => void; next: () => void }) => (
+    <FicheSheet
+      title="Camp relevé"
+      summary={`résumé ${id}`}
+      tabs={tabs}
+      tab="a"
+      onTab={() => {}}
+      cycle={{ at: id, onPrev: go.prev, onNext: go.next }}
+      onClose={() => {}}
+    >
+      <p>contenu {id}</p>
+    </FicheSheet>
+  );
+
+  it('puts ‹ and › in the pinned header, each calling its own neighbour', () => {
+    const go = { prev: vi.fn(), next: vi.fn() };
+    render(at('x', go));
+    act(() => screen.getByRole('button', { name: 'objet suivant' }).click());
+    expect(go.next).toHaveBeenCalledTimes(1);
+    expect(go.prev).not.toHaveBeenCalled();
+    act(() => screen.getByRole('button', { name: 'objet précédent' }).click());
+    expect(go.prev).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows no arrows without a cycle', () => {
+    render(<Sheet />);
+    expect(screen.queryByRole('button', { name: 'objet suivant' })).toBeNull();
+  });
+
+  it('swaps the content in a 120 ms fade when the object changes, none when motion is cut', () => {
+    const go = { prev: () => {}, next: () => {} };
+    const { rerender } = render(at('x', go));
+    const first = screen.getByText('résumé x').closest('.tab-fade');
+    expect(first).not.toBeNull();
+    rerender(at('y', go));
+    const second = screen.getByText('résumé y').closest('.tab-fade');
+    expect(second).not.toBeNull();
+    expect(second).not.toBe(first);
+    cleanup();
+    act(() => setMapMotionSetting('off'));
+    render(at('x', go));
+    expect(screen.getByText('résumé x').closest('.tab-fade')).toBeNull();
+  });
+});
+
 describe('FicheSheet', () => {
   it('is short at first: the summary and the lead order, no tabs, no body (#588)', () => {
     render(<Sheet />);

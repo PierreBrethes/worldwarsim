@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { fr } from '@/i18n/fr';
-import { BottomSheet, type SheetHeight } from '@/shell/BottomSheet';
+import { BottomSheet, type SheetCycle, type SheetHeight } from '@/shell/BottomSheet';
 import { useNarrowScreen } from '@/shell/viewport';
 import { Draggable, DragHandle } from './Draggable';
 import { FicheSheet, type FicheTab } from './FicheSheet';
@@ -34,6 +34,7 @@ export function MapCard({
   initial = 'peek',
   pinned,
   sheet,
+  cycle,
   onClose,
   children,
 }: {
@@ -53,13 +54,15 @@ export function MapCard({
   /** Sous le seuil, la fiche à deux états et à onglets (#588) : `children` est le contenu de
    *  l'onglet ouvert. */
   sheet?: CardSheet;
+  /** Sous le seuil, ‹ › dans l'en-tête : l'objet voisin de sa famille (#593). */
+  cycle?: SheetCycle | undefined;
   onClose: () => void;
   children: ReactNode;
 }) {
   const narrow = useNarrowScreen();
   if (narrow && sheet !== undefined) {
     return (
-      <FicheSheet title={kicker} aside={aside} {...sheet} onClose={onClose}>
+      <FicheSheet title={kicker} aside={aside} {...sheet} cycle={cycle} onClose={onClose}>
         {children}
       </FicheSheet>
     );
@@ -75,6 +78,7 @@ export function MapCard({
         hug={hug}
         keepsSelection
         pinned={pinned}
+        cycle={cycle}
       >
         <div className="px-4 py-[10px]">{children}</div>
       </BottomSheet>

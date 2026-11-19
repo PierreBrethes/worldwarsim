@@ -5,6 +5,7 @@ import { objectiveArchetype } from '../../../convex/constants';
 import { ObjectivePlate } from '@/emblems/Plate';
 import type { Offer } from '@/domain/offers';
 import { useNarrowScreen } from '@/shell/viewport';
+import type { SheetCycle } from '@/shell/BottomSheet';
 import { MapCard } from './MapCard';
 import { leadOffersOf, StrikeOrders } from './StrikeOrders';
 
@@ -26,6 +27,7 @@ export function ObjectiveBadge({
   at,
   offers = [],
   onOffer,
+  cycle,
   onClose,
 }: {
   objective: ObjectiveView;
@@ -33,6 +35,8 @@ export function ObjectiveBadge({
   /** Une offre par pile du joueur (`offersOf`), au téléphone : « Attaquer » part d'un toucher. */
   offers?: ReadonlyArray<Offer>;
   onOffer?: (offer: Offer) => void;
+  /** ‹ › de la fiche au téléphone : l'objet voisin de sa famille (#593). */
+  cycle?: SheetCycle | undefined;
   onClose: () => void;
 }) {
   const name = fr.objectives.names[objective.key] ?? objective.key;
@@ -49,6 +53,7 @@ export function ObjectiveBadge({
       at={at}
       gap={{ x: ANCHOR_GAP, y: 14 }}
       width={228}
+      cycle={cycle}
       onClose={onClose}
       sheet={{
         summary: (

@@ -1165,6 +1165,9 @@ export const fr = {
 
   common: {
     close: 'fermer',
+    /** ‹ et › de l'en-tête d'une fiche au téléphone (#593) : l'objet voisin de sa famille. */
+    previous: 'objet précédent',
+    next: 'objet suivant',
     noNation: 'sans nation',
     dash: '—',
     /** Le niveau d'un bâtiment en abrégé, là où une ligne n'a pas la place du mot entier. */

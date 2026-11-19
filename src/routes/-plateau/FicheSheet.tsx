@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { useMapMotion } from '@/data/mapMotion';
-import { BottomSheet, type KeepingHeight } from '@/shell/BottomSheet';
+import { BottomSheet, type KeepingHeight, type SheetCycle } from '@/shell/BottomSheet';
 
 export type FicheTab = {
   readonly id: string;
@@ -26,6 +26,7 @@ export function FicheSheet({
   tabs,
   tab,
   onTab,
+  cycle,
   onClose,
   children,
 }: {
@@ -41,6 +42,8 @@ export function FicheSheet({
   tabs: ReadonlyArray<FicheTab>;
   tab: string;
   onTab: (id: string) => void;
+  /** ‹ › de l'en-tête : l'objet voisin de sa famille (#593). */
+  cycle?: SheetCycle | undefined;
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -101,6 +104,7 @@ export function FicheSheet({
       hug
       keepsSelection
       unfolds
+      cycle={cycle}
       height={height}
       onHeight={setHeight}
       pinned={pinned}

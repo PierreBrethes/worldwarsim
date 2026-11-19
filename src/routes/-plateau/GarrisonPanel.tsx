@@ -36,6 +36,7 @@ import type { PlayerView, TroopStation } from '@/domain/player-view';
 import { handleError } from '@/data/errors';
 import { Stamp } from '@/shell/Stamp';
 import { Draggable } from './Draggable';
+import type { SheetCycle } from '@/shell/BottomSheet';
 import { FicheSheet } from './FicheSheet';
 import { GarrisonStack } from './GarrisonStack';
 import { handOffersOf } from './hand-offers';
@@ -80,6 +81,7 @@ export function GarrisonPanel({
   onPrepare,
   onPickedChange,
   onDismantle,
+  cycle,
 }: {
   view: PlayerView;
   seat: Seat;
@@ -95,6 +97,8 @@ export function GarrisonPanel({
   /** **Démanteler, depuis la feuille** (#343) : au doigt, le toucher qui ouvre cette feuille
    *  referme la rose qui portait l'ordre. Le plateau pose alors la carte de confirmation. */
   onDismantle: (outpostId: string, at: { x: number; y: number }) => void;
+  /** ‹ › de la fiche d'un avant-poste au téléphone : l'avant-poste voisin (#593). */
+  cycle?: SheetCycle | undefined;
 }) {
   const marching = useMemo(() => marchingTroopIds(view.arcs), [view.arcs]);
   const stationKey = stationKeyOf(station);
@@ -197,6 +201,7 @@ export function GarrisonPanel({
         garrison={garrisonBody}
         onClose={onClose}
         onDismantle={onDismantle}
+        cycle={cycle}
       />
     );
 
@@ -325,6 +330,7 @@ function OutpostSheet({
   garrison,
   onClose,
   onDismantle,
+  cycle,
 }: {
   view: PlayerView;
   seat: Seat;
@@ -335,6 +341,7 @@ function OutpostSheet({
   garrison: ReactNode;
   onClose: () => void;
   onDismantle: (outpostId: string, at: { x: number; y: number }) => void;
+  cycle?: SheetCycle | undefined;
 }) {
   const [tab, setTab] = useState('garrison');
   const building = outpost.standsAt !== null;
@@ -374,6 +381,7 @@ function OutpostSheet({
       tabs={tabs}
       tab={tabs.some((one) => one.id === tab) ? tab : 'garrison'}
       onTab={setTab}
+      cycle={cycle}
       onClose={onClose}
     >
       {tab === 'raise' ? (

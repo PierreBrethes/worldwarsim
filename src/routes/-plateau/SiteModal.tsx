@@ -40,7 +40,7 @@ import { AbacusMark, GunneryButton } from './GunneryButton';
 import { PileTabs } from './PileTabs';
 import { useMapMotion } from '@/data/mapMotion';
 import { GarrisonStack } from './GarrisonStack';
-import { BottomSheet, type KeepingHeight } from '@/shell/BottomSheet';
+import { BottomSheet, type KeepingHeight, type SheetCycle } from '@/shell/BottomSheet';
 import { FloatingWindow, useWindowSized, type WindowProps, WindowHead } from './Window';
 import { useNarrowScreen } from '@/shell/viewport';
 import { RazeButton } from './RazeButton';
@@ -66,6 +66,7 @@ export function SiteModal({
   onOpenGunnery,
   onPrepare,
   onClose,
+  cycle,
   ...windowProps
 }: WindowProps & {
   view: PlayerView;
@@ -75,6 +76,8 @@ export function SiteModal({
    *  qui » est une question (ADR 0018 §4). Muet — le libellé est l'infobulle. */
   onOpenGunnery: () => void;
   onPrepare: (station: TroopStation, troopIds: ReadonlyArray<string>) => void;
+  /** Sous le seuil, ‹ › : le bâtiment voisin de sa famille (#593). */
+  cycle?: SheetCycle | undefined;
 }) {
   const narrow = useNarrowScreen();
   const building = view.me.buildings.find((candidate) => candidate.id === buildingId) ?? null;
@@ -94,6 +97,7 @@ export function SiteModal({
         onOpenGunnery={onOpenGunnery}
         onPrepare={onPrepare}
         onClose={onClose}
+        cycle={cycle}
       />
     ) : (
       <Site
@@ -104,6 +108,7 @@ export function SiteModal({
         onOpenGunnery={onOpenGunnery}
         onPrepare={onPrepare}
         onClose={onClose}
+        cycle={cycle}
       />
     );
 
@@ -146,6 +151,7 @@ function Site({
   onOpenGunnery,
   onPrepare,
   onClose,
+  cycle,
 }: {
   view: PlayerView;
   seat: Seat;
@@ -153,6 +159,7 @@ function Site({
   onOpenGunnery: () => void;
   onPrepare: (station: TroopStation, troopIds: ReadonlyArray<string>) => void;
   onClose: () => void;
+  cycle?: SheetCycle | undefined;
 }) {
   const now = useClock();
   const sized = useWindowSized();
@@ -226,6 +233,7 @@ function Site({
   if (narrow)
     return (
       <NarrowSite
+        cycle={cycle}
         view={view}
         seat={seat}
         building={building}
@@ -434,6 +442,7 @@ function BlitzSite({
   onOpenGunnery,
   onPrepare,
   onClose,
+  cycle,
 }: {
   view: PlayerView;
   seat: Seat;
@@ -441,6 +450,7 @@ function BlitzSite({
   onOpenGunnery: () => void;
   onPrepare: (station: TroopStation, troopIds: ReadonlyArray<string>) => void;
   onClose: () => void;
+  cycle?: SheetCycle | undefined;
 }) {
   const now = useClock();
   const workshop = useQuery(api.troops.workshop, seat);
@@ -612,6 +622,7 @@ function BlitzSite({
         onClose={onClose}
         initial="half"
         keepsSelection
+        cycle={cycle}
       >
         {body}
         <RazeButton view={view} building={building} className="px-4 py-3" />
@@ -705,6 +716,7 @@ function UnderCapture({ view, buildingId }: { view: PlayerView; buildingId: stri
 }
 
 function NarrowSite({
+  cycle,
   view,
   seat,
   building,
@@ -725,6 +737,7 @@ function NarrowSite({
   onPrepare,
   onClose,
 }: {
+  cycle?: SheetCycle | undefined;
   view: PlayerView;
   seat: Seat;
   building: Building;
@@ -888,6 +901,7 @@ function NarrowSite({
       hug
       keepsSelection
       unfolds
+      cycle={cycle}
       height={height}
       onHeight={setHeight}
       pinned={unrolled ? pinned : summary}

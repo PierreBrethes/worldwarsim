@@ -6,6 +6,7 @@ import { silhouettePaths } from '@/map/engine/silhouettes';
 import { compositionText } from '@/domain/map-poster';
 import type { Offer } from '@/domain/offers';
 import { useNarrowScreen } from '@/shell/viewport';
+import type { SheetCycle } from '@/shell/BottomSheet';
 import { MapCard } from './MapCard';
 import { leadOffersOf, StrikeOrders } from './StrikeOrders';
 
@@ -26,6 +27,7 @@ export function CampBadge({
   offers = [],
   onOffer,
   onOpenGunnery,
+  cycle,
   onClose,
 }: {
   camp: CampView;
@@ -35,6 +37,8 @@ export function CampBadge({
   onOffer?: (offer: Offer) => void;
   /** Un relevé ne dit rien de la pièce : le type, s'il est percé un jour, se lit à l'abaque. */
   onOpenGunnery: () => void;
+  /** ‹ › de la fiche au téléphone : l'objet voisin de sa famille (#593). */
+  cycle?: SheetCycle | undefined;
   onClose: () => void;
 }) {
   const narrow = useNarrowScreen();
@@ -48,6 +52,7 @@ export function CampBadge({
       at={at}
       gap={{ x: ANCHOR_GAP, y: 14 }}
       width={228}
+      cycle={cycle}
       onClose={onClose}
       sheet={{
         summary: (
