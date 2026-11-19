@@ -33,7 +33,7 @@ import {
   type RegionIdentity,
 } from '@/domain/world';
 import type { LonLat } from '@/domain/geo';
-import { hiddenBy } from './frame-need';
+import { hiddenBy, needsFrame } from './frame-need';
 import type { DisbandGround } from '@/domain/movement-orders';
 import type { Ground } from '@/domain/routing';
 import type { Atlas } from '@/domain/atlas';
@@ -1489,15 +1489,15 @@ export function WorldMap({
   const stopTourNow = useRef<() => boolean>(() => false);
   useEffect(() => {
     if (focus === null) return;
-    stopTourNow.current();
-    if (finger.current) setRose(null);
     const rect = container.current?.getBoundingClientRect();
     if (focus.hiddenBy !== undefined && readyEngine && rect !== undefined) {
       const spots = focus.ids.flatMap(
         (id) => readyEngine.screenOfAnchor(id, focus.onPiece === true) ?? [],
       );
-      if (!spots.some((spot) => hiddenBy(spot.y - rect.top, rect.height, focus.hiddenBy!))) return;
+      if (!needsFrame(spots, rect, focus.hiddenBy)) return;
     }
+    stopTourNow.current();
+    if (finger.current) setRose(null);
     readyEngine?.journeyTo(
       focus.ids,
       focus.places ?? [],

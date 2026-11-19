@@ -52,6 +52,19 @@ describe('useFrameOnOpen', () => {
     expect(serve).toHaveBeenCalledTimes(1);
   });
 
+  it('replays nothing once the subject is forgotten', () => {
+    const { serve, hook } = setup(null);
+    act(() => hook.result.current.ask('QG'));
+    hook.rerender({ covered: 301 });
+    settle();
+    serve.mockClear();
+    act(() => hook.result.current.forget());
+    act(() => hook.result.current.replay(422));
+    act(() => hook.result.current.replay());
+    settle();
+    expect(serve).not.toHaveBeenCalled();
+  });
+
   it('replays its subject at once when the sheet is let go on a step, with that height', () => {
     const { serve, hook } = setup(null);
     act(() => hook.result.current.ask('QG'));

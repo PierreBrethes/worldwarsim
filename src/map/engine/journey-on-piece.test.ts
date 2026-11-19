@@ -28,7 +28,7 @@ function engine(motion: 'full' | 'reduced' | 'off' = 'full') {
     invalidate: vi.fn(),
   }) as unknown as {
     journeyTo: MapEngine['journeyTo'];
-    journey: { arrival: Vector3 } | null;
+    journey: { arrival: Vector3; arrivalDistance: number; orientation: Vector3 } | null;
     controls: { target: Vector3 };
     camera: PerspectiveCamera;
     screenOfAnchor: MapEngine['screenOfAnchor'];
@@ -61,6 +61,12 @@ describe('journeyTo under the motion setting', () => {
     expect(map.journey).toBeNull();
     expect(map.controls.target.x).toBeCloseTo(30);
     expect(map.controls.target.z).toBeCloseTo(40);
+    const glide = engine('full');
+    glide.journeyTo(['b'], [], 0, undefined, true);
+    const arrival = glide.journey!;
+    const offset = map.camera.position.clone().sub(map.controls.target);
+    expect(offset.length()).toBeCloseTo(arrival.arrivalDistance);
+    expect(offset.normalize().distanceTo(arrival.orientation)).toBeCloseTo(0);
   });
 
   it('still glides when motion is full', () => {

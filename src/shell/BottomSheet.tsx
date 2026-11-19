@@ -282,6 +282,7 @@ export function BottomSheet({
           className="min-h-[44px] shrink-0 cursor-grab"
           style={{ touchAction: 'none' }}
           onClick={(event) => {
+            // Le clic déplie sans recadrer la carte : seul le glisser rejoue le cadrage.
             if (!collapsed || swiped.current) return;
             if (event.target instanceof Element && event.target.closest('button') !== null) return;
             setHeight('peek');

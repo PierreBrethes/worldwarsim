@@ -36,7 +36,12 @@ export function useFrameOnOpen<Request>(
    *  son site sélectionné, et le déplier doit le recadrer. Par défaut, elle l'est quand elle se
    *  mesure. */
   open: boolean = covered !== null,
-): { ask: (request: Request) => void; cancel: () => void; replay: (covered?: number) => void } {
+): {
+  ask: (request: Request) => void;
+  cancel: () => void;
+  forget: () => void;
+  replay: (covered?: number) => void;
+} {
   const [pending, setPending] = useState<{ request: Request; at: number } | null>(null);
   const subject = useRef<Request | null>(null);
   const served = useRef<typeof pending>(null);
@@ -86,5 +91,11 @@ export function useFrameOnOpen<Request>(
     [wait, serve],
   );
   const cancel = useCallback(() => setPending(null), []);
-  return { ask, cancel, replay };
+  /** Une sélection qui ne demande pas de recadrage emporte le sujet : un cran lâché ne doit pas
+   *  rejouer celui d'avant. */
+  const forget = useCallback(() => {
+    subject.current = null;
+    setPending(null);
+  }, []);
+  return { ask, cancel, forget, replay };
 }

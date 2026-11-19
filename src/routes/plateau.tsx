@@ -605,6 +605,7 @@ function BoardContent({
   const {
     ask,
     cancel: cancelFrame,
+    forget: forgetFrame,
     replay: replayFrame,
   } = useFrameOnOpen<
     | { readonly kind: 'journey'; readonly ids: ReadonlyArray<string> }
@@ -814,9 +815,12 @@ function BoardContent({
        *  point au-dessus d'elle plutôt que de le cadrer dessous. */
       if (marker === null) return;
       if (narrow) frameOnOpen({ kind: 'journey', ids: [marker] });
-      else setFocus({ ids: [marker], nonce: Date.now() });
+      else {
+        forgetFrame();
+        setFocus({ ids: [marker], nonce: Date.now() });
+      }
     },
-    [view.me, narrow, frameOnOpen],
+    [view.me, narrow, frameOnOpen, forgetFrame],
   );
 
   /**
@@ -904,10 +908,11 @@ function BoardContent({
          *  toucher qui la repose tomberait sur la feuille. */
         const at = narrow && click.kind === 'pile' ? pointAt.current?.(clientX, clientY) : null;
         if (at) frameOnOpen({ kind: 'reveal', at });
+        else forgetFrame();
       }
       return false;
     },
-    [hand, liftHand, dropHand, narrow, unitsAt, frameOnOpen],
+    [hand, liftHand, dropHand, narrow, unitsAt, frameOnOpen, forgetFrame],
   );
 
   /**
@@ -951,7 +956,10 @@ function BoardContent({
         setGarrison(null);
         setHand(EMPTY_HAND);
         if (narrow) frameOnOpen({ kind: 'journey', ids: [buildingLabelId(standing)] });
-        else setFocus({ ids: [buildingLabelId(standing)], nonce: Date.now() });
+        else {
+          forgetFrame();
+          setFocus({ ids: [buildingLabelId(standing)], nonce: Date.now() });
+        }
         void navigate({
           search: (previous) => {
             const windows = (previous.windows ?? []).filter((open) => open !== 'site');
@@ -970,6 +978,7 @@ function BoardContent({
       if (siteModal) {
         setGarrison(null);
         setHand(EMPTY_HAND);
+        forgetFrame();
         setFocus({ ids: [buildingLabelId(standing)], nonce: Date.now() });
       } else if (!view.me.defeated) {
         /** **L'observateur garde la ligne, pas la pile** (décision du 31/08) : le panneau de
@@ -1024,6 +1033,7 @@ function BoardContent({
       selectClick,
       applyPileClick,
       frameOnOpen,
+      forgetFrame,
     ],
   );
 
@@ -2152,6 +2162,7 @@ function BoardContent({
   const readGround = useCallback(
     (name: string | null) => {
       if (!picking && hand.kind === 'empty') clearSelection();
+      forgetFrame();
       void navigate({
         search: ({ country: _country, building, ...rest }) => ({
           ...rest,
@@ -2161,7 +2172,7 @@ function BoardContent({
         replace: true,
       });
     },
-    [picking, hand.kind, clearSelection, navigate, selectedSite?.id],
+    [picking, hand.kind, clearSelection, forgetFrame, navigate, selectedSite?.id],
   );
   const startPicking = useCallback(() => {
     dropHand();
