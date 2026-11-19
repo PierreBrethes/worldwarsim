@@ -22,7 +22,7 @@ import {
 import { heapBinOf } from '@/domain/heap-reading';
 import { drynessOf, marksOf, sourceOf } from '@/domain/resource-band';
 import { useMapMotion } from '@/data/mapMotion';
-import { HeapBinBar } from '@/routes/-plateau/HeapBinLines';
+import { HeapBinBar } from '@/routes/-plateau/HeapReadouts';
 import { ResourcePlate } from '@/emblems/Plate';
 import { resourceColor } from '@/emblems/resource-color';
 

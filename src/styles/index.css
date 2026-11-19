@@ -160,7 +160,8 @@ body {
 
 /* La feuille basse, à trois hauteurs (`shell/BottomSheet.tsx`). Le plein écran est tout ce qui
    reste entre les deux bords, aux trois quarts de `--board-room` (`FULL_SHARE_OF_ROOM`), pour
-   garder une lucarne de carte sous le bandeau. Les fractions sont relues par `SHEET_SHARE` et `FULL_SHARE_OF_ROOM` : la carte remonte ce qu'une feuille couvrira. */
+   garder une lucarne de carte sous le bandeau ; l'étage des tuiles est l'exception : il prend
+   tout `--board-room` (voir plus bas). Les fractions sont relues par `SHEET_SHARE` et `FULL_SHARE_OF_ROOM` : la carte remonte ce qu'une feuille couvrira. */
 .board-sheet {
   --board-room: calc((100dvh - var(--board-top) - var(--board-bottom)) / var(--hud-scale));
   position: fixed;
@@ -195,15 +196,16 @@ body {
   max-height: min(var(--board-room), calc(50dvh / var(--hud-scale)));
 }
 
-/* La feuille qui bouge garde la hauteur du cran haut et se pose par `translateY` (BottomSheet.tsx) :
+/* La feuille qui bouge garde la hauteur du cran haut (0,75 ; 1,0 pour l'étage, ci-dessous) et se pose par `translateY` (BottomSheet.tsx) :
    le doigt et le ressort ne remettent rien en page. */
 .board-sheet[data-moving][data-height] {
   height: calc(var(--board-room) * 0.75);
   max-height: var(--board-room);
 }
 
-/* **Le plein de l'étage des tuiles** (#590) : toute la place entre le bandeau et la barre — les
-   tuiles gardent leur rang et les sept « annuler » d'une file tiennent à 375×667.
+/* **Le plein de l'étage des tuiles** (#590) : toute la place entre le bandeau et la barre ; le
+   rang de tuiles s'y compacte (nom et figure) pour que les sept « annuler » d'une file tiennent
+   à 375×667.
    @a-mesurer : la part de `--board-room`. */
 .board-sheet[data-stage][data-height='full'],
 .board-sheet[data-stage][data-moving][data-height] {

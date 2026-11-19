@@ -7,7 +7,7 @@ import type { Seat } from '@/data/session';
 import { countdownLabel, fr } from '@/i18n/fr';
 import { ReserveLine } from '@/shell/ReserveCell';
 import { enter } from './cascade';
-import { HeapBoardNotes } from './HeapBinLines';
+import { HeapBoardNotes } from './HeapReadouts';
 import { LotControl } from './LotControl';
 import { useCancelWork, worksOf } from './works';
 

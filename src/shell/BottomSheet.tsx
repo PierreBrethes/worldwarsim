@@ -32,7 +32,8 @@ const STAGE_HEIGHTS = ['collapsed', 'peek', 'half', 'full'] as const;
  * **La part d'écran de chaque cran** — les mêmes fractions que `.board-sheet` (`index.css`), lues
  * par ce qui doit garder un point visible au-dessus d'une feuille : la carte qui remonte, la rose
  * qui se recale. Le cran haut n'est pas une part de l'écran : c'est `FULL_SHARE_OF_ROOM` de ce que
- * laissent le bandeau et la barre (`--board-room`), pour qu'il reste une lucarne de carte.
+ * laissent le bandeau et la barre (`--board-room`), pour qu'il reste une lucarne de carte — sauf
+ * l'étage des tuiles (`stage`), dont le plein prend tout `--board-room`.
  */
 const SHEET_SHARE = { peek: 0.3, half: 0.5 } as const;
 

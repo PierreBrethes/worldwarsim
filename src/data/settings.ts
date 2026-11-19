@@ -286,7 +286,7 @@ const TILES_STEP_KEY = 'wws-tiles-step';
 
 /**
  * **Le cran de l'étage des tuiles est une préférence de l'appareil** (#589) : seuls « replié » et
- * « rang » se retiennent. Un volet ouvert (la moitié) revient au rang au lancement suivant, et
+ * « rang » se retiennent. Un volet ouvert (la moitié ou le plein) revient au rang au lancement suivant, et
  * tout autre contenu retombe sur le rang.
  */
 export type TilesStep = 'collapsed' | 'peek';

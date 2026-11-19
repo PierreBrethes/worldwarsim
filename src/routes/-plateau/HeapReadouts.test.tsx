@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { PlayerView } from '@/domain/player-view';
-import { HeapBinBar, HeapBoardNotes } from './HeapBinLines';
+import { HeapBinBar, HeapBoardNotes } from './HeapReadouts';
 
 const HOUR = 3_600_000;
 const NOW = 100 * HOUR;
