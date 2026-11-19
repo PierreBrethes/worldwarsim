@@ -73,6 +73,10 @@ const mount = (locked: boolean, onDismantle = vi.fn(), besieged = false) => {
       onDismantle={onDismantle}
     />,
   );
+  /* La fiche courte se déroule d'un toucher sur sa ligne de résumé, puis l'onglet « point » porte
+     le démantèlement (#588). */
+  act(() => screen.getByText('▴').click());
+  act(() => screen.getByRole('tab', { name: fr.garrison.tabs.point }).click());
   return onDismantle;
 };
 
