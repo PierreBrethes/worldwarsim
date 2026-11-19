@@ -87,7 +87,7 @@ const seatsOf = (seasonId) =>
 const BLITZ = option('blitz');
 
 /**
- * **Les premiers pas, passés** : leur bulle (« Dépliez le plateau personnel ») est une leçon de la
+ * **Les premiers pas, passés** : leur bulle (sa bulle de guidage) est une leçon de la
  * première fois, qui n'a pas sa place dans un film. Le serveur la garde au compte, pas à la page.
  */
 async function skipFirstSteps() {

@@ -122,7 +122,8 @@ export function PersonalBoard({
    *  téléphone l'étage n'est pas dans l'adresse (#589) : la fenêtre ouverte par un mât ne fait que
    *  le sortir de sa barre, et son repli la ferme. */
   open: boolean;
-  onOpen: (open: boolean) => void;
+  /** `replace` : l'étage se replie sans pousser d'entrée, « retour » n'a rien à y défaire. */
+  onOpen: (open: boolean, replace?: boolean) => void;
   /** **La fenêtre de l'arbre ouverte** (#123) : la bande se replie devant elle. */
   research: boolean;
   onResearch: (open: boolean) => void;
@@ -217,17 +218,27 @@ export function PersonalBoard({
   const stageUp = staged && !ceded;
   const collapsed = step === 'collapsed';
   /** Le feuillet d'une tuile refusée ne survit ni au repli, ni à l'étage cédé, ni à son refus. */
-  const refusal =
-    refused !== null && stageUp && !collapsed ? refusalSheetOf(view, refused, now) : null;
+  const live = refused !== null ? refusalSheetOf(view, refused, now) : null;
+  const refusal = stageUp && !collapsed ? live : null;
+  if (refused !== null && refusal === null) setRefused(null);
   const chooseStep = (next: KeepingHeight) => {
     if (next === step) return;
     setStep(next);
     keepTilesStep(next);
     if (next === 'collapsed') {
       setRefused(null);
-      if (open) onOpen(false);
+      if (open) onOpen(false, narrow);
     } else if (collapsed) onUnfold?.();
   };
+  // Le focus qui tenait l'étage quand une surface l'a pris retombe sur body : il revient au pli.
+  const heldFocus = useRef(false);
+  useLayoutEffect(() => {
+    if (ceded) heldFocus.current = sheet?.contains(document.activeElement) ?? false;
+    else if (heldFocus.current) {
+      heldFocus.current = false;
+      if (document.activeElement === document.body) sheet?.querySelector('button')?.focus();
+    }
+  }, [ceded, sheet]);
   const foot = useFoot();
   const claim = foot?.claim;
   // La coque mesure le sommet de ce qui couvre le pied de la carte : l'étage tant qu'il est là,
@@ -1186,6 +1197,7 @@ function RefusalSheet({
   return (
     <aside
       ref={node}
+      role="status"
       aria-label={fr.personalBoard.refusalOf(refusal.name)}
       className="hud paper-grain float fixed z-[var(--z-band)] grid gap-[3px] border border-[var(--critical)] border-l-[4px] px-[12px] py-[8px] text-[var(--ink)]"
       style={{
@@ -1762,12 +1774,8 @@ function Works({ view, seat, now, observing, ledger, onReplay, onSpent }: WorksP
         <span aria-hidden className="text-[10px]">
           {unfolded ? '▾' : '▸'}
         </span>
-        <span className="min-w-0 flex-1 truncate">
-          <WorkLine view={view} now={now} />
-        </span>
-        <small className="font-(family-name:--font-mono) text-[10px] text-[var(--ink-soft)]">
-          {fr.personalBoard.worksFold}
-        </small>
+        {/* L'en-tête de l'étage dit déjà le chantier : ici, le libellé et le pli. */}
+        <span className="min-w-0 flex-1 truncate">{fr.personalBoard.worksFold}</span>
       </button>
       {unfolded && list}
     </section>

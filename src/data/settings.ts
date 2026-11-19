@@ -291,9 +291,19 @@ const TILES_STEP_KEY = 'wws-tiles-step';
  */
 export type TilesStep = 'collapsed' | 'peek';
 
-export const readTilesStep = (): TilesStep =>
-  localStorage.getItem(TILES_STEP_KEY) === 'collapsed' ? 'collapsed' : 'peek';
+export const readTilesStep = (): TilesStep => {
+  try {
+    return localStorage.getItem(TILES_STEP_KEY) === 'collapsed' ? 'collapsed' : 'peek';
+  } catch {
+    return 'peek';
+  }
+};
 
 export const keepTilesStep = (step: string): void => {
-  if (step === 'collapsed' || step === 'peek') localStorage.setItem(TILES_STEP_KEY, step);
+  if (step !== 'collapsed' && step !== 'peek') return;
+  try {
+    localStorage.setItem(TILES_STEP_KEY, step);
+  } catch {
+    // Un magasin plein ou fermé : le cran ne survit pas au rechargement, l'étage marche quand même.
+  }
 };

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CLASSIC_MAPPING, WHEEL_ACTS_MAPPING } from '@/domain/mouse-mapping';
 import { DEFAULT_TOGGLES } from '@/domain/indicators';
 import {
@@ -10,6 +10,8 @@ import {
   readMouseMapping,
   keepSound,
   readSound,
+  keepTilesStep,
+  readTilesStep,
 } from './settings';
 
 /** Le magasin du navigateur, réduit à ce que les réglages lui demandent. */
@@ -86,5 +88,22 @@ describe('le son, un seul réglage', () => {
     kept.set('wws-table-sound', 'muted');
     keepSound('reduced');
     expect(readSound()).toBe('reduced');
+  });
+});
+
+describe('le cran de l’étage des tuiles', () => {
+  it('retient replié, retombe sur le rang, et ne lève pas sur un magasin fermé', () => {
+    expect(readTilesStep()).toBe('peek');
+    keepTilesStep('collapsed');
+    expect(readTilesStep()).toBe('collapsed');
+    const shut = () => {
+      throw new Error('SecurityError');
+    };
+    const get = vi.spyOn(localStorage, 'getItem').mockImplementation(shut);
+    const set = vi.spyOn(localStorage, 'setItem').mockImplementation(shut);
+    expect(readTilesStep()).toBe('peek');
+    expect(() => keepTilesStep('peek')).not.toThrow();
+    get.mockRestore();
+    set.mockRestore();
   });
 });

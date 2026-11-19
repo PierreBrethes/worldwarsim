@@ -2579,8 +2579,8 @@ function BoardContent({
     [view],
   );
   const closeWindow = useCallback(
-    (name: BoardWindow) => {
-      void navigate({ search: (previous) => withoutWindow(previous, name) });
+    (name: BoardWindow, replace = false) => {
+      void navigate({ search: (previous) => withoutWindow(previous, name), replace });
     },
     [navigate],
   );
@@ -3641,8 +3641,8 @@ function BoardContent({
                     research={researchOpen}
                     onResearch={(open) => (open ? openWindow('research') : closeWindow('research'))}
                     front={surfaces.length === 0 || windows.at(-1) === 'personalBoard'}
-                    onOpen={(open) =>
-                      open ? openWindow('personalBoard') : closeWindow('personalBoard')
+                    onOpen={(open, replace) =>
+                      open ? openWindow('personalBoard') : closeWindow('personalBoard', replace)
                     }
                     focused={boardOpen ? (focused ?? null) : null}
                     site={selectedSite}

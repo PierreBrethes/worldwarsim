@@ -116,7 +116,7 @@ let setRose: (open: boolean) => void = () => {};
 let setSheet: (open: boolean) => void = () => {};
 let roseClosed = 0;
 const held: string[] = [];
-const opened: boolean[] = [];
+const opened: Array<[boolean, boolean | undefined]> = [];
 
 /** L'étage câblé comme `plateau.tsx` : la fenêtre `personalBoard` n'est que l'adresse du mât. */
 function Table({ view = viewOf(), open = false }: { view?: PlayerView; open?: boolean }) {
@@ -131,7 +131,7 @@ function Table({ view = viewOf(), open = false }: { view?: PlayerView; open?: bo
           view={view}
           seat={SEAT}
           open={open}
-          onOpen={(next) => opened.push(next)}
+          onOpen={(next, replace) => opened.push([next, replace])}
           research={false}
           onResearch={() => {}}
           front
@@ -231,7 +231,20 @@ describe("the tiles' stage under the threshold", () => {
     rerender(<Table open />);
     expect(step()).toBe('peek');
     act(() => toggle().click());
-    expect(opened).toEqual([false]);
+    // Out of the history: Back must not bring the window, then the row, back.
+    expect(opened).toEqual([[false, true]]);
+  });
+
+  it('gives the focus back to its grip when the surface that took the place closes', () => {
+    render(<Table />);
+    const grip = toggle();
+    grip.focus();
+    act(() => setSheet(true));
+    // What the browser does to a hidden node.
+    act(() => grip.blur());
+    expect(document.activeElement).toBe(document.body);
+    act(() => screen.getByRole('button', { name: fr.common.close }).click());
+    expect(document.activeElement).toBe(grip);
   });
 
   it('has no stage in a Blitz', () => {
@@ -259,6 +272,16 @@ describe('a refused tile', () => {
     expect(held).toEqual(['hq']);
     await act(async () => {});
     expect(screen.queryByRole('complementary')).toBeNull();
+  });
+
+  it('goes when another surface takes the place and closes, and says its state', async () => {
+    render(<Table />);
+    fireEvent.click(tile(fr.buildings.airfield));
+    const label = fr.personalBoard.refusalOf(fr.buildings.airfield);
+    expect((await screen.findByLabelText(label)).getAttribute('role')).toBe('status');
+    act(() => setSheet(true));
+    act(() => screen.getByRole('button', { name: fr.common.close }).click());
+    expect(screen.queryByLabelText(label)).toBeNull();
   });
 
   it('goes with the stage when it folds', async () => {
