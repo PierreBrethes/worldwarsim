@@ -163,6 +163,15 @@ function Table({ view = viewOf(), open = false }: { view?: PlayerView; open?: bo
 
 const stage = () => document.querySelector<HTMLElement>('[data-stage]')!;
 const step = () => stage().dataset.height;
+/** A finger pulls the stage: negative is up. */
+const pull = (travel: number) =>
+  act(() => {
+    stage().firstElementChild!.dispatchEvent(
+      new MouseEvent('pointerdown', { bubbles: true, clientY: 300, button: 0 }),
+    );
+    window.dispatchEvent(new MouseEvent('pointermove', { clientY: 300 + travel }));
+    window.dispatchEvent(new MouseEvent('pointerup', { clientY: 300 + travel }));
+  });
 const hidden = () => stage().style.visibility === 'hidden';
 const toggle = () =>
   screen.getByRole('button', { name: /le plateau personnel$/, hidden: true }) as HTMLElement;
@@ -195,6 +204,12 @@ describe("the tiles' stage under the threshold", () => {
     act(() => toggle().click());
     expect(step()).toBe('peek');
     expect(localStorage.getItem('wws-tiles-step')).toBe('peek');
+    // The half and the full are the volet's: choosing them writes nothing.
+    for (const height of ['half', 'full']) {
+      pull(-120);
+      expect(step()).toBe(height);
+      expect(localStorage.getItem('wws-tiles-step')).toBe('peek');
+    }
   });
 
   it('is ceded to a sheet, claims nothing, and comes back as it was', () => {

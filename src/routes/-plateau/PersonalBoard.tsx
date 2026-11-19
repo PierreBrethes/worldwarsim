@@ -308,7 +308,7 @@ export function PersonalBoard({
   const rackCue = cue !== null && cue.rack !== 'research' ? cue.text : null;
   const researchCue = cue?.rack === 'research' ? cue.text : null;
   // Au bureau les tuiles sont debout, plateau replié (#579) : rien à déplier, la bulle les désigne.
-  // Au téléphone elle se pose sur l'étage, quand il est au rang ou plus haut.
+  // Au téléphone elle se pose sur l'étage, au rang ou à la moitié : au plein, elle couvrirait le bandeau.
   const rackCued = narrow ? stageUp && !collapsed : !research && placing === null;
 
   /** La poignée du bureau : le titre de la bande, qui la bascule. */
@@ -418,7 +418,8 @@ export function PersonalBoard({
             sheetRef={setSheet}
             crest={
               rackCue !== null &&
-              rackCued && (
+              rackCued &&
+              step !== 'full' && (
                 <CueBubble
                   text={rackCue}
                   place="absolute bottom-[calc(100%+9px)] left-1/2 -translate-x-1/2"
@@ -439,6 +440,7 @@ export function PersonalBoard({
                   held={held}
                   placing={placing}
                   motion={motion}
+                  compact={step === 'full'}
                   onTake={observing ? null : take}
                 />
               </div>
@@ -945,6 +947,7 @@ function Tiles({
   held,
   placing,
   motion,
+  compact = false,
   onTake,
 }: {
   view: PlayerView;
@@ -954,14 +957,27 @@ function Tiles({
   held: BuildingKey | null;
   placing: BuildingKey | null;
   motion: MapMotion;
+  /** The full step (#590): the row shrinks to names and figures, in a fade (nothing when off). */
+  compact?: boolean;
   onTake: ((key: BuildingKey, grab: Grab) => void) | null;
 }) {
   const lit = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     lit.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }, [focusedKey]);
+  // The row's form changes with the step: it fades in its new form, but not on the first draw.
+  const [was, setWas] = useState(compact);
+  const [changed, setChanged] = useState(false);
+  if (was !== compact) {
+    setWas(compact);
+    setChanged(true);
+  }
+  const fade = changed && motion !== 'off' ? 'tab-fade' : '';
   return (
-    <section className={`min-w-0 ${narrow ? 'px-[10px] py-[6px]' : 'relative flex-1'}`}>
+    <section
+      key={compact ? 'compact' : 'whole'}
+      className={`min-w-0 ${narrow ? 'px-[10px] py-[6px]' : 'relative flex-1'} ${fade}`}
+    >
       <Rail
         narrow={narrow}
         standing={!narrow}
@@ -977,6 +993,7 @@ function Tiles({
               view={view}
               now={now}
               narrow={narrow}
+              compact={compact}
               lit={key === focusedKey || key === placing || (narrow && key === held)}
               inHand={key === held}
               grip={grip(onTake === null ? null : (grab) => onTake(key, grab))}
@@ -999,6 +1016,7 @@ function TileFrame({
   grip,
   lifts = true,
   wide = false,
+  compact = false,
   picture,
   meta,
   price,
@@ -1014,11 +1032,32 @@ function TileFrame({
   lifts?: boolean;
   /** A troop card of the site band: wide and tall enough to say its refusal whole. */
   wide?: boolean;
+  /** The full step's row (#590): the name and the figure alone, so the tabs keep the room. What
+   *  the tile says (price, time, refusal) stays in its label and in the refusal at the touch. */
+  compact?: boolean;
   picture: ReactNode;
   meta: string;
   price: ReactNode;
 }) {
   const label = `${name} — ${meta}`;
+  if (compact)
+    return (
+      <button
+        ref={ref}
+        type="button"
+        {...grip}
+        title={label}
+        aria-label={label}
+        className={`group relative flex h-[40px] w-[96px] shrink-0 touch-pan-x snap-start items-center gap-[5px] border border-[var(--ink)] px-[5px] text-left text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
+          locked ? 'border-dashed bg-transparent' : 'bg-[#efe5cc] shadow-[0_2px_0_var(--ink)]'
+        } ${'onClick' in grip ? 'cursor-pointer' : ''} ${lit ? 'outline-2 outline-offset-1 outline-[var(--ochre)]' : ''}`}
+      >
+        <span aria-hidden className="grid shrink-0 place-items-center overflow-hidden">
+          {picture}
+        </span>
+        <b className="line-clamp-2 min-w-0 text-[10.5px] leading-[1.1] font-semibold">{name}</b>
+      </button>
+    );
   return (
     <button
       ref={ref}
@@ -1187,6 +1226,7 @@ function Tile({
   view,
   now,
   narrow,
+  compact,
   lit,
   inHand,
   grip,
@@ -1196,6 +1236,7 @@ function Tile({
   view: PlayerView;
   now: number;
   narrow: boolean;
+  compact: boolean;
   lit: boolean;
   inHand: boolean;
   grip: Grip;
@@ -1217,10 +1258,11 @@ function Tile({
         ref={ref}
         name={name}
         narrow
+        compact={compact}
         locked={refusal !== null}
         lit={lit}
         grip={grip}
-        picture={<BuildingPlate building={buildingKey} height={34} />}
+        picture={<BuildingPlate building={buildingKey} height={compact ? 24 : 34} />}
         meta={refusal ?? meta}
         price={free ? fr.construction.free : <Price costs={costs} size={10} />}
       />

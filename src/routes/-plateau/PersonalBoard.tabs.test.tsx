@@ -6,6 +6,7 @@ import { fr } from '@/i18n/fr';
 import { RESOURCES } from '@/domain/ids';
 import type { PlayerView } from '@/domain/player-view';
 import type { Seat } from '@/data/session';
+import { setMapMotionSetting } from '@/data/mapMotion';
 import { SoleSurfaceProvider } from '@/shell/sole-surface';
 import { PersonalBoard } from './PersonalBoard';
 
@@ -49,6 +50,7 @@ beforeEach(() => {
   );
 });
 afterEach(() => {
+  setMapMotionSetting('auto');
   cleanup();
   vi.unstubAllGlobals();
 });
@@ -98,7 +100,7 @@ const view = {
   },
 } as unknown as PlayerView;
 
-const Table = () => (
+const Table = ({ cue = null }: { cue?: { rack: 'tiles'; text: string } | null }) => (
   <ConvexProvider client={client}>
     <SoleSurfaceProvider>
       <PersonalBoard
@@ -117,6 +119,7 @@ const Table = () => (
         onPlaceTile={() => false}
         maquetteAt={null}
         placing={null}
+        cue={cue}
       />
     </SoleSurfaceProvider>
   </ConvexProvider>
@@ -126,9 +129,9 @@ const stage = () => document.querySelector<HTMLElement>('[data-stage]')!;
 /** Un doigt tire l'étage : positif vers le bas. */
 const pull = (travel: number) =>
   act(() => {
-    stage().firstElementChild!.dispatchEvent(
-      new MouseEvent('pointerdown', { bubbles: true, clientY: 300, button: 0 }),
-    );
+    stage()
+      .querySelector<HTMLElement>(':scope > div.cursor-grab')!
+      .dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientY: 300, button: 0 }));
     window.dispatchEvent(new MouseEvent('pointermove', { clientY: 300 + travel }));
     window.dispatchEvent(new MouseEvent('pointerup', { clientY: 300 + travel }));
   });
@@ -204,5 +207,64 @@ describe("the tiles' stage tabs", () => {
     render(<Table />);
     pull(-120);
     expect(screen.getByRole('tabpanel', { hidden: true }).className).not.toContain('tab-fade');
+  });
+
+  it('with reduced motion enters no cascade, but still fades a tab change', () => {
+    setMapMotionSetting('reduced');
+    render(<Table />);
+    pull(-120);
+    expect(animated.filter((one) => one.classList.contains('mat-line'))).toHaveLength(0);
+    fireEvent.click(tab('stocks'));
+    expect(screen.getByRole('tabpanel', { hidden: true }).className).toContain('tab-fade');
+  });
+
+  it('with motion off enters no cascade and plays no fade', () => {
+    setMapMotionSetting('off');
+    render(<Table />);
+    pull(-120);
+    expect(animated).toHaveLength(0);
+    fireEvent.click(tab('stocks'));
+    expect(screen.getByRole('tabpanel', { hidden: true }).className).not.toContain('tab-fade');
+  });
+});
+
+describe("the tiles' row at the full step", () => {
+  const first = () => screen.getByRole('button', { name: /^Ferme — /, hidden: true });
+
+  it('keeps the whole tiles at the row and the half, and only names and figures at the full', () => {
+    render(<Table />);
+    expect(first().textContent).toContain('min');
+    pull(-120);
+    expect(first().textContent).toContain('min');
+    pull(-120);
+    expect(stage().dataset.height).toBe('full');
+    expect(first().textContent).toBe('Ferme');
+    pull(120);
+    expect(first().textContent).toContain('min');
+  });
+
+  it('fades into the compact form, and only changes it with motion off', () => {
+    render(<Table />);
+    const row = () => first().closest('section')!;
+    pull(-120);
+    expect(row().className).not.toContain('tab-fade');
+    pull(-120);
+    expect(row().className).toContain('tab-fade');
+    cleanup();
+    setMapMotionSetting('off');
+    render(<Table />);
+    pull(-120);
+    pull(-120);
+    expect(first().closest('section')!.className).not.toContain('tab-fade');
+  });
+
+  it('puts the first-step bubble on the row and the half, never over the full step', () => {
+    render(<Table cue={{ rack: 'tiles', text: 'Pose une ferme' }} />);
+    expect(screen.queryByText('Pose une ferme')).toBeTruthy();
+    pull(-120);
+    expect(screen.queryByText('Pose une ferme')).toBeTruthy();
+    pull(-120);
+    expect(stage().dataset.height).toBe('full');
+    expect(screen.queryByText('Pose une ferme')).toBeNull();
   });
 });
