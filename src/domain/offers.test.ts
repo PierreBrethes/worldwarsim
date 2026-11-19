@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { offersOf, type Offer, type OfferContext, type OfferTarget } from './offers';
+import { noShipFor, offersOf, type Offer, type OfferContext, type OfferTarget } from './offers';
 import { MAX_QUEUED_BATCHES, MONDIALE_TROOP_BOUND } from '../../convex/constants';
 import { RESOURCES } from './ids';
 import type { Building, OutpostView, PlayerView, TroopStation, TroopView } from './player-view';
@@ -606,6 +606,13 @@ describe('offersOf — a sighted camp, an objective, a strategic point (#588)', 
       fr.errors.LAND_TARGET_REQUIRED(),
       fr.errors.LAND_TARGET_REQUIRED(),
     ]);
+  });
+
+  it('says once that no pile takes to the sea when every one is refused for the land', () => {
+    const offers = offersOf(camp({ ground: 'sea' }), view(), withPiles);
+    expect(noShipFor(offers)).toBe(true);
+    expect(noShipFor(offersOf(camp(), view(), withPiles))).toBe(false);
+    expect(noShipFor([])).toBe(false);
   });
 
   it('says an objective needs infantry: the tank pile is refused, the infantry one is not', () => {

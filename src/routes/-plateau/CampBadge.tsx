@@ -4,7 +4,10 @@ import type { CampView } from '@/domain/player-view';
 import { Glyph } from '@/shell/Glyph';
 import { silhouettePaths } from '@/map/engine/silhouettes';
 import { compositionText } from '@/domain/map-poster';
+import type { Offer } from '@/domain/offers';
+import { useNarrowScreen } from '@/shell/viewport';
 import { MapCard } from './MapCard';
+import { leadOffersOf, StrikeOrders } from './StrikeOrders';
 
 /**
  * **La popin lit, la carte agit** (décision Pierre, 30/08), et ce cartouche-ci lit moins que
@@ -13,21 +16,32 @@ import { MapCard } from './MapCard';
  * milieu, une heure, et ce qui de nous l'a pris — plus la phrase qui dit ce qu'on sait ou ne sait
  * pas, une fois, pour qu'un silence ne se lise pas comme un chargement.
  *
- * Il ne porte aucun ordre : l'attaque se donne au clic droit sur le même mât, comme partout
- * ailleurs sur la carte.
+ * Au bureau il ne porte aucun ordre : l'attaque se donne au clic droit sur le même mât, comme
+ * partout ailleurs sur la carte. Au téléphone c'est la fiche commune (#588) : « Attaquer » par pile,
+ * d'un toucher, le refus de chaque pile dit à sa place.
  */
 export function CampBadge({
   camp,
   at,
+  offers = [],
+  onOffer,
   onOpenGunnery,
   onClose,
 }: {
   camp: CampView;
   at: { x: number; y: number };
+  /** Une offre par pile du joueur (`offersOf`), au téléphone : « Attaquer » part d'un toucher. */
+  offers?: ReadonlyArray<Offer>;
+  onOffer?: (offer: Offer) => void;
   /** Un relevé ne dit rien de la pièce : le type, s'il est percé un jour, se lit à l'abaque. */
   onOpenGunnery: () => void;
   onClose: () => void;
 }) {
+  const narrow = useNarrowScreen();
+  const since =
+    camp.seenMinutesAgo === null
+      ? fr.camps.since(asLocalTime(camp.since))
+      : fr.camps.lastKnown(asDuration(camp.seenMinutesAgo));
   return (
     <MapCard
       kicker={fr.camps.badgeKicker}
@@ -35,6 +49,25 @@ export function CampBadge({
       gap={{ x: ANCHOR_GAP, y: 14 }}
       width={228}
       onClose={onClose}
+      sheet={{
+        summary: (
+          <>
+            <span className="block truncate font-bold">{fr.camps.marker}</span>
+            <span className="block truncate text-[var(--ink-soft)]">
+              {fr.camps.medium[camp.medium]} · {since}
+            </span>
+          </>
+        ),
+        lead:
+          onOffer === undefined ? undefined : (
+            <div className="paper-grain px-4 pb-[8px]">
+              <StrikeOrders offers={leadOffersOf(offers)} onOffer={onOffer} />
+            </div>
+          ),
+        tabs: [{ id: 'camp', label: fr.camps.tab }],
+        tab: 'camp',
+        onTab: () => {},
+      }}
     >
       <div className="mt-[7px] flex items-center gap-[9px] text-[var(--ink-soft)]">
         {/* La silhouette de domaine, la même qu'un arc adverse : tout le portrait qu'un relevé
@@ -55,9 +88,7 @@ export function CampBadge({
       </div>
 
       <p className="mt-[6px] font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
-        {camp.seenMinutesAgo === null
-          ? fr.camps.since(asLocalTime(camp.since))
-          : fr.camps.lastKnown(asDuration(camp.seenMinutesAgo))}
+        {since}
       </p>
 
       <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
@@ -71,6 +102,8 @@ export function CampBadge({
           ? compositionText(camp.identification, Date.now())
           : fr.camps.unknown}
       </p>
+
+      {narrow && onOffer !== undefined && <StrikeOrders offers={offers} onOffer={onOffer} />}
 
       <button
         type="button"

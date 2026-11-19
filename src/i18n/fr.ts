@@ -608,6 +608,22 @@ export const fr = {
     byStation: (region: string) => `relevé par notre station d’écoute de ${region}`,
     /** Ce que le cartouche ne dira pas, dit une fois : c'est la règle, pas une lacune. */
     unknown: 'Ni sa composition, ni son effectif, ni sa nation ne sont connus.',
+    /** L'onglet de la fiche du téléphone (#588) : ce que le relevé dit. */
+    tab: 'relevé',
+  },
+
+  /**
+   * **Envoyer une pile depuis la fiche d'une cible** (#588) : un camp relevé, un objectif, un point
+   * stratégique. Un toucher envoie, la pile est nommée sur le bouton ; son refus se lit à sa place.
+   */
+  strikes: {
+    header: 'Envoyer une pile',
+    pile: (place: string, troops: number) =>
+      `${place} · ${troops} troupe${plural(troops, '', 's')}`,
+    noPile: 'aucune pile à portée',
+    noShip: 'aucune de vos piles ne prend la mer — il faut un transport naval',
+    /** Un point stratégique, la marche et la prise ne font qu'un geste (`captureOrderRefusalOf`). */
+    takeVerb: 'Marcher et capturer',
   },
 
   /**
@@ -655,6 +671,8 @@ export const fr = {
       singapore: `Vos camions et vos cargos paient ${SINGAPORE_FUEL_DISCOUNT_PCT} % de plein en moins, au cran près.`,
     } satisfies Record<StrategicPointKey, string>,
     kicker: 'point stratégique',
+    /** L'onglet de la fiche du téléphone (#588) : la règle qu'il casse pour son teneur. */
+    tab: 'règle',
     site: (key: StrategicPointKey) => `le point stratégique de ${fr.points.names[key]}`,
     neutral: 'neutre — personne ne le tient',
     heldBy: (nation: string, since: string, total: string) =>
@@ -734,6 +752,8 @@ export const fr = {
     } as Readonly<Record<string, string | undefined>>,
     markerKicker: 'objectif',
     badgeKicker: 'objectif neutre',
+    /** L'onglet de la fiche du téléphone (#588). */
+    tab: 'dépôt',
     depot: 'dépôt restant',
     emptied: 'dépôt épuisé',
     /** Ce que la popin ne dira pas, dit une fois — jumeau de la phrase du camp. */
@@ -2601,6 +2621,8 @@ export const fr = {
     /** Le point n'existe pas encore : il ne tient rien, n'atteint rien, ne détecte rien. Rouge
      *  parce que c'est la fenêtre où un voisin peut réagir (révision du 15/09). */
     outpostUnderConstruction: 'en chantier',
+    /** Un point debout, qui sert : le tampon de sa fiche au téléphone (#588). */
+    outpostStanding: 'debout',
     /** **Un état, jamais une action** (ADR 0020 §6) : le bâtiment est debout, entier, et il ne
      *  rend rien parce que sa région a changé de couleur. Rien à cliquer sur le site. */
     unlinked: 'hors réseau',
@@ -3428,6 +3450,10 @@ export const fr = {
     /** L'heure du lever, en clair : un chantier se lit sur une échéance, pas sur un décompte
      *  qu'il faudrait regarder tourner. */
     standsAt: (time: string) => `debout à ${time}`,
+    /** Les onglets de la fiche d'un avant-poste au téléphone (#588). */
+    tabs: { garrison: 'garnison', raise: 'élévation', lookout: 'vigie', point: 'point' },
+    depot: 'dépôt',
+    depotEmpty: 'vide',
     /** **Le cachet dit l'état, cette ligne dit combien de temps encore.** Un tampon « désactivé »
      *  seul laissait le joueur sans la seule chose qu'il ait à décider ici : attendre ou non. */
     disabledFor: (hours: number, minutes: string) => `hors service — encore ${hours} h ${minutes}`,
@@ -4858,7 +4884,7 @@ export const fr = {
     clear: 'Désélectionner',
     done: 'Terminer',
     /** Au doigt, après l'appui long sur le plateau : les touchers ajoutent. */
-    picking: 'touchez vos piles',
+    picking: 'touchez vos piles, puis la carte pour viser',
     noSquadHere: 'aucune de ces piles ne se tient sur le plateau',
     reread: 'la sélection a changé sous la main — reprenez-la et lâchez-la de nouveau',
     atLeastTwo: 'choisissez au moins deux piles — Maj + clic, ou le lasso (Maj + glisser)',

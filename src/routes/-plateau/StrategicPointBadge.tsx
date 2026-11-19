@@ -11,14 +11,17 @@ import { notify } from '@/shell/notifications';
 import { asLocalTime } from '@/domain/duration';
 import type { StrategicPointView } from '@/domain/player-view';
 import { Flag } from '@/emblems/Flag';
+import type { Offer } from '@/domain/offers';
+import { useNarrowScreen } from '@/shell/viewport';
 import { MapCard } from './MapCard';
+import { leadOffersOf, StrikeOrders } from './StrikeOrders';
 
 const since = (at: number | null) => (at === null ? '—' : asLocalTime(at));
 
 /**
  * **La fiche d'un point stratégique** (P2) : son nom, la règle qu'il casse pour qui le tient, et
  * son état public — neutre, tenu par qui, depuis quand et combien en tout, ou contesté sans dire
- * par qui. Comme toute popin, elle lit ; la capture se donne au clic droit sur le même mât.
+ * par qui. Au bureau elle lit, et la capture se donne au clic droit sur le même mât ; au téléphone c'est la fiche commune (#588), la prise part d'un toucher par pile.
  */
 export function StrategicPointBadge({
   point,
@@ -26,6 +29,8 @@ export function StrategicPointBadge({
   seat,
   nations,
   at,
+  offers = [],
+  onOffer,
   onClose,
 }: {
   point: StrategicPointView;
@@ -34,9 +39,13 @@ export function StrategicPointBadge({
   /** Les autres nations à la table, que lit Istanbul. */
   nations: ReadonlyArray<string>;
   at: { x: number; y: number };
+  /** Une offre par pile du joueur (`offersOf`), au téléphone : la prise part d'un toucher. */
+  offers?: ReadonlyArray<Offer>;
+  onOffer?: (offer: Offer) => void;
   onClose: () => void;
 }) {
   const now = useClock(60_000);
+  const narrow = useNarrowScreen();
   const rule = fr.points.rules[point.key];
   const total =
     point.holder === null
@@ -50,7 +59,30 @@ export function StrategicPointBadge({
         ? fr.points.yoursSince(since(point.heldSince), total)
         : fr.points.heldBy(nationLabel(point.holder.nation), since(point.heldSince), total);
   return (
-    <MapCard kicker={fr.points.kicker} at={at} gap={{ x: 64, y: 14 }} width={248} onClose={onClose}>
+    <MapCard
+      kicker={fr.points.kicker}
+      at={at}
+      gap={{ x: 64, y: 14 }}
+      width={248}
+      onClose={onClose}
+      sheet={{
+        summary: (
+          <>
+            <span className="block truncate font-bold">{fr.points.names[point.key]}</span>
+            <span className="block truncate text-[var(--ink-soft)]">{state}</span>
+          </>
+        ),
+        lead:
+          onOffer === undefined || mine ? undefined : (
+            <div className="paper-grain px-4 pb-[8px]">
+              <StrikeOrders offers={leadOffersOf(offers)} onOffer={onOffer} />
+            </div>
+          ),
+        tabs: [{ id: 'rule', label: fr.points.tab }],
+        tab: 'rule',
+        onTab: () => {},
+      }}
+    >
       <div className="mt-[7px] flex items-center gap-[9px]">
         {point.holder !== null && <Flag nation={point.holder.nation} width={26} />}
         <span className="min-w-0 flex-1 truncate text-[15px] font-bold text-[var(--ink)]">
@@ -66,6 +98,9 @@ export function StrategicPointBadge({
       <p className="mt-[6px] text-[10.5px] leading-[1.4] text-[var(--ink-quiet)]">
         {fr.points.how}
       </p>
+      {narrow && onOffer !== undefined && !mine && (
+        <StrikeOrders offers={offers} onOffer={onOffer} />
+      )}
     </MapCard>
   );
 }

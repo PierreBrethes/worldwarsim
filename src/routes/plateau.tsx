@@ -22,7 +22,7 @@ import type { Id } from '../../convex/_generated/dataModel';
 import { contactKm, outpostReachKm } from '../../convex/constants';
 import { effectiveSpecialty, isOnWatch, lookoutKmOf, sameLiaison } from '@/domain/outposts';
 import { drawnLiaisonsIn, holdsPatrolTroop, outpostNameIn, withoutPatrols } from '@/domain/patrol';
-import type { Offer } from '@/domain/offers';
+import { offersOf, type Offer, type OfferTarget } from '@/domain/offers';
 import { fr } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
@@ -233,6 +233,7 @@ import { absenceTourOf } from '@/domain/absence-tour';
 import type { MapMotion } from '@/domain/map-motion';
 import { HandSheet } from './-plateau/HandSheet';
 import { handOffersOf } from './-plateau/hand-offers';
+import { offerPilesOf } from './-plateau/offer-piles';
 import { LivePoster } from './-plateau/MapPoster';
 import { posterOf } from '@/domain/map-poster';
 import { LootCrateCard } from './-plateau/LootCrateCard';
@@ -2590,6 +2591,117 @@ function BoardContent({
     selectedPoint === null
       ? null
       : (view.strategicPoints.find((point) => point.id === selectedPoint.id) ?? null);
+  /** **Les ordres des fiches de cible** (#588) : une offre par pile, lue sur la même fonction que
+   *  le serveur relit. Le sol d'un camp se lit sur son milieu : le serveur relit la grille. */
+  const targetOffers = useCallback(
+    (target: OfferTarget, point: LonLat) =>
+      offersOf(target, view, {
+        now: view.loadedAt,
+        ground: null,
+        afloat: false,
+        atAirfield: false,
+        piles: offerPilesOf(view, regionAt, point),
+      }),
+    [view, regionAt],
+  );
+  const campOffers = useMemo(
+    () =>
+      selectedCampView === null
+        ? []
+        : targetOffers(
+            {
+              kind: 'camp',
+              id: selectedCampView.id,
+              point: selectedCampView.point,
+              country: null,
+              name: fr.camps.marker,
+              ground: selectedCampView.medium === 'sea' ? 'sea' : 'land',
+            },
+            selectedCampView.point,
+          ),
+    [selectedCampView, targetOffers],
+  );
+  const objectiveOffers = useMemo(
+    () =>
+      selectedObjectiveView === null
+        ? []
+        : targetOffers(
+            {
+              kind: 'objective',
+              id: selectedObjectiveView.id,
+              point: selectedObjectiveView.point,
+              country: null,
+              name: fr.objectives.names[selectedObjectiveView.key] ?? selectedObjectiveView.key,
+              tier: '',
+            },
+            selectedObjectiveView.point,
+          ),
+    [selectedObjectiveView, targetOffers],
+  );
+  const pointOffers = useMemo(
+    () =>
+      selectedPointView === null
+        ? []
+        : targetOffers(
+            {
+              kind: 'strategic',
+              id: selectedPointView.id,
+              point: selectedPointView.point,
+              country: null,
+              name: fr.points.names[selectedPointView.key],
+            },
+            selectedPointView.point,
+          ),
+    [selectedPointView, targetOffers],
+  );
+  /** **Un toucher sur « Attaquer » envoie la pile** (#588, décision de Pierre du 19/11) : sans visée
+   *  ni « Envoyer », par le même envoi que la rose (`sendOrder`). La fiche se ferme au départ. */
+  const strikeFrom = useCallback(
+    (offer: Offer) => {
+      if ((offer.key !== 'strike' && offer.key !== 'march') || inFlight.current) return;
+      const { aim, pile } = offer;
+      const capturing = offer.key === 'march' && aim.kind === 'strategic';
+      const label = capturing ? fr.strikes.takeVerb : fr.drop.verbs.attack;
+      const named =
+        aim.kind === 'camp'
+          ? fr.camps.marker
+          : aim.kind === 'objective'
+            ? (fr.objectives.names[
+                view.objectives.find((objective) => objective.id === aim.objectiveId)?.key ?? ''
+              ] ?? '—')
+            : aim.kind === 'strategic'
+              ? (() => {
+                  const key = view.strategicPoints.find((point) => point.id === aim.pointId)?.key;
+                  return key === undefined ? '—' : fr.points.names[key];
+                })()
+              : '—';
+      inFlight.current = true;
+      setOrderError(null);
+      sendOrder(pile.station, pile.troopIds, {
+        aim,
+        type: 'attack',
+        label,
+        consequence: '',
+        mission:
+          capturing && aim.kind === 'strategic'
+            ? { kind: 'capture', target: { kind: 'point', id: aim.pointId } }
+            : { kind: 'march' },
+      }).then(
+        (filed) => {
+          settle();
+          afterSent({ ...filed, destination: named }, label);
+          setSelectedCamp(null);
+          setSelectedObjective(null);
+          setSelectedPoint(null);
+        },
+        (problem: unknown) => {
+          settle();
+          handleError(problem, setOrderError);
+        },
+      );
+    },
+    [sendOrder, settle, afterSent, view.objectives, view.strategicPoints],
+  );
   const selectedLootSighting =
     selectedLoot === null
       ? null
@@ -3360,6 +3472,8 @@ function BoardContent({
                     key={selectedCamp.id}
                     camp={selectedCampView}
                     at={selectedCamp}
+                    offers={campOffers}
+                    onOffer={strikeFrom}
                     onOpenGunnery={() => openWindow('gunnery')}
                     onClose={closeCamp}
                   />
@@ -3369,6 +3483,8 @@ function BoardContent({
                     key={selectedObjective.id}
                     objective={selectedObjectiveView}
                     at={selectedObjective}
+                    offers={objectiveOffers}
+                    onOffer={strikeFrom}
                     onClose={closeObjective}
                   />
                 )}
@@ -3380,6 +3496,8 @@ function BoardContent({
                     seat={seat}
                     nations={view.opponents.map((opponent) => opponent.nation)}
                     at={selectedPoint}
+                    offers={pointOffers}
+                    onOffer={strikeFrom}
                     onClose={closePoint}
                   />
                 )}

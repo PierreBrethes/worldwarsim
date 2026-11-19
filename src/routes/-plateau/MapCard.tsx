@@ -3,6 +3,17 @@ import { fr } from '@/i18n/fr';
 import { BottomSheet, type SheetHeight } from '@/shell/BottomSheet';
 import { useNarrowScreen } from '@/shell/viewport';
 import { Draggable, DragHandle } from './Draggable';
+import { FicheSheet, type FicheTab } from './FicheSheet';
+
+/** **La fiche commune du téléphone** (#588) : courte puis déroulée, onglets épinglés. Sans elle, la
+ *  feuille garde son aperçu seul. Au bureau, rien de ceci ne se lit. */
+type CardSheet = {
+  readonly summary: ReactNode;
+  readonly lead?: ReactNode;
+  readonly tabs: ReadonlyArray<FicheTab>;
+  readonly tab: string;
+  readonly onTab: (id: string) => void;
+};
 
 /**
  * **La fiche de ce que le doigt a touché** — une troupe, un camp relevé, un objectif, une caisse.
@@ -22,6 +33,7 @@ export function MapCard({
   hug = true,
   initial = 'peek',
   pinned,
+  sheet,
   onClose,
   children,
 }: {
@@ -38,10 +50,20 @@ export function MapCard({
   initial?: SheetHeight;
   /** Sous le seuil, ce qui reste épinglé sous l'en-tête de la feuille (`BottomSheet.pinned`). */
   pinned?: ReactNode;
+  /** Sous le seuil, la fiche à deux états et à onglets (#588) : `children` est le contenu de
+   *  l'onglet ouvert. */
+  sheet?: CardSheet;
   onClose: () => void;
   children: ReactNode;
 }) {
   const narrow = useNarrowScreen();
+  if (narrow && sheet !== undefined) {
+    return (
+      <FicheSheet title={kicker} aside={aside} {...sheet} onClose={onClose}>
+        {children}
+      </FicheSheet>
+    );
+  }
   if (narrow) {
     return (
       <BottomSheet

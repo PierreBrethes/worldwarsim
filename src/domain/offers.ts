@@ -123,9 +123,20 @@ export type Offer = {
   /** Cible : le point où la pile se tient. */
   | { readonly key: 'disband'; readonly point: LonLat }
   /** Une pile attaque la cible, d'un toucher : `refusal` est celui de `refusalOf('attack')`. */
-  | { readonly key: 'strike'; readonly pile: OfferPile; readonly aim: MovementAim }
+  | {
+      readonly key: 'strike';
+      readonly pile: OfferPile;
+      readonly aim: MovementAim;
+      /** Le code du refus, pour la phrase que la fiche dit de toutes les piles à la fois. */
+      readonly code: string | null;
+    }
   /** Une pile marche sur un point stratégique pour le prendre : le refus de la capture. */
-  | { readonly key: 'march'; readonly pile: OfferPile; readonly aim: MovementAim }
+  | {
+      readonly key: 'march';
+      readonly pile: OfferPile;
+      readonly aim: MovementAim;
+      readonly code: string | null;
+    }
   | { readonly key: 'raise'; readonly buildingId: string }
   | { readonly key: 'demolish'; readonly buildingId: string }
   | {
@@ -175,6 +186,16 @@ export function offersOf(
       return strikeOffers(target, view, ctx);
   }
 }
+
+/** **Aucune pile ne prend la mer** : toutes refusées, et toutes du même mot — une colonne à terre
+ *  ne vise pas l'eau. La fiche le dit d'une phrase, au lieu de la répéter sur chaque ligne. */
+export const noShipFor = (offers: ReadonlyArray<Offer>): boolean => {
+  const struck = offers.filter((offer) => offer.key === 'strike' || offer.key === 'march');
+  return (
+    struck.length > 0 &&
+    struck.every((offer) => 'code' in offer && offer.code === 'LAND_TARGET_REQUIRED')
+  );
+};
 
 /** La visée que la cible est pour `refusalOf`, la même que celle de la rose. */
 function aimOfTarget(
@@ -231,6 +252,7 @@ function strikeOffers(
       loses: null,
       pile,
       aim,
+      code,
     };
   });
 }
