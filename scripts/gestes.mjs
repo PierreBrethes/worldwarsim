@@ -851,8 +851,9 @@ async function runProfile(profile) {
               await page.waitForTimeout(50);
             assert.equal(await read(), wanted, message);
           };
-          // La démo n'a pas de caserne : la scène de `--niveaux` en pose une à la capitale, en
-          // dernier pour ne pas déranger les gestes d'avant.
+          // La démo n'a pas de caserne : la scène de `--niveaux` en pose une à la capitale. Elle est
+          // IRRÉVERSIBLE (elle change la base) : ce geste reste le dernier de la liste, aucun
+          // autre ne doit en dépendre ni le suivre.
           const rows = execFileSync(
             'npx',
             ['convex', 'data', 'players', '--limit', '200', '--format', 'jsonl'],
@@ -896,13 +897,35 @@ async function runProfile(profile) {
             .tap();
           await sheet.waitFor({ timeout: 5000 });
           assert.equal(await step(), 'peek', 'écran : la fiche ne s’ouvre pas au rang');
-          // Un lancer vers le bas la réduit à son en-tête, le site reste sélectionné.
+          assert.equal(
+            await page.getByRole('tab').count(),
+            0,
+            'écran : la fiche courte a des onglets',
+          );
+          // Toucher la ligne de titre la déroule : moitié, les onglets.
           await page.waitForTimeout(800); // la feuille finit de monter
-          const box = await sheet.boundingBox();
-          const grip = [box.x + box.width / 2, box.y + 20];
-          await touch('touchStart', [grip]);
-          await fingers([grip], [[grip[0], grip[1] + 200]], 120);
-          await touch('touchEnd', []);
+          await sheet.getByRole('heading', { name: 'Caserne' }).tap();
+          await until(step, 'half', 'écran : toucher le titre ne déroule pas la fiche');
+          assert.ok(
+            (await page.getByRole('tab').count()) > 0,
+            'écran : la fiche déroulée n’a pas d’onglets',
+          );
+          const lower = async () => {
+            const box = await sheet.boundingBox();
+            const grip = [box.x + box.width / 2, box.y + 20];
+            await touch('touchStart', [grip]);
+            await fingers([grip], [[grip[0], grip[1] + 200]], 120);
+            await touch('touchEnd', []);
+          };
+          await lower();
+          await until(
+            step,
+            'peek',
+            'écran : un lancer vers le bas ne redescend pas à la fiche courte',
+          );
+          await page.waitForTimeout(500);
+          // Un lancer vers le bas la réduit à son en-tête, le site reste sélectionné.
+          await lower();
           await until(step, 'collapsed', 'écran : un lancer vers le bas ne réduit pas la fiche');
           assert.ok(await sheet.isVisible(), 'écran : la fiche réduite a disparu');
           // La carte nue la ferme.
