@@ -20,6 +20,14 @@ export const needsFrame = (
   covered: number,
 ): boolean => spots.some((spot) => hiddenBy(spot.y - rect.top, rect.height, covered));
 
+/** Ce que le jeton de l'objet tenu garde d'air au bord du cadre libre, pour ne jamais se poser sur
+ *  la ligne des mâts. @a-mesurer */
+export const HELD_EDGE_MARGIN = 28;
+
+/** Pendant un rejeu la carte joue un combat passé : l'objet tenu n'y est pas rappelé. */
+export const heldUnlessReplay = <T>(held: T | null, replaying: boolean): T | null =>
+  replaying ? null : held;
+
 /**
  * **Où l'objet tenu se rappelle, ou `null` s'il se voit.** `spot` est l'objet dans le cadre de la
  * carte (`null` : introuvable ou dos tourné, rien à rappeler). Il est caché quand il sort du cadre
@@ -47,6 +55,12 @@ export function heldRim(
     width: size.width - insets.left - insets.right,
     height: size.height - insets.top - insets.bottom,
   };
-  const edge = clampToEdge(spot.x - insets.left, spot.y - insets.top, free.width, free.height);
+  const edge = clampToEdge(
+    spot.x - insets.left,
+    spot.y - insets.top,
+    free.width,
+    free.height,
+    HELD_EDGE_MARGIN,
+  );
   return { ...edge, x: edge.x + insets.left, y: edge.y + insets.top };
 }

@@ -223,6 +223,7 @@ import { CombatToasts } from './-plateau/CombatToasts';
 import { useFrontSound } from './-plateau/FrontTape';
 import { DispatchSheet } from './-plateau/DispatchSheet';
 import { ReplayDeck, ReplayLaunch } from './-plateau/ReplayDeck';
+import { heldUnlessReplay } from '@/map/frame-need';
 import { REPLAY_MS, SINK_HOLD_MS, type ReplayStep } from '@/domain/replay';
 import { WAIT_MS } from '@/map/engine/combats';
 import { NextActions } from './-plateau/NextActions';
@@ -3432,7 +3433,7 @@ function BoardContent({
                         : stationKeyOf({ kind: 'building', buildingId: selectedSite.id })
                   }
                   selectedLootLabel={selectedLoot === null ? null : `loot-${selectedLoot.id}`}
-                  heldLabel={heldLabel}
+                  heldLabel={heldUnlessReplay(heldLabel, replay !== null)}
                   reach={handReach ?? movementReach}
                   onCountryHover={setHoveredCountry}
                   onRegionHover={setHoveredRegion}

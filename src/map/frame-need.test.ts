@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { REVEAL_MARGIN, heldRim, hiddenBy, needsFrame } from './frame-need';
+import {
+  HELD_EDGE_MARGIN,
+  heldUnlessReplay,
+  REVEAL_MARGIN,
+  heldRim,
+  hiddenBy,
+  needsFrame,
+} from './frame-need';
 
 /** Une feuille qu'on lâche ne recadre la carte que si elle cache l'objet : chaque recadrage
  *  coûte 1,5 s d'images. */
@@ -73,8 +80,27 @@ describe('heldRim', () => {
     expect(rim!.heading).toBeCloseTo(0, 0);
   });
 
+  it('keeps the token its edge margin away from the rim of the free frame', () => {
+    const right = heldRim({ x: 5000, y: 300 }, size, insets)!;
+    expect(right.x).toBeCloseTo(size.width - HELD_EDGE_MARGIN);
+    const top = heldRim({ x: 200, y: -5000 }, size, insets)!;
+    expect(top.y).toBeCloseTo(insets.top + HELD_EDGE_MARGIN);
+  });
+
   it('points up at an object above the free frame', () => {
     const rim = heldRim({ x: 200, y: 10 }, size, insets);
     expect(rim!.y).toBeGreaterThanOrEqual(insets.top);
+  });
+});
+
+describe('heldUnlessReplay', () => {
+  const held = { id: 'site', covered: 300 };
+
+  it('recalls nothing while a replay plays', () => {
+    expect(heldUnlessReplay(held, true)).toBeNull();
+  });
+
+  it('keeps the held object otherwise', () => {
+    expect(heldUnlessReplay(held, false)).toBe(held);
   });
 });
