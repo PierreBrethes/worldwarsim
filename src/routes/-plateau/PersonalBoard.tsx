@@ -107,7 +107,6 @@ export function PersonalBoard({
   site,
   onDeselectSite,
   onOpenSiteSheet,
-  onCover,
   onUnfold,
   onOpen,
   onResearch,
@@ -143,9 +142,6 @@ export function PersonalBoard({
   onDeselectSite: () => void;
   /** « fiche du site » : garnison, niveau, élever. */
   onOpenSiteSheet: () => void;
-  /** **Ce que l'étage couvre de la carte** sous le seuil, quand il est sorti sur un site : sa
-   *  hauteur mesurée, barre comprise, `null` sinon. La caméra y recadre le bâtiment touché. */
-  onCover?: (height: number | null) => void;
   /** **L'étage vient de sortir de sa barre** : ce qu'il couvre de la carte change, et le sujet
    *  touché se recadre s'il est caché. */
   onUnfold?: () => void;
@@ -251,20 +247,6 @@ export function PersonalBoard({
     claim(topmost);
     return () => claim(null);
   }, [claim, narrow, topmost]);
-  const covers = narrow && stageUp && !collapsed && site !== null;
-  useLayoutEffect(() => {
-    if (onCover === undefined || !covers || sheet === null || bar === null) return;
-    const publish = () =>
-      onCover(sheet.getBoundingClientRect().height + bar.getBoundingClientRect().height);
-    publish();
-    const observer = new ResizeObserver(publish);
-    observer.observe(sheet);
-    observer.observe(bar);
-    return () => {
-      observer.disconnect();
-      onCover(null);
-    };
-  }, [covers, onCover, sheet, bar]);
   const handleRef = useRef<HTMLButtonElement>(null);
   useMatRise(
     () => (narrow ? [bar, stageUp ? sheet : null] : [board.current]),
@@ -445,56 +427,40 @@ export function PersonalBoard({
             }
           >
             <div ref={swap} className="relative flex min-h-0 flex-col overflow-hidden">
-              {site === null ? (
-                <>
-                  {focusedBuilding !== null && (
-                    <FocusedBuilding building={focusedBuilding} view={view} />
-                  )}
-                  <Tiles
-                    view={view}
-                    now={now}
-                    narrow
-                    focusedKey={focusedKey}
-                    held={held}
-                    placing={placing}
-                    motion={motion}
-                    onTake={observing ? null : take}
-                  />
-                  {/* Le rang ne montre que les tuiles ; la moitié y ajoute les tas et la file. */}
-                  <div data-half-only>
-                    <div className="grid grid-cols-5 items-start border-t border-(color:--ink)/30 px-[1px] pt-[2px]">
-                      {RESOURCES.map((resource) => (
-                        <div key={resource} className="grid min-w-0 justify-items-center">
-                          <HeapBinLines view={view} resource={resource} now={now} short />
-                        </div>
-                      ))}
-                    </div>
-                    <Works
-                      view={view}
-                      seat={seat}
-                      now={now}
-                      observing={observing}
-                      ledger={ledger}
-                      onReplay={harvest === null ? null : replay}
-                      onSpent={mark}
-                    />
-                  </div>
-                </>
-              ) : (
-                <SiteBand
-                  key={site.id}
+              <>
+                {focusedBuilding !== null && (
+                  <FocusedBuilding building={focusedBuilding} view={view} />
+                )}
+                <Tiles
                   view={view}
-                  seat={seat}
-                  site={site}
                   now={now}
                   narrow
+                  focusedKey={focusedKey}
+                  held={held}
+                  placing={placing}
                   motion={motion}
-                  observing={observing}
-                  onSpent={mark}
-                  onDeselect={onDeselectSite}
-                  onOpenSheet={onOpenSiteSheet}
+                  onTake={observing ? null : take}
                 />
-              )}
+                {/* Le rang ne montre que les tuiles ; la moitié y ajoute les tas et la file. */}
+                <div data-half-only>
+                  <div className="grid grid-cols-5 items-start border-t border-(color:--ink)/30 px-[1px] pt-[2px]">
+                    {RESOURCES.map((resource) => (
+                      <div key={resource} className="grid min-w-0 justify-items-center">
+                        <HeapBinLines view={view} resource={resource} now={now} short />
+                      </div>
+                    ))}
+                  </div>
+                  <Works
+                    view={view}
+                    seat={seat}
+                    now={now}
+                    observing={observing}
+                    ledger={ledger}
+                    onReplay={harvest === null ? null : replay}
+                    onSpent={mark}
+                  />
+                </div>
+              </>
             </div>
           </BottomSheet>
         )}
@@ -558,7 +524,6 @@ export function PersonalBoard({
                 seat={seat}
                 site={site}
                 now={now}
-                narrow={false}
                 motion={motion}
                 observing={observing}
                 onSpent={mark}
@@ -1394,7 +1359,6 @@ function SiteBand({
   seat,
   site,
   now,
-  narrow,
   motion,
   observing,
   onSpent,
@@ -1405,7 +1369,6 @@ function SiteBand({
   seat: Seat;
   site: Building;
   now: number;
-  narrow: boolean;
   motion: MapMotion;
   observing: boolean;
   onSpent: () => void;
@@ -1415,7 +1378,7 @@ function SiteBand({
   const workshop = useQuery(api.troops.workshop, seat);
   const recruit = useMutation(api.troops.recruit);
   const queue = useRef<HTMLElement>(null);
-  const more = useOverflow(queue, 'y', narrow);
+  const more = useOverflow(queue, 'y');
   const facility = workshop?.facilities.find((one) => one.id === site.id) ?? null;
   const region = view.me.regions.find((one) => one.id === site.regionId)?.name ?? site.regionId;
   const siteName = fr.buildings[site.key];
@@ -1455,21 +1418,15 @@ function SiteBand({
   const link =
     'cursor-pointer py-[2px] text-[9.5px] tracking-[.14em] uppercase underline underline-offset-2';
   const head = (
-    <div
-      className={
-        narrow
-          ? 'flex flex-wrap items-center gap-x-[10px] gap-y-[4px]'
-          : 'grid w-[104px] content-start gap-[5px] pr-1'
-      }
-    >
+    <div className="grid w-[104px] content-start gap-[5px] pr-1">
       <span className="flex items-center gap-[6px]">
-        <BuildingPlate building={site.key} height={narrow ? 22 : 28} />
+        <BuildingPlate building={site.key} height={28} />
         <b className="text-[13px] leading-[1.1] font-semibold">{siteName}</b>
       </span>
       <span className="text-[11px] leading-[1.25] text-[var(--ink-soft)]">
         {region} · {fr.common.levelSpeed(site.level)}
       </span>
-      <span className={`flex gap-[10px] ${narrow ? 'ml-auto' : 'mt-[2px] flex-col items-start'}`}>
+      <span className="mt-[2px] flex flex-col items-start gap-[10px]">
         <button type="button" onClick={onOpenSheet} className={link}>
           {fr.personalBoard.siteSheet}
         </button>
@@ -1489,11 +1446,7 @@ function SiteBand({
     <>
       <section
         aria-label={fr.personalBoard.siteCards(siteName)}
-        className={`grid min-w-0 ${
-          narrow
-            ? 'grid-cols-1 gap-[6px] px-[10px] py-[6px]'
-            : 'grid-cols-[auto_1fr] gap-[10px] border-l border-[var(--ink)] py-[6px] pl-3'
-        }`}
+        className="grid min-w-0 grid-cols-[auto_1fr] gap-[10px] border-l border-[var(--ink)] py-[6px] pl-3"
       >
         {head}
         {workshop === undefined ? (
@@ -1501,13 +1454,13 @@ function SiteBand({
             {fr.production.opening}
           </p>
         ) : (
-          <Rail narrow={narrow} motion={motion} label={fr.personalBoard.siteCards(siteName)}>
+          <Rail narrow={false} motion={motion} label={fr.personalBoard.siteCards(siteName)}>
             {(grip) =>
               cards.map((card) => (
                 <TileFrame
                   key={`${card.role}-${card.tier}`}
                   name={pieceName(card.role, card.tier)}
-                  narrow={narrow}
+                  narrow={false}
                   locked={card.refusal !== null}
                   lit={false}
                   grip={grip(observing ? null : () => form(card), { lifts: false })}
@@ -1518,8 +1471,8 @@ function SiteBand({
                       nation={view.me.nation}
                       role={card.role}
                       tier={card.tier}
-                      height={narrow ? 34 : 50}
-                      width={narrow ? 60 : 84}
+                      height={50}
+                      width={84}
                     />
                   }
                   meta={
@@ -1536,11 +1489,7 @@ function SiteBand({
       <section
         ref={queue}
         data-after={more.after}
-        className={
-          narrow
-            ? 'border-t border-[var(--ink)] px-[10px] py-[8px]'
-            : 'mat-more min-w-0 overflow-y-auto border-l border-[var(--ink)] px-3 py-[10px]'
-        }
+        className="mat-more min-w-0 overflow-y-auto border-l border-[var(--ink)] px-3 py-[10px]"
       >
         <div className="grid gap-[5px]">
           <span className="eyebrow">{fr.personalBoard.siteQueue}</span>

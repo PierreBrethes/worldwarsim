@@ -75,7 +75,7 @@ import {
   sheetAfterTouch,
   siteRetouched,
 } from './-plateau/retouch';
-import { tallest, useFrameOnOpen } from './-plateau/useFrameOnOpen';
+import { useFrameOnOpen } from './-plateau/useFrameOnOpen';
 import { MAT_LIFT, boardBottomPx, useNarrowScreen } from '@/shell/viewport';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleSeat } from '@/shell/StaleSeat';
@@ -620,8 +620,6 @@ function BoardContent({
    *  avec ses cibles, y monte (refonte mobile, 1b) : mesurée au tiers, elle laissait la troupe
    *  sous la feuille. */
   const [selectionSheet, setSelectionSheet] = useState<number | null>(null);
-  /** La hauteur du plateau personnel quand il couvre la carte sur un site, mesurée de même. */
-  const [boardCover, setBoardCover] = useState<number | null>(null);
   /** **Ce que la surface ouverte couvre de la carte** : l'objet touché se recadre une fois,
    *  au-dessus d'elle, quand elle est mesurée (`useFrameOnOpen`). */
   /** Le sujet a déjà été cadré une fois : ce qui le sert encore (un cran lâché, le plateau qui se
@@ -636,7 +634,7 @@ function BoardContent({
     | { readonly kind: 'journey'; readonly ids: ReadonlyArray<string> }
     | { readonly kind: 'reveal'; readonly at: LonLat }
   >(
-    tallest(selectionSheet === null ? null : selectionSheet + boardBottomPx(), boardCover),
+    selectionSheet === null ? null : selectionSheet + boardBottomPx(),
     useCallback((request, covered) => {
       if (request.kind === 'reveal')
         setReveal({ at: request.at, floor: covered, nonce: Date.now() });
@@ -666,10 +664,7 @@ function BoardContent({
     [replayFrame],
   );
   /** Une feuille lâchée sur un cran (peek, half) : ce qu'elle couvre, c'est son cran visé. */
-  const stepSheet = useCallback(
-    (goal: number) => reframe(tallest(goal + boardBottomPx(), boardCover) ?? undefined),
-    [reframe, boardCover],
-  );
+  const stepSheet = useCallback((goal: number) => reframe(goal + boardBottomPx()), [reframe]);
   const sheetPorts = useMemo(() => ({ report: setSelectionSheet, onStep: stepSheet }), [stepSheet]);
   const pointAt = useRef<((clientX: number, clientY: number) => LonLat | null) | null>(null);
   const keepPointAt = useCallback((lookup: typeof pointAt.current) => {
@@ -3693,7 +3688,6 @@ function BoardContent({
                     site={selectedSite}
                     onDeselectSite={deselectSite}
                     onOpenSiteSheet={() => openWindow('site')}
-                    onCover={setBoardCover}
                     onUnfold={reframe}
                     onHoldTile={holdTile}
                     placing={placing?.key ?? null}

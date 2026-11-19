@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { tallest, useFrameOnOpen } from './useFrameOnOpen';
+import { useFrameOnOpen } from './useFrameOnOpen';
 
 /** Au téléphone la caméra recadre l'objet touché une fois, vers la hauteur mesurée de la surface
  *  qui s'ouvre — jamais vers un cran supposé, ni après la première lecture. */
@@ -184,14 +184,5 @@ describe('useFrameOnOpen with a surface that stays open while it covers nothing'
     act(() => void vi.advanceTimersByTime(1000));
     act(() => hook.result.current.replay(300));
     expect(serve).toHaveBeenCalledTimes(2);
-  });
-});
-
-describe('tallest', () => {
-  it('is the highest surface measured, none when none is', () => {
-    expect(tallest(null, null)).toBeNull();
-    expect(tallest(422, null)).toBe(422);
-    expect(tallest(null, 430)).toBe(430);
-    expect(tallest(422, 430)).toBe(430);
   });
 });

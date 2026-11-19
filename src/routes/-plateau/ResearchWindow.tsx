@@ -219,42 +219,27 @@ export function ResearchWindow({
     );
 
   return (
-    <FloatingWindow
-      name="research"
-      onClose={onClose}
-      {...windowProps}
-      {...(narrow ? {} : { alignment: 'top' as const })}
-      width={1270}
-    >
+    <FloatingWindow name="research" onClose={onClose} {...windowProps} alignment="top" width={1270}>
       <div className="paper-grain flex min-h-0 w-full flex-1 flex-col border border-[var(--ink)] text-[var(--ink)]">
         <WindowHead
           title={
             <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               {fr.research.title}
-              {!narrow && (
-                <span className="font-(family-name:--font-text) text-[13px] font-normal text-[var(--ink-soft)] italic">
-                  {subtitle}
-                </span>
-              )}
+              <span className="font-(family-name:--font-text) text-[13px] font-normal text-[var(--ink-soft)] italic">
+                {subtitle}
+              </span>
             </span>
           }
           onClose={onClose}
         />
-        <div
-          className={`grid min-h-0 flex-1 ${narrow ? 'grid-rows-[auto_1fr]' : 'grid-cols-[170px_1fr]'}`}
-        >
-          <Margin view={view} level={level} now={now} narrow={narrow} remove={remove} />
+        <div className="grid min-h-0 flex-1 grid-cols-[170px_1fr]">
+          <Margin view={view} level={level} now={now} narrow={false} remove={remove} />
           <main className="min-h-0 overflow-auto px-[14px] pt-[14px] pb-[18px]">
-            {narrow && (
-              <p className="mb-2 font-(family-name:--font-text) text-[13px] text-[var(--ink-soft)] italic">
-                {subtitle}
-              </p>
-            )}
             <Tree
               view={view}
               now={now}
               level={level}
-              narrow={narrow}
+              narrow={false}
               refusalOf={(card) => researchRefusalOf(card, situation)}
               pose={pose}
             />

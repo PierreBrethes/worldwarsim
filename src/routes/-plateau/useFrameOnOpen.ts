@@ -13,11 +13,6 @@ const SETTLE_MS = 500;
  *  instant de creux suffit à une feuille qui en remplace une autre. @a-mesurer */
 const GONE_MS = 200;
 
-/** **La plus haute des surfaces mesurées** : une feuille de sélection et le plateau déplié
- *  peuvent se tenir ensemble, et c'est la plus haute qui couvre la carte. */
-export const tallest = (...heights: ReadonlyArray<number | null>): number | null =>
-  heights.reduce<number | null>((top, h) => (h === null ? top : Math.max(top ?? 0, h)), null);
-
 /**
  * **Recadrer l'objet touché au-dessus de la surface ouverte, à l'ouverture puis à chaque lâcher.**
  * `covered` est la hauteur mesurée de la surface, `null` tant qu'elle n'est pas là. Le hook tient
