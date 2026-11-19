@@ -27,7 +27,7 @@ import type { PlacingBuilding } from '@/map/WorldMap';
 import { handleError } from '@/data/errors';
 import type { Seat } from '@/data/session';
 import { notify } from '@/shell/notifications';
-import { spent as flySpent } from '@/shell/flights';
+import { placed as flyPlaced, spent as flySpent } from '@/shell/flights';
 import { debtKey } from './FoundationRows';
 
 /**
@@ -182,6 +182,16 @@ export function usePlacing(
     };
   }, [placing, magnet, placingAim, verdict, twin, reaches, stableReaches, view, calls, kinds]);
 
+  /** The server took the order: the price flies, the point rings, the tile goes to the queue. Blitz
+   *  has no board to file it on. */
+  const played = useCallback(
+    (key: BuildingKey, cost: Parameters<typeof flySpent>[0], at: LonLat) => {
+      flySpent(cost, at, motion);
+      if (view.mode !== 'blitz') flyPlaced(key, at, motion);
+    },
+    [motion, view.mode],
+  );
+
   const hold = useCallback((held: HeldBuilding | null) => {
     setPlacingAim(null);
     setPlacing(held);
@@ -209,7 +219,7 @@ export function usePlacing(
           point: { lon: twin.point[0], lat: twin.point[1] },
         }).then(
           () => {
-            flySpent(twin.nextLevelCost, twin.point, motion);
+            played(twin.key, twin.nextLevelCost, twin.point);
             notify(fr.personalBoard.raised(twin.name, twin.level + 1), 'info');
           },
           (problem: unknown) => handleError(problem, setOrderError),
@@ -229,14 +239,14 @@ export function usePlacing(
         point: { lon: spot.lonLat[0], lat: spot.lonLat[1] },
       }).then(
         () => {
-          flySpent(free ? {} : view.buildCatalog[ordered.key].cost, spot.lonLat, motion);
+          played(ordered.key, free ? {} : view.buildCatalog[ordered.key].cost, spot.lonLat);
           if (!free) notify(fr.construction.queued(fr.buildings[ordered.key]), 'info');
         },
         (problem: unknown) =>
           handleError(problem, ordered.debt === null ? setOrderError : setMobilizeError),
       );
     },
-    [placing, startConstruction, seat, view, reaches, hold, motion, setOrderError],
+    [placing, startConstruction, seat, view, reaches, hold, played, setOrderError],
   );
 
   /** **La tuile prise sur le plateau personnel** arme le même fantôme qu'une clé choisie : la

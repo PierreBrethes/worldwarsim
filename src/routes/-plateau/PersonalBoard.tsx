@@ -194,7 +194,7 @@ export function PersonalBoard({
       }),
     [],
   );
-  const { held, hint, away, take, chip } = useHand({
+  const { held, hint, away, take, chip, taken } = useHand({
     view,
     onSpent: mark,
     seat,
@@ -214,6 +214,30 @@ export function PersonalBoard({
   const folded = !open || research || away || (shut && site === null);
   const ceded = staged && (surfaceHeld || away);
   const stageUp = staged && !ceded;
+  // The pose files its tile on the queue of works, and takes the size of the tile that was taken
+  // while its stage is up (#592): a stage ceded has no tile to fly, the ring stays alone.
+  const cededNow = useRef(ceded);
+  useLayoutEffect(() => {
+    cededNow.current = ceded;
+  });
+  useEffect(
+    () =>
+      bindSpots({
+        tile: (key) => {
+          const box = taken.current;
+          return box === null || box.key !== key || cededNow.current ? null : box;
+        },
+        queue: () => {
+          const column = narrow
+            ? null
+            : document.querySelector<HTMLElement>('[data-volet-column="works"]');
+          // A folded volet is inert, and its column keeps its box under the clip.
+          if (column !== null && column.closest('[inert]') === null) return centreOf(column);
+          return board.current === null ? null : centreOf(board.current);
+        },
+      }),
+    [narrow, taken],
+  );
   const collapsed = step === 'collapsed';
   /** Le feuillet d'une tuile refusée ne survit ni au repli, ni à l'étage cédé, ni à son refus. */
   const live = refused !== null ? refusalSheetOf(view, refused, now) : null;
@@ -1642,6 +1666,8 @@ function useHand({
     callbacks.current = { onHoldTile, onPlaceTile, onSpent, maquetteAt };
   });
   const gesture = useRef<{ cancel: () => void } | null>(null);
+  /** The tile last taken, as it stood on its stage: the pose's flight takes its size (#592). */
+  const taken = useRef<{ key: BuildingKey; width: number; height: number } | null>(null);
 
   /** The refusal's sentence waits for the shake: unmounted before, it never comes. */
   const saying = useRef<number | undefined>(undefined);
@@ -1661,6 +1687,7 @@ function useHand({
       for (const node of [element, ...element.querySelectorAll('*')])
         if (node.hasPointerCapture(pointerId)) node.releasePointerCapture(pointerId);
     const origin = element.getBoundingClientRect();
+    taken.current = { key, width: origin.width, height: origin.height };
     const home = { x: origin.left + origin.width / 2, y: origin.top + origin.height / 2 };
     const from = pointerId === null ? home : { x, y };
     const refusal = tileRefusalOf(latest.current, key);
@@ -1826,7 +1853,7 @@ function useHand({
     if (pointerId === null) toClick();
   };
 
-  return { held, hint, away, take, chip };
+  return { held, hint, away, take, chip, taken };
 }
 
 /** What lies under the hand: the personal board itself, the player's buildings at one mast (a

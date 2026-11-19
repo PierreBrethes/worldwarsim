@@ -1,10 +1,11 @@
 import { pastilleShares } from '@/domain/harvest';
 import type { LonLat } from '@/domain/geo';
-import type { ResourceKey } from '@/domain/ids';
+import type { BuildingKey, ResourceKey } from '@/domain/ids';
 import type { InkBurst } from '@/domain/ink-bursts';
 import { asClockTime } from '@/domain/duration';
 import type { MapMotion } from '@/domain/map-motion';
 import { fr } from '@/i18n/fr';
+import { buildingSprite } from '@/emblems/buildings/manifest';
 import { resourceColor } from '@/emblems/resource-color';
 
 export type Point = { readonly x: number; readonly y: number };
@@ -19,6 +20,10 @@ type Spots = {
   bin: (resource: ResourceKey) => Point | null;
   onMap: (at: LonLat) => Point | null;
   stamp: (burst: InkBurst) => void;
+  /** The tile the hand took, as it stood on its stage: `null` once the stage is ceded. */
+  tile: (key: BuildingKey) => { width: number; height: number } | null;
+  /** Where the queue of works is: the volet's column, or the bar when it is folded. */
+  queue: () => Point | null;
 };
 const bound: Partial<Spots> = {};
 
@@ -33,6 +38,7 @@ export function bindSpots(part: Partial<Spots>): () => void {
 
 export const binPoint = (resource: ResourceKey): Point | null => bound.bin?.(resource) ?? null;
 export const mapPoint = (at: LonLat): Point | null => bound.onMap?.(at) ?? null;
+const queuePoint = (): Point | null => bound.queue?.() ?? null;
 const pressStamp = (burst: InkBurst): void => bound.stamp?.(burst);
 
 export const centreOf = (node: Element): Point => {
@@ -41,6 +47,8 @@ export const centreOf = (node: Element): Point => {
 };
 
 const SIZE_PX = 18;
+/** @a-mesurer The longest side of a tile in flight; the maquette's vignette is 36. */
+const TILE_FLIGHT_PX = 44;
 
 /**
  * **Une pastille qui vole** : un disque à la couleur de la ressource, d'un point de l'écran à un
@@ -196,4 +204,54 @@ export function spent(
   motion: MapMotion,
 ): void {
   void flyFlows(payFlows(cost, at), motion);
+}
+
+/**
+ * **Un bâtiment posé** (fondation ou élévation), au retour du serveur : un anneau s'ouvre sur son
+ * point, et sa tuile vole vers la file en 460 ms. Réduites, la tuile fond à son arrivée, sans
+ * anneau ; coupées, rien. Une tuile sans boîte (l'étage est cédé, ou rien ne l'a prise) laisse
+ * l'anneau seul. Le prix a ses pastilles à part (`spent`).
+ */
+export function placed(key: BuildingKey, at: LonLat, motion: MapMotion): void {
+  const from = mapPoint(at);
+  if (from === null || motion === 'off') return;
+  pulseAt(from, motion);
+  const box = bound.tile?.(key) ?? null;
+  const to = queuePoint();
+  if (box === null || to === null) return;
+  const tile = document.createElement('span');
+  tile.className = 'placed-tile';
+  // Smaller than the tile it was on: it flies over the map, which it must not hide.
+  const shrink = Math.min(1, TILE_FLIGHT_PX / Math.max(box.width, box.height));
+  const width = box.width * shrink;
+  const height = box.height * shrink;
+  tile.style.width = `${width}px`;
+  tile.style.height = `${height}px`;
+  const sprite = buildingSprite(key);
+  if (sprite !== null) tile.style.backgroundImage = `url("${sprite}")`;
+  const layer = flightLayer();
+  layer.append(tile);
+  const place = (point: Point, scale = 1) =>
+    `translate(${point.x - width / 2}px, ${point.y - height / 2}px) scale(${scale})`;
+  const arc = { x: (from.x + to.x) / 2, y: Math.min(from.y, to.y) - 60 };
+  const frames =
+    motion === 'reduced'
+      ? [
+          { transform: place(to), opacity: 0 },
+          { transform: place(to), opacity: 1, offset: 0.4 },
+          { transform: place(to), opacity: 0 },
+        ]
+      : [
+          { transform: place(from), opacity: 1 },
+          { transform: place(arc, 1.1), offset: 0.5 },
+          { transform: place(to, 0.5), opacity: 0.8 },
+        ];
+  const done = () => layer.remove();
+  tile
+    .animate(frames, {
+      duration: motion === 'reduced' ? 240 : 460,
+      easing: 'cubic-bezier(.35,.1,.3,1)',
+      fill: 'both',
+    })
+    .finished.then(done, done);
 }

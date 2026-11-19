@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { bindSpots } from '@/shell/flights';
 import { BUILDINGS, RESOURCES, type BuildingKey } from '@/domain/ids';
 import type { BuildSpec, PlayerView } from '@/domain/player-view';
 import { destinationPoint } from '@/domain/geo';
@@ -194,5 +195,96 @@ describe('a unique key aimed at its standing twin (#579)', () => {
     act(() => result.current.placeAt(far));
     expect(start).not.toHaveBeenCalled();
     expect(result.current.placingCard?.refusal).toMatch(/unique — visez-le/);
+  });
+});
+
+describe('the pose played at the server answer (#592)', () => {
+  const aim = {
+    lonLat: point('coal-BEL-2'),
+    region: { id: 'BEL-1', name: 'Namur', country: 'BEL' },
+    coastal: false,
+    onLand: true,
+  };
+  const originalAnimate = HTMLElement.prototype.animate;
+  let unbind = () => {};
+  beforeEach(() => {
+    HTMLElement.prototype.animate = (() => ({ finished: new Promise(() => {}) })) as never;
+    unbind = bindSpots({
+      bin: () => ({ x: 10, y: 10 }),
+      onMap: () => ({ x: 200, y: 100 }),
+      queue: () => ({ x: 20, y: 800 }),
+      tile: () => ({ width: 60, height: 50 }),
+    });
+    start.mockImplementation(() => Promise.resolve());
+  });
+  afterEach(() => {
+    unbind();
+    HTMLElement.prototype.animate = originalAnimate;
+    document.body.replaceChildren();
+  });
+  const placeOn = async (seen: PlayerView, key: BuildingKey, at = aim) => {
+    const { result } = holding(key, seen);
+    await act(async () => result.current.placeAt(at));
+  };
+  const seen = (selector: string) => document.querySelector(selector) !== null;
+
+  it('rings the point, flies the tile and the price once the server accepts', async () => {
+    await placeOn(view, 'mine');
+    expect(seen('.recharge-pulse')).toBe(true);
+    expect(seen('.placed-tile')).toBe(true);
+    expect(seen('.harvest-pastille')).toBe(true);
+  });
+
+  it('keeps the ring and the tile of a free foundation, and skips its price', async () => {
+    const owed = {
+      ...view,
+      me: { ...view.me, foundation: [{ key: 'mine', deposit: null }] },
+    } as unknown as PlayerView;
+    await placeOn(owed, 'mine');
+    expect(seen('.recharge-pulse')).toBe(true);
+    expect(seen('.placed-tile')).toBe(true);
+    expect(seen('.harvest-pastille')).toBe(false);
+  });
+
+  it('plays for a raise on the standing twin too', async () => {
+    const standing = {
+      ...view,
+      me: {
+        ...view.me,
+        buildings: [
+          ...view.me.buildings,
+          {
+            id: 'hq-1',
+            key: 'hq',
+            name: 'QG',
+            regionId: 'FRA-75',
+            point: [2.35, 48.85],
+            level: 1,
+            nextLevelCost: { steel: 10 },
+            nextLevelMinutes: 20,
+            cappedByHq: false,
+          },
+        ],
+      },
+    } as unknown as PlayerView;
+    await placeOn(standing, 'hq', {
+      ...aim,
+      lonLat: [2.35, 48.85],
+      region: { id: 'FRA-75', name: 'Paris', country: 'FRA' },
+    });
+    expect(seen('.recharge-pulse')).toBe(true);
+  });
+
+  it('plays nothing when the server refuses', async () => {
+    start.mockImplementation(() => Promise.reject(new Error('refused')));
+    await placeOn(view, 'mine');
+    expect(seen('.recharge-pulse')).toBe(false);
+    expect(seen('.placed-tile')).toBe(false);
+  });
+
+  it('plays no ring in Blitz: there is no board to file the tile on', async () => {
+    await placeOn({ ...view, mode: 'blitz' } as unknown as PlayerView, 'mine');
+    expect(seen('.recharge-pulse')).toBe(false);
+    expect(seen('.placed-tile')).toBe(false);
   });
 });

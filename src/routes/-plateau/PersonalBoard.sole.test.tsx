@@ -8,6 +8,7 @@ import { RESOURCES } from '@/domain/ids';
 import type { PlayerView } from '@/domain/player-view';
 import type { Seat } from '@/data/session';
 import { BottomSheet } from '@/shell/BottomSheet';
+import { bindSpots, placed } from '@/shell/flights';
 import { SoleSurfaceProvider, useRoseSurface } from '@/shell/sole-surface';
 import { PersonalBoard } from './PersonalBoard';
 
@@ -305,5 +306,82 @@ describe('a refused tile', () => {
     await screen.findByLabelText(fr.personalBoard.refusalOf(fr.buildings.airfield));
     act(() => toggle().click());
     expect(screen.queryByLabelText(fr.personalBoard.refusalOf(fr.buildings.airfield))).toBeNull();
+  });
+});
+
+/** Where `placed` sends the tile: the last frame of its flight, read back as a centre. */
+const flights: Array<{ className: string; frames: Array<{ transform: string }> }> = [];
+const recordFlights = () => {
+  flights.length = 0;
+  Element.prototype.animate = function (this: Element, frames: unknown) {
+    flights.push({ className: this.className, frames: frames as Array<{ transform: string }> });
+    return { finished: new Promise(() => {}) } as unknown as Animation;
+  };
+};
+const arrival = () => {
+  const frames = flights.find((one) => one.className === 'placed-tile')?.frames;
+  const [, x, y] = /translate\(([-\d.]+)px, ([-\d.]+)px\)/.exec(frames!.at(-1)!.transform)!;
+  const box = document.querySelector<HTMLElement>('.placed-tile')!.style;
+  return { x: Number(x) + parseFloat(box.width) / 2, y: Number(y) + parseFloat(box.height) / 2 };
+};
+const rectOf = (left: number, top: number, width: number, height: number) =>
+  ({
+    left,
+    top,
+    width,
+    height,
+    right: left + width,
+    bottom: top + height,
+    x: left,
+    y: top,
+    toJSON: () => ({}),
+  }) as DOMRect;
+
+describe("the pose's flight on the phone (#592)", () => {
+  let unbind = () => {};
+  beforeEach(() => {
+    recordFlights();
+    unbind = bindSpots({ onMap: () => ({ x: 200, y: 300 }) });
+  });
+  afterEach(() => {
+    unbind();
+    document.body
+      .querySelectorAll('.pointer-events-none.fixed.inset-0')
+      .forEach((node) => node.remove());
+  });
+
+  it('files the tile taken on its stage on the bar, at the size it had', () => {
+    render(<Table />);
+    const bar = screen.getByRole('region', { name: fr.footBar.label });
+    bar.getBoundingClientRect = () => rectOf(0, 800, 390, 44);
+    const taken = tile('Quartier général');
+    taken.getBoundingClientRect = () => rectOf(10, 700, 60, 50);
+    fireEvent.click(taken);
+    placed('hq', [3, 50], 'full');
+    expect(arrival()).toEqual({ x: 195, y: 822 });
+    expect(document.querySelector('.placed-tile')).toHaveProperty('style.width', '44px');
+  });
+
+  it('still files it on the bar when the stage shows its works tab', () => {
+    render(<Table />);
+    const bar = screen.getByRole('region', { name: fr.footBar.label });
+    bar.getBoundingClientRect = () => rectOf(0, 800, 390, 44);
+    pull(-120);
+    document.querySelector<HTMLElement>('[data-volet-column="works"]')!.getBoundingClientRect =
+      () => rectOf(0, 300, 390, 300);
+    const taken = tile('Quartier général');
+    taken.getBoundingClientRect = () => rectOf(10, 700, 60, 50);
+    fireEvent.click(taken);
+    placed('hq', [3, 50], 'full');
+    expect(arrival()).toEqual({ x: 195, y: 822 });
+  });
+
+  it('leaves the ring alone when the stage is ceded', () => {
+    render(<Table />);
+    fireEvent.click(tile('Quartier général'));
+    act(() => setSheet(true));
+    placed('hq', [3, 50], 'full');
+    expect(document.querySelector('.recharge-pulse')).not.toBeNull();
+    expect(document.querySelector('.placed-tile')).toBeNull();
   });
 });

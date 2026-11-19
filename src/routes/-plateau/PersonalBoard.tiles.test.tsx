@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { ConvexProvider, type ConvexReactClient } from 'convex/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fr } from '@/i18n/fr';
 import { RESOURCES } from '@/domain/ids';
 import type { PlayerView } from '@/domain/player-view';
 import type { Seat } from '@/data/session';
+import { bindSpots, placed } from '@/shell/flights';
 import { PersonalBoard } from './PersonalBoard';
 
 /**
@@ -95,13 +96,13 @@ const view = {
   },
 } as unknown as PlayerView;
 
-const mount = () =>
+const mount = (open = false) =>
   render(
     <ConvexProvider client={client}>
       <PersonalBoard
         view={view}
         seat={SEAT}
-        open={false}
+        open={open}
         onOpen={() => {}}
         research={false}
         onResearch={() => {}}
@@ -154,5 +155,74 @@ describe('the tiles standing in the desk bar', () => {
     );
     expect(refused.getAttribute('aria-label')).not.toContain('il manque');
     expect(refused.className).toContain('border-dashed');
+  });
+});
+
+/** Where `placed` sends the tile: the last frame of its flight, read back as a centre. */
+const flights: Array<{ className: string; frames: Array<{ transform: string }> }> = [];
+const recordFlights = () => {
+  flights.length = 0;
+  Element.prototype.animate = function (this: Element, frames: unknown) {
+    flights.push({ className: this.className, frames: frames as Array<{ transform: string }> });
+    return { finished: new Promise(() => {}) } as unknown as Animation;
+  };
+};
+const arrival = () => {
+  const frames = flights.find((one) => one.className === 'placed-tile')?.frames;
+  const [, x, y] = /translate\(([-\d.]+)px, ([-\d.]+)px\)/.exec(frames!.at(-1)!.transform)!;
+  const box = document.querySelector<HTMLElement>('.placed-tile')!.style;
+  return { x: Number(x) + parseFloat(box.width) / 2, y: Number(y) + parseFloat(box.height) / 2 };
+};
+const rectOf = (left: number, top: number, width: number, height: number) =>
+  ({
+    left,
+    top,
+    width,
+    height,
+    right: left + width,
+    bottom: top + height,
+    x: left,
+    y: top,
+    toJSON: () => ({}),
+  }) as DOMRect;
+
+describe("the pose's flight at the desk (#592)", () => {
+  let unbind = () => {};
+  beforeEach(() => {
+    recordFlights();
+    unbind = bindSpots({ onMap: () => ({ x: 600, y: 300 }) });
+  });
+  afterEach(() => {
+    unbind();
+    document.body
+      .querySelectorAll('.pointer-events-none.fixed.inset-0')
+      .forEach((node) => node.remove());
+  });
+  const board = () => screen.getByRole('region', { name: fr.personalBoard.header });
+  const take = () => {
+    const taken = tile('Quartier général');
+    taken.getBoundingClientRect = () => rectOf(400, 820, 60, 50);
+    fireEvent.click(taken);
+  };
+
+  it("files the tile on the volet's queue when it is open", () => {
+    mount(true);
+    board().getBoundingClientRect = () => rectOf(0, 800, 1440, 77);
+    const queue = document.querySelector<HTMLElement>('[data-volet-column="works"]')!;
+    queue.getBoundingClientRect = () => rectOf(100, 500, 372, 300);
+    take();
+    placed('hq', [3, 50], 'full');
+    expect(arrival()).toEqual({ x: 286, y: 650 });
+  });
+
+  it('files it on the bar when the volet is folded', () => {
+    mount(false);
+    board().getBoundingClientRect = () => rectOf(0, 800, 1440, 77);
+    // Folded, the column keeps its box under the clip: only its inertness says it is hidden.
+    document.querySelector<HTMLElement>('[data-volet-column="works"]')!.getBoundingClientRect =
+      () => rectOf(100, 500, 372, 300);
+    take();
+    placed('hq', [3, 50], 'full');
+    expect(arrival()).toEqual({ x: 720, y: 838.5 });
   });
 });

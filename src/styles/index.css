@@ -923,6 +923,14 @@ body {
   border: 3px solid var(--ink);
 }
 
+.placed-tile {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border: 1px solid var(--ink);
+  background: var(--paper) center / contain no-repeat;
+}
+
 .harvest-pastille {
   position: absolute;
   left: 0;
