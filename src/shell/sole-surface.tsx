@@ -29,11 +29,12 @@ type Sole = { readonly claim: Claim; readonly closeCurrent: () => boolean };
 
 const SoleSurfaceContext = createContext<Sole | null>(null);
 
+/** Hors du rendu : le compilateur lierait `claim` à `history.location`, qui change à chaque
+ *  navigation, et toute surface ouverte se réclamerait alors sous le même geste. */
+type History = NonNullable<ReturnType<typeof useRouter>>['history'];
+const indexOf = (history: History): number => history.location.state.__TSR_index;
+
 export function SoleSurfaceProvider({ children }: { children: ReactNode }) {
-  /* Le compilateur lierait `claim` à `history.location`, qui change à chaque navigation : toute
-     surface ouverte se réclamerait alors sous le même geste, et la dernière fermerait la
-     précédente. */
-  'use no memo';
   const history = useRouter({ warn: false })?.history;
   const current = useRef<{ close: () => void; marks: boolean } | null>(null);
   /** L'index de l'entrée que nous avons posée, `null` quand il n'y en a pas. */
@@ -43,20 +44,21 @@ export function SoleSurfaceProvider({ children }: { children: ReactNode }) {
   const below = useRef('');
   const landing = useRef<string | null>(null);
   const atMarker = useCallback(
-    () => marker.current !== null && history?.location.state.__TSR_index === marker.current,
+    () => marker.current !== null && history !== undefined && indexOf(history) === marker.current,
     [history],
   );
 
-  /** Après le rendu : une feuille remplacée aussitôt (ou un double montage) garde son entrée. */
-  const settle = useCallback(() => {
-    queueMicrotask(() => {
-      if (history === undefined || current.current?.marks || !atMarker()) return;
-      marker.current = null;
-      if (history.location.href !== below.current) landing.current = history.location.href;
-      history.flush();
-      history.back();
-    });
+  /** Dépile notre entrée si on est dessus et qu'aucune feuille ne la tient. */
+  const popIfOrphan = useCallback(() => {
+    if (history === undefined || current.current?.marks || !atMarker()) return;
+    marker.current = null;
+    if (history.location.href !== below.current) landing.current = history.location.href;
+    history.flush();
+    history.back();
   }, [history, atMarker]);
+
+  /** Après le rendu : une feuille remplacée aussitôt (ou un double montage) garde son entrée. */
+  const settle = useCallback(() => queueMicrotask(popIfOrphan), [popIfOrphan]);
 
   /** Retour a dépilé l'entrée : la feuille se ferme, et il n'y a plus rien à retirer. */
   useEffect(
@@ -68,12 +70,15 @@ export function SoleSurfaceProvider({ children }: { children: ReactNode }) {
           history.replace(href);
           return;
         }
-        if (marker.current === null || location.state.__TSR_index >= marker.current) return;
+        if (marker.current === null || location.state.__TSR_index > marker.current) return;
+        /* Retour d'une fenêtre qui recouvrait l'entrée : on y est revenu sans feuille, et un seul
+           Retour de plus doit quitter le plateau. */
+        if (location.state.__TSR_index === marker.current) return popIfOrphan();
         marker.current = null;
         const held = current.current;
         if (held?.marks) held.close();
       }),
-    [history],
+    [history, popIfOrphan],
   );
 
   const claim = useCallback<Claim>(

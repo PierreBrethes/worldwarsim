@@ -156,6 +156,20 @@ describe('the history entry of a held sheet', () => {
     await settled();
     expect(index(router)).toBe(2);
   });
+
+  it('pops the entry a window gave back, so one more Back leaves the board', async () => {
+    const router = await mount();
+    show({ id: 'camp', marks: true });
+    await settled();
+    router.history.push('/plateau?windows=journal');
+    show({ id: 'camp', marks: true }, { id: 'journal', marks: false });
+    await settled();
+
+    await act(async () => router.history.back());
+    await settled();
+    expect(index(router)).toBe(0);
+    expect(closed).not.toHaveBeenCalledWith('journal');
+  });
 });
 
 describe('a touch on the bare map', () => {
