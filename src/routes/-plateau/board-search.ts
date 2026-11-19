@@ -105,6 +105,10 @@ export const yieldNavigation = (name: BoardWindow) => ({
   replace: true as const,
 });
 
+/** **Deux adresses qui disent la même surface** : y retourner ne pousse pas une entrée de plus. */
+export const sameAddress = (a: BoardSearch, b: BoardSearch): boolean =>
+  a.building === b.building && (a.windows ?? []).join() === (b.windows ?? []).join();
+
 export const toggleWindow = (search: BoardSearch, name: BoardWindow): BoardSearch =>
   (search.windows ?? []).includes(name) ? withoutWindow(search, name) : withWindow(search, name);
 

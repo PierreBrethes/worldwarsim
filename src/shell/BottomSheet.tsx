@@ -108,9 +108,9 @@ export function BottomSheet({
   title: string;
   /** Ce qui suit le titre sur sa ligne — un compte, un repère. */
   aside?: ReactNode;
-  /** Sans fermeture, la feuille ne réclame pas la place : elle suit une sélection que d'autres
-   *  gestes défont, et elle n'a pas de bouton à offrir. */
-  onClose?: () => void;
+  /** **Le seul chemin de fermeture** : le bouton, le lancer, une autre surface qui prend la place,
+   *  le retour du navigateur et la carte nue l'appellent tous (#584). */
+  onClose: () => void;
   initial?: SheetHeight;
   /** **Le titre en surtitre** (lot mobile-3) : quand la feuille porte son propre nom en vedette —
    *  une troupe, une destination, une dépêche —, l'en-tête ne dit que *de quoi il s'agit*, en
@@ -143,7 +143,7 @@ export function BottomSheet({
   const live = useRef<Spring | null>(null);
   const frame = useRef(0);
   const base = useRef(0);
-  useSoleSurface(onClose ?? (() => {}), onClose !== undefined);
+  useSoleSurface(onClose);
   const ports = useContext(SelectionSheetReport);
   const reporting = keepsSelection ? (ports?.report ?? null) : null;
   const onStep = ports?.onStep;
@@ -220,7 +220,7 @@ export function BottomSheet({
         onStep?.(goal);
       if (closing) {
         stop();
-        onClose?.();
+        onClose();
         return;
       }
       if (motion !== 'full' || from === null || goal === 0) {
@@ -263,7 +263,7 @@ export function BottomSheet({
   };
 
   return createPortal(
-    <SheetCloseContext.Provider value={onClose ?? null}>
+    <SheetCloseContext.Provider value={onClose}>
       <section
         ref={sheet}
         role="dialog"
@@ -301,16 +301,14 @@ export function BottomSheet({
             </h2>
             {aside}
             <span className="flex-1" />
-            {onClose && (
-              <button
-                type="button"
-                onClick={onClose}
-                onPointerDown={(event) => event.stopPropagation()}
-                className="min-h-[44px] shrink-0 cursor-pointer border border-[var(--ink)] px-[12px] text-[10px] tracking-[.18em] text-[var(--ink)] uppercase"
-              >
-                {fr.common.close}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={onClose}
+              onPointerDown={(event) => event.stopPropagation()}
+              className="min-h-[44px] shrink-0 cursor-pointer border border-[var(--ink)] px-[12px] text-[10px] tracking-[.18em] text-[var(--ink)] uppercase"
+            >
+              {fr.common.close}
+            </button>
           </div>
         </div>
         {/* Caché plutôt que démonté : ce qu'il porte garde son état, et revient tel quel. */}

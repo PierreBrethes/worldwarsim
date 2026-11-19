@@ -64,7 +64,7 @@ export function SurfaceKey({
   const rank = blitz ? null : (view.press?.mine?.rank ?? null);
   const onMap = !menu && !todoOpen && !SURFACES.some((name) => windowOpen(search, name));
 
-  useSoleSurface(() => setMenu(false), menu);
+  useSoleSurface(() => setMenu(false), menu, false);
   useEffect(() => {
     if (!menu) return;
     // Caught before the windows' own Escape: one key folds the menu, not the window under it.

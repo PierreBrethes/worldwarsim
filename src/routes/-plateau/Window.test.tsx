@@ -92,7 +92,7 @@ it('keeps the desk window above the threshold', () => {
 it('anchors a panel at the foot of a narrow screen, outside the push its caller applies', () => {
   atWidth(375);
   const { container } = render(
-    <Panel title="Garnison" position="static">
+    <Panel title="Garnison" position="static" onClose={() => {}}>
       <p>une pile</p>
     </Panel>,
   );
@@ -105,7 +105,7 @@ it('anchors a panel at the foot of a narrow screen, outside the push its caller 
 it('leaves the panel where the board anchors it above the threshold', () => {
   atWidth(1280);
   const { container } = render(
-    <Panel title="Garnison" position="static">
+    <Panel title="Garnison" position="static" onClose={() => {}}>
       <p>une pile</p>
     </Panel>,
   );

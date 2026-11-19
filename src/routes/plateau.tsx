@@ -38,6 +38,7 @@ import type { TakeDepot } from '@/map/MapLabels';
 import type { PieceClick } from '@/map/engine';
 import {
   readWindows,
+  sameAddress,
   withWindow,
   withoutWindow,
   yieldNavigation,
@@ -70,6 +71,8 @@ import { BoardWindows } from './-plateau/BoardWindows';
 import { SheetCount } from './-plateau/Window';
 import { Shell } from '@/shell/Shell';
 import { SelectionSheetReport, sheetHeight, sheetLift } from '@/shell/BottomSheet';
+import { useBareMapTap } from '@/shell/sole-surface';
+import { retouches } from './-plateau/retouch';
 import { tallest, useFrameOnOpen } from './-plateau/useFrameOnOpen';
 import { MAT_LIFT, boardBottomPx, useNarrowScreen } from '@/shell/viewport';
 import { ErrorScreen } from '@/shell/ErrorScreen';
@@ -429,7 +432,8 @@ function BoardContent({
   view: PlayerView;
   seat: Seat;
 }) {
-  const { country, windows = [], building: focused, report } = Route.useSearch();
+  const routeSearch = Route.useSearch();
+  const { country, windows = [], building: focused, report } = routeSearch;
   /**
    * **Une seule surface ouverte sous le seuil** (piste A, passe 2, qui révise le 15/09) : la pile
    * est rendue entière, et une fenêtre qu'une autre recouvre se ferme d'elle-même (`Window.tsx`) —
@@ -694,38 +698,49 @@ function BoardContent({
    */
   const aimingOnPhone = narrow && column !== null;
 
+  /** **Une seule fermeture par feuille** : le bouton, le lancer, la carte nue, le retour et le
+   *  toucher de l'objet déjà ouvert passent tous par ces fonctions (#584). */
+  const closeLoot = useCallback(() => setSelectedLoot(null), []);
+  const closeCamp = useCallback(() => setSelectedCamp(null), []);
+  const closeObjective = useCallback(() => setSelectedObjective(null), []);
+  const closePoint = useCallback(() => setSelectedPoint(null), []);
+
   const openLoot = useCallback(
     (ids: ReadonlyArray<string>, clientX: number, clientY: number) => {
       const first = ids[0];
       if (first === undefined || aimingOnPhone) return;
-      const at = boardPoint(clientX, clientY);
-      setSelectedLoot((previous) => {
-        const rank = previous === null ? -1 : ids.indexOf(previous.id);
-        return { id: ids[(rank + 1) % ids.length] ?? first, ...at };
-      });
+      const rank = selectedLoot === null ? -1 : ids.indexOf(selectedLoot.id);
+      const id = ids[(rank + 1) % ids.length] ?? first;
+      if (retouches(narrow, selectedLoot, id)) return closeLoot();
+      setSelectedLoot({ id, ...boardPoint(clientX, clientY) });
     },
-    [boardPoint, aimingOnPhone],
+    [boardPoint, aimingOnPhone, narrow, selectedLoot, closeLoot],
   );
 
   const openCamp = useCallback(
     (campId: string, clientX: number, clientY: number) => {
-      if (!aimingOnPhone) setSelectedCamp({ id: campId, ...boardPoint(clientX, clientY) });
+      if (aimingOnPhone) return;
+      if (retouches(narrow, selectedCamp, campId)) return closeCamp();
+      setSelectedCamp({ id: campId, ...boardPoint(clientX, clientY) });
     },
-    [boardPoint, aimingOnPhone],
+    [boardPoint, aimingOnPhone, narrow, selectedCamp, closeCamp],
   );
 
   const openObjective = useCallback(
     (objectiveId: string, clientX: number, clientY: number) => {
-      if (!aimingOnPhone)
-        setSelectedObjective({ id: objectiveId, ...boardPoint(clientX, clientY) });
+      if (aimingOnPhone) return;
+      if (retouches(narrow, selectedObjective, objectiveId)) return closeObjective();
+      setSelectedObjective({ id: objectiveId, ...boardPoint(clientX, clientY) });
     },
-    [boardPoint, aimingOnPhone],
+    [boardPoint, aimingOnPhone, narrow, selectedObjective, closeObjective],
   );
   const openStrategic = useCallback(
     (pointId: string, clientX: number, clientY: number) => {
-      if (!aimingOnPhone) setSelectedPoint({ id: pointId, ...boardPoint(clientX, clientY) });
+      if (aimingOnPhone) return;
+      if (retouches(narrow, selectedPoint, pointId)) return closePoint();
+      setSelectedPoint({ id: pointId, ...boardPoint(clientX, clientY) });
     },
-    [boardPoint, aimingOnPhone],
+    [boardPoint, aimingOnPhone, narrow, selectedPoint, closePoint],
   );
 
   /** Un relevé que le délai a périmé emporte le cartouche qui le lisait : la carte ne garde pas
@@ -802,6 +817,22 @@ function BoardContent({
     setBarRefusal(null);
   }, []);
 
+  /** Fermée, la garnison lâche aussi le cadrage qu'elle avait demandé : un cran lâché ensuite ne
+   *  doit pas ramener la carte sur elle. */
+  const closeGarrison = useCallback(() => {
+    forgetFrame();
+    setGarrison(null);
+  }, [forgetFrame]);
+  const garrisonRetouched = useCallback(
+    (station: TroopStation) =>
+      retouches(
+        narrow,
+        garrison === null ? null : { id: stationKeyOf(garrison.station) },
+        stationKeyOf(station),
+      ),
+    [narrow, garrison],
+  );
+
   const openGarrison = useCallback(
     (station: TroopStation, preselect: ReadonlyArray<string>, at: { x: number; y: number }) => {
       setHand(EMPTY_HAND);
@@ -860,12 +891,13 @@ function BoardContent({
   }, []);
 
   const dropHand = useCallback(() => {
+    forgetFrame();
     setHand(EMPTY_HAND);
     setChain(null);
     lastSeen.current = undefined;
     lastThen.current = undefined;
     setResting(null);
-  }, []);
+  }, [forgetFrame]);
 
   /**
    * **Maj + clic, ou au doigt un toucher pendant qu'on choisit** (#130) : la pile entre dans la
@@ -931,6 +963,14 @@ function BoardContent({
    * destination — il n'y a jamais deux réponses au même clic, l'une exclut l'autre — mais elle
    * suit ce qui se tient là : une garnison quand il y en a une, la ligne du bâtiment sinon.
    */
+  /** **Retourner à la même adresse ne pousse rien** (#584) : toucher le mât d'un site déjà
+   *  sélectionné ne doit pas empiler une entrée que « retour » aurait à défaire. */
+  const goTo = useCallback(
+    (to: (previous: BoardSearch) => BoardSearch) => {
+      if (!sameAddress(routeSearch, to(routeSearch))) void navigate({ search: to });
+    },
+    [navigate, routeSearch],
+  );
   const openBuilding = useCallback(
     (buildingId: string, clientX?: number, clientY?: number) => {
       const standing = view.me.buildings.find((candidate) => candidate.id === buildingId);
@@ -961,14 +1001,9 @@ function BoardContent({
           forgetFrame();
           setFocus({ ids: [buildingLabelId(standing)], nonce: Date.now() });
         }
-        void navigate({
-          search: (previous) => {
-            const windows = (previous.windows ?? []).filter((open) => open !== 'site');
-            return {
-              ...withWindow({ ...previous, windows }, 'personalBoard'),
-              building: buildingId,
-            };
-          },
+        goTo((previous) => {
+          const windows = (previous.windows ?? []).filter((open) => open !== 'site');
+          return { ...withWindow({ ...previous, windows }, 'personalBoard'), building: buildingId };
         });
         return;
       }
@@ -976,6 +1011,14 @@ function BoardContent({
       /** **En Blitz tout bâtiment tenu a sa modale** : le QG forme l'infanterie, la ville dit ce
        *  qu'elle verse, et la garnison s'y compose comme dans une caserne. */
       const siteModal = hasSiteSheet(view.mode, standing.key);
+      /** Sa fiche est déjà ouverte : le doigt qui revient dessus la ferme (#584). */
+      if (
+        siteModal &&
+        retouches(narrow, windows.includes('site') ? { id: focused ?? '' } : null, buildingId)
+      ) {
+        void navigate({ search: (previous) => withoutWindow(previous, 'site') });
+        return;
+      }
       if (siteModal) {
         setGarrison(null);
         setHand(EMPTY_HAND);
@@ -1006,17 +1049,16 @@ function BoardContent({
           return;
         }
         if (garrison.length > 0) {
-          openGarrison(station, [], boardPoint(clientX, clientY));
+          if (garrisonRetouched(station)) closeGarrison();
+          else openGarrison(station, [], boardPoint(clientX, clientY));
           return;
         }
       }
-      void navigate({
-        search: (previous) => {
-          const next = withWindow(previous, siteModal ? 'site' : WINDOW_OF_BUILDING[standing.key]);
-          /** Un site resté ouvert se retargeterait sur ce bâtiment, qui n'a pas de fiche de site. */
-          const windows = (next.windows ?? []).filter((open) => siteModal || open !== 'site');
-          return { ...next, windows, building: buildingId };
-        },
+      goTo((previous) => {
+        const next = withWindow(previous, siteModal ? 'site' : WINDOW_OF_BUILDING[standing.key]);
+        /** Un site resté ouvert se retargeterait sur ce bâtiment, qui n'a pas de fiche de site. */
+        const windows = (next.windows ?? []).filter((open) => siteModal || open !== 'site');
+        return { ...next, windows, building: buildingId };
       });
     },
     [
@@ -1035,6 +1077,11 @@ function BoardContent({
       applyPileClick,
       frameOnOpen,
       forgetFrame,
+      garrisonRetouched,
+      closeGarrison,
+      focused,
+      windows,
+      goTo,
     ],
   );
 
@@ -1060,7 +1107,8 @@ function BoardContent({
   const openStack = useCallback(
     (station: TroopStation, clientX: number, clientY: number): boolean => {
       if (station.kind !== 'point' || view.me.defeated) {
-        openGarrison(station, [], boardPoint(clientX, clientY));
+        if (garrisonRetouched(station)) closeGarrison();
+        else openGarrison(station, [], boardPoint(clientX, clientY));
         return false;
       }
       const troopIds = troopsAt(view.me, stationKeyOf(station), marching).map((troop) => troop.id);
@@ -1068,7 +1116,16 @@ function BoardContent({
       if (selectClick(click)) return false;
       return applyPileClick(click, clientX, clientY);
     },
-    [openGarrison, boardPoint, view.me, marching, applyPileClick, selectClick],
+    [
+      openGarrison,
+      closeGarrison,
+      garrisonRetouched,
+      boardPoint,
+      view.me,
+      marching,
+      applyPileClick,
+      selectClick,
+    ],
   );
 
   /**
@@ -2175,6 +2232,9 @@ function BoardContent({
     },
     [picking, hand.kind, clearSelection, forgetFrame, navigate, selectedSite?.id],
   );
+  /** **La carte nue** (#584) : un toucher sur le sol ferme la surface ouverte, seulement ; sans
+   *  surface, il lit le sol. Une pile en main garde sa place (la visée est #586). */
+  const readBare = useBareMapTap(readGround, hand.kind === 'held');
   const startPicking = useCallback(() => {
     dropHand();
     setPicking(true);
@@ -3024,7 +3084,7 @@ function BoardContent({
                       </div>
                     ) : undefined
                   }
-                  onSelect={aimingOnPhone ? keepSelection : readGround}
+                  onSelect={aimingOnPhone ? keepSelection : readBare}
                   onOpenBuilding={openBuilding}
                   onOpenStack={openStack}
                   holding={holding}
@@ -3120,7 +3180,7 @@ function BoardContent({
                     key={selectedLoot.id}
                     sighting={selectedLootSighting}
                     at={selectedLoot}
-                    onClose={() => setSelectedLoot(null)}
+                    onClose={closeLoot}
                   />
                 )}
                 {selectedCamp !== null && selectedCampView !== null && (
@@ -3129,7 +3189,7 @@ function BoardContent({
                     camp={selectedCampView}
                     at={selectedCamp}
                     onOpenGunnery={() => openWindow('gunnery')}
-                    onClose={() => setSelectedCamp(null)}
+                    onClose={closeCamp}
                   />
                 )}
                 {selectedObjective !== null && selectedObjectiveView !== null && (
@@ -3137,7 +3197,7 @@ function BoardContent({
                     key={selectedObjective.id}
                     objective={selectedObjectiveView}
                     at={selectedObjective}
-                    onClose={() => setSelectedObjective(null)}
+                    onClose={closeObjective}
                   />
                 )}
                 {selectedPoint !== null && selectedPointView !== null && (
@@ -3148,7 +3208,7 @@ function BoardContent({
                     seat={seat}
                     nations={view.opponents.map((opponent) => opponent.nation)}
                     at={selectedPoint}
-                    onClose={() => setSelectedPoint(null)}
+                    onClose={closePoint}
                   />
                 )}
                 {demolition !== null && razed !== undefined && (
@@ -3198,7 +3258,7 @@ function BoardContent({
                     station={garrison.station}
                     at={garrison}
                     preselect={garrison.preselect}
-                    onClose={() => setGarrison(null)}
+                    onClose={closeGarrison}
                     onPrepare={prepareColumn}
                     onPickedChange={setGarrisonPicked}
                     onDismantle={(outpostId, at) => {

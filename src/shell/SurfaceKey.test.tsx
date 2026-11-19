@@ -70,7 +70,11 @@ function ReadingWindow({ onClose }: { onClose: () => void }) {
 /** The unfolded personal board, reduced to what it does for the place: it yields by its `onYield`. */
 function UnfoldedBoard() {
   const navigate = useNavigate();
-  useSoleSurface(() => void navigate({ to: '/plateau', ...yieldNavigation('personalBoard') }));
+  useSoleSurface(
+    () => void navigate({ to: '/plateau', ...yieldNavigation('personalBoard') }),
+    true,
+    false,
+  );
   return <p>plateau déplié</p>;
 }
 

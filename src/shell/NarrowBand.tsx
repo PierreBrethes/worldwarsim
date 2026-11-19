@@ -147,7 +147,7 @@ function NationDossier({
   onResumeSteps: (() => void) | null;
   onClose: () => void;
 }) {
-  useSoleSurface(onClose);
+  useSoleSurface(onClose, true, false);
   const unread = useUnreadPatchnotes();
   const search = useSearch({ strict: false }) as BoardSearch;
   const toggles = useIndicatorToggles();

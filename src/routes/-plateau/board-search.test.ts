@@ -1,11 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { withWindow, withoutWindow, toggleWindow, windowOpen, yieldWindow } from './board-search';
+import {
+  sameAddress,
+  withWindow,
+  withoutWindow,
+  toggleWindow,
+  windowOpen,
+  yieldWindow,
+} from './board-search';
 
 /**
  * The URL is the board's whole state, so it is where the guarantees live: a shared link
  * reopens the same screen, and a focus never outlives the window it was opened for.
  */
 describe('the board’s search state', () => {
+  /** #584 : le toucher d'un mât déjà ouvert ne pousse pas la même adresse une seconde fois. */
+  it('tells the address of a surface already open from another one', () => {
+    const open = { ...withWindow({}, 'site'), building: 'k17abc' };
+    expect(sameAddress(open, { ...open })).toBe(true);
+    expect(sameAddress(open, { ...open, building: 'k18' })).toBe(false);
+    expect(sameAddress(open, withoutWindow(open, 'site'))).toBe(false);
+  });
+
   it('stacks a window last, and never twice', () => {
     const opened = withWindow(withWindow({}, 'personalBoard'), 'nation');
     expect(opened.windows).toEqual(['personalBoard', 'nation']);
