@@ -832,7 +832,9 @@ function NarrowSite({
   );
   const pinned = (
     <div className={`paper-grain border-b border-[var(--ink)] ${fade ?? ''}`}>
-      {levelLine}
+      {/* La garnison garde sa place pour les troupes : le niveau et la région se lisent aux autres
+          onglets et dans la fiche courte (#588). */}
+      {tab !== 'garrison' && levelLine}
       {/* Un état, jamais une action (ADR 0020 §6) : ce qui se reprend se reprend sur la carte. */}
       {unlinked && (
         <div className="px-4 pt-2 pb-2">
