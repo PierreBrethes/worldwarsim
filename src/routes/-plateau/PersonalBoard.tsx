@@ -976,7 +976,7 @@ function Tiles({
   return (
     <section
       key={compact ? 'compact' : 'whole'}
-      className={`min-w-0 ${narrow ? 'px-[10px] py-[6px]' : 'relative flex-1'} ${fade}`}
+      className={`min-w-0 ${narrow ? (compact ? 'px-[10px] py-[4px]' : 'px-[10px] py-[6px]') : 'relative flex-1'} ${fade}`}
     >
       <Rail
         narrow={narrow}
@@ -1048,7 +1048,7 @@ function TileFrame({
         {...grip}
         title={label}
         aria-label={label}
-        className={`group relative flex h-[40px] w-[96px] shrink-0 touch-pan-x snap-start items-center gap-[5px] border border-[var(--ink)] px-[5px] text-left text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
+        className={`group relative flex min-h-[calc(44px/var(--hud-scale))]! w-[96px] shrink-0 touch-pan-x snap-start items-center gap-[5px] border border-[var(--ink)] px-[5px] text-left text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
           locked ? 'border-dashed bg-transparent' : 'bg-[#efe5cc] shadow-[0_2px_0_var(--ink)]'
         } ${'onClick' in grip ? 'cursor-pointer' : ''} ${lit ? 'outline-2 outline-offset-1 outline-[var(--ochre)]' : ''}`}
       >
