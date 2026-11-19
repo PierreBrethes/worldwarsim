@@ -1,5 +1,5 @@
 import { useMutation } from 'convex/react';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
 import {
@@ -36,12 +36,24 @@ import type { PlayerView, TroopStation } from '@/domain/player-view';
 import { handleError } from '@/data/errors';
 import { Stamp } from '@/shell/Stamp';
 import { Draggable } from './Draggable';
+import type { SheetCycle } from '@/shell/BottomSheet';
+import { FicheSheet } from './FicheSheet';
 import { GarrisonStack } from './GarrisonStack';
+import { handOffersOf } from './hand-offers';
+import { PileTabs } from './PileTabs';
+import { useNarrowScreen } from '@/shell/viewport';
 import { Panel } from './Panel';
 import { RazeButton } from './RazeButton';
 import type { Seat } from '@/data/session';
 
 const PROJECTION_KEYS: ReadonlySet<BuildingKey> = new Set(Object.values(PROJECTION_BY_DOMAIN));
+
+/** « hors service — encore h mn » : la même phrase au panneau du bureau et à la fiche du téléphone. */
+const disabledText = (minutesLeft: number): string =>
+  fr.garrison.disabledFor(
+    Math.floor(minutesLeft / 60),
+    String(Math.floor(minutesLeft % 60)).padStart(2, '0'),
+  );
 
 /**
  * **La garnison d'une adresse qui n'est pas un site de production** — un avant-poste, une pile
@@ -69,6 +81,7 @@ export function GarrisonPanel({
   onPrepare,
   onPickedChange,
   onDismantle,
+  cycle,
 }: {
   view: PlayerView;
   seat: Seat;
@@ -84,6 +97,8 @@ export function GarrisonPanel({
   /** **Démanteler, depuis la feuille** (#343) : au doigt, le toucher qui ouvre cette feuille
    *  referme la rose qui portait l'ordre. Le plateau pose alors la carte de confirmation. */
   onDismantle: (outpostId: string, at: { x: number; y: number }) => void;
+  /** ‹ › de la fiche d'un avant-poste au téléphone : l'avant-poste voisin (#593). */
+  cycle?: SheetCycle | undefined;
 }) {
   const marching = useMemo(() => marchingTroopIds(view.arcs), [view.arcs]);
   const stationKey = stationKeyOf(station);
@@ -92,6 +107,8 @@ export function GarrisonPanel({
     [view.me, stationKey, marching],
   );
   const disembark = useMutation(api.movements.disembark);
+  const narrow = useNarrowScreen();
+  const Stack = narrow ? PileTabs : GarrisonStack;
   const [ashoreError, setAshoreError] = useState<string | null>(null);
 
   const building =
@@ -134,6 +151,60 @@ export function GarrisonPanel({
           : fr.troops.postedAt(station.country)
         : fr.garrison.home;
 
+  const garrisonBody = (
+    <div className="mt-[10px]">
+      {/* Au doigt, la pile d'une garnison se lit sous les mêmes onglets que la pile en main ;
+          le reste du panneau (tampons, élévation, vigie, rase) ne change pas (#585). */}
+      <Stack
+        view={view}
+        station={station}
+        held={held}
+        preselect={preselect}
+        canPrepare={canPrepare}
+        observing={view.me.defeated}
+        onPrepare={onPrepare}
+        onPickedChange={onPickedChange}
+        onDisembark={(troopIds) => {
+          setAshoreError(null);
+          /* Le même refus que la fiche de la pile en main : `offersOf`, jamais sa propre règle. */
+          const refused =
+            station.kind === 'home'
+              ? undefined
+              : handOffersOf(view, { station, troopIds }, null, view.loadedAt, null)
+                  .map((offer) => (offer.key === 'disembark' ? offer.refusal : null))
+                  .find((refusal) => refusal !== null);
+          if (refused !== undefined) {
+            setAshoreError(refused);
+            return;
+          }
+          disembark({
+            ...seat,
+            troopIds: troopIds.map((troopId) => troopId as Id<'troops'>),
+          }).catch((problem: unknown) => handleError(problem, setAshoreError));
+        }}
+      />
+      {ashoreError !== null && (
+        <p className="mt-[6px] text-[11px] text-[var(--critical)]">{ashoreError}</p>
+      )}
+    </div>
+  );
+
+  if (narrow && outpost !== null)
+    return (
+      <OutpostSheet
+        view={view}
+        seat={seat}
+        outpost={outpost}
+        title={title}
+        ground={ground}
+        count={held.length}
+        garrison={garrisonBody}
+        onClose={onClose}
+        onDismantle={onDismantle}
+        cycle={cycle}
+      />
+    );
+
   const fromRight = at.x > window.innerWidth / 2;
   const fromBottom = at.y > window.innerHeight / 2;
 
@@ -172,10 +243,7 @@ export function GarrisonPanel({
              *  combien de temps encore — et c'est la seule chose que le joueur ait à peser ici,
              *  sa zone étant hachurée sur la carte pendant tout ce temps (ADR 0020 §7). */}
             <span className="text-center text-[10.5px] text-[var(--ink-soft)]">
-              {fr.garrison.disabledFor(
-                Math.floor(outpost.disabledMinutesLeft / 60),
-                String(Math.floor(outpost.disabledMinutesLeft % 60)).padStart(2, '0'),
-              )}
+              {disabledText(outpost.disabledMinutesLeft)}
             </span>
           </div>
         )}
@@ -212,28 +280,7 @@ export function GarrisonPanel({
           </button>
         </div>
 
-        <div className="mt-[10px]">
-          <GarrisonStack
-            view={view}
-            station={station}
-            held={held}
-            preselect={preselect}
-            canPrepare={canPrepare}
-            observing={view.me.defeated}
-            onPrepare={onPrepare}
-            onPickedChange={onPickedChange}
-            onDisembark={(troopIds) => {
-              setAshoreError(null);
-              disembark({
-                ...seat,
-                troopIds: troopIds.map((troopId) => troopId as Id<'troops'>),
-              }).catch((problem: unknown) => handleError(problem, setAshoreError));
-            }}
-          />
-          {ashoreError !== null && (
-            <p className="mt-[6px] text-[11px] text-[var(--critical)]">{ashoreError}</p>
-          )}
-        </div>
+        {garrisonBody}
 
         {/** **On ne monte pas ce qui n'est pas debout** : un chantier n'a pas de niveau à
          *  élever, il a une heure à attendre. */}
@@ -254,31 +301,7 @@ export function GarrisonPanel({
               outpost={outpost}
               observing={view.me.defeated}
             />
-            {isOnWatch(outpost) ? (
-              <>
-                {/* Sans charbon, la ligne aveugle plus bas dit pourquoi : pas de rayon promis. */}
-                {!view.me.upkeep.listeningSilent && (
-                  <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
-                    {fr.garrison.lookout(lookoutKmOf(outpost), lookoutCoalPerHour(outpost.level))}
-                  </p>
-                )}
-                <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
-                  {fr.garrison.liaisons(
-                    liaisonCountOf(view.me.outposts, outpost.id),
-                    RELAY_SPEED_MULTIPLIER,
-                  )}
-                </p>
-              </>
-            ) : (
-              <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
-                {fr.garrison.lookoutCut}
-              </p>
-            )}
-            {view.me.upkeep.listeningSilent && (
-              <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--critical)]">
-                {fr.garrison.blind} {fr.economy.listeningSilentFix}
-              </p>
-            )}
+            <OutpostLookout view={view} outpost={outpost} />
           </div>
         )}
         {building !== null && <RazeButton view={view} building={building} className="mt-[11px]" />}
@@ -287,6 +310,151 @@ export function GarrisonPanel({
         )}
       </Panel>
     </Draggable>
+  );
+}
+
+/**
+ * **La fiche d'un avant-poste au téléphone** (#588) : la fiche commune, courte puis déroulée. Le
+ * tampon dit l'état — « debout », « désactivé », ou « en chantier » avec l'heure du lever ; les
+ * onglets sont la garnison, l'élévation (monter, changer de spécialisation), la vigie et le point
+ * (son dépôt, le démanteler). Chaque onglet est un composant du panneau du bureau, et chaque refus
+ * y sort de la même fonction que la mutation.
+ */
+function OutpostSheet({
+  view,
+  seat,
+  outpost,
+  title,
+  ground,
+  count,
+  garrison,
+  onClose,
+  onDismantle,
+  cycle,
+}: {
+  view: PlayerView;
+  seat: Seat;
+  outpost: OutpostView;
+  title: string;
+  ground: string | null;
+  count: number;
+  garrison: ReactNode;
+  onClose: () => void;
+  onDismantle: (outpostId: string, at: { x: number; y: number }) => void;
+  cycle?: SheetCycle | undefined;
+}) {
+  const [tab, setTab] = useState('garrison');
+  const building = outpost.standsAt !== null;
+  const disabled = outpost.disabledMinutesLeft !== null;
+  const stamp = building
+    ? { label: fr.stamps.outpostUnderConstruction, tone: 'critical' as const }
+    : disabled
+      ? { label: fr.stamps.outpostDisabled, tone: 'critical' as const }
+      : { label: fr.stamps.outpostStanding, tone: 'ink' as const };
+  const state = building
+    ? fr.garrison.standsAt(asLocalTime(outpost.standsAt ?? 0))
+    : disabled
+      ? disabledText(outpost.disabledMinutesLeft ?? 0)
+      : null;
+  const tabs = [
+    { id: 'garrison', label: fr.garrison.tabs.garrison, count: String(count) },
+    ...(building || view.me.defeated
+      ? []
+      : [
+          { id: 'raise', label: fr.garrison.tabs.raise },
+          { id: 'lookout', label: fr.garrison.tabs.lookout },
+        ]),
+    ...(view.me.defeated ? [] : [{ id: 'point', label: fr.garrison.tabs.point }]),
+  ];
+  return (
+    <FicheSheet
+      title={title}
+      aside={<Stamp label={stamp.label} tone={stamp.tone} size="small" />}
+      summary={
+        <>
+          <span className="block truncate font-bold">{ground ?? ''}</span>
+          <span className="block truncate text-[var(--ink-soft)]">
+            {[state, fr.garrison.troopCount(count)].filter((part) => part !== null).join(' · ')}
+          </span>
+        </>
+      }
+      tabs={tabs}
+      tab={tabs.some((one) => one.id === tab) ? tab : 'garrison'}
+      onTab={setTab}
+      cycle={cycle}
+      onClose={onClose}
+    >
+      {tab === 'raise' ? (
+        <>
+          <OutpostRaise view={view} seat={seat} outpost={outpost} />
+          <div className="mt-[11px] border-t border-(color:--ink)/32 pt-[9px]">
+            <OutpostSpecialty view={view} seat={seat} outpost={outpost} observing={false} />
+          </div>
+        </>
+      ) : tab === 'lookout' ? (
+        <OutpostLookout view={view} outpost={outpost} />
+      ) : tab === 'point' ? (
+        <>
+          <p className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
+            {fr.garrison.depot} : {depotWords(outpost)}
+          </p>
+          <OutpostDismantle outpost={outpost} onDismantle={onDismantle} />
+        </>
+      ) : (
+        <>
+          {building && (
+            <p className="mb-[8px] text-center text-[10.5px] text-[var(--ink-quiet)] italic">
+              {fr.garrison.foundationHeld}
+            </p>
+          )}
+          {garrison}
+        </>
+      )}
+    </FicheSheet>
+  );
+}
+
+/** Ce que le dépôt du point tient, en toutes lettres, ou qu'il est vide. */
+const depotWords = (outpost: OutpostView): string => {
+  const held = RESOURCES.flatMap((key) => {
+    const amount = outpost.depot[key as keyof typeof outpost.depot] ?? 0;
+    return amount > 0 ? [`${amount} ${fr.resources[key]}`] : [];
+  });
+  return held.length === 0 ? fr.garrison.depotEmpty : held.join(' · ');
+};
+
+/** **Ce que la vigie du point couvre** (ADR 0037 §1, §8) : son rayon et son charbon, ses liaisons ;
+ *  à court de charbon, ce qui s'aveugle. Le même texte dans le panneau du bureau et l'onglet
+ *  « vigie » de la fiche du téléphone. */
+function OutpostLookout({ view, outpost }: { view: PlayerView; outpost: OutpostView }) {
+  return (
+    <>
+      {isOnWatch(outpost) ? (
+        <>
+          {/* Sans charbon, la ligne aveugle plus bas dit pourquoi : pas de rayon promis. */}
+          {!view.me.upkeep.listeningSilent && (
+            <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
+              {fr.garrison.lookout(lookoutKmOf(outpost), lookoutCoalPerHour(outpost.level))}
+            </p>
+          )}
+          <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
+            {fr.garrison.liaisons(
+              liaisonCountOf(view.me.outposts, outpost.id),
+              RELAY_SPEED_MULTIPLIER,
+            )}
+          </p>
+        </>
+      ) : (
+        <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--ink-soft)]">
+          {fr.garrison.lookoutCut}
+        </p>
+      )}
+      {view.me.upkeep.listeningSilent && (
+        <p className="mt-[5px] text-[10.5px] leading-[1.4] text-[var(--critical)]">
+          {fr.garrison.blind} {fr.economy.listeningSilentFix}
+        </p>
+      )}
+    </>
   );
 }
 

@@ -12,9 +12,10 @@ import {
 import { createPortal } from 'react-dom';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
-import { spedMinutes, speedsUp, worksMinutes } from '@/domain/level-speed';
+import { spedMinutes, speedsUp } from '@/domain/level-speed';
 import { countdownLabel, fr, roleLabel, upgradeHoldText } from '@/i18n/fr';
 import { handleError } from '@/data/errors';
+import { keepTilesStep, readTilesStep } from '@/data/settings';
 import { useMapMotion } from '@/data/mapMotion';
 import type { Seat } from '@/data/session';
 import { useClock } from '@/shell/clock';
@@ -22,10 +23,21 @@ import { bindSpots, centreOf, flightLayer, flyPastille, spent as flySpent } from
 import { notify } from '@/shell/notifications';
 import { Price } from '@/shell/Price';
 import { CueBubble } from '@/shell/CueBubble';
-import { FOOT_ROW, useClaimFoot, useFoot } from '@/shell/foot';
+import { FOOT_ROW, useFoot } from '@/shell/foot';
 import { ReserveCell } from '@/shell/ReserveCell';
+import { BottomSheet, type KeepingHeight } from '@/shell/BottomSheet';
+import { useSurfaceHeld } from '@/shell/sole-surface';
 import { useNarrowScreen } from '@/shell/viewport';
-import { keptLevelOf, keptOf, placementOf, reachesOf, upgradeHold } from '@/domain/construction';
+import {
+  keptLevelOf,
+  keptOf,
+  placementOf,
+  reachesOf,
+  tileBillOf,
+  tileCostOf,
+  upgradeHold,
+} from '@/domain/construction';
+import { billShortageText } from '@/domain/compass-works';
 import { outpostReachKm } from '../../../convex/constants';
 import { harvestOf, pastilleShares, type Harvest } from '@/domain/harvest';
 import {
@@ -42,12 +54,10 @@ import { isSupplyKey, type SupplyLoad } from '@/domain/logistics';
 import type { MapMotion } from '@/domain/map-motion';
 import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
 import { UnitSprite } from '@/emblems/UnitSprite';
+import { CASCADE, enter } from './cascade';
 import { buildingsOfMaquette, type MaquetteAt } from './board-markers';
 import { conditionText } from './FoundationRows';
-import { LotControl } from './LotControl';
-import { useBandDensity } from './board-density';
-import { GaugeBin } from './GaugeBin';
-import { HeapBinLines, HeapBoardNotes } from './HeapBinLines';
+import { StageTabs, Volet, type StageTab } from './Volet';
 import { Rail, type Grab, type Grip } from './Rail';
 import { useOverflow } from './useOverflow';
 import { RazeButton } from './RazeButton';
@@ -57,26 +67,28 @@ type Hint = { readonly text: string; readonly refused: boolean; readonly cost?: 
 
 type Cost = Readonly<Partial<Record<ResourceKey, number>>>;
 
+/** **Le refus d'une tuile touchée** (#579, #589) : elle tremble sur place, sans quitter sa rangée,
+ *  puis sa phrase se dit — une notification au bureau, un feuillet au téléphone. */
+const SHAKE: Keyframe[] = [
+  { translate: '0 0' },
+  { translate: '-6px 0' },
+  { translate: '5px 0' },
+  { translate: '-3px 0' },
+  { translate: '0 0' },
+];
+
 /** Under this travel a press is a click, not a drag: the tile stays in hand for a click on the map. */
 const DRAG_THRESHOLD_PX = 5;
 
 /** The air left between the band and what rises over it. */
 const MAT_GAP_PX = 8;
 
-/** The unfolded band's height at the desk: a site open needs room for its troop cards and their
- *  refusals; a gauge also reads what waits at the foot (#548). */
-const BAND_HEIGHT = { site: '184px', rest: '174px' } as const;
-
-/** Plein, la bande monte jusqu'à l'en-tête, à une marge près. */
-const FULL_ROOM =
-  'calc((100dvh - var(--board-top) - var(--safe-bottom) - 26px) / var(--hud-scale))';
-
 /**
  * **Le plateau personnel, en sous-main** (issue #122, maquette B) : une bande sur toute la largeur
- * au pied de la table. Repliée, elle tient en une ligne qui garde les bacs — on en glisse des
- * jetons sur un transport sans la déplier —, le chantier en tête et la récolte. Dépliée, les bacs
- * en jauges jusqu'au plafond de l'entrepôt, le rang des tuiles de bâtiments qu'on fait défiler,
- * et la file des chantiers. Un site de projection sélectionné sur la carte y met ses cartes de
+ * au pied de la table. Au bureau, sa barre garde les bacs — on en glisse des jetons sur un
+ * transport sans la déplier —, les tuiles de bâtiments debout qu'on fait défiler (#579), le
+ * chantier en tête et la récolte ; dépliée, la file des chantiers monte au-dessus. Au téléphone,
+ * la bande dépliée porte les réserves, le rang des tuiles et la file des chantiers. Un site de projection sélectionné sur la carte y met ses cartes de
  * troupes et sa file de formation (#163). Les consommations vivent dans les tickets du bandeau
  * (#121). « Recherche » ouvre la fenêtre de l'arbre (#123).
  *
@@ -93,7 +105,7 @@ export function PersonalBoard({
   site,
   onDeselectSite,
   onOpenSiteSheet,
-  onCover,
+  onUnfold,
   onOpen,
   onResearch,
   onHoldTile,
@@ -105,9 +117,12 @@ export function PersonalBoard({
 }: {
   view: PlayerView;
   seat: Seat;
-  /** Dépliée : la fenêtre `personalBoard` de l'adresse, que sa languette bascule. */
+  /** Au bureau, dépliée : la fenêtre `personalBoard` de l'adresse, que sa poignée bascule. Au
+   *  téléphone l'étage n'est pas dans l'adresse (#589) : la fenêtre ouverte par un mât ne fait que
+   *  le sortir de sa barre, et son repli la ferme. */
   open: boolean;
-  onOpen: (open: boolean) => void;
+  /** `replace` : l'étage se replie sans pousser d'entrée, « retour » n'a rien à y défaire. */
+  onOpen: (open: boolean, replace?: boolean) => void;
   /** **La fenêtre de l'arbre ouverte** (#123) : la bande se replie devant elle. */
   research: boolean;
   onResearch: (open: boolean) => void;
@@ -125,9 +140,9 @@ export function PersonalBoard({
   onDeselectSite: () => void;
   /** « fiche du site » : garnison, niveau, élever. */
   onOpenSiteSheet: () => void;
-  /** **Ce que le plateau couvre de la carte** sous le seuil, quand il est déplié sur un site : sa
-   *  hauteur mesurée, `null` sinon. La caméra y recadre le bâtiment touché. */
-  onCover?: (height: number | null) => void;
+  /** **L'étage vient de sortir de sa barre** : ce qu'il couvre de la carte change, et le sujet
+   *  touché se recadre s'il est caché. */
+  onUnfold?: () => void;
   /** Arms the map's ghost for the tile in hand, or disarms it (ADR 0029). */
   onHoldTile: (key: BuildingKey | null) => void;
   /** The tile let go over the map, put down where the ghost stands: `true` when it went. */
@@ -144,6 +159,28 @@ export function PersonalBoard({
   const binRefs = useRef(new Map<ResourceKey, HTMLElement>());
   const observing = view.me.defeated;
 
+  /** **L'étage des tuiles** (#589), sous le seuil et en Mondiale : une feuille posée au-dessus de la
+   *  barre. Deux états : le cran choisi (retenu par appareil) et « cédé » — une autre surface tient
+   *  la place, ou la main a quitté l'étage —, éphémère, qui le cache sans le fermer. */
+  const staged = narrow && view.mode !== 'blitz';
+  const surfaceHeld = useSurfaceHeld();
+  const [step, setStep] = useState<KeepingHeight>(() => (open ? 'peek' : readTilesStep()));
+  const [bar, setBar] = useState<HTMLElement | null>(null);
+  const [sheet, setSheet] = useState<HTMLElement | null>(null);
+  const [refused, setRefused] = useState<BuildingKey | null>(null);
+  /** L'onglet de l'étage : un état local, ni dans l'adresse ni dans l'historique (#590). */
+  const [tab, setTab] = useState<StageTab>('works');
+  const barRef = useCallback((node: HTMLElement | null) => {
+    board.current = node;
+    setBar(node);
+  }, []);
+  /** Une fenêtre que le mât d'un bâtiment ouvre sort l'étage de sa barre. */
+  const [seenOpen, setSeenOpen] = useState(open);
+  if (open !== seenOpen) {
+    setSeenOpen(open);
+    if (open && step === 'collapsed') setStep('peek');
+  }
+
   const { shown, harvest, ledger, mark, replay } = useHarvest(view, seat, motion, binRefs);
   // Les échanges payent d'un bac, ou du bandeau quand la bande n'en montre pas.
   useEffect(
@@ -157,7 +194,7 @@ export function PersonalBoard({
       }),
     [],
   );
-  const { held, hint, away, take, chip } = useHand({
+  const { held, hint, away, take, chip, taken } = useHand({
     view,
     onSpent: mark,
     seat,
@@ -166,45 +203,101 @@ export function PersonalBoard({
     onHoldTile,
     onPlaceTile,
     maquetteAt,
+    onRefuse: narrow ? setRefused : null,
   });
+  /** **Armer une tuile replie le volet** (#580), au bureau, sans toucher l'adresse : il ne se
+   *  rouvre pas seul au désarmement, la poignée le rouvre. Un site sélectionné a sa bande. */
+  const [shut, setShut] = useState(false);
+  if (!narrow && placing !== null && open && !shut) setShut(true);
+  if (shut && !open) setShut(false);
   /** La main qui quitte la bande lui rend la carte : elle se replie le temps du geste. */
-  const folded = !open || research || away;
-  /** **Plein**, sous le seuil : le plateau prend tout ce que la carte lui laisse. Replié, il
-   *  repart à mi-hauteur à la prochaine ouverture. */
-  const [full, setFull] = useState(false);
-  const filled = full && !folded;
-  if (full && folded) setFull(false);
-  const gripLabel = folded
-    ? fr.footBar.grip.open
-    : filled
-      ? fr.footBar.grip.fold
-      : fr.footBar.grip.full;
-  const foot = useFoot();
-  useClaimFoot(narrow ? foot : null, board);
-  const covers = narrow && !folded && site !== null;
+  const folded = !open || research || away || (shut && site === null);
+  const ceded = staged && (surfaceHeld || away);
+  const stageUp = staged && !ceded;
+  const stageHead = stageUp && step !== 'collapsed' ? sheet : null;
+  // The pose files its tile on the queue of works, and takes the size of the tile that was taken
+  // while its stage is up (#592): a stage ceded has no tile to fly, the ring stays alone.
+  const cededNow = useRef(ceded);
   useLayoutEffect(() => {
-    const element = board.current;
-    if (onCover === undefined || !covers || element === null) return;
-    const publish = () => onCover(element.getBoundingClientRect().height);
-    publish();
-    const observer = new ResizeObserver(publish);
-    observer.observe(element);
-    return () => {
-      observer.disconnect();
-      onCover(null);
-    };
-  }, [covers, onCover, board]);
+    cededNow.current = ceded;
+  });
+  useEffect(
+    () =>
+      bindSpots({
+        tile: (key) => {
+          // Read once: a later pose that no tile was taken for flies no tile.
+          const box = taken.current;
+          taken.current = null;
+          return box === null || box.key !== key || cededNow.current ? null : box;
+        },
+        queue: () => {
+          // The open stage is the queue's place: its title line, not the middle of the drawer.
+          const head = stageHead?.querySelector('h2');
+          if (head) return centreOf(head);
+          const column = narrow
+            ? null
+            : document.querySelector<HTMLElement>('[data-volet-column="works"]');
+          // A folded volet is inert, and its column keeps its box under the clip.
+          if (column !== null && column.closest('[inert]') === null) return centreOf(column);
+          return board.current === null ? null : centreOf(board.current);
+        },
+      }),
+    [narrow, taken, stageHead],
+  );
+  const collapsed = step === 'collapsed';
+  /** Le feuillet d'une tuile refusée ne survit ni au repli, ni à l'étage cédé, ni à son refus. */
+  const live = refused !== null ? refusalSheetOf(view, refused, now) : null;
+  const refusal = stageUp && !collapsed ? live : null;
+  if (refused !== null && refusal === null) setRefused(null);
+  const chooseStep = (next: KeepingHeight) => {
+    if (next === step) return;
+    setStep(next);
+    keepTilesStep(next);
+    if (next === 'collapsed') {
+      setRefused(null);
+      if (open) onOpen(false, narrow);
+    } else if (collapsed) onUnfold?.();
+  };
+  // Le focus qui tenait l'étage quand une surface l'a pris retombe sur body : il revient au pli.
+  const heldFocus = useRef(false);
+  useLayoutEffect(() => {
+    if (ceded) heldFocus.current = sheet?.contains(document.activeElement) ?? false;
+    else if (heldFocus.current) {
+      heldFocus.current = false;
+      if (document.activeElement === document.body) sheet?.querySelector('button')?.focus();
+    }
+  }, [ceded, sheet]);
+  const foot = useFoot();
+  const claim = foot?.claim;
+  // La coque mesure le sommet de ce qui couvre le pied de la carte : l'étage tant qu'il est là,
+  // sinon la barre.
+  const topmost = narrow ? (stageUp && sheet !== null ? sheet : bar) : null;
+  useEffect(() => {
+    if (claim === undefined || !narrow) return;
+    claim(topmost);
+    return () => claim(null);
+  }, [claim, narrow, topmost]);
   const handleRef = useRef<HTMLButtonElement>(null);
-  useMatRise(board, `${folded}-${filled}-${research}-${cue?.text ?? ''}`);
-  /** Un site ouvert resserre les bacs au plus juste : sa colonne a besoin de la place. */
-  const measured = useBandDensity(board);
-  const density = site === null ? measured : 'serre';
-  useUnfoldCascade(board, open && !research, narrow, motion);
+  useMatRise(
+    () => (narrow ? [bar, stageUp ? sheet : null] : [board.current]),
+    `${narrow}-${folded}-${stageUp}-${step}-${research}-${cue?.text ?? ''}-${bar !== null}-${sheet !== null}`,
+  );
+  useUnfoldCascade(board, open && !research && !(shut && site === null), narrow, motion);
+  const swap = useRef<HTMLDivElement>(null);
+  const workshop = useQuery(api.troops.workshop, narrow ? 'skip' : seat);
+  useSiteSwap(
+    swap,
+    site?.id ?? null,
+    site === null || workshop !== undefined,
+    open && !research && !(shut && site === null),
+    narrow,
+    motion,
+  );
 
   // Escape lets the selected site go, or folds the band, when no window stands in front of it.
   const selected = site !== null;
   useEffect(() => {
-    if (!front || !open) return;
+    if (narrow || !front || folded) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || held !== null || placing !== null) return;
       if (selected) onDeselectSite();
@@ -212,18 +305,18 @@ export function PersonalBoard({
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [front, held, placing, open, onOpen, selected, onDeselectSite]);
+  }, [narrow, front, held, placing, folded, onOpen, selected, onDeselectSite]);
 
   // Folded, the focus that was inside the band (or that it took to the body) goes to its handle.
   const wasFolded = useRef(folded);
   useEffect(() => {
     const was = wasFolded.current;
     wasFolded.current = folded;
-    if (was || !folded || away) return;
+    if (narrow || was || !folded || away || shut) return;
     const active = document.activeElement;
     if (active === null || active === document.body || board.current?.contains(active))
       handleRef.current?.focus({ preventScroll: true });
-  }, [folded, away]);
+  }, [narrow, folded, away, shut]);
 
   const focusedBuilding = view.me.buildings.find((building) => building.id === focused) ?? null;
   const focusedKey = focusedBuilding?.key ?? null;
@@ -244,45 +337,31 @@ export function PersonalBoard({
   });
   const rackCue = cue !== null && cue.rack !== 'research' ? cue.text : null;
   const researchCue = cue?.rack === 'research' ? cue.text : null;
-  // Une clé en main : la bulle couvrirait la fiche de pose, au pied de l'écran (#239).
-  const unfoldCued = rackCue !== null && folded && !research && placing === null;
+  // Au bureau les tuiles sont debout, plateau replié (#579) : rien à déplier, la bulle les désigne.
+  // Au téléphone elle se pose sur l'étage, au rang ou à la moitié : au plein, elle couvrirait le bandeau.
+  const rackCued = narrow ? stageUp && !collapsed : !research && placing === null;
 
-  /** La poignée : sous le seuil une languette au-dessus de la barre, qui tire la bande — repliée,
-   *  mi-hauteur, pleine, repliée ; au bureau le titre de la bande, qui la bascule. */
+  /** La poignée du bureau : le titre de la bande, qui la bascule. */
   const handle = (
     <button
       ref={handleRef}
       type="button"
       aria-expanded={!folded}
-      aria-label={narrow ? gripLabel : undefined}
+      aria-label={folded ? fr.footBar.grip.open : fr.footBar.grip.fold}
       onClick={() => {
         onResearch(false);
-        if (narrow && !folded && !filled) setFull(true);
+        if (folded && open && shut) setShut(false);
         else onOpen(folded);
       }}
-      className={`cursor-pointer font-(family-name:--font-display) text-[15px] leading-none font-bold whitespace-nowrap hover:bg-(--ink)/8 ${
-        narrow
-          ? 'paper-grain absolute -top-[16px] left-1/2 grid h-[16px] w-[64px] -translate-x-1/2 place-items-center border border-b-0 border-[var(--ink)] text-[10px]'
-          : `relative self-stretch border-r border-[var(--ink)] px-3 ${
-              // Dépliée, la poignée prend la colonne des bacs (+ son filet) : un seul trait vertical.
-              folded ? '' : 'mat-bins-width flex items-center justify-between'
-            }`
-      } ${unfoldCued && !narrow ? 'first-step-ring' : ''}`}
+      className="relative grid w-[28px] shrink-0 cursor-pointer place-items-center content-center gap-[6px] self-stretch border-r border-[var(--ink)] font-(family-name:--font-body) text-[10px] leading-none font-bold tracking-[.1em] whitespace-nowrap uppercase hover:bg-(--ink)/8"
     >
-      <span className={narrow ? 'sr-only' : undefined}>{fr.personalBoard.header}</span>
-      <span
-        aria-hidden
-        className={`font-(family-name:--font-body) text-[11px] ${narrow ? '' : 'ml-[6px]'}`}
-      >
-        {(narrow ? filled : !folded) ? '▾' : '▴'}
+      {/* Debout, la barre n'a pas la place du titre : la poignée dit son geste (#579). */}
+      <span aria-hidden className="rotate-180 [writing-mode:vertical-rl]">
+        {folded ? fr.personalBoard.unfold : fr.personalBoard.fold}
       </span>
-      {/* Au bureau, la carte « à faire » se tient juste au-dessus : un anneau, pas une bulle. */}
-      {unfoldCued && narrow && (
-        <CueBubble
-          text={fr.firstSteps.cue.unfold}
-          place="first-step-cue--start absolute bottom-[calc(100%+9px)] left-[4px]"
-        />
-      )}
+      <span aria-hidden className="font-(family-name:--font-body) text-[11px]">
+        {folded ? '▴' : '▾'}
+      </span>
     </button>
   );
   const researchButton = (
@@ -312,191 +391,159 @@ export function PersonalBoard({
     </div>
   );
 
-  return (
-    <>
-      <section
-        ref={board}
-        aria-label={fr.personalBoard.header}
-        data-density={density}
-        className={`mat-board hud paper-grain float fixed flex flex-col border border-[var(--ink)] text-[var(--ink)] ${
-          narrow ? 'border-x-0 border-b-0' : ''
-        }`}
-        style={
-          narrow
-            ? {
-                left: 0,
-                right: 0,
-                bottom: 'calc(var(--safe-bottom) / var(--hud-scale))',
-                // Mid-height hugs what the band holds, up to this; full takes all the map leaves.
-                maxHeight: filled ? FULL_ROOM : 'calc(55dvh / var(--hud-scale))',
-                ...(filled ? { height: FULL_ROOM } : {}),
-                zIndex: folded ? 'var(--z-band)' : 'var(--z-window)',
-              }
-            : {
-                left: 'calc((var(--board-left) + var(--table-gap)) / var(--hud-scale))',
-                right: 'calc((var(--board-left) + var(--table-gap)) / var(--hud-scale))',
-                bottom: 'calc(var(--table-margin) / var(--hud-scale))',
-                // Over the to-do card of the column, which it would otherwise hide.
-                zIndex: 'calc(var(--z-band) + 1)',
-              }
-        }
-      >
-        {rackCue !== null && !folded && (
-          <CueBubble
-            text={rackCue}
-            place={
-              narrow
-                ? 'absolute bottom-[calc(100%+9px)] left-1/2 -translate-x-1/2'
-                : // Over the tray, past the five gauges.
-                  'absolute bottom-[calc(100%+9px)] left-[390px]'
-            }
-          />
-        )}
-        {/* Sous le seuil, la clé des surfaces est la dernière case de la barre : le pas de
-            recherche la désigne, la recherche s'ouvrant depuis son menu. */}
-        {narrow && researchCue !== null && !research && (
-          <CueBubble
-            text={researchCue}
-            place="first-step-cue--corner absolute right-0 bottom-[calc(100%+9px)]"
-          />
-        )}
+  const chipPortal = createPortal(
+    <div
+      ref={chip}
+      aria-hidden
+      className="pointer-events-none fixed top-0 left-0 z-[var(--z-notice)]"
+      style={{ display: held === null ? 'none' : 'block' }}
+    >
+      {held !== null && <Carried held={held} hint={hint} />}
+    </div>,
+    document.body,
+  );
 
-        {narrow ? (
-          <>
-            {handle}
-            <div className="flex shrink-0 items-stretch" style={{ height: FOOT_ROW }}>
-              {folded ? (
-                reserves
-              ) : (
-                <span className="flex min-w-0 flex-1 flex-col justify-center gap-[4px] px-[14px]">
-                  <span className="font-(family-name:--font-display) text-[17px] leading-none font-bold">
-                    {fr.personalBoard.header}
-                  </span>
-                  <span className="truncate text-[12px] leading-[1.2] text-[var(--ink-soft)]">
-                    <WorkLine view={view} now={now} />
-                  </span>
-                </span>
-              )}
-              {foot?.key}
-            </div>
-            {!folded && (
-              <>
-                <div className="h-[54px] shrink-0 border-t border-(color:--ink)/30">{reserves}</div>
-                <div className="grid shrink-0 grid-cols-5 items-start px-[1px] pt-[2px]">
-                  {RESOURCES.map((resource) => (
-                    <div key={resource} className="grid min-w-0 justify-items-center">
-                      <HeapBinLines view={view} resource={resource} now={now} short />
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </>
-        ) : (
-          <div
-            className={`flex shrink-0 items-center gap-[14px] pr-[10px] ${
-              folded ? 'h-[54px]' : 'h-[36px] border-b border-[var(--ink)]'
-            }`}
-          >
-            {handle}
-            {folded && <div className="flex h-full min-w-[330px] flex-[0_1_460px]">{reserves}</div>}
-            <span className="min-w-0 truncate text-[12px] leading-[1.2] text-[var(--ink-soft)]">
-              <WorkLine view={view} now={now} />
-            </span>
-            {harvest === null ? (
-              <span className="ml-auto" />
-            ) : (
-              <button
-                type="button"
-                title={`${fr.personalBoard.harvestReplay} — ${ledger}`}
-                onClick={replay}
-                className="ml-auto inline-flex shrink-0 cursor-pointer items-center gap-[8px] px-[6px] py-[4px] font-(family-name:--font-mono) text-[11px] font-semibold whitespace-nowrap"
-              >
-                <em className="font-(family-name:--font-display) text-[12px] font-medium text-[var(--ink-soft)]">
-                  {fr.personalBoard.harvestSince(harvest.hours)}
-                </em>
-                {harvest.deltas
-                  .filter(({ amount, lost }) => amount !== 0 || lost > 0)
-                  .map(({ resource, amount, lost }) => (
-                    <span
-                      key={resource}
-                      className="inline-flex items-center gap-[2px]"
-                      style={amount < 0 ? { color: 'var(--critical)' } : undefined}
-                    >
-                      <ResourcePlate resource={resource} height={18} width={18} />
-                      {amount !== 0 && fr.personalBoard.delta(amount)}
-                      {lost > 0 && (
-                        <span
-                          aria-hidden
-                          title={fr.personalBoard.lost(lost)}
-                          className="ml-[2px] inline-grid h-[11px] w-[11px] place-items-center rounded-full bg-[var(--critical)] font-(family-name:--font-body) text-[8px] leading-none font-bold text-[var(--paper)]"
-                        >
-                          !
-                        </span>
-                      )}
-                    </span>
-                  ))}
-              </button>
-            )}
-            {researchButton}
-          </div>
-        )}
-
-        <div
-          className={`mat-fold grid min-h-0 ${filled ? 'flex-1' : ''}`}
+  if (narrow)
+    return (
+      <>
+        {/* **Le pied** : les réserves et la clé des surfaces, comme `FootBar` ; l'étage des tuiles
+            se pose au-dessus. */}
+        <section
+          ref={barRef}
+          aria-label={fr.footBar.label}
+          className="hud paper-grain float fixed z-[var(--z-band)] flex items-stretch border border-[var(--ink)] text-[var(--ink)]"
           style={{
-            gridTemplateRows: folded
-              ? '0px'
-              : narrow
-                ? filled
-                  ? '1fr'
-                  : 'auto'
-                : BAND_HEIGHT[site === null ? 'rest' : 'site'],
+            left: 0,
+            right: 0,
+            bottom: 'calc(var(--safe-bottom) / var(--hud-scale))',
+            height: FOOT_ROW,
+            borderWidth: '1px 0 0',
           }}
-          inert={folded}
         >
-          <div
-            className={`min-h-0 overflow-hidden ${
-              narrow ? 'flex flex-col overflow-y-auto overscroll-contain' : 'grid'
-            }`}
-            style={
-              narrow
-                ? undefined
-                : { gridTemplateColumns: `auto 1fr ${site === null ? 'var(--works-w)' : '160px'}` }
+          {/* Sous le seuil, la clé des surfaces est la dernière case de la barre : le pas de
+              recherche la désigne, la recherche s'ouvrant depuis son menu. */}
+          {researchCue !== null && !research && (
+            <CueBubble
+              text={researchCue}
+              place="first-step-cue--corner absolute right-0 bottom-[calc(100%+9px)]"
+            />
+          )}
+          {reserves}
+          {foot?.key}
+        </section>
+        {staged && (
+          <BottomSheet
+            stage
+            hug
+            title={fr.personalBoard.header}
+            aside={
+              <span className="min-w-0 truncate text-[11px] leading-[1.2] text-[var(--ink-soft)]">
+                <WorkLine view={view} now={now} />
+              </span>
+            }
+            onClose={() => chooseStep('collapsed')}
+            height={step}
+            onHeight={chooseStep}
+            ceded={ceded}
+            sheetRef={setSheet}
+            crest={
+              rackCue !== null &&
+              rackCued &&
+              step !== 'full' && (
+                <CueBubble
+                  text={rackCue}
+                  place="absolute bottom-[calc(100%+9px)] left-1/2 -translate-x-1/2"
+                />
+              )
             }
           >
-            {!narrow && (
-              <section className="grid grid-cols-[repeat(5,var(--bin-w))] gap-(--bin-gap) px-(--bin-pad) py-[10px]">
-                {RESOURCES.map((resource) => (
-                  <GaugeBin key={resource} {...bin(resource)} density={density} />
-                ))}
-              </section>
-            )}
-            {site === null ? (
-              <>
-                {narrow && focusedBuilding !== null && (
+            <div ref={swap} className="relative flex h-full min-h-0 flex-col overflow-hidden">
+              <div className="shrink-0">
+                {focusedBuilding !== null && (
                   <FocusedBuilding building={focusedBuilding} view={view} />
                 )}
                 <Tiles
                   view={view}
-                  narrow={narrow}
+                  now={now}
+                  narrow
                   focusedKey={focusedKey}
                   held={held}
                   placing={placing}
                   motion={motion}
+                  compact={step === 'full'}
                   onTake={observing ? null : take}
                 />
-                <Works
+              </div>
+              {/* Le rang ne montre que les tuiles ; la moitié et le plein y ajoutent les onglets. */}
+              {(step === 'half' || step === 'full') && (
+                <StageTabs
+                  tab={tab}
+                  onTab={setTab}
                   view={view}
                   seat={seat}
                   now={now}
-                  narrow={narrow}
                   observing={observing}
                   ledger={ledger}
                   onReplay={harvest === null ? null : replay}
                   onSpent={mark}
                 />
-              </>
+              )}
+            </div>
+          </BottomSheet>
+        )}
+        {refusal !== null && (
+          <RefusalSheet refusal={refusal} motion={motion} onClose={() => setRefused(null)} />
+        )}
+        {chipPortal}
+      </>
+    );
+
+  return (
+    <>
+      <section
+        ref={board}
+        aria-label={fr.personalBoard.header}
+        className="hud paper-grain float fixed flex flex-col border border-[var(--ink)] text-[var(--ink)]"
+        style={{
+          left: 'calc((var(--board-left) + var(--table-gap)) / var(--hud-scale))',
+          right: 'calc((var(--board-left) + var(--table-gap)) / var(--hud-scale))',
+          bottom: 'calc(var(--table-margin) / var(--hud-scale))',
+          // Over the to-do card of the column, which it would otherwise hide.
+          zIndex: 'calc(var(--z-band) + 1)',
+        }}
+      >
+        {rackCue !== null && rackCued && (
+          <CueBubble
+            text={rackCue}
+            // Over the standing tiles.
+            place="absolute bottom-[calc(100%+9px)] left-[360px]"
+          />
+        )}
+        <div
+          className="mat-fold grid min-h-0"
+          style={{
+            gridTemplateRows: folded ? '0px' : 'var(--volet-h)', // A site holds the volet's height (#581): the fold's step never plays beside the cascade.
+          }}
+          inert={folded}
+        >
+          <div
+            ref={swap}
+            className="relative grid min-h-0 overflow-hidden"
+            style={{
+              gridTemplateColumns: site === null ? '1fr' : '1fr 160px',
+              gridTemplateRows: 'minmax(0, 1fr)',
+            }}
+          >
+            {site === null ? (
+              <Volet
+                view={view}
+                seat={seat}
+                now={now}
+                observing={observing}
+                ledger={ledger}
+                onReplay={harvest === null ? null : replay}
+                onSpent={mark}
+              />
             ) : (
               <SiteBand
                 key={site.id}
@@ -504,7 +551,6 @@ export function PersonalBoard({
                 seat={seat}
                 site={site}
                 now={now}
-                narrow={narrow}
                 motion={motion}
                 observing={observing}
                 onSpent={mark}
@@ -514,61 +560,209 @@ export function PersonalBoard({
             )}
           </div>
         </div>
-      </section>
-      {createPortal(
         <div
-          ref={chip}
-          aria-hidden
-          className="pointer-events-none fixed top-0 left-0 z-[var(--z-notice)]"
-          style={{ display: held === null ? 'none' : 'block' }}
+          className={`flex h-[77px] shrink-0 items-stretch ${folded ? '' : 'border-t border-[var(--ink)]'}`}
         >
-          {held !== null && <Carried held={held} hint={hint} />}
-        </div>,
-        document.body,
-      )}
+          {handle}
+          <div className="flex w-[315px] shrink-0 border-r border-[var(--ink)]">{reserves}</div>
+          <Tiles
+            view={view}
+            now={now}
+            narrow={false}
+            focusedKey={focusedKey}
+            held={held}
+            placing={placing}
+            motion={motion}
+            onTake={observing ? null : take}
+          />
+          <div className="flex w-[177px] shrink-0 flex-col justify-center gap-[6px] border-l border-[var(--ink)] px-[10px]">
+            <span className="line-clamp-2 text-[11px] leading-[1.2] text-[var(--ink-soft)]">
+              <WorkLine view={view} now={now} />
+            </span>
+            <span className="flex items-center justify-between gap-[6px]">
+              {harvest !== null && (
+                <button
+                  type="button"
+                  title={`${fr.personalBoard.harvestReplay} — ${ledger}`}
+                  onClick={replay}
+                  className="inline-flex min-w-0 shrink cursor-pointer items-center overflow-hidden gap-[8px] px-[6px] py-[4px] font-(family-name:--font-mono) text-[11px] font-semibold whitespace-nowrap"
+                >
+                  <em className="font-(family-name:--font-display) text-[12px] font-medium text-[var(--ink-soft)]">
+                    {fr.personalBoard.harvestSince(harvest.hours)}
+                  </em>
+                  {harvest.deltas
+                    .filter(({ amount, lost }) => amount !== 0 || lost > 0)
+                    .map(({ resource, amount, lost }) => (
+                      <span
+                        key={resource}
+                        className="inline-flex items-center gap-[2px]"
+                        style={amount < 0 ? { color: 'var(--critical)' } : undefined}
+                      >
+                        <ResourcePlate resource={resource} height={18} width={18} />
+                        {amount !== 0 && fr.personalBoard.delta(amount)}
+                        {lost > 0 && (
+                          <span
+                            aria-hidden
+                            title={fr.personalBoard.lost(lost)}
+                            className="ml-[2px] inline-grid h-[11px] w-[11px] place-items-center rounded-full bg-[var(--critical)] font-(family-name:--font-body) text-[8px] leading-none font-bold text-[var(--paper)]"
+                          >
+                            !
+                          </span>
+                        )}
+                      </span>
+                    ))}
+                </button>
+              )}
+              {researchButton}
+            </span>
+          </div>
+        </div>
+      </section>
+      {chipPortal}
     </>
   );
 }
 
 /**
  * **Ce que la bande prend au pied de la table**, publié en `--mat-rise` (pixels d'écran, du bas
- * de l'écran au-dessus d'elle et de ce qu'elle pose au-dessus d'elle : la recherche, la bulle) :
+ * de l'écran au-dessus d'elle et de ce qu'elle pose au-dessus d'elle : la recherche, la bulle ;
+ * sous le seuil, la barre et l'étage des tuiles quand il est là) :
  * ce qui se pose au bas de la carte se lève d'autant (`MAT_LIFT`) au lieu de passer dessous.
  * `shape` change quand ce qu'elle pose change : on remesure, et on observe les nouvelles pièces.
  */
-function useMatRise(mat: { readonly current: HTMLElement | null }, shape: string) {
+function useMatRise(nodes: () => ReadonlyArray<HTMLElement | null>, shape: string) {
   useEffect(() => {
-    const node = mat.current;
-    if (node === null) return;
-    const parts = [node, ...node.querySelectorAll<HTMLElement>('[data-mat-part], .first-step-cue')];
+    const held = nodes().filter((node): node is HTMLElement => node !== null);
+    if (held.length === 0) return;
+    const parts = held.flatMap((node) => [
+      node,
+      ...node.querySelectorAll<HTMLElement>('[data-mat-part], .first-step-cue'),
+    ]);
     const root = document.documentElement.style;
+    // The stage rises into place (an animation moves its box, no resize says so): its top at rest is
+    // the bar's top less its own height, and what it carries (a bubble) is read again when it ends.
+    const topOf = (part: HTMLElement) =>
+      part.hasAttribute('data-stage')
+        ? held[0]!.getBoundingClientRect().top - part.getBoundingClientRect().height
+        : part.getBoundingClientRect().top;
     const publish = () => {
-      const top = Math.min(...parts.map((part) => part.getBoundingClientRect().top));
+      const top = Math.min(...parts.map(topOf));
       root.setProperty('--mat-rise', `${Math.round(window.innerHeight - top + MAT_GAP_PX)}px`);
     };
     publish();
     const observer = new ResizeObserver(publish);
     for (const part of parts) observer.observe(part);
+    for (const node of held) node.addEventListener('animationend', publish);
     window.addEventListener('resize', publish);
     return () => {
       observer.disconnect();
+      for (const node of held) node.removeEventListener('animationend', publish);
       window.removeEventListener('resize', publish);
       root.removeProperty('--mat-rise');
     };
-  }, [mat, shape]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `shape` says when the nodes changed
+  }, [shape]);
 }
 
-/** The gauges rise one after the other, then the tiles lift in a fade: the whole of it laid down
- *  in 520ms (#251). */
-const CASCADE = {
-  gauge: { from: 60, step: 45, duration: 280 },
-  tile: { from: 80, step: 35, duration: 195, most: 8 },
-  easing: 'cubic-bezier(.2,.8,.2,1)',
-} as const;
+/** Each column cascades on its own: a long queue must not use up the others' share. */
+function cascadeVolet(node: ParentNode) {
+  node.querySelectorAll('[data-volet-column]').forEach((column) => {
+    enter(column.matches('.mat-line') ? [column] : [...column.querySelectorAll('.mat-line')]);
+  });
+}
+
+/** How long the old row takes to fade out before the new one comes in (the prototype's). */
+const SWAP_FADE_MS = 120;
 
 /**
- * **Le dépliage en cascade** (#251) : quand l'utilisateur ouvre la bande — pas quand la main la
- * replie le temps d'un geste —, les jauges montent l'une après l'autre et les tuiles se lèvent.
+ * **Le rang qui change de contenu** (#581) : quand le site sélectionné change (tuiles → site,
+ * site → site, site → tuiles), l'ancien rang s'efface en 120 ms, puis le nouveau entre en cascade.
+ * La cascade attend que ses cartes existent (`ready`) et ne part qu'une fois par changement ; le
+ * dépliage et le repli à la main ne la rejouent pas. « actives » : fondu puis cascade ; « réduites » :
+ * le nouveau contenu fond en 120 ms ; « coupées » : aucun mouvement. Au bureau seulement.
+ */
+function useSiteSwap(
+  node: { readonly current: HTMLElement | null },
+  siteId: string | null,
+  ready: boolean,
+  unfolded: boolean,
+  narrow: boolean,
+  motion: MapMotion,
+) {
+  const was = useRef(siteId);
+  const wasUnfolded = useRef(unfolded);
+  const pending = useRef(false);
+  /** The row as the last commit left it: the ghost of the next change. */
+  const last = useRef<HTMLElement | null>(null);
+  /** Whether the row's DOM moved since `last` was cloned: only then is a new clone worth it. */
+  const moved = useRef(true);
+  const watcher = useRef<MutationObserver | null>(null);
+  useEffect(() => () => watcher.current?.disconnect(), []);
+  useLayoutEffect(() => {
+    const row = node.current;
+    // The volet opening in this very commit plays its own cascade (`useUnfoldCascade`): one trigger.
+    const opened = unfolded && !wasUnfolded.current;
+    wasUnfolded.current = unfolded;
+    const changed = siteId !== was.current;
+    was.current = siteId;
+    if (row === null || narrow || motion === 'off') return;
+    if (opened) pending.current = false;
+    else if (changed) {
+      pending.current = true;
+      if (motion === 'full' && last.current !== null) {
+        const ghost = last.current;
+        ghost
+          .querySelectorAll('[data-volet-column]')
+          .forEach((one) => one.removeAttribute('data-volet-column'));
+        ghost.dataset.swapGhost = '';
+        ghost.inert = true;
+        Object.assign(ghost.style, { position: 'absolute', inset: '0', pointerEvents: 'none' });
+        row.append(ghost);
+        ghost
+          .animate([{ opacity: 1 }, { opacity: 0 }], {
+            duration: SWAP_FADE_MS,
+            easing: CASCADE.easing,
+            fill: 'forwards',
+          })
+          .finished.then(
+            () => ghost.remove(),
+            () => ghost.remove(),
+          );
+      }
+    }
+    if (pending.current && ready) {
+      pending.current = false;
+      if (motion === 'reduced') row.animate([{ opacity: 0 }, { opacity: 1 }], SWAP_FADE_MS);
+      else {
+        const mine = (one: Element) => one.closest('[data-swap-ghost]') === null;
+        enter([...row.querySelectorAll('[data-site-card]')].filter(mine));
+        cascadeVolet(row);
+      }
+    }
+    if (motion !== 'full') last.current = null;
+    else {
+      watcher.current ??= new MutationObserver(() => (moved.current = true));
+      watcher.current.observe(row, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        characterData: true,
+      });
+      if (watcher.current.takeRecords().length > 0) moved.current = true;
+      if (moved.current || last.current === null) {
+        moved.current = false;
+        const copy = row.cloneNode(true) as HTMLElement;
+        copy.querySelector('[data-swap-ghost]')?.remove();
+        copy.querySelectorAll('[id]').forEach((one) => one.removeAttribute('id'));
+        last.current = copy;
+      }
+    }
+  });
+}
+
+/**
+ * **Le dépliage en cascade** (#251) : quand l'utilisateur ouvre le volet — pas quand la main le
+ * replie le temps d'un geste —, ses lignes entrent (`.mat-line`, les 8 premières de chaque colonne, #580).
  * « actives » seulement ; au bureau seulement, le téléphone tire sa feuille.
  */
 function useUnfoldCascade(
@@ -583,29 +777,7 @@ function useUnfoldCascade(
     was.current = unfolded;
     const node = board.current;
     if (!opened || node === null || narrow || motion !== 'full') return;
-    const { gauge, tile, easing } = CASCADE;
-    node.querySelectorAll('.mat-gauge').forEach((fill, rank) =>
-      fill.animate([{ transform: 'scaleY(0)' }, { transform: 'scaleY(1)' }], {
-        duration: gauge.duration,
-        delay: gauge.from + rank * gauge.step,
-        easing,
-        fill: 'backwards',
-      }),
-    );
-    [...node.querySelectorAll('.mat-cascade')].slice(0, tile.most).forEach((one, rank) =>
-      one.animate(
-        [
-          { opacity: 0, translate: '0 10px' },
-          { opacity: 1, translate: '0 0' },
-        ],
-        {
-          duration: tile.duration,
-          delay: tile.from + rank * tile.step,
-          easing,
-          fill: 'backwards',
-        },
-      ),
-    );
+    cascadeVolet(node);
   }, [board, unfolded, narrow, motion]);
 }
 
@@ -795,34 +967,53 @@ function tileRefusalOf(view: PlayerView, key: BuildingKey): string | null {
   return condition === null ? null : conditionText(condition);
 }
 
-/** **Le rang des tuiles de bâtiments** : ce que la bande montre tant qu'aucun site n'est
- *  sélectionné. */
+/** **Le rang des tuiles de bâtiments** : au téléphone dans la bande, tant qu'aucun site n'est
+ *  sélectionné ; au bureau debout dans la barre, plateau replié ou non (#579). */
 function Tiles({
   view,
+  now,
   narrow,
   focusedKey,
   held,
   placing,
   motion,
+  compact = false,
   onTake,
 }: {
   view: PlayerView;
+  now: number;
   narrow: boolean;
   focusedKey: BuildingKey | null;
   held: BuildingKey | null;
   placing: BuildingKey | null;
   motion: MapMotion;
+  /** The full step (#590): the row shrinks to names and figures, in a fade (nothing when off). */
+  compact?: boolean;
   onTake: ((key: BuildingKey, grab: Grab) => void) | null;
 }) {
   const lit = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     lit.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }, [focusedKey]);
+  // The row's form changes with the step: it fades in its new form, but not on the first draw.
+  const [was, setWas] = useState(compact);
+  const [changed, setChanged] = useState(false);
+  if (was !== compact) {
+    setWas(compact);
+    setChanged(true);
+  }
+  const fade = changed && motion !== 'off' ? 'tab-fade' : '';
   return (
     <section
-      className={`min-w-0 ${narrow ? 'px-[10px] py-[6px]' : 'border-l border-[var(--ink)] py-[10px] pl-3'}`}
+      key={compact ? 'compact' : 'whole'}
+      className={`min-w-0 ${narrow ? (compact ? 'px-[10px] py-[4px]' : 'px-[10px] py-[6px]') : 'relative flex-1'} ${fade}`}
     >
-      <Rail narrow={narrow} motion={motion} label={fr.personalBoard.tilesNote}>
+      <Rail
+        narrow={narrow}
+        standing={!narrow}
+        motion={motion}
+        label={narrow ? fr.personalBoard.tilesNotePhone : fr.personalBoard.tilesNote}
+      >
         {(grip) =>
           BUILDABLE_BUILDINGS.map((key) => (
             <Tile
@@ -830,8 +1021,11 @@ function Tiles({
               ref={key === focusedKey ? lit : undefined}
               buildingKey={key}
               view={view}
+              now={now}
               narrow={narrow}
-              lit={key === focusedKey || key === placing || key === held}
+              compact={compact}
+              lit={key === focusedKey || key === placing || (narrow && key === held)}
+              inHand={key === held}
               grip={grip(onTake === null ? null : (grab) => onTake(key, grab))}
             />
           ))
@@ -852,6 +1046,7 @@ function TileFrame({
   grip,
   lifts = true,
   wide = false,
+  compact = false,
   picture,
   meta,
   price,
@@ -867,11 +1062,32 @@ function TileFrame({
   lifts?: boolean;
   /** A troop card of the site band: wide and tall enough to say its refusal whole. */
   wide?: boolean;
+  /** The full step's row (#590): the name and the figure alone, so the tabs keep the room. What
+   *  the tile says (price, time, refusal) stays in its label and in the refusal at the touch. */
+  compact?: boolean;
   picture: ReactNode;
   meta: string;
   price: ReactNode;
 }) {
   const label = `${name} — ${meta}`;
+  if (compact)
+    return (
+      <button
+        ref={ref}
+        type="button"
+        {...grip}
+        title={label}
+        aria-label={label}
+        className={`group relative flex min-h-[calc(44px/var(--hud-scale))]! w-[96px] shrink-0 touch-pan-x snap-start items-center gap-[5px] border border-[var(--ink)] px-[5px] text-left text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
+          locked ? 'border-dashed bg-transparent' : 'bg-[#efe5cc] shadow-[0_2px_0_var(--ink)]'
+        } ${'onClick' in grip ? 'cursor-pointer' : ''} ${lit ? 'outline-2 outline-offset-1 outline-[var(--ochre)]' : ''}`}
+      >
+        <span aria-hidden className="grid shrink-0 place-items-center overflow-hidden">
+          {picture}
+        </span>
+        <b className="line-clamp-2 min-w-0 text-[10.5px] leading-[1.1] font-semibold">{name}</b>
+      </button>
+    );
   return (
     <button
       ref={ref}
@@ -879,11 +1095,12 @@ function TileFrame({
       {...grip}
       title={label}
       aria-label={label}
-      className={`group relative grid shrink-0 ${narrow ? '' : 'mat-cascade'} ${lifts ? 'touch-pan-x' : 'touch-pan-x touch-pan-y'} snap-start grid-rows-[auto_1fr_auto_auto] border border-[var(--ink)] text-left text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
+      data-site-card={wide ? '' : undefined}
+      className={`group relative grid shrink-0 ${lifts ? 'touch-pan-x' : 'touch-pan-x touch-pan-y'} snap-start grid-rows-[auto_1fr_auto_auto] border border-[var(--ink)] text-left text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
         narrow
           ? 'h-[98px] w-[84px] px-[5px] pt-[4px] pb-[5px]'
           : wide
-            ? 'h-[140px] w-[108px] px-[6px] pt-[5px] pb-[6px]'
+            ? 'h-[130px] w-[108px] px-[6px] pt-[5px] pb-[6px]'
             : 'h-[128px] w-[100px] px-[6px] pt-[5px] pb-[6px]'
       } ${
         locked
@@ -923,67 +1140,231 @@ function TileFrame({
   );
 }
 
-function Tile({
-  ref,
-  buildingKey,
-  view,
-  narrow,
-  lit,
-  grip,
-}: {
-  ref?: Ref<HTMLButtonElement> | undefined;
-  buildingKey: BuildingKey;
-  view: PlayerView;
-  narrow: boolean;
-  lit: boolean;
-  grip: Grip;
-}) {
-  const standing = view.me.buildings.filter((building) => building.key === buildingKey);
+/** **Ce que dit une tuile de sa clé**, pour sa face et pour son feuillet de refus : les pareilles
+ *  debout, la plus basse d'entre elles, la fondation offerte, la réserve de l'Évacuation et la
+ *  facture. */
+function tileStateOf(view: PlayerView, key: BuildingKey, now: number) {
+  const standing = view.me.buildings.filter((building) => building.key === key);
   /** **Sa pareille debout**, la plus basse : la tuile dit l'élévation et son prix, comme la
    *  maquette ; lâchée ailleurs sur la carte, elle bâtit toujours. */
   const lowest = standing.reduce<Building | null>(
     (low, building) => (low === null || building.level < low.level ? building : low),
     null,
   );
-  const free = view.me.foundation.some((due) => due.key === buildingKey);
-  const refusal = tileRefusalOf(view, buildingKey);
+  const free = view.me.foundation.some((due) => due.key === key);
   /** **La réserve de l'Évacuation** (ADR 0039 §5) : la prochaine pose payée coûte un niveau 1 et
    *  sort au niveau gardé, sous le plafond du QG. Elle prend la ligne et le prix de la tuile : une
    *  ligne de plus serait tronquée au bureau ; posée sur sa pareille, la main dit l'élévation. */
-  const kept = keptOf(view.me.evacuated, buildingKey);
-  const time = countdownLabel(view.buildCatalog[buildingKey].minutes * 60_000);
+  const kept = keptOf(view.me.evacuated, key);
+  /** La facture que la tuile affiche, lue par la même fonction que le fantôme de pose. */
+  const bill = tileBillOf(
+    tileCostOf(free, kept, lowest, view.buildCatalog[key].cost),
+    (resource) => view.me.resources[resource],
+    view.loadedAt,
+    now,
+  );
+  return { standing, lowest, free, kept, bill };
+}
+
+/** **Le refus d'une tuile, dit en entier** (#589) : la phrase du refus de pose s'il y en a une,
+ *  sinon le manque, et chaque matière contre le stock. `null` : la tuile s'arme, rien à dire. */
+function refusalSheetOf(view: PlayerView, key: BuildingKey, now: number) {
+  const refusal = tileRefusalOf(view, key);
+  if (refusal === null) return null;
+  const { bill } = tileStateOf(view, key, now);
+  return { name: fr.buildings[key], key, text: refusal, bill };
+}
+
+type Refusal = NonNullable<ReturnType<typeof refusalSheetOf>>;
+
+/**
+ * **Le feuillet du refus d'une tuile** (#589, finaliste « refus-tuile ») : posé juste au-dessus de
+ * l'étage, il dit la phrase entière et, matière par matière, ce que le joueur tient contre ce que la
+ * tuile coûte. Il se ferme par sa croix. Il se lève en 200 ms ; en « réduites », un fondu de 120 ms ;
+ * en « coupées », il paraît tel quel.
+ */
+function RefusalSheet({
+  refusal,
+  motion,
+  onClose,
+}: {
+  refusal: Refusal;
+  motion: MapMotion;
+  onClose: () => void;
+}) {
+  const node = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    if (motion === 'off') return;
+    node.current?.animate?.(
+      motion === 'full'
+        ? [
+            { opacity: 0, translate: '0 12px' },
+            { opacity: 1, translate: '0 0' },
+          ]
+        : [{ opacity: 0 }, { opacity: 1 }],
+      { duration: motion === 'full' ? 200 : 120, easing: 'ease-out' },
+    );
+  }, [motion, refusal.key]);
   return (
-    <TileFrame
+    <aside
+      ref={node}
+      role="status"
+      aria-label={fr.personalBoard.refusalOf(refusal.name)}
+      className="hud paper-grain float fixed z-[var(--z-band)] grid gap-[3px] border border-[var(--critical)] border-l-[4px] px-[12px] py-[8px] text-[var(--ink)]"
+      style={{
+        left: 'calc(10px / var(--hud-scale))',
+        right: 'calc(10px / var(--hud-scale))',
+        bottom: 'calc(var(--mat-rise, 0px) / var(--hud-scale))',
+      }}
+    >
+      <span className="flex items-center gap-[8px]">
+        <BuildingPlate building={refusal.key} height={26} />
+        <b className="min-w-0 flex-1 truncate font-(family-name:--font-display) text-[15px]">
+          {refusal.name}
+        </b>
+        <button
+          type="button"
+          aria-label={fr.personalBoard.refusalClose}
+          onClick={onClose}
+          className="shrink-0 cursor-pointer px-[10px] text-[16px] leading-none"
+        >
+          ✕
+        </button>
+      </span>
+      {refusal.bill.map((line) => (
+        <span
+          key={line.resource}
+          className="text-[12px] leading-[1.25]"
+          style={line.missing > 0 ? { color: 'var(--critical)' } : undefined}
+        >
+          {fr.resources[line.resource]}{' '}
+          <b className="font-(family-name:--font-mono) font-semibold">{Math.floor(line.held)}</b>
+          {' / '}
+          {line.due}
+        </span>
+      ))}
+      <p className="text-[12px] leading-[1.3] font-semibold text-[var(--critical)]">
+        {refusal.text}
+      </p>
+    </aside>
+  );
+}
+
+function Tile({
+  ref,
+  buildingKey,
+  view,
+  now,
+  narrow,
+  compact,
+  lit,
+  inHand,
+  grip,
+}: {
+  ref?: Ref<HTMLButtonElement> | undefined;
+  buildingKey: BuildingKey;
+  view: PlayerView;
+  now: number;
+  narrow: boolean;
+  compact: boolean;
+  lit: boolean;
+  inHand: boolean;
+  grip: Grip;
+}) {
+  const { standing, lowest, free, kept, bill } = tileStateOf(view, buildingKey, now);
+  const refusal = tileRefusalOf(view, buildingKey);
+  const time = countdownLabel(view.buildCatalog[buildingKey].minutes * 60_000);
+  const name = fr.buildings[buildingKey];
+  const meta =
+    kept !== null
+      ? fr.personalBoard.tileKept(kept, keptLevelOf(kept, view.me.hqLevel))
+      : lowest === null
+        ? time
+        : `${standing.length > 1 ? `${fr.personalBoard.tileCount(standing.length)} · ` : ''}${fr.personalBoard.raiseTo(lowest.level, lowest.level + 1)}`;
+  const costs = Object.fromEntries(bill.map((line) => [line.resource, line.due]));
+  if (narrow)
+    return (
+      <TileFrame
+        ref={ref}
+        name={name}
+        narrow
+        compact={compact}
+        locked={refusal !== null}
+        lit={lit}
+        grip={grip}
+        picture={<BuildingPlate building={buildingKey} height={compact ? 24 : 34} />}
+        meta={refusal ?? meta}
+        price={free ? fr.construction.free : <Price costs={costs} size={10} />}
+      />
+    );
+  // Le refus de placement d'abord, le manque ensuite : une tuile courte reste armable (#579).
+  const shortage = refusal === null ? billShortageText(bill) : null;
+  const said = refusal ?? shortage ?? meta;
+  const held = Object.fromEntries(bill.map((line) => [line.resource, line.held]));
+  return (
+    <button
       ref={ref}
-      name={fr.buildings[buildingKey]}
-      narrow={narrow}
-      locked={refusal !== null}
-      lit={lit}
-      grip={grip}
-      picture={<BuildingPlate building={buildingKey} height={narrow ? 34 : 50} />}
-      meta={
-        refusal ??
-        (kept !== null
-          ? fr.personalBoard.tileKept(kept, keptLevelOf(kept, view.me.hqLevel))
-          : lowest === null
-            ? time
-            : `${standing.length > 1 ? `${fr.personalBoard.tileCount(standing.length)} · ` : ''}${fr.personalBoard.raiseTo(lowest.level, lowest.level + 1)}`)
-      }
-      price={
-        free ? (
-          fr.construction.free
-        ) : (
-          <Price
-            costs={
-              lowest === null || kept !== null
-                ? view.buildCatalog[buildingKey].cost
-                : lowest.nextLevelCost
-            }
-            size={10}
-          />
-        )
-      }
-    />
+      type="button"
+      {...grip}
+      aria-label={`${name} — ${said}`}
+      className={`desk-tile relative grid h-[70px] w-[102px] shrink-0 snap-start touch-pan-x gap-x-[5px] gap-y-[2px] border border-[var(--ink)] px-[6px] pt-[4px] pb-[3px] text-left text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
+        refusal === null
+          ? 'grid-cols-[27px_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto] bg-[#efe5cc] shadow-[0_2px_0_var(--ink)]'
+          : 'grid-cols-[23px_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] border-dashed bg-[#efe5cc]/45'
+      } ${inHand ? 'border-dashed opacity-35 shadow-none' : ''} ${
+        'onClick' in grip ? 'cursor-pointer' : ''
+      } ${lit ? 'outline-2 outline-offset-1 outline-[var(--ochre)]' : ''}`}
+    >
+      <b className="col-span-2 truncate text-[11px] leading-[1.1] font-semibold">{name}</b>
+      <span
+        className={`grid min-h-0 place-items-center overflow-hidden ${refusal === null ? '' : 'opacity-75'}`}
+      >
+        <BuildingPlate building={buildingKey} height={28} />
+      </span>
+      {refusal === null ? (
+        <>
+          <span className="flex min-w-0 flex-col justify-center font-(family-name:--font-mono) text-[10px] leading-[1.15]">
+            {free ? fr.construction.free : <Price costs={costs} held={held} size={10} stacked />}
+          </span>
+          <span className="col-span-2 truncate font-(family-name:--font-mono) text-[10px] leading-[1.15] text-[var(--ink-soft)]">
+            {meta}
+          </span>
+        </>
+      ) : (
+        <span className="line-clamp-3 self-center text-[10px] leading-[1.15] font-semibold text-[var(--critical)]">
+          {refusal}
+        </span>
+      )}
+      {/* Levée, la tuile dit chaque matière contre le stock, puis son refus ou son manque entier. */}
+      <span
+        aria-hidden
+        data-refused={refusal === null ? undefined : true}
+        className={`desk-tile-more grid content-start gap-[2px] text-[10.5px] leading-[1.25] ${
+          refusal === null ? 'bg-[#efe5cc]' : 'bg-[var(--paper)]'
+        }`}
+      >
+        {bill.map((line) => (
+          <span
+            key={line.resource}
+            className="whitespace-nowrap"
+            style={line.missing > 0 ? { color: 'var(--critical)' } : undefined}
+          >
+            {fr.resources[line.resource]}{' '}
+            <b className="font-(family-name:--font-mono) font-semibold">{Math.floor(line.held)}</b>
+            {' / '}
+            {line.due}
+          </span>
+        ))}
+        <span
+          className={
+            refusal === null && shortage === null ? 'text-[var(--ink-soft)]' : 'font-semibold'
+          }
+          style={refusal === null && shortage === null ? undefined : { color: 'var(--critical)' }}
+        >
+          {said}
+        </span>
+      </span>
+    </button>
   );
 }
 
@@ -1025,7 +1406,6 @@ function SiteBand({
   seat,
   site,
   now,
-  narrow,
   motion,
   observing,
   onSpent,
@@ -1036,7 +1416,6 @@ function SiteBand({
   seat: Seat;
   site: Building;
   now: number;
-  narrow: boolean;
   motion: MapMotion;
   observing: boolean;
   onSpent: () => void;
@@ -1046,7 +1425,7 @@ function SiteBand({
   const workshop = useQuery(api.troops.workshop, seat);
   const recruit = useMutation(api.troops.recruit);
   const queue = useRef<HTMLElement>(null);
-  const more = useOverflow(queue, 'y', narrow);
+  const more = useOverflow(queue, 'y');
   const facility = workshop?.facilities.find((one) => one.id === site.id) ?? null;
   const region = view.me.regions.find((one) => one.id === site.regionId)?.name ?? site.regionId;
   const siteName = fr.buildings[site.key];
@@ -1086,21 +1465,15 @@ function SiteBand({
   const link =
     'cursor-pointer py-[2px] text-[9.5px] tracking-[.14em] uppercase underline underline-offset-2';
   const head = (
-    <div
-      className={
-        narrow
-          ? 'flex flex-wrap items-center gap-x-[10px] gap-y-[4px]'
-          : 'grid w-[104px] content-start gap-[5px] pr-1'
-      }
-    >
+    <div className="grid w-[104px] content-start gap-[5px] pr-1">
       <span className="flex items-center gap-[6px]">
-        <BuildingPlate building={site.key} height={narrow ? 22 : 28} />
+        <BuildingPlate building={site.key} height={28} />
         <b className="text-[13px] leading-[1.1] font-semibold">{siteName}</b>
       </span>
       <span className="text-[11px] leading-[1.25] text-[var(--ink-soft)]">
         {region} · {fr.common.levelSpeed(site.level)}
       </span>
-      <span className={`flex gap-[10px] ${narrow ? 'ml-auto' : 'mt-[2px] flex-col items-start'}`}>
+      <span className="mt-[2px] flex flex-col items-start gap-[10px]">
         <button type="button" onClick={onOpenSheet} className={link}>
           {fr.personalBoard.siteSheet}
         </button>
@@ -1120,11 +1493,7 @@ function SiteBand({
     <>
       <section
         aria-label={fr.personalBoard.siteCards(siteName)}
-        className={`grid min-w-0 ${
-          narrow
-            ? 'grid-cols-1 gap-[6px] px-[10px] py-[6px]'
-            : 'grid-cols-[auto_1fr] gap-[10px] border-l border-[var(--ink)] py-[10px] pl-3'
-        }`}
+        className="grid min-w-0 grid-cols-[auto_1fr] gap-[10px] border-l border-[var(--ink)] py-[6px] pl-3"
       >
         {head}
         {workshop === undefined ? (
@@ -1132,13 +1501,13 @@ function SiteBand({
             {fr.production.opening}
           </p>
         ) : (
-          <Rail narrow={narrow} motion={motion} label={fr.personalBoard.siteCards(siteName)}>
+          <Rail narrow={false} motion={motion} label={fr.personalBoard.siteCards(siteName)}>
             {(grip) =>
               cards.map((card) => (
                 <TileFrame
                   key={`${card.role}-${card.tier}`}
                   name={pieceName(card.role, card.tier)}
-                  narrow={narrow}
+                  narrow={false}
                   locked={card.refusal !== null}
                   lit={false}
                   grip={grip(observing ? null : () => form(card), { lifts: false })}
@@ -1149,8 +1518,8 @@ function SiteBand({
                       nation={view.me.nation}
                       role={card.role}
                       tier={card.tier}
-                      height={narrow ? 34 : 50}
-                      width={narrow ? 60 : 84}
+                      height={50}
+                      width={84}
                     />
                   }
                   meta={
@@ -1167,11 +1536,7 @@ function SiteBand({
       <section
         ref={queue}
         data-after={more.after}
-        className={
-          narrow
-            ? 'border-t border-[var(--ink)] px-[10px] py-[8px]'
-            : 'mat-more min-w-0 overflow-y-auto border-l border-[var(--ink)] px-3 py-[10px]'
-        }
+        className="mat-more min-w-0 overflow-y-auto border-l border-[var(--ink)] px-3 py-[10px]"
       >
         <div className="grid gap-[5px]">
           <span className="eyebrow">{fr.personalBoard.siteQueue}</span>
@@ -1231,174 +1596,6 @@ function WorkLine({ view, now }: { view: PlayerView; now: number }) {
   );
 }
 
-/**
- * **Le chantier en tête et la file derrière** : la seule échéance est celle de la tête, sa règle
- * avance ; une ligne en file se retire et se rembourse, un chantier commencé non
- * (`constructions.cancel`). Dessous, la récolte et les lots que le joueur commande. Au téléphone,
- * le tout replié en une ligne qu'on déplie au toucher.
- */
-function Works({
-  view,
-  seat,
-  now,
-  narrow,
-  observing,
-  ledger,
-  onReplay,
-  onSpent,
-}: {
-  view: PlayerView;
-  seat: Seat;
-  now: number;
-  narrow: boolean;
-  observing: boolean;
-  ledger: string;
-  /** Rejouer la récolte : au téléphone, la bande n'a pas la place de sa ligne. */
-  onReplay: (() => void) | null;
-  onSpent: () => void;
-}) {
-  const drop = useMutation(api.constructions.cancel);
-  const column = useRef<HTMLElement>(null);
-  const more = useOverflow(column, 'y', narrow);
-  const [error, setError] = useState<string | null>(null);
-  const [unfolded, setUnfolded] = useState(false);
-  const head = view.me.construction;
-  const rows = [
-    ...(head === null ? [] : [{ work: head, running: true as const }]),
-    ...view.me.constructionQueue.map((work) => ({ work, running: false as const })),
-  ];
-  const list = (
-    <div className="grid gap-[5px]">
-      <span className="eyebrow">{fr.personalBoard.worksHeader}</span>
-      {rows.length === 0 && (
-        <p className="text-[11.5px] leading-[1.4] text-[var(--ink-soft)]">
-          {fr.economy.constructionNone}
-        </p>
-      )}
-      {rows.map(({ work, running }, index) => {
-        const total =
-          (running ? work.minutes : undefined) ??
-          worksMinutes(work.key, work.level, view.me.hqLevel);
-        const left = running ? currentMinutes(work.minutesLeft, view.loadedAt, now) : total;
-        return (
-          <div key={work.id} className="grid gap-[2px] text-[12px] leading-[1.2]">
-            <span className="flex items-baseline gap-2">
-              <b className="min-w-0 flex-1 truncate font-semibold">
-                {fr.personalBoard.workRank(
-                  index + 1,
-                  fr.personalBoard.work(
-                    work.name,
-                    work.kept === undefined ? work.level : keptLevelOf(work.kept, view.me.hqLevel),
-                  ),
-                )}
-              </b>
-              {running && (
-                <small className="shrink-0 font-(family-name:--font-mono) text-[9.5px] leading-none text-[var(--ink-soft)]">
-                  {countdownLabel(left * 60_000)}
-                </small>
-              )}
-              {!running && !observing && (
-                <button
-                  type="button"
-                  title={fr.economy.queueCancelTitle}
-                  onClick={() => {
-                    setError(null);
-                    drop({ ...seat, constructionId: work.id as Id<'constructions'> }).then(
-                      onSpent,
-                      (problem: unknown) => handleError(problem, setError),
-                    );
-                  }}
-                  className="shrink-0 cursor-pointer text-[9.5px] tracking-[.14em] uppercase underline underline-offset-2 opacity-55 hover:text-[var(--critical)] hover:opacity-100"
-                >
-                  {fr.economy.queueCancel}
-                </button>
-              )}
-            </span>
-            {running && (
-              <span aria-hidden className="block h-[3px] bg-(--ink)/14">
-                <i
-                  className="block h-full bg-[var(--arc-mine)]"
-                  style={{
-                    width: `${total > 0 ? Math.min(100, ((total - left) / total) * 100) : 0}%`,
-                  }}
-                />
-              </span>
-            )}
-            <small className="block truncate font-(family-name:--font-mono) text-[9.5px] leading-[1.2] text-[var(--ink-soft)]">
-              {running
-                ? fr.personalBoard.runningAt(work.regionName)
-                : fr.personalBoard.queuedAt(work.regionName, countdownLabel(total * 60_000))}
-            </small>
-          </div>
-        );
-      })}
-      {view.me.hqLevel > 0 && (
-        <small className="text-[9.5px] leading-[1.3] text-[var(--ink-soft)]">
-          {fr.personalBoard.hqSpeed(fr.common.levelSpeed(view.me.hqLevel))}
-        </small>
-      )}
-      {error !== null && <p className="text-[11px] text-[var(--critical)]">{error}</p>}
-      <HeapBoardNotes view={view} now={now} />
-      <span className="mt-[4px] flex items-baseline gap-2">
-        <span className="eyebrow">{fr.personalBoard.harvestHeader}</span>
-        {onReplay !== null && (
-          <button
-            type="button"
-            onClick={onReplay}
-            className="ml-auto cursor-pointer text-[9.5px] tracking-[.14em] uppercase underline underline-offset-2"
-          >
-            {fr.personalBoard.harvestReplay}
-          </button>
-        )}
-      </span>
-      <p className="text-[11px] leading-[1.35] text-[var(--ink-soft)]">{ledger}</p>
-      {view.me.chains
-        .filter((chain) => chain.commanded && chain.level > 0)
-        .map((chain) => (
-          <LotControl
-            key={chain.by}
-            chain={chain}
-            seat={seat}
-            loadedAt={view.loadedAt}
-            now={now}
-            observing={observing}
-          />
-        ))}
-    </div>
-  );
-  if (!narrow)
-    return (
-      <section
-        ref={column}
-        data-after={more.after}
-        className="mat-more min-w-0 overflow-y-auto border-l border-[var(--ink)] px-3 py-[10px]"
-      >
-        {list}
-      </section>
-    );
-  return (
-    <section className="border-t border-[var(--ink)] px-[10px] py-[6px]">
-      <button
-        type="button"
-        aria-expanded={unfolded}
-        onClick={() => setUnfolded((was) => !was)}
-        className="flex w-full cursor-pointer items-center gap-[6px] px-[2px] py-[6px] text-left text-[12px] leading-[1.2]"
-      >
-        <span aria-hidden className="text-[10px]">
-          {unfolded ? '▾' : '▸'}
-        </span>
-        <span className="min-w-0 flex-1 truncate">
-          <WorkLine view={view} now={now} />
-        </span>
-        <small className="font-(family-name:--font-mono) text-[10px] text-[var(--ink-soft)]">
-          {fr.personalBoard.worksFold}
-        </small>
-      </button>
-      {unfolded && list}
-    </section>
-  );
-}
-
 /** What travels under the hand: the tile, and what the place under it says. */
 function Carried({ held, hint }: { held: BuildingKey; hint: Hint }) {
   return (
@@ -1443,8 +1640,12 @@ function useHand({
   onHoldTile,
   onPlaceTile,
   maquetteAt,
+  onRefuse,
 }: {
   view: PlayerView;
+  /** **Une tuile refusée, touchée sans glisser** : au téléphone son feuillet (#589), au bureau la
+   *  phrase seule (`null`). */
+  onRefuse: ((key: BuildingKey) => void) | null;
   /** A spend made from the board: its reading is renewed, so the next harvest does not bill it. */
   onSpent: () => void;
   seat: Seat;
@@ -1471,8 +1672,18 @@ function useHand({
     callbacks.current = { onHoldTile, onPlaceTile, onSpent, maquetteAt };
   });
   const gesture = useRef<{ cancel: () => void } | null>(null);
+  /** The tile last taken, as it stood on its stage: the pose's flight takes its size (#592). */
+  const taken = useRef<{ key: BuildingKey; width: number; height: number } | null>(null);
 
-  useEffect(() => () => gesture.current?.cancel(), []);
+  /** The refusal's sentence waits for the shake: unmounted before, it never comes. */
+  const saying = useRef<number | undefined>(undefined);
+  useEffect(
+    () => () => {
+      gesture.current?.cancel();
+      window.clearTimeout(saying.current);
+    },
+    [],
+  );
 
   const take = (key: BuildingKey, { element, pointerId, x, y }: Grab): void => {
     gesture.current?.cancel();
@@ -1482,6 +1693,7 @@ function useHand({
       for (const node of [element, ...element.querySelectorAll('*')])
         if (node.hasPointerCapture(pointerId)) node.releasePointerCapture(pointerId);
     const origin = element.getBoundingClientRect();
+    taken.current = { key, width: origin.width, height: origin.height };
     const home = { x: origin.left + origin.width / 2, y: origin.top + origin.height / 2 };
     const from = pointerId === null ? home : { x, y };
     const refusal = tileRefusalOf(latest.current, key);
@@ -1597,9 +1809,18 @@ function useHand({
       );
     };
 
-    /** Taken without a drag, the tile leaves the ghost armed and the hand empty. */
+    /** Taken without a drag, the tile leaves the ghost armed and the hand empty. Refused at the
+     *  desk, it shakes where it stands, then its sentence comes (#579). */
     const toClick = () => {
-      if (refusal !== null) return drop(home);
+      if (refusal !== null) {
+        abandon();
+        if (motion === 'full') element.animate(SHAKE, { duration: 220, easing: 'ease-out' });
+        saying.current = window.setTimeout(
+          () => (onRefuse === null ? notify(refusal) : onRefuse(key)),
+          motion === 'full' ? 220 : 0,
+        );
+        return;
+      }
       finish();
       setHeld(null);
       setHint(null);
@@ -1617,6 +1838,7 @@ function useHand({
       drop({ x: event.clientX, y: event.clientY });
     }
     function abandon() {
+      taken.current = null;
       finish();
       arm(false);
       setHeld(null);
@@ -1638,7 +1860,7 @@ function useHand({
     if (pointerId === null) toClick();
   };
 
-  return { held, hint, away, take, chip };
+  return { held, hint, away, take, chip, taken };
 }
 
 /** What lies under the hand: the personal board itself, the player's buildings at one mast (a
@@ -1656,7 +1878,8 @@ function targetAt(
   maquetteAt: MaquetteAt | null,
 ): Target {
   const under = document.elementsFromPoint(x, y);
-  if (board !== null && under.some((element) => board.contains(element))) return { kind: 'board' };
+  if (under.some((element) => board?.contains(element) === true || element.closest('[data-stage]')))
+    return { kind: 'board' };
   for (const element of under) {
     const ids = element.closest<HTMLElement>('[data-building-id]')?.dataset.buildingId?.split(',');
     const buildings = view.me.buildings.filter((one) => ids?.includes(one.id) === true);

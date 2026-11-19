@@ -18,6 +18,7 @@ import {
   type Stocks,
 } from './economy';
 import { NARVIK_UNLINKED_SHARE } from '../../convex/constants';
+import { aimRefusalText } from '@/i18n/fr';
 import { RESOURCES, type ResourceKey } from './ids';
 import type { LonLat } from './geo';
 
@@ -418,6 +419,14 @@ describe('placement at a point (ADR 0029)', () => {
       'ALREADY_BUILT',
     );
     expect(placementRefusal('barracks', { ...free, already: true }, 2, null)).toBeNull();
+  });
+
+  it('refuses a second headquarters, said as the raise of the one standing', () => {
+    expect(placementRefusal('hq', { ...free, already: true }, 2, null)).toBe('ALREADY_BUILT');
+    const reach = { widestKm: 0, hasOutposts: false };
+    expect(aimRefusalText({ code: 'ALREADY_BUILT' }, 'hq', reach, null, [])).toBe(
+      'le quartier général est unique — visez-le pour l’élever',
+    );
   });
 
   it('refuses a point no soil and no reach of the player covers', () => {

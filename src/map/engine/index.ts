@@ -228,7 +228,7 @@ import {
   type ZoneLabel,
   type ZonePoint,
 } from './outpost-zones';
-import { AimRibbon } from './aim';
+import { AimRibbon, aimRibbonOf } from './aim';
 import { playTableSound, warmTableSoundOnFirstPress } from '../table-sound';
 import type { RingState } from './ink-ring';
 import type { Reach } from '@/domain/labels';
@@ -887,6 +887,9 @@ export class MapEngine {
   private readonly aimRibbon = new AimRibbon();
   private readonly tourInk: TourInk;
   private aimRoute: Vector3[] | null = null;
+  /** **La visée du téléphone** (#586) : sous un doigt la main ne porte rien, et la route se garde
+   *  d'elle-même, à l'encre de son verdict, tant que le plateau la dit. */
+  private aimKept: Exclude<DropVerdict, 'none'> | null = null;
   private verdict: DropVerdict = 'none';
   /** What the carried piece is over, and the ring the drop gives it (POC, `ringStyle`). */
   private carryOver: CarryTarget | { readonly kind: 'ground' } | null = null;
@@ -1966,9 +1969,13 @@ export class MapEngine {
 
   /** **The server's road for the drop under the resting pointer**, `null` while it moves: the
    *  hand draws a straight line from home until then (`AimRibbon`). */
-  setAimRoute(points: ReadonlyArray<LonLat> | null): void {
+  setAimRoute(
+    points: ReadonlyArray<LonLat> | null,
+    kept: Exclude<DropVerdict, 'none'> | null = null,
+  ): void {
     this.invalidate();
     this.aimRoute = points === null ? null : points.map((point) => this.frame.projectLonLat(point));
+    this.aimKept = kept;
   }
 
   /** **Les boucles de mes tournées**, à l'encre (ADR 0028) : posées une fois, sans flux. */
@@ -2413,11 +2420,7 @@ export class MapEngine {
     this.invalidate();
     const points = [
       ...ids
-        .map((id) => {
-          const anchor = this.labels.position(id, this.arcs.headPositions);
-          const drawn = onPiece ? this.maquettes.drawnAt(id) : null;
-          return drawn === null || anchor === undefined ? anchor : drawn.clone().setY(anchor.y);
-        })
+        .map((id) => this.anchorPoint(id, onPiece))
         .filter((point): point is Vector3 => point !== undefined),
       ...places.map((place) => this.frame.projectLonLat(place)),
     ];
@@ -2439,16 +2442,62 @@ export class MapEngine {
     );
     const orientation = this.camera.position.clone().sub(this.controls.target).normalize();
 
+    /** **Le sujet monte au-dessus de ce qui le couvrirait** : une feuille basse cache le bas de
+     *  la carte, et un point cadré au centre tomberait dessous. */
+    arrival.add(this.groundShift(0, -lift, arrivalDistance, orientation));
+    if (this.ambience.motion !== 'full') {
+      this.travel(arrival, orientation, arrivalDistance, 0);
+      return;
+    }
     this.journey = {
       departure: this.controls.target.clone(),
-      /** **Le sujet monte au-dessus de ce qui le couvrirait** : une feuille basse cache le bas de
-       *  la carte, et un point cadré au centre tomberait dessous. */
-      arrival: arrival.add(this.groundShift(0, -lift, arrivalDistance, orientation)),
+      arrival,
       orientation,
       departureDistance: currentDistance,
       arrivalDistance,
       startMs: performance.now(),
     };
+  }
+
+  /** Où un ancrage se tient sur le plateau : son étiquette, ou la pièce là où elle est dessinée. */
+  private anchorPoint(id: string, onPiece: boolean): Vector3 | undefined {
+    const anchor = this.labels.position(id, this.arcs.headPositions);
+    const drawn = onPiece ? this.maquettes.drawnAt(id) : null;
+    return drawn === null || anchor === undefined ? anchor : drawn.clone().setY(anchor.y);
+  }
+
+  /** Où `journeyTo` viserait cet ancrage sur la page, `null` s'il n'est plus là ou tourne le dos. */
+  screenOfAnchor(id: string, onPiece: boolean): { x: number; y: number } | null {
+    const ndc = this.ndcOfAnchor(id, onPiece);
+    if (ndc === null || ndc.z > 1) return null;
+    const box = this.renderer.domElement.getBoundingClientRect();
+    return {
+      x: box.left + ((ndc.x + 1) / 2) * box.width,
+      y: box.top + ((1 - ndc.y) / 2) * box.height,
+    };
+  }
+
+  /** Le même point dans le cadre de la carte, sans lire la page : de quoi le suivre à chaque
+   *  image (l'objet tenu, `heldRim`). Loin derrière le plan lointain il se lit encore, et dos
+   *  tourné il se lit au point opposé, comme les étiquettes au bord (`LabelLayer.project`). */
+  boardPointOfAnchor(id: string, onPiece: boolean): { x: number; y: number } | null {
+    const ndc = this.ndcOfAnchor(id, onPiece);
+    if (ndc === null) return null;
+    const x = ((ndc.x + 1) / 2) * this.screenWidth;
+    const y = ((1 - ndc.y) / 2) * this.screenHeight;
+    return ndc.behind ? { x: this.screenWidth - x, y: this.screenHeight - y } : { x, y };
+  }
+
+  private ndcOfAnchor(
+    id: string,
+    onPiece: boolean,
+  ): { x: number; y: number; z: number; behind: boolean } | null {
+    const at = this.anchorPoint(id, onPiece);
+    if (at === undefined) return null;
+    const behind =
+      at.clone().sub(this.eye.position).dot(this.eye.getWorldDirection(new Vector3())) < 0;
+    const point = at.clone().project(this.eye);
+    return { x: point.x, y: point.y, z: point.z, behind };
   }
 
   /** Où la caméra se tient de son point visé : un regroupement en tire la distance qui sépare
@@ -6525,16 +6574,13 @@ export class MapEngine {
         return travel ? [{ id: pileId, alone, travel: new Vector3(...travel) }] : [];
       }),
     );
-    const reading = this.standing.reading;
-    const tone = this.verdict;
-    this.aimRibbon.show(
-      reading === null || tone === 'none'
-        ? null
-        : tone !== 'refused' && this.aimRoute !== null
-          ? this.aimRoute
-          : [reading.from, reading.to],
-      tone === 'none' ? 'order' : tone,
-    );
+    const ribbon = aimRibbonOf({
+      kept: this.aimKept,
+      route: this.aimRoute,
+      reading: this.standing.reading,
+      verdict: this.verdict,
+    });
+    this.aimRibbon.show(ribbon.points, ribbon.tone);
     this.tourInk.animate(this.unitsPerPixel(distance), this.screenHeight);
     this.aimRibbon.animate(
       this.unitsPerPixel(distance),

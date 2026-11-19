@@ -13,6 +13,7 @@
  * état qu'il faut provoquer (le fantôme d'une pose) : `texte=Mine — charbon` clique le premier
  * élément qui porte ce texte, `clic=x,y` clique en un point, `toucher=x,y` (avec `--tactile`) tape du doigt, `clicdroit=x,y` et `clicmilieu=x,y` y cliquent du bouton droit ou du milieu (la rose des vents), `molette=x,y,dy` tourne la molette,
  * `domclic=sélecteur` clique un nœud du DOM sans le viser à la souris (une étiquette discrète),
+ * `domsurvol=sélecteur` y mène la souris (une tuile du plateau qui se lève),
  * `survol=x,y` y mène la souris, `pause=ms` attend. `presser=x,y` enfonce le bouton en un point et
  * `lacher` le relâche : entre les deux, des `survol` font un glisser (une tuile du plateau personnel
  * portée sur la carte), et une capture prise avant `lacher` montre la main pleine. `touche=H` presse
@@ -185,12 +186,14 @@ try {
   };
   for (const gesture of gestures) {
     const [kind, value = ''] = gesture.split(/=(.*)/s);
-    const aimed = value.startsWith('@') && !['lieu', 'texte', 'domclic'].includes(kind);
+    const aimed =
+      value.startsWith('@') && !['lieu', 'texte', 'domclic', 'domsurvol'].includes(kind);
     const [x = 0, y = 0, dy = 0] = aimed
       ? await screenPointOf(value)
       : value.split(',').map(Number);
     if (kind === 'texte') await page.getByText(value).first().click();
     else if (kind === 'domclic') await page.locator(value).first().dispatchEvent('click');
+    else if (kind === 'domsurvol') await page.locator(value).first().hover();
     else if (kind === 'molette') {
       await page.mouse.move(x, y);
       await page.mouse.wheel(0, dy);

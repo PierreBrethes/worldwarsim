@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Compass, CompassAction } from './compass-rose';
-import { chipOf, dropReadingOf, forbiddenGroundOf, turnChoice } from './drop-order';
+import { chipOf, dropOutcomeOf, dropReadingOf, forbiddenGroundOf, turnChoice } from './drop-order';
 
 const branch = (key: CompassAction['key'], label: string = key): CompassAction =>
   ({ key, label, pictogram: 'cabin', cost: null, consequence: '' }) as unknown as CompassAction;
@@ -110,5 +110,23 @@ describe('chipOf', () => {
       tone: 'order',
       verb: 'Ramasser',
     });
+  });
+});
+
+describe('dropOutcomeOf', () => {
+  const march = branch('aim', 'marcher');
+  const boarding = { ...branch('aim', 'embarquer'), boardsOn: 'truck' } as unknown as CompassAction;
+
+  it('sends the order at once with a mouse, whatever the verbs', () => {
+    expect(dropOutcomeOf(false, march)).toBe('send');
+  });
+
+  it('aims under the phone threshold, even on a single verb: the touch aims, « Envoyer » sends', () => {
+    expect(dropOutcomeOf(true, march)).toBe('aim');
+  });
+
+  it('boards at once under a finger too: the target is a piece, not the bare map (#586)', () => {
+    expect(dropOutcomeOf(true, branch('board', 'embarquer'))).toBe('send');
+    expect(dropOutcomeOf(true, boarding)).toBe('send');
   });
 });

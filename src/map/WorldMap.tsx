@@ -7,6 +7,7 @@ import { SweepOverlay, type SweepRequest } from './SweepOverlay';
 import { AbsenceTourBand, useAbsenceTour } from './AbsenceTour';
 import { BigStamp, useMomentScene } from './MomentScene';
 import type { Moment } from '@/domain/moments';
+import { groundFactsAt, type GroundFacts } from '@/domain/offers';
 import type { AbsenceTour } from '@/domain/absence-tour';
 import { clusterSheetOf, outpostPinId, type Pin } from '@/domain/pins';
 import type { Contact } from '@/domain/contacts';
@@ -33,6 +34,7 @@ import {
   type RegionIdentity,
 } from '@/domain/world';
 import type { LonLat } from '@/domain/geo';
+import { hiddenBy, needsFrame } from './frame-need';
 import type { DisbandGround } from '@/domain/movement-orders';
 import type { Ground } from '@/domain/routing';
 import type { Atlas } from '@/domain/atlas';
@@ -59,6 +61,7 @@ import { asClockTime } from '@/domain/duration';
 import { inkBursts } from '@/domain/ink-bursts';
 import type { RaceLead } from '@/domain/race-rings';
 import { bindSpots } from '@/shell/flights';
+import { useRoseSurface } from '@/shell/sole-surface';
 import type { ReplayStep } from '@/domain/replay';
 import {
   aboardOf,
@@ -115,7 +118,13 @@ import {
   type PieceFrom,
 } from './DropHint';
 import { insideStroke } from '@/domain/selection';
-import { dropReadingOf, turnChoice, type DropReading } from '@/domain/drop-order';
+import {
+  dropOutcomeOf,
+  dropReadingOf,
+  turnChoice,
+  type DropReading,
+  type Forbidden,
+} from '@/domain/drop-order';
 import type { TakeDepot } from './MapLabels';
 import type { TourLoop } from './engine/tour-ink';
 export type { TourLoop };
@@ -129,6 +138,7 @@ import {
   type HeldClaim,
   type HeldPlacing,
   type PieceClick,
+  type DropVerdict,
   type PieceHold,
   type PlacingMagnet,
   type PlacingSpot,
@@ -208,6 +218,8 @@ type Props = {
   onSelect: (name: string | null) => void;
   /** A click on a building's mast opens its surface instead of selecting the country. */
   onOpenBuilding?: (buildingId: string, clientX: number, clientY: number) => void;
+  /** Le mât d'un chantier que rien ne tient encore (#587) : la ligne de travail qu'il porte. */
+  onOpenWork?: ((workId: string) => void) | undefined;
   /**
    * **Le clic sur l'étiquette d'une adresse à moi** : une pile posée se lève (toute la pile), un
    * mât d'avant-poste ouvre sa garnison. Il rend vrai quand le clic **pose** la pièce en main sur
@@ -239,9 +251,18 @@ type Props = {
   onRestAim?: (action: OrderAction | null, at: { x: number; y: number }) => void;
   /** La rose s'est refermée sans ordre : la pièce en main se repose. */
   onRoseDismiss?: () => void;
+  /**
+   * **Sous le seuil, un toucher ou un lâcher vise** (#586) : les ordres de pièce que le point offre,
+   * dans l'ordre de la rose, et où il a été touché. La rose ne s'ouvre pas ; le plateau tient la
+   * visée et son « Envoyer ».
+   */
+  onAim?: (aim: MapAim) => void;
+  /** Le verdict de la route que la visée garde, pour l'encre du tracé ; `null` sans visée. */
+  keptAim?: Exclude<DropVerdict, 'none'> | null;
   /** **La rose de la pile en main**, celle que son étiquette ouvrirait, `null` sans pile posée :
-   *  la fiche latérale y lit « fonder ». */
-  onHeldCompass?: (compass: Compass | null) => void;
+   *  la fiche latérale y lit « fonder » ; `target`, ce que la pile pose sous elle (sa région, son
+   *  sol), dont la fiche lit ses offres (`offersOf`). */
+  onHeldCompass?: (compass: Compass | null, target: CompassTarget | null) => void;
   /** Opens a read-only private sighting; nearby ids are ordered for click cycling. */
   onOpenLoot?: (sightingIds: ReadonlyArray<string>, clientX: number, clientY: number) => void;
   /** Un clic sur un camp relevé ouvre son cartouche — ce qu'on en sait, et rien de plus. */
@@ -253,6 +274,9 @@ type Props = {
   /** The address whose garrison window is open: the sheet of a transport stored there opens. */
   openStation?: string | null;
   selectedLootLabel?: string | null;
+  /** **L'objet que la surface ouverte tient** (#591) : hors champ ou sous la feuille, un jeton au
+   *  bord le rappelle (`EdgeIndicators`). */
+  heldLabel?: { readonly id: string; readonly covered: number } | null;
   /**
    * **Le cercle que le plateau tient ouvert**, par-dessous celui du survol : le rayon de
    * détection d'une troupe désignée. Le survol l'emporte tant qu'il dure et le rend ensuite —
@@ -272,6 +296,12 @@ type Props = {
   /** **La carte prête** tend au plateau de quoi nommer la maquette sous un point : une
    *  tuile du plateau personnel se lâche sur une maquette (#205). */
   onMaquetteLookup?: (maquetteAt: (clientX: number, clientY: number) => string | null) => void;
+  /** **La carte prête** tend le sol sous un point, comme la rose le lit : la fiche d'un camp y
+   *  prend sa terre, sa côte et son pied marchable (`groundFactsAt`, #588). */
+  onGroundLookup?: (factsAt: (lonLat: LonLat) => GroundFacts) => void;
+  /** **La carte prête** tend de même le lieu sous un point de l'écran, pour ce qui doit se garder
+   *  en lon/lat (`reveal`) : un pixel ne survit pas à un geste de carte. */
+  onPointLookup?: (pointAt: (clientX: number, clientY: number) => LonLat | null) => void;
   onArcHover?: (id: string | null) => void;
   onLabelHover?: (id: string | null) => void;
   /** The press card a hovered piece wears; the map places it, the board writes it. */
@@ -317,6 +347,10 @@ type Props = {
     readonly distance?: number;
     /** Cadrer la pièce dessinée plutôt que son étiquette (`MapEngine.journeyTo`). */
     readonly onPiece?: boolean;
+    /** Une demande rejouée au lâcher d'une feuille (#582) : la hauteur que la feuille couvre. La
+     *  carte ne bouge que si elle cache le sujet, ou va le cacher — sans quoi chaque cran lâché
+     *  coûterait 1,5 s d'images. */
+    readonly hiddenBy?: number;
     readonly nonce: number;
   } | null;
   /**
@@ -413,8 +447,8 @@ type Props = {
    * la garnison (A7), appliquée à ce qui n'a pas de marqueur à cadrer, un chantier visé.
    */
   reveal?: {
-    readonly x: number;
-    readonly y: number;
+    /** Le lieu, non des pixels : après un geste de carte, ceux-ci mentent. */
+    readonly at: LonLat;
     readonly floor: number;
     readonly nonce: number;
   } | null;
@@ -463,6 +497,9 @@ export type PlacingBuilding = {
   readonly free: boolean;
   readonly duration: string;
   readonly refusal: string | null;
+  /** What the stock lacks for the bill, dated — shown under no placement refusal, never a
+   *  refusal itself: the point is still taken, the server decides. */
+  readonly shortage: string | null;
   /** No deposit the pose takes (#239): the nearest free one, named. */
   readonly nearest: string | null;
 };
@@ -538,6 +575,7 @@ export function WorldMap({
   quietRouteScale = false,
   onSelect,
   onOpenBuilding,
+  onOpenWork,
   onOpenStack,
   holding = null,
   departures = 0,
@@ -547,6 +585,8 @@ export function WorldMap({
   dropHintOf,
   onRestAim,
   onRoseDismiss,
+  onAim,
+  keptAim = null,
   onHeldCompass,
   onOpenLoot,
   onOpenCamp,
@@ -557,12 +597,15 @@ export function WorldMap({
   outpostZones = null,
   patrolHand = null,
   selectedLootLabel = null,
+  heldLabel = null,
   reach = null,
   onCountryHover,
   onRegionHover,
   onRegionsLoaded,
   onDisbandGround,
   onMaquetteLookup,
+  onGroundLookup,
+  onPointLookup,
   onArcHover,
   onLabelHover,
   poster,
@@ -667,6 +710,19 @@ export function WorldMap({
   useEffect(() => {
     if (readyEngine) onMaquetteLookup?.((x, y) => readyEngine.maquetteAtPoint(x, y));
   }, [readyEngine, onMaquetteLookup]);
+  useEffect(() => {
+    if (readyEngine)
+      onGroundLookup?.((point) =>
+        groundFactsAt(point, {
+          groundAt: (at) => readyEngine.groundAt(at),
+          coastAt: (at) => readyEngine.coastAt(at),
+          walkableAt: (at) => readyEngine.walkableAt(at),
+        }),
+      );
+  }, [readyEngine, onGroundLookup]);
+  useEffect(() => {
+    if (readyEngine) onPointLookup?.((x, y) => readyEngine.pointAt(x, y));
+  }, [readyEngine, onPointLookup]);
 
   useEffect(() => {
     if (!container.current) return;
@@ -793,7 +849,7 @@ export function WorldMap({
   const openRose = useCallback(
     (target: CompassTarget, clientX: number, clientY: number) => {
       lastAim.current = { target, clientX, clientY };
-      let drawn = compassOf(target);
+      const drawn = compassOf(target);
       const rect = container.current?.getBoundingClientRect();
       if (rect === undefined) return;
       const fromDrag = aiming && dragging.current;
@@ -808,8 +864,8 @@ export function WorldMap({
         if (holding !== null) engine.current?.setDownPiece(clientX, clientY);
       };
       /** **Lâcher, c'est ordonner** (POC « Manipuler les pions », 16/10) : le verbe que la
-       *  pastille montrait part tel quel ; au doigt, sans molette ni clavier, une rose réduite
-       *  aux ordres de pièce laisse choisir quand il y en a plusieurs. */
+       *  pastille montrait part tel quel ; au doigt, la rose s'ouvre toujours et c'est son
+       *  médaillon qui envoie (`dropOutcomeOf`, ADR 0026, amendement du 18/11). */
       const reading = aiming ? dropReadingOf(drawn) : null;
       /** Une attente (la côte arrive) ouvre la rose sur son motif, pièce en main : la rose se
        *  relit à l'arrivée de la côte (`onCoast`). */
@@ -821,13 +877,21 @@ export function WorldMap({
       }
       // Lifted by a click, a pose with nothing to order opens the rose on its reason, in hand.
       if (reading?.kind === 'orders') {
-        setDown();
-        if (fingerRose === null || reading.verbs.length === 1) {
-          setRose(null);
-          onCompassAction(reading.verbs[chosenOf(reading.verbs)]!, at);
+        const verb = reading.verbs[chosenOf(reading.verbs)]!;
+        setRose(null);
+        if (dropOutcomeOf(fingerRose !== null, verb) === 'aim') {
+          /** La pièce reste en main : rien n'est posé, le doigt n'a que visé. */
+          onAim?.({
+            verbs: reading.verbs,
+            at,
+            lonLat: engine.current?.pointAt(clientX, clientY) ?? null,
+            forbidden: holding?.forbidden ?? null,
+          });
           return;
         }
-        drawn = { ...drawn, actions: reading.verbs };
+        setDown();
+        onCompassAction(verb, at);
+        return;
       }
       const margin = (ROSE_MARGIN * readHudScale()) / 100;
       /** Sous le doigt, la rose reste sur ce qu'elle désigne : c'est la carte qui se recale
@@ -843,7 +907,7 @@ export function WorldMap({
         height: rect.height,
       });
     },
-    [compassOf, fingerRose, aiming, onDropRefused, onCompassAction, holding, chosenOf],
+    [compassOf, fingerRose, aiming, onDropRefused, onCompassAction, onAim, holding, chosenOf],
   );
 
   const fitRose = useCallback((dx: number, dy: number) => {
@@ -852,6 +916,7 @@ export function WorldMap({
   }, []);
 
   const closeRose = useCallback(() => setRose(null), []);
+  useRoseSurface(rose, closeRose);
 
   /**
    * **Une seule lecture de la plage** (décision 72a, #224) : le moteur répond avec
@@ -1313,12 +1378,12 @@ export function WorldMap({
     if (onHeldCompass === undefined) return;
     const label = holding === null ? undefined : labels.find((c) => c.id === holding.pileId);
     if (label === undefined || label.anchor.kind !== 'ground') {
-      onHeldCompass(null);
+      onHeldCompass(null, null);
       return;
     }
     const region = readyEngine?.regionAtLonLat(label.anchor.lonLat) ?? null;
     const target = targetOfLabel(label, null, region, coastAt, groundAt, walkableAt);
-    onHeldCompass(target === null ? null : compassOf(target));
+    onHeldCompass(target === null ? null : compassOf(target), target);
   }, [readyEngine, holding, labels, compassOf, coastAt, groundAt, walkableAt, onHeldCompass]);
 
   /** **La route ne se montre qu'à l'arrêt** (ADR 0026 §6) : la cible est ce que la pose lirait
@@ -1474,6 +1539,13 @@ export function WorldMap({
   const stopTourNow = useRef<() => boolean>(() => false);
   useEffect(() => {
     if (focus === null) return;
+    const rect = container.current?.getBoundingClientRect();
+    if (focus.hiddenBy !== undefined && readyEngine && rect !== undefined) {
+      const spots = focus.ids.flatMap(
+        (id) => readyEngine.screenOfAnchor(id, focus.onPiece === true) ?? [],
+      );
+      if (!needsFrame(spots, rect, focus.hiddenBy)) return;
+    }
     stopTourNow.current();
     if (finger.current) setRose(null);
     readyEngine?.journeyTo(
@@ -1539,9 +1611,6 @@ export function WorldMap({
   }, [readyEngine, replayStepping]);
 
   useEffect(() => {
-    if (covered) setRose(null);
-  }, [covered]);
-  useEffect(() => {
     readyEngine?.cover(covered);
   }, [readyEngine, covered]);
   const holdOver = useCallback(
@@ -1553,9 +1622,11 @@ export function WorldMap({
   useEffect(() => {
     const rect = container.current?.getBoundingClientRect();
     if (reveal === null || rect === undefined) return;
-    const visible = rect.height - reveal.floor;
-    if (reveal.y <= visible - REVEAL_MARGIN) return;
-    readyEngine?.nudge(0, visible / 2 - reveal.y);
+    const spot = readyEngine?.screenOf(reveal.at);
+    if (spot === null || spot === undefined) return;
+    const y = spot.y - rect.top;
+    if (!hiddenBy(y, rect.height, reveal.floor)) return;
+    readyEngine?.nudge(0, (rect.height - reveal.floor) / 2 - y);
   }, [readyEngine, reveal]);
 
   useEffect(() => {
@@ -1584,8 +1655,8 @@ export function WorldMap({
   }, [readyEngine, standing]);
 
   useEffect(() => {
-    readyEngine?.setAimRoute(aimRoute);
-  }, [readyEngine, aimRoute]);
+    readyEngine?.setAimRoute(aimRoute, keptAim);
+  }, [readyEngine, aimRoute, keptAim]);
 
   /** **La seconde cible refusée** (Guerre éclair, maquette A) : le trait de la première à elle
    *  prend l'encre du refus, comme la pastille ; le refus arrive après le pointeur. */
@@ -2187,6 +2258,7 @@ export function WorldMap({
         poster={poster ?? noPoster}
         onSelect={onSelect}
         onOpenBuilding={onOpenBuilding ?? (() => {})}
+        onOpenWork={onOpenWork}
         onOpenStack={onLabelOpen}
         onOpenLoot={onOpenLoot ?? (() => {})}
         onOpenCamp={onOpenCamp ?? (() => {})}
@@ -2230,6 +2302,7 @@ export function WorldMap({
         engine={readyEngine}
         toggles={indicators}
         destinations={edgeNames}
+        held={heldLabel}
       />
       {/* Au coin droit, sous la réglette : au gauche, la fiche de la pièce en main la recouvrait.
           Ce qu'on y range d'autre s'empile dessous, jamais par-dessus. */}
@@ -2374,6 +2447,16 @@ function DetachRing({ x, y, done }: { x: number; y: number; done: boolean }) {
   );
 }
 
+/** Une visée du doigt : ce que le point offre à la pièce en main (`onAim`). */
+export type MapAim = {
+  readonly verbs: ReadonlyArray<CompassAction>;
+  /** Où il a été touché, dans le cadre de la carte. */
+  readonly at: { readonly x: number; readonly y: number };
+  /** Le point du sol touché : l'étiquette de la visée s'y ancre. */
+  readonly lonLat: LonLat | null;
+  readonly forbidden: Forbidden;
+};
+
 type OpenRose = {
   opening: number;
   compass: Compass;
@@ -2389,9 +2472,6 @@ type OpenRose = {
  * margin follows the HUD scale, which zooms the whole menu.
  */
 const ROSE_MARGIN = 70;
-
-/** Ce qu'un point garde d'air au-dessus d'une feuille avant que la carte le remonte. */
-const REVEAL_MARGIN = 48;
 
 /** Enough to read the sentence twice, too short for it to become furniture. */
 const HINT_MS = 7000;
@@ -2490,6 +2570,11 @@ function PlacingLines({ placing, docked = false }: { placing: PlacingBuilding; d
       {placing.refusal !== null && (
         <span className="mt-[4px] block text-[11px] font-semibold text-[var(--critical)] first-letter:uppercase">
           {placing.refusal}
+        </span>
+      )}
+      {placing.refusal === null && placing.shortage !== null && (
+        <span className="mt-[4px] block text-[11px] font-semibold text-[var(--critical)] first-letter:uppercase">
+          {placing.shortage}
         </span>
       )}
       {placing.nearest !== null && (
@@ -2819,9 +2904,9 @@ export function targetOfLabel(
       country,
       /** Sur le point du mât, jamais sous le curseur : un mât plein cadre déborde sa cellule, et
        *  une flotte vise le mouillage relevé, pas le pixel cliqué. */
-      ground: label.anchor.kind === 'ground' ? groundAt(label.anchor.lonLat) : 'sea',
-      coastal: label.anchor.kind === 'ground' && coastAt(label.anchor.lonLat),
-      walkable: label.anchor.kind !== 'ground' || walkableAt(label.anchor.lonLat),
+      ...(label.anchor.kind === 'ground'
+        ? groundFactsAt(label.anchor.lonLat, { groundAt, coastAt, walkableAt })
+        : { ground: 'sea' as const, coastal: false, walkable: true }),
       name: fr.camps.marker,
     };
   }

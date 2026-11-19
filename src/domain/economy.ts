@@ -17,11 +17,17 @@ export type Stocks = Readonly<Record<ResourceKey, number>>;
  * covered. The steel is read first, then the family's resource, the order a price is printed in:
  * the screen says the same shortage the server's `debit` refuses on.
  */
+/** The order a price is read in, steel first — the screen's lines and the server's refusal. */
+export const PRICE_ORDER: ReadonlyArray<ResourceKey> = [
+  'steel',
+  ...RESOURCES.filter((key) => key !== 'steel'),
+];
+
 export function shortfallOf(
   costs: Readonly<Partial<Record<ResourceKey, number>>>,
   stockOf: (resource: ResourceKey) => number,
 ): { readonly resource: ResourceKey; readonly missing: number } | null {
-  for (const resource of ['steel', ...RESOURCES.filter((key) => key !== 'steel')] as const) {
+  for (const resource of PRICE_ORDER) {
     const cost = costs[resource] ?? 0;
     if (cost <= 0) continue;
     const held = stockOf(resource);
@@ -127,8 +133,9 @@ export type Spot = {
   readonly already: boolean;
 };
 
-/** **Ce qu'on ne bâtit qu'une fois** (#123) : le Centre de recherche. Le QG a sa propre règle. */
-const UNIQUE_BUILDINGS: ReadonlyArray<BuildingKey> = ['researchCenter'];
+/** **Ce qu'on ne bâtit qu'une fois** (#123) : le Centre de recherche, et le QG pour le fantôme —
+ *  le serveur refuse le second QG plus tôt, par `HQ_ALREADY_BUILT` (#579). */
+export const UNIQUE_BUILDINGS: ReadonlyArray<BuildingKey> = ['researchCenter', 'hq'];
 
 /**
  * **What a key refuses wherever it is aimed** — the half of the rule a catalogue can read before

@@ -281,3 +281,29 @@ export const keepPatchnotesRead = (dates: ReadonlySet<string>): void => {
     // Un magasin plein ou fermé : le lu ne survit pas au rechargement, la liseuse marche quand même.
   }
 };
+
+const TILES_STEP_KEY = 'wws-tiles-step';
+
+/**
+ * **Le cran de l'étage des tuiles est une préférence de l'appareil** (#589) : seuls « replié » et
+ * « rang » se retiennent. Un volet ouvert (la moitié ou le plein) revient au rang au lancement suivant, et
+ * tout autre contenu retombe sur le rang.
+ */
+export type TilesStep = 'collapsed' | 'peek';
+
+export const readTilesStep = (): TilesStep => {
+  try {
+    return localStorage.getItem(TILES_STEP_KEY) === 'collapsed' ? 'collapsed' : 'peek';
+  } catch {
+    return 'peek';
+  }
+};
+
+export const keepTilesStep = (step: string): void => {
+  if (step !== 'collapsed' && step !== 'peek') return;
+  try {
+    localStorage.setItem(TILES_STEP_KEY, step);
+  } catch {
+    // Un magasin plein ou fermé : le cran ne survit pas au rechargement, l'étage marche quand même.
+  }
+};

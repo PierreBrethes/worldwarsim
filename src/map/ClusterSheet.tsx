@@ -1,10 +1,15 @@
 import type { ClusterSheet as Sheet } from '@/domain/pins';
 import { fr } from '@/i18n/fr';
+import { useSoleSurface } from '@/shell/sole-surface';
+import { useNarrowScreen } from '@/shell/viewport';
 
 /**
  * **La fiche d'une grappe ouverte** (#234, maquette « épingles ») : ce qu'elle compte, la phrase
  * qui dit qu'on ne la lève pas, et « approcher ». Elle pend au-dessus de la grappe, comme une
  * affiche au survol ; au doigt, le toucher l'ouvre.
+ *
+ * **Sous le seuil, c'est une surface comme les feuilles** (#584, #588) : elle tient la place — en
+ * ouvrir une autre la ferme —, Retour la ferme, et la carte nue ne fait que la fermer.
  */
 export function ClusterSheet({
   sheet,
@@ -20,6 +25,7 @@ export function ClusterSheet({
   onApproach: () => void;
   onClose: () => void;
 }) {
+  useSoleSurface(onClose, useNarrowScreen());
   return (
     <div
       className="map-poster-anchor"

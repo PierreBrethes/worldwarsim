@@ -18,6 +18,7 @@ import {
   placementRefusal,
 } from '../src/domain/economy';
 import {
+  cancelWorkRefusalOf,
   outpostRaiseHold,
   raiseRefusalOf,
   specialtyRefusalOf,
@@ -415,7 +416,8 @@ export const cancel = mutation({
     requirePlayable(player, season);
     const entry = await ctx.db.get(constructionId);
     if (!entry || entry.playerId !== player._id) fail('UNKNOWN_CONSTRUCTION');
-    if (entry.finishesAt !== null) fail('CONSTRUCTION_ALREADY_STARTED');
+    const refusal = cancelWorkRefusalOf({ started: entry.finishesAt !== null });
+    if (refusal !== null) fail(refusal);
 
     const refunded = billOfWork(entry);
     await credit(ctx, player._id, refunded, Date.now());

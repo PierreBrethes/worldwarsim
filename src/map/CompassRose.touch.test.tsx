@@ -2,7 +2,7 @@
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Compass, CompassAction } from '@/domain/compass-rose';
-import { CompassRose, readsFirst } from './CompassRose';
+import { CompassRose, DOUBLE_TOUCH_MS, readsFirst } from './CompassRose';
 
 /**
  * **Sous le seuil, deux touchers pour ce qui paie sans confirmation, un seul pour le reste.**
@@ -13,7 +13,10 @@ import { CompassRose, readsFirst } from './CompassRose';
  * jsdom n'a pas de `PointerEvent` : le type du pointeur est posé à la main sur l'événement, la
  * rose ne lit que lui.
  */
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 const upgrade = {
   key: 'upgrade',
@@ -69,7 +72,8 @@ function touch(element: Element): void {
   });
 }
 
-function rose(actions: ReadonlyArray<CompassAction>) {
+function rose(actions: ReadonlyArray<CompassAction>, settled = true) {
+  vi.useFakeTimers({ toFake: ['Date'] });
   const onAction = vi.fn();
   const onClose = vi.fn();
   const compass = { kicker: 'région', name: 'Marne', actions, refusal: null } as Compass;
@@ -85,6 +89,7 @@ function rose(actions: ReadonlyArray<CompassAction>) {
       finger={{ floor: 0, onFit: () => {} }}
     />,
   );
+  if (settled) vi.advanceTimersByTime(DOUBLE_TOUCH_MS);
   return { onAction, onClose };
 }
 
@@ -111,5 +116,17 @@ describe('la rose sous le doigt', () => {
     touch(document.body);
     expect(onClose).toHaveBeenCalled();
     expect(onAction).not.toHaveBeenCalled();
+  });
+});
+
+describe('le double toucher', () => {
+  it('ignore un toucher sur un médaillon dans les instants qui suivent l’ouverture', () => {
+    const { onAction } = rose([aim], false);
+    const medallion = screen.getByRole('button', { name: 'marche' });
+    touch(medallion);
+    expect(onAction).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(DOUBLE_TOUCH_MS);
+    touch(medallion);
+    expect(onAction).toHaveBeenCalledExactlyOnceWith(aim);
   });
 });

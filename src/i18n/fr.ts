@@ -608,6 +608,24 @@ export const fr = {
     byStation: (region: string) => `relevé par notre station d’écoute de ${region}`,
     /** Ce que le cartouche ne dira pas, dit une fois : c'est la règle, pas une lacune. */
     unknown: 'Ni sa composition, ni son effectif, ni sa nation ne sont connus.',
+    /** L'onglet de la fiche du téléphone (#588) : ce que le relevé dit. */
+    tab: 'relevé',
+  },
+
+  /**
+   * **Envoyer une pile depuis la fiche d'une cible** (#588) : un camp relevé, un objectif, un point
+   * stratégique. Un toucher envoie, la pile est nommée sur le bouton ; son refus se lit à sa place.
+   */
+  strikes: {
+    pile: (place: string, troops: number) =>
+      `${place} · ${troops} troupe${plural(troops, '', 's')}`,
+    noPile: 'aucune pile à portée',
+    noShip: 'aucune de vos piles ne prend la mer — il faut un transport naval',
+    /** Un point stratégique : deux ordres par pile, comme la rose. */
+    marchVerb: 'Marcher',
+    takeVerb: 'Capturer',
+    /** Les piles au-delà des trois plus proches, repliées. */
+    others: (count: number) => `${count} autres pile${plural(count, '', 's')}`,
   },
 
   /**
@@ -655,6 +673,8 @@ export const fr = {
       singapore: `Vos camions et vos cargos paient ${SINGAPORE_FUEL_DISCOUNT_PCT} % de plein en moins, au cran près.`,
     } satisfies Record<StrategicPointKey, string>,
     kicker: 'point stratégique',
+    /** L'onglet de la fiche du téléphone (#588) : la règle qu'il casse pour son teneur. */
+    tab: 'règle',
     site: (key: StrategicPointKey) => `le point stratégique de ${fr.points.names[key]}`,
     neutral: 'neutre — personne ne le tient',
     heldBy: (nation: string, since: string, total: string) =>
@@ -734,6 +754,8 @@ export const fr = {
     } as Readonly<Record<string, string | undefined>>,
     markerKicker: 'objectif',
     badgeKicker: 'objectif neutre',
+    /** L'onglet de la fiche du téléphone (#588). */
+    tab: 'dépôt',
     depot: 'dépôt restant',
     emptied: 'dépôt épuisé',
     /** Ce que la popin ne dira pas, dit une fois — jumeau de la phrase du camp. */
@@ -1143,6 +1165,9 @@ export const fr = {
 
   common: {
     close: 'fermer',
+    /** ‹ et › de l'en-tête d'une fiche au téléphone (#593) : l'objet voisin de sa famille. */
+    previous: 'objet précédent',
+    next: 'objet suivant',
     noNation: 'sans nation',
     dash: '—',
     /** Le niveau d'un bâtiment en abrégé, là où une ligne n'a pas la place du mot entier. */
@@ -1950,6 +1975,8 @@ export const fr = {
     full: 'plein',
     /** Cinq colonnes sur un téléphone : l'étiquette tient à peu près dans la sienne. */
     drySoonShort: (hours: number) => `à sec ${num(hours)} h`,
+    /** Sous la largeur d'une cellule étroite : la durée seule, « à sec » est dans le survol. */
+    dryHoursShort: (hours: number) => `${num(hours)} h`,
     slots: 'mouvements',
   },
 
@@ -2357,10 +2384,9 @@ export const fr = {
       press: 'Presse',
       telegraph: 'Télégraphe',
     },
-    /** La poignée du plateau : replié → mi-hauteur → plein → replié. */
+    /** Le bouton de l'étage des tuiles : replié sur sa barre, ou au rang. */
     grip: {
       open: 'déplier le plateau personnel',
-      full: 'agrandir le plateau personnel',
       fold: 'replier le plateau personnel',
     },
   },
@@ -2426,6 +2452,7 @@ export const fr = {
   },
 
   edgeIndicators: {
+    held: "Revenir à l'objet sélectionné",
     groupTitle: (count: number, nature: string) => `${count} ${nature} hors champ`,
     singleTitle: (nature: string) => `${nature} — hors champ`,
     natures: {
@@ -2600,6 +2627,8 @@ export const fr = {
     /** Le point n'existe pas encore : il ne tient rien, n'atteint rien, ne détecte rien. Rouge
      *  parce que c'est la fenêtre où un voisin peut réagir (révision du 15/09). */
     outpostUnderConstruction: 'en chantier',
+    /** Un point debout, qui sert : le tampon de sa fiche au téléphone (#588). */
+    outpostStanding: 'debout',
     /** **Un état, jamais une action** (ADR 0020 §6) : le bâtiment est debout, entier, et il ne
      *  rend rien parce que sa région a changé de couleur. Rien à cliquer sur le site. */
     unlinked: 'hors réseau',
@@ -3190,7 +3219,7 @@ export const fr = {
   patrol: {
     title: 'Ronde',
     toward: (other: string) => `liaison vers ${other}`,
-    launch: 'lancer',
+    launchRound: 'lancer la ronde',
     recall: 'rappeler',
     recalledOnLabel: 'ronde rappelée',
     started: 'Ronde lancée',
@@ -3308,8 +3337,24 @@ export const fr = {
   hand: {
     kicker: (place: string) => `en main · ${place}`,
     hint: 'clic gauche sur la carte, ou glisser : poser · sur un transport : embarquer · échap : reposer',
-    hintFinger: 'touchez la carte pour poser, la pièce pour la reposer — appui long pour la porter',
+    /** **La visée au téléphone** (#586) : « Envoyer » donne l'ordre, « Annuler » retire la visée et
+     *  laisse la pièce en main. */
+    send: 'Envoyer',
+    cancelAim: 'Annuler',
+    /** Ce que la feuille dit tant que rien n'est visé : le compte, et le geste qui suit. */
+    pickedAim: (count: number) =>
+      `${count} troupe${plural(count, '', 's')} cochée${plural(count, '', 's')} — touchez la carte pour viser, la pièce pour la reposer — appui long pour la porter`,
+    pickedNone: 'aucune troupe cochée — rien à envoyer',
     found: 'fonder un avant-poste ici',
+    /** Au téléphone, les ordres de la fiche tiennent en verbes courts (#585). */
+    foundShort: 'fonder',
+    /** « Aucune » ne ferme pas la fiche : elle dit ce qu'elle tient, c'est-à-dire rien. */
+    nothingToSend: 'rien à envoyer',
+    othersStay: 'les autres restent sur place',
+    /** Le second toucher de « dissoudre » : le bouton lui-même dit ce que l'escouade perd. */
+    confirm: (loses: string | null) => (loses === null ? 'confirmer' : `confirmer · ${loses}`),
+    /** Les onglets de la pile ; les trois autres sont les rubriques de `fr.stats`. */
+    troopsTab: 'troupes',
     /** Au loin, la pile levée n'est qu'une épingle : on descend la voir (#234). */
     approach: 'approcher',
     aboard: 'à bord',
@@ -3343,8 +3388,6 @@ export const fr = {
     },
     /** Ce que dit la bulle, là où le geste se fait. */
     cue: {
-      /** La bande repliée : on la déplie d'abord. */
-      unfold: 'Dépliez le plateau personnel',
       hq: 'Cliquez la tuile du QG, puis votre sol',
       tiles: 'D’abord une caserne : sa tuile sur la carte',
       pieces: 'Cliquez ce site : ses troupes viennent dans la bande',
@@ -3413,6 +3456,10 @@ export const fr = {
     /** L'heure du lever, en clair : un chantier se lit sur une échéance, pas sur un décompte
      *  qu'il faudrait regarder tourner. */
     standsAt: (time: string) => `debout à ${time}`,
+    /** Les onglets de la fiche d'un avant-poste au téléphone (#588). */
+    tabs: { garrison: 'garnison', raise: 'élévation', lookout: 'vigie', point: 'point' },
+    depot: 'dépôt',
+    depotEmpty: 'vide',
     /** **Le cachet dit l'état, cette ligne dit combien de temps encore.** Un tampon « désactivé »
      *  seul laissait le joueur sans la seule chose qu'il ait à décider ici : attendre ou non. */
     disabledFor: (hours: number, minutes: string) => `hors service — encore ${hours} h ${minutes}`,
@@ -3713,6 +3760,11 @@ export const fr = {
     pointAt: (lon: number, lat: number) =>
       `${Math.abs(lat).toFixed(1)}° ${lat >= 0 ? 'N' : 'S'} · ${Math.abs(lon).toFixed(1)}° ${lon >= 0 ? 'E' : 'O'}`,
     arrival: (time: string) => `arrivée ${time}`,
+    /** **L'étiquette de la visée** (#586), posée près de la destination : le verbe de la pastille
+     *  et le lieu, que les notes de la visée (`dropNotes`) suivent. */
+    label: (verb: string, place: string) => `${verb} → ${place}`,
+    /** « près de Kiev » : le lieu qu'une visée du doigt prend à l'aperçu au lieu de ses degrés. */
+    near,
     /** **La longueur de la route**, en kilomètres du serveur (#302) : la durée si elle est datée,
      *  la part de mer quand le trajet en a une. */
     distance: (km: number, span: string) => `≈ ${km} km · ${span}`,
@@ -3884,6 +3936,8 @@ export const fr = {
     /** Le bouton qui l'ouvre, là où l'information sert : au recrutement, et sur la popin de
      *  troupe. Pas d'entrée de rail — il en a déjà trop (audit du 25/08 §3). */
     open: 'abaque de tir — qui bat qui',
+    /** Le libellé court à côté du pictogramme, dans l'en-tête d'une feuille. */
+    openShort: 'abaque',
     /** Le garde-fou du projet, imprimé : c'est ce que la table garantit, et c'est ce qu'un
      *  joueur doit lire avant de chercher l'arme absolue qui n'existe pas. */
     guarantee: 'Aucune arme ne bat tout, aucune n’est battue par tout.',
@@ -3966,9 +4020,7 @@ export const fr = {
       waitingHeader: 'en attente',
       waitingNote: 'payé d’avance · remboursé si annulé',
       rank: (rank: number) => `${rank}ᵉ`,
-      queueEmptyTitle: 'Aucune troupe en chaîne.',
-      queueEmptyNote:
-        'La première troupe enfilée commence aussitôt ; les suivantes attendent leur tour et restent remboursables.',
+      plusOne: '+1 troupe',
       queueNote: (aSecond: string) =>
         `Les files continuent pendant la plage de repos, comme les chantiers. Chaque bâtiment tient sa propre file : ${aSecond} forme en parallèle.`,
       garrisonEmpty: {
@@ -4072,25 +4124,25 @@ export const fr = {
       atFootShort: 'tas',
       /** L'heure est celle de l'étape, pas de l'arrivée au stock : le mot le dit. */
       legEnds: (countdown: string) => `étape ${countdown}`,
-      fullCount: (count: number) => `${count} plein${count > 1 ? 's' : ''}`,
-      coming: 'Ce qu’un transport rapporte : la récolte à bord, et la fin de son étape',
       foundationOnly: 'fondation seule',
       fromArsenal: 'sort de l’arsenal',
       onTheRoad: 'En route',
       overflow: 'Débordent',
       noTour: 'aucune tournée',
       noOverflow: 'aucun tas plein',
+      /** La ligne d'un stock dans le volet (#580), quand rien n'attend au pied. */
+      noHeap: 'aucun tas',
       stoppedFor: (span: string) => `arrêtée ${span}`,
     },
   },
 
   personalBoard: {
+    /** La poignée de la barre debout (#579) : son geste, le titre restant son nom. */
+    unfold: 'déplier',
+    fold: 'replier',
     header: 'Plateau personnel',
     previous: 'précédentes',
     next: 'suivantes',
-    /** Un bac : son nombre exact sur son plafond, et son débit réel. */
-    ofCap: (cap: number) => `/ ${num(cap)}`,
-    rate: (perHour: number) => `${perHour >= 0 ? '+' : '−'}${tenths(Math.abs(perHour))} / h`,
     /** Le débit d'une réserve sur la barre : cinq colonnes sur un téléphone, sans espaces. */
     rateShort: (perHour: number) => `${perHour >= 0 ? '+' : '−'}${tenths(Math.abs(perHour))}/h`,
     harvest: (hours: number) =>
@@ -4107,7 +4159,12 @@ export const fr = {
     /** Ce que dit un bac plein à la pastille en trop, un instant. */
     spilled: 'perdu',
     delta: (amount: number) => `${amount > 0 ? '+' : '−'}${num(Math.abs(amount))}`,
-    tilesNote: 'cliquez une tuile, puis la carte pour bâtir ou sa pareille pour l’élever',
+    tilesNote: 'survolez une tuile, cliquez-la puis la carte',
+    /** Au téléphone rien ne se survole : la tuile se touche, puis la carte. */
+    tilesNotePhone: 'touchez la carte pour bâtir, sa pareille pour l’élever',
+    /** Le feuillet d'une tuile refusée : sa fermeture. */
+    refusalClose: 'fermer le refus',
+    refusalOf: (name: string) => `refus : ${name}`,
     tileCount: (count: number) => `×${count}`,
     /** La réserve de l'Évacuation sur la tuile : la prochaine pose sort à ce niveau. */
     tileKept: (kept: number, stands: number) =>
@@ -4118,7 +4175,7 @@ export const fr = {
     siteLeave: 'bâtiments',
     siteLeaveTitle: 'Revenir aux tuiles de bâtiments (Échap)',
     siteQueue: 'en formation',
-    siteQueueEmpty: 'Rien en formation : cliquez une carte.',
+    siteQueueEmpty: 'Rien en formation : choisissez une troupe à former.',
     /** Ce que dit la main au-dessus d'une cible. */
     raise: (building: string, level: number) => `Élever ${lowerFirst(building)} au niveau ${level}`,
     /** Un bâtiment qu'un niveau accélère dit ce que le suivant rend (ADR 0031). */
@@ -4128,9 +4185,19 @@ export const fr = {
     formed: (role: string) => `${role} en file de formation`,
     raised: (building: string, level: number) => `${building} : niveau ${level} en file`,
     worksHeader: 'chantiers',
+    /** Les onglets de l'étage des tuiles au téléphone (#590) : les colonnes du volet du bureau. */
+    tabs: { works: 'chantiers', reserves: 'stocks', heaps: 'tas', lots: 'lots' },
     /** Ce que le QG rend aux chantiers, dit sous la file (ADR 0031). */
     hqSpeed: (line: string) => `QG ${line} sur chaque chantier`,
-    worksFold: 'chantiers',
+    /** **Le volet du bureau** (#580) : sous la file, ce que coûte un « annuler ». */
+    refundNote: 'Un chantier en file s’annule et se rembourse ; commencé, il ne s’annule plus.',
+    /** La fiche d’un chantier (#587) : ce qu’il ne forme pas encore, et son rang. */
+    workSiteNothing: 'en chantier : rien ne s’y forme encore',
+    workSiteHead: 'en cours',
+    workSiteRank: (rank: number) => `${rank}ᵉ en file`,
+    cancelWork: (work: string) => `Annuler ${work} : remboursé`,
+    lotsHeader: 'arsenal · lots',
+    noLots: 'aucun lot',
     noWorks: 'aucun chantier',
     /** Le chantier en tête, plié en une ligne : son nom, son lieu, ce qui lui reste, la file. */
     work: (name: string, level: number) => `${name} niv. ${level}`,
@@ -4139,9 +4206,9 @@ export const fr = {
       ` · reste ${time}${queued > 0 ? ` · ${queued} en file` : ''}`,
     /** Le rang d'un chantier dans la file : « 1. Caserne niv. 2 ». */
     workRank: (rank: number, work: string) => `${rank}. ${work}`,
-    /** Sous le nom d'un chantier, une ligne : où, et où il en est. */
-    runningAt: (region: string) => `${region} · en cours`,
-    queuedAt: (region: string, time: string) => `${region} · ${time}, en file`,
+    /** Le volet coupe la région, jamais la durée : ce qui suit le lieu, seul. */
+    runningTail: (time: string) => ` · reste ${time}`,
+    queuedTail: (time: string) => ` · ${time}`,
     /** Une tuile dont la pareille est debout : elle l'élève, au prix de l'élévation. */
     raiseTo: (from: number, to: number) => `niv.\u00a0${from} → ${to}`,
     starvedChain: (building: string, resource: string) =>
@@ -4150,6 +4217,8 @@ export const fr = {
 
   /** **Les cartes de recherche** (ADR 0028 §5) : dans l'arbre, sur le Centre de recherche. */
   research: {
+    /** Les deux onglets de la fiche du Centre au téléphone (#587). */
+    tabs: { post: 'poste', tree: 'arbre' },
     header: 'recherche',
     /** **La fenêtre de l'arbre** (#123, variante A « l'éventail ») : le Centre, ses postes en
      *  marge, l'arbre de haut en bas. */
@@ -4598,7 +4667,7 @@ export const fr = {
               lines: [
                 'Toucher net : ouvrir la rose et lire ce qui est touché. Un doigt glissé déplace la carte ; deux doigts pincent pour zoomer et tournent pour orienter.',
                 'La rose des vents propose ce que ce point accepte, et rien d’autre.',
-                'Touchez une de vos piles pour la lever, ou tenez-la appuyée pour la porter. Touchez la carte pour la poser : l’ordre part — s’il y en a plusieurs, une rose réduite laisse choisir. Touchez la pile pour la reposer.',
+                'Touchez une de vos piles pour la lever, ou tenez-la appuyée pour la porter. Touchez la carte pour viser : l’étiquette dit l’ordre, « Envoyer » le donne, « Annuler » le retire — la pièce reste en main. Touchez la pile pour la reposer.',
                 regions,
               ],
             }
@@ -4817,7 +4886,7 @@ export const fr = {
     clear: 'Désélectionner',
     done: 'Terminer',
     /** Au doigt, après l'appui long sur le plateau : les touchers ajoutent. */
-    picking: 'touchez vos piles',
+    picking: 'touchez vos piles, puis la carte pour viser',
     noSquadHere: 'aucune de ces piles ne se tient sur le plateau',
     reread: 'la sélection a changé sous la main — reprenez-la et lâchez-la de nouveau',
     atLeastTwo: 'choisissez au moins deux piles — Maj + clic, ou le lasso (Maj + glisser)',
@@ -4886,10 +4955,11 @@ export const fr = {
     choice: (index: number, count: number, next: string) => `${index}/${count} · Tab : ${next}`,
     release: 'relâcher pour ordonner · Échap annule',
     refused: 'relâcher : la pièce revient · Échap',
-    /** Au doigt, ni Tab ni Échap : plusieurs ordres, la rose les propose au lâcher. */
+    /** Au doigt, ni Tab ni Échap : plusieurs ordres, la feuille les propose une fois visé. */
     choiceTouch: (count: number) => `${count} ordres au choix`,
-    releaseTouch: 'lever le doigt pour ordonner · sur la pièce, rien ne part',
-    releaseChoiceTouch: 'lever le doigt : choisir l’ordre · sur la pièce, rien ne part',
+    releaseTouch: 'lever le doigt pour viser · « Envoyer » ordonne · sur la pièce, rien ne part',
+    releaseChoiceTouch:
+      'lever le doigt pour viser : l’ordre se choisit ensuite · sur la pièce, rien ne part',
     /** Sans rose sous le doigt (écran large), le verbe affiché est celui qui part. */
     releaseDirectTouch: 'lever le doigt : l’ordre affiché part · sur la pièce, rien ne part',
     refusedTouch: 'lever le doigt : la pièce revient · sur la pièce, rien ne part',
@@ -5035,6 +5105,9 @@ export const fr = {
     dismantle: 'démanteler',
     dismantleConsequence:
       'Efface ce point, sa couleur et ce qu’il ancre. Rien de l’acier payé n’est rendu.',
+    /** **Dissoudre** (#576) : la confirmation dit ce que l'escouade perd — le geste unique. */
+    disbandConsequence:
+      'Défait l’escouade : ses pièces se posent autour du point et se commandent chacune à part.',
     /** The rose in refusal: no branch, one motive. The heading says the absence, `fr.errors`
      *  says why — the same sentence the server would have answered after the click. */
     refused: 'aucun ordre ici',
@@ -5111,6 +5184,10 @@ export const fr = {
    */
   placing: {
     hint: 'cliquez ou lâchez pour poser — Échap pour renoncer',
+    /** Le manque de la facture, dans l'ordre du serveur : la phrase qui le date suit. */
+    missing: (missing: number, resource: string) => `il manque ${Math.ceil(missing)} ${resource}`,
+    /** Le fantôme du QG hors du sien (#579) ; `HQ_ALREADY_BUILT` reste la phrase du serveur. */
+    hqUnique: 'le quartier général est unique — visez-le pour l’élever',
     noGround: 'visez la terre ferme — rapprochez-vous si les régions ne sont pas dessinées',
     coastPending: 'la côte arrive sur la carte — un instant',
     /** Au téléphone, la tuile se porte du doigt (#239). */
@@ -5449,7 +5526,7 @@ export function aimRefusalText(
     case 'RESEARCH_REQUIRED':
       return errors.RESEARCH_REQUIRED({ card: lockedBy });
     case 'ALREADY_BUILT':
-      return errors.ALREADY_BUILT({ building: key });
+      return key === 'hq' ? fr.placing.hqUnique : errors.ALREADY_BUILT({ building: key });
     case 'HQ_FIRST':
     case 'DEPOSIT_TAKEN':
     case 'NOT_ON_LAND':

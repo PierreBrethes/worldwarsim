@@ -15,7 +15,7 @@
  * La souris porte du bouton premier : le moteur ne lève une pièce que de lui, quel que soit le
  * réglage des boutons (`armCarry`), et aucun geste de la liste ne passe par la rose.
  */
-/* global document, innerWidth, innerHeight -- les fonctions passées à `page.evaluate` tournent dans la page. */
+/* global document, innerWidth, innerHeight, history, location, getComputedStyle -- les fonctions passées à `page.evaluate` tournent dans la page. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
@@ -108,7 +108,14 @@ async function runProfile(profile) {
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
     // La session posée d'avance : la page de connexion n'admet qu'une tentative toutes les 3 s.
-    await page.addInitScript((token) => localStorage.setItem('wws-session', token), token);
+    await page.addInitScript((token) => {
+      // Le geste « retour » quitte le plateau : `about:blank` refuse le stockage.
+      try {
+        localStorage.setItem('wws-session', token);
+      } catch {
+        // refusé : rien à poser
+      }
+    }, token);
     await page.goto(
       `${origin}/plateau?season=${accounts.seasonId}&heure=${encodeURIComponent(heure)}`,
     );
@@ -215,6 +222,18 @@ async function runProfile(profile) {
       );
       await page.waitForTimeout(2500);
     };
+    /** Les points de la carte nue au-dessus d'une feuille basse, jusqu'à `bottom` : le canvas, ni
+     *  mât, ni pièce, ni bandeau, ni fiche de cargaison. Le geste les cherche à l'écran plutôt que
+     *  de les supposer sous un cadrage. */
+    const bareSpots = (bottom) =>
+      page.evaluate((bottom) => {
+        const canvas = globalThis.mapEngine.renderer.domElement;
+        const spots = [];
+        for (const y of [300, 250, 350, 400, 450, 500, 200])
+          for (const x of [195, 110, 280, 60, 330])
+            if (y <= bottom && document.elementFromPoint(x, y) === canvas) spots.push([x, y]);
+        return spots;
+      }, bottom);
     /** Le point de l'écran où le moteur trouve cette maquette, et non une pièce devant. */
     const maquettePoint = (id) =>
       page.evaluate((id) => {
@@ -240,12 +259,9 @@ async function runProfile(profile) {
           return { role: group.role, aboard: group.aboard ?? 0, at: bare ? [x, y] : null };
         });
       }, pileId);
-    /** La poignée du plateau personnel : au doigt son nom dit l'état suivant (déplier, agrandir,
-     *  replier), à la souris `aria-expanded` dit s'il est déplié. */
-    const boardHandle = () =>
-      page
-        .getByRole('button', { name: phone ? /le plateau personnel$/ : /^Plateau personnel/ })
-        .first();
+    /** La poignée du plateau personnel : au doigt, le bouton de l'étage des tuiles dit son état
+     *  suivant (déplier, replier) ; à la souris `aria-expanded` dit s'il est déplié. */
+    const boardHandle = () => page.getByRole('button', { name: /le plateau personnel$/ }).first();
     const boardOpen = async () =>
       phone
         ? !/^déplier/.test((await boardHandle().getAttribute('aria-label')) ?? '')
@@ -266,6 +282,105 @@ async function runProfile(profile) {
     const closeBoard = () => board(false);
 
     const gestures = [
+      {
+        // L'étage des tuiles n'existe que sous le seuil (#589) ; il se joue en tête, avant que
+        // d'autres gestes n'aient touché au cran.
+        name: 'l’étage des tuiles au téléphone',
+        run: async () => {
+          if (!phone) return;
+          const stage = page.locator('[data-stage]');
+          const step = () => stage.getAttribute('data-height');
+          const until = async (read, wanted, message) => {
+            const deadline = Date.now() + 5000;
+            while ((await read()) !== wanted && Date.now() < deadline)
+              await page.waitForTimeout(50);
+            assert.equal(await read(), wanted, message);
+          };
+          const kept = () => page.evaluate(() => localStorage.getItem('wws-tiles-step'));
+          // Sorti au premier lancement, au rang, sans rien dans l'adresse ni dans l'historique.
+          assert.equal(await step(), 'peek', 'écran : l’étage n’est pas au rang au lancement');
+          assert.ok(!new URL(page.url()).searchParams.has('windows'), 'écran : étage dans l’URL');
+          const tile = page.getByRole('button', { name: /^Quartier général — / }).first();
+          assert.ok(await tile.isVisible(), 'écran : le rang ne montre pas ses tuiles');
+          // Un lancer vers le bas le replie sur sa barre, et l'appareil s'en souvient.
+          const box = await stage.boundingBox();
+          const grip = [box.x + 60, box.y + 20];
+          await touch('touchStart', [grip]);
+          await fingers([grip], [[grip[0], grip[1] + 160]], 120);
+          await touch('touchEnd', []);
+          await until(step, 'collapsed', 'écran : un lancer vers le bas ne replie pas l’étage');
+          assert.equal(await kept(), 'collapsed', 'écran : le cran replié n’est pas retenu');
+          // Une feuille prend la place : l'étage se cache sans se fermer, et revient à sa fermeture.
+          const layers = page.getByRole('button', { name: 'Calques de la carte' }).first();
+          await tap(layers);
+          await page
+            .getByRole('dialog', { name: 'Calques de la carte' })
+            .waitFor({ timeout: 5000 });
+          await until(
+            () => stage.evaluate((node) => getComputedStyle(node).visibility),
+            'hidden',
+            'écran : l’étage reste visible sous la feuille',
+          );
+          await tap(page.getByRole('button', { name: /^fermer$/i }).first());
+          await page
+            .getByRole('dialog', { name: 'Calques de la carte' })
+            .waitFor({ state: 'detached', timeout: 5000 });
+          await until(
+            () => stage.evaluate((node) => getComputedStyle(node).visibility),
+            'visible',
+            'écran : l’étage ne revient pas à la fermeture',
+          );
+          assert.equal(await step(), 'collapsed', 'écran : l’étage a perdu son cran');
+          // Un toucher sur la barre le rouvre au rang.
+          await tap(boardHandle());
+          await until(step, 'peek', 'écran : le toucher ne rouvre pas l’étage');
+          assert.equal(await kept(), 'peek', 'écran : le cran rang n’est pas retenu');
+          // Tirée à la poignée, la feuille monte jusqu'aux onglets (#590) : la moitié, puis le plein ;
+          // un lancer vers le bas la redescend. Les onglets changent sans toucher à l'adresse.
+          const pull = async (travel) => {
+            const at = await stage.boundingBox();
+            const from = [at.x + 60, at.y + 20];
+            await touch('touchStart', [from]);
+            await fingers([from], [[from[0], from[1] + travel]], 120);
+            await touch('touchEnd', []);
+            // Le ressort finit de poser la feuille : la prise suivante la mesure au repos.
+            await page.waitForTimeout(700);
+          };
+          const tab = (name) => page.getByRole('tab', { name, exact: true });
+          assert.equal(await tab('chantiers').count(), 0, 'écran : des onglets au rang');
+          await pull(-160);
+          await until(step, 'half', 'écran : tirer vers le haut ne monte pas à la moitié');
+          assert.equal(
+            await tab('chantiers').getAttribute('aria-selected'),
+            'true',
+            'écran : « chantiers » n’est pas l’onglet d’abord',
+          );
+          await tap(tab('stocks'));
+          await page
+            .getByText(/^\/ \d/)
+            .first()
+            .waitFor({ timeout: 5000 });
+          assert.equal(await tab('stocks').getAttribute('aria-selected'), 'true', 'écran : onglet');
+          await pull(-160);
+          await until(step, 'full', 'écran : la feuille ne monte pas au plein');
+          assert.equal(
+            await tab('stocks').getAttribute('aria-selected'),
+            'true',
+            'écran : le plein a perdu l’onglet',
+          );
+          assert.ok(!new URL(page.url()).searchParams.has('windows'), 'écran : onglet dans l’URL');
+          await pull(260);
+          await until(
+            step,
+            'half',
+            'écran : un lancer vers le bas ne redescend pas au cran moitié',
+          );
+          await pull(260);
+          await until(step, 'peek', 'écran : la feuille ne revient pas au rang');
+          assert.equal(await tab('chantiers').count(), 0, 'écran : des onglets au rang, après');
+          assert.equal(await kept(), 'peek', 'écran : le cran rang n’est plus retenu');
+        },
+      },
       {
         name: 'ouvrir et fermer chaque surface',
         run: async () => {
@@ -301,7 +416,11 @@ async function runProfile(profile) {
               ];
           const missed = [];
           for (const [what, open, surface] of surfaces) {
-            const window = page.locator(`[data-surface="${surface}"]`);
+            /** Au téléphone la recherche est la feuille basse du Centre, non une fenêtre (#587). */
+            const window =
+              phone && surface === 'research'
+                ? page.getByRole('dialog', { name: /Centre de recherche/ })
+                : page.locator(`[data-surface="${surface}"]`);
             await open();
             if (
               !(await window.waitFor({ timeout: 5000 }).then(
@@ -330,9 +449,9 @@ async function runProfile(profile) {
         name: 'défiler le plateau personnel',
         run: async () => {
           await closeBoard();
-          // Au doigt : replié → mi-hauteur → plein → replié, la poignée disant chaque fois la suite.
+          // Au doigt : replié → rang → replié, le bouton disant chaque fois la suite.
           if (phone)
-            for (const next of [/^agrandir/, /^replier/, /^déplier/]) {
+            for (const next of [/^replier/, /^déplier/]) {
               await tap(boardHandle());
               await page.waitForTimeout(700);
               const said = await boardHandle().getAttribute('aria-label');
@@ -425,6 +544,66 @@ async function runProfile(profile) {
         },
       },
       {
+        // Au bureau le clic pose ; sous le seuil, le toucher vise et « Envoyer » ordonne (#586).
+        name: 'viser au téléphone, puis annuler',
+        run: async () => {
+          if (!phone) return;
+          const pileId = 'stack-point:3.4,47.6';
+          const truck = start.me.troops.find(
+            (troop) => troop.stationedAt.kind === 'point' && troop.stationedAt.lonLat[0] === 3.4,
+          );
+          await frame([3.4, 47.6], 3);
+          const [piece] = await piecesOf(pileId);
+          assert.ok(piece?.at, `${pileId} n'est pas dessinée à nu`);
+          await touch('touchStart', [piece.at]);
+          await touch('touchEnd', []);
+          const hand = page.getByRole('dialog', { name: /en main/ });
+          await hand.waitFor({ timeout: 5000 });
+          // Un point de la carte nue, au-dessus de la feuille : ni mât, ni pièce, ni bandeau.
+          const [bare] = await bareSpots(500);
+          assert.ok(bare, 'aucun point de carte nue sous le doigt');
+          await page.touchscreen.tap(...bare);
+          const label = page.locator('[data-label-id="gate-aim"]');
+          await label
+            .waitFor({ state: 'attached', timeout: 5000 })
+            .catch(() => assert.fail('écran : le toucher sur la carte nue n’inscrit aucune visée'));
+          const send = page.getByRole('button', { name: 'Envoyer' });
+          await send.waitFor({ timeout: 5000 });
+          assert.equal(
+            await page.getByRole('dialog').count(),
+            1,
+            'écran : la visée ouvre une fiche du sol',
+          );
+          assert.ok(await hand.isVisible(), 'écran : la fiche de la main a disparu');
+          const seen = await client.query(api.view.playerView, seat);
+          assert.ok(
+            !seen.movements.some((movement) => JSON.stringify(movement).includes(truck.id)),
+            'serveur : la visée a envoyé la colonne',
+          );
+          // Un double toucher n'envoie rien non plus.
+          await page.touchscreen.tap(...bare);
+          await page.touchscreen.tap(...bare);
+          await page.waitForTimeout(800);
+          assert.ok(
+            !(await client.query(api.view.playerView, seat)).movements.some((movement) =>
+              JSON.stringify(movement).includes(truck.id),
+            ),
+            'serveur : un double toucher a envoyé la colonne',
+          );
+          await page.getByRole('button', { name: 'Annuler' }).tap();
+          await label
+            .waitFor({ state: 'detached', timeout: 5000 })
+            .catch(() => assert.fail('écran : « Annuler » laisse l’étiquette'));
+          assert.ok(await hand.isVisible(), 'écran : « Annuler » a lâché la pièce');
+          assert.equal(await send.count(), 0, 'écran : « Envoyer » reste offert sans visée');
+          await page
+            .getByRole('button', { name: /^fermer$/i })
+            .first()
+            .tap();
+          await hand.waitFor({ state: 'detached', timeout: 5000 });
+        },
+      },
+      {
         name: 'lever une pile et la poser (marche)',
         run: async () => {
           // Le camion vide de `--passagers`, seul sur son point.
@@ -436,6 +615,8 @@ async function runProfile(profile) {
           const [piece] = await piecesOf(pileId);
           assert.ok(piece?.at, `${pileId} n'est pas dessinée à nu`);
           await carry(piece.at, [piece.at[0] - 260, piece.at[1] + 120], { hold: phone ? 500 : 0 });
+          // Sous le seuil, le lâcher vise : « Envoyer » donne l'ordre (#586).
+          if (phone) await page.getByRole('button', { name: 'Envoyer' }).tap();
           await serverSays(seat, 'le camion est en marche', (view) =>
             view.movements.some((movement) => JSON.stringify(movement).includes(truck.id)),
           );
@@ -592,6 +773,430 @@ async function runProfile(profile) {
             .locator('[data-tour-sheet]')
             .waitFor({ state: 'detached', timeout: 5000 })
             .catch(() => assert.fail('écran : la feuille reste ouverte après « lancer »'));
+        },
+      },
+      {
+        // Au bureau rien ne change : la feuille basse n'existe que sous le seuil (#584).
+        name: 'fermer une feuille au téléphone',
+        run: async () => {
+          if (!phone) return;
+          await closeBoard();
+          const depth = () => page.evaluate(() => history.state?.__TSR_index);
+          /** Attend que `read` rende ce qu'on dit : pas de pause fixe, l'état fait foi. */
+          const until = async (read, wanted, message) => {
+            const deadline = Date.now() + 5000;
+            while ((await read()) !== wanted && Date.now() < deadline)
+              await page.waitForTimeout(50);
+            assert.equal(await read(), wanted, message);
+          };
+          const sheets = () => sheet(/./).count();
+          const sheet = (name) => page.getByRole('dialog', { name });
+          const gone = (name) =>
+            sheet(name)
+              .waitFor({ state: 'detached', timeout: 5000 })
+              .catch(() => assert.fail(`écran : la feuille « ${name} » reste ouverte`));
+          const layers = () => page.getByRole('button', { name: 'Calques de la carte' }).first();
+          const todo = async () => {
+            await tap(page.getByRole('button', { name: /ouvrir le menu des surfaces/ }).first());
+            await tap(page.getByRole('button', { name: /^à faire/i }).first());
+            await sheet('À faire').waitFor({ timeout: 5000 });
+          };
+          const base = await depth();
+
+          // Une feuille ouverte : une seule entrée, que Retour retire en la fermant.
+          await tap(layers());
+          await sheet('Calques de la carte').waitFor({ timeout: 5000 });
+          assert.equal(await depth(), base + 1, 'écran : une feuille pose plus d’une entrée');
+          await page.goBack();
+          await gone('Calques de la carte');
+          assert.equal(await depth(), base, 'écran : Retour ne rend pas l’entrée');
+
+          // Le bouton rend l'entrée aussi : Retour suivant ne retombe pas sur une feuille fermée.
+          await tap(layers());
+          await sheet('Calques de la carte').waitFor({ timeout: 5000 });
+          await tap(page.getByRole('button', { name: /^fermer$/i }).first());
+          await gone('Calques de la carte');
+          assert.equal(await depth(), base, 'écran : « fermer » laisse une entrée');
+
+          // Une feuille qui en remplace une autre ne pose rien de plus.
+          await todo();
+          assert.equal(await depth(), base + 1, 'écran : « à faire » pose plus d’une entrée');
+          await layers().dispatchEvent('click');
+          await sheet('Calques de la carte').waitFor({ timeout: 5000 });
+          await gone('À faire');
+          assert.equal(await depth(), base + 1, 'écran : un remplacement a poussé ou dépilé');
+          await page.goBack();
+          await gone('Calques de la carte');
+          assert.equal(await depth(), base, 'écran : Retour après un remplacement');
+
+          // La carte nue ferme la surface, seulement. Les gestes d'avant ont déplacé la scène : on la
+          // recadre en tête (le golfe de Gascogne, où le toucher ne trouve pas de sol à ouvrir) et
+          // le point se cherche à l'écran, à découvert de la colonne, des masts et des pièces.
+          await frame([-6.5, 46], 3);
+          const [spot] = await bareSpots(380);
+          assert.ok(spot, 'aucun point de mer nue');
+          await todo();
+          await page.touchscreen.tap(...spot);
+          await gone('À faire');
+          await until(depth, base, 'écran : la carte nue laisse une entrée');
+          await until(sheets, 0, 'écran : la carte nue a ouvert une feuille');
+
+          // Sans surface, le sol touché ouvre sa fiche (adresse comprise) ; le toucher suivant la
+          // ferme et l'adresse la perd, puis Retour la ferme aussi.
+          const ground = () => page.getByRole('dialog').first();
+          const country = () => new URL(page.url()).searchParams.has('country');
+          await frame([2.35, 47.5], 3);
+          const [land] = await bareSpots(380);
+          assert.ok(land, 'aucun point de terre nue');
+          await page.touchscreen.tap(...land);
+          await ground().waitFor({ timeout: 5000 });
+          assert.ok(country(), 'écran : le sol touché n’est pas dans l’adresse');
+          assert.equal(await depth(), base + 1, 'écran : la fiche du sol pose plus d’une entrée');
+          await page.touchscreen.tap(...land);
+          await ground().waitFor({ state: 'detached', timeout: 5000 });
+          assert.ok(!country(), 'écran : fermer la fiche du sol laisse le pays dans l’adresse');
+          assert.equal(await depth(), base, 'écran : la fiche du sol fermée laisse une entrée');
+          await page.touchscreen.tap(...land);
+          await ground().waitFor({ timeout: 5000 });
+          await page.goBack();
+          await ground().waitFor({ state: 'detached', timeout: 5000 });
+          assert.ok(!country(), 'écran : Retour laisse le pays dans l’adresse');
+
+          // Retoucher l'objet dont la feuille est ouverte la ferme (un point stratégique : le
+          // camp et l'objectif suivent le même chemin, `sheetAfterTouch`, mais la démo n'a ni
+          // l'un ni l'autre à portée).
+          const point = start.strategicPoints[0];
+          await frame(point.point, 4);
+          // Le nœud du mât n'a pas de taille : c'est son pictogramme qui se touche.
+          const mast = page.locator(`[data-label-id="strategic-${point.id}"] .label-pictogram`);
+          await tap(mast);
+          await until(sheets, 1, 'écran : le mât n’ouvre pas sa feuille');
+          assert.equal(await depth(), base + 1, 'écran : la feuille du mât pose plus d’une entrée');
+          await tap(mast);
+          await until(sheets, 0, 'écran : retoucher le mât laisse sa feuille ouverte');
+          await until(depth, base, 'écran : retoucher le mât laisse une entrée');
+
+          // Sans feuille, Retour quitte le plateau comme avant.
+          const here = page.url();
+          await page.goBack();
+          await page.waitForFunction((here) => location.href !== here, here, { timeout: 5000 });
+          await page.goForward().catch(() => {});
+        },
+      },
+      {
+        // Sous une fiche de cible, la carte nue la ferme et ne lit pas le sol : celui-ci ne s'ouvre
+        // que si rien n'est ouvert (décision 7, #588). Au bureau rien ne change.
+        name: 'la carte nue ne lit le sol que si rien n’est ouvert',
+        run: async () => {
+          if (!phone) return;
+          const until = async (read, wanted, message) => {
+            const deadline = Date.now() + 5000;
+            while ((await read()) !== wanted && Date.now() < deadline)
+              await page.waitForTimeout(50);
+            assert.equal(await read(), wanted, message);
+          };
+          const sheets = () => page.getByRole('dialog').count();
+          const country = () => new URL(page.url()).searchParams.has('country');
+          const point = start.strategicPoints[0];
+          await frame(point.point, 4);
+          await tap(page.locator(`[data-label-id="strategic-${point.id}"] .label-pictogram`));
+          await until(sheets, 1, 'écran : le mât n’ouvre pas la fiche du point');
+          await frame([2.35, 47.5], 3);
+          const [land] = await bareSpots(380);
+          assert.ok(land, 'aucun point de terre nue');
+          await page.touchscreen.tap(...land);
+          await until(sheets, 0, 'écran : la carte nue laisse la fiche du point ouverte');
+          assert.ok(!country(), 'écran : la carte nue sous une fiche a lu le sol');
+          // Rien d'ouvert : le même toucher lit le sol.
+          await page.touchscreen.tap(...land);
+          await until(sheets, 1, 'écran : la carte nue, rien d’ouvert, n’ouvre pas le sol');
+          assert.ok(country(), 'écran : le sol touché n’est pas dans l’adresse');
+          await page.goBack();
+          await until(sheets, 0, 'écran : Retour laisse la fiche du sol');
+        },
+      },
+      {
+        // Le pincement zoome toujours, même quand les touchers choisissent des piles (#588).
+        name: 'pincer pendant la sélection',
+        run: async () => {
+          if (!phone) return;
+          const distance = () =>
+            page.evaluate(() => {
+              const { camera, controls } = globalThis.mapEngine;
+              return camera.position.distanceTo(controls.target);
+            });
+          await frame([-6.5, 46], 6);
+          const [spot] = await bareSpots(380);
+          assert.ok(spot, 'aucun point de mer nue');
+          // Un doigt tenu immobile sur la carte nue lance la sélection.
+          await touch('touchStart', [spot]);
+          await page.waitForTimeout(900);
+          await touch('touchEnd', []);
+          const bar = page.getByRole('toolbar', { name: 'Sélection' });
+          await bar.waitFor({ timeout: 5000 });
+          const before = await distance();
+          const [x, y] = spot;
+          await touch('touchStart', [
+            [x - 15, y],
+            [x + 15, y],
+          ]);
+          await fingers(
+            [
+              [x - 15, y],
+              [x + 15, y],
+            ],
+            [
+              [x - 90, y],
+              [x + 90, y],
+            ],
+            400,
+          );
+          await touch('touchEnd', []);
+          await page.waitForTimeout(800);
+          assert.ok(
+            Math.abs((await distance()) - before) > 0.1 * before,
+            'écran : le pincement ne zoome pas pendant la sélection',
+          );
+          assert.ok(await bar.isVisible(), 'écran : le pincement a défait la sélection');
+          await page.getByRole('button', { name: 'Terminer' }).tap();
+          await bar.waitFor({ state: 'detached', timeout: 5000 });
+        },
+      },
+      {
+        // « Attaquer » part d'un toucher depuis la fiche, la pile nommée sur le bouton : ni visée ni
+        // « Envoyer » (décision de Pierre, 19/11). Au bureau l'attaque reste à la rose.
+        name: 'attaquer un objectif d’un toucher depuis sa fiche',
+        run: async () => {
+          if (!phone) return;
+          const objective = start.objectives[0];
+          assert.ok(objective, 'la démo n’a pas d’objectif');
+          const before = (await client.query(api.view.playerView, seat)).movements.length;
+          await frame(objective.point, 2);
+          await page
+            .locator(`[data-label-id="objective-${objective.id}"] .label-pictogram`)
+            .dispatchEvent('click');
+          const sheet = page.getByRole('dialog', { name: 'objectif neutre' });
+          await sheet.waitFor({ timeout: 5000 });
+          const strike = sheet.getByRole('button', { name: /^attaquer/i }).first();
+          await strike.waitFor({ timeout: 5000 });
+          assert.equal(
+            await page.getByRole('button', { name: 'Envoyer' }).count(),
+            0,
+            'écran : la fiche de l’objectif passe par « Envoyer »',
+          );
+          await strike.tap();
+          // Les gestes d'avant ont engagé les slots de la démo : le serveur peut répondre « tous
+          // engagés ». L'une ou l'autre réponse prouve que l'ordre est parti du toucher, sans visée.
+          const answered = async () =>
+            (await client.query(api.view.playerView, seat)).movements.length > before ||
+            (await page.getByText(/slots de mouvement tous engagés/i).count()) > 0;
+          const deadline = Date.now() + 8000;
+          while (!(await answered()) && Date.now() < deadline) await page.waitForTimeout(200);
+          assert.ok(await answered(), 'serveur : le toucher sur « Attaquer » n’envoie rien');
+          if ((await client.query(api.view.playerView, seat)).movements.length <= before) return;
+          await sheet
+            .waitFor({ state: 'detached', timeout: 5000 })
+            .catch(() => assert.fail('écran : la fiche reste ouverte après l’envoi'));
+        },
+      },
+      {
+        // La fiche ouverte tient son objet : la carte déplacée jusqu'à le cacher, un jeton au bord
+        // le rappelle, et le toucher le ramène au-dessus de la feuille (#591).
+        name: 'rappeler l’objet de la fiche au bord',
+        run: async () => {
+          if (!phone) return;
+          const objective = start.objectives[0];
+          assert.ok(objective, 'la démo n’a pas d’objectif');
+          await frame(objective.point, 2);
+          const sheet = page.getByRole('dialog', { name: 'objectif neutre' });
+          // Le geste d'avant peut laisser sa fiche ouverte : un second toucher la refermerait.
+          if (!(await sheet.isVisible()))
+            await page
+              .locator(`[data-label-id="objective-${objective.id}"] .label-pictogram`)
+              .dispatchEvent('click');
+          await sheet.waitFor({ timeout: 5000 });
+          await page.waitForTimeout(1500);
+          const token = page.getByRole('button', { name: /Revenir à l.objet sélectionné/ });
+          assert.equal(await token.isVisible(), false, 'écran : le jeton paraît objet en vue');
+          await frame([objective.point[0] + 8, objective.point[1] + 5], 2);
+          await token.waitFor({ timeout: 5000 }).catch(() => assert.fail('écran : pas de jeton'));
+          const top = (await sheet.boundingBox()).y;
+          const rim = await token.boundingBox();
+          assert.ok(rim.y + rim.height <= top + 1, 'écran : le jeton passe sous la feuille');
+          await token.tap();
+          await page.waitForTimeout(2500);
+          const back = await page.evaluate(
+            (id) => globalThis.mapEngine.screenOfAnchor(`objective-${id}`, true),
+            objective.id,
+          );
+          assert.ok(
+            back && back.y < top && back.x > 0 && back.x < 390,
+            `écran : l’objet est en ${back?.x},${back?.y}`,
+          );
+          assert.equal(await token.isVisible(), false, 'écran : le jeton reste objet ramené');
+          await tap(page.getByRole('button', { name: /^fermer$/i }).first());
+          await sheet.waitFor({ state: 'detached', timeout: 5000 });
+        },
+      },
+      {
+        // ‹ › de l'en-tête d'une fiche de pile : la pile voisine prend la place de la fiche, la caméra
+        // y va, et Retour ferme au lieu de revenir à la précédente (#593). Au bureau rien ne change.
+        name: 'passer à la pile suivante depuis sa fiche',
+        run: async () => {
+          if (!phone) return;
+          const depth = () => page.evaluate(() => history.state?.__TSR_index);
+          const target = () =>
+            page.evaluate(() => {
+              const { x, z } = globalThis.mapEngine.controls.target;
+              return [x, z];
+            });
+          const sheet = page.getByRole('dialog').first();
+          const named = async () => (await sheet.getAttribute('aria-label')) ?? '';
+          const until = async (read, wanted, message) => {
+            const deadline = Date.now() + 5000;
+            while ((await read()) !== wanted && Date.now() < deadline)
+              await page.waitForTimeout(50);
+            assert.equal(await read(), wanted, message);
+          };
+          if (await sheet.isVisible())
+            await tap(page.getByRole('button', { name: /^fermer$/i }).first());
+          await sheet.waitFor({ state: 'detached', timeout: 5000 }).catch(() => {});
+          const base = await depth();
+          // La pile mixte, laissée à son point par les gestes d'avant, se lève d'un toucher.
+          await frame([1, 47.3], 3);
+          const [piece] = (await piecesOf('stack-point:1,47.3')).filter((one) => one.at);
+          assert.ok(piece, 'la pile mixte n’est pas dessinée à nu');
+          await page.touchscreen.tap(...piece.at);
+          await sheet.waitFor({ timeout: 5000 });
+          const first = await named();
+          const next = page.getByRole('button', { name: 'objet suivant' });
+          await next.waitFor({ timeout: 5000 }).catch(() => assert.fail('écran : pas de ›'));
+          const here = await target();
+          await next.tap();
+          const second = async () => ((await named()) === first ? '' : await named());
+          const deadline = Date.now() + 5000;
+          while ((await second()) === '' && Date.now() < deadline) await page.waitForTimeout(50);
+          assert.notEqual(await named(), first, 'écran : › laisse la fiche de la même pile');
+          await page.waitForTimeout(2500);
+          assert.notDeepEqual(await target(), here, 'écran : la caméra n’est pas allée à la pile');
+          assert.equal(await depth(), base + 1, 'écran : changer de pile a poussé une entrée');
+          // ‹ revient à la première : le cycle est stable.
+          await page.getByRole('button', { name: 'objet précédent' }).tap();
+          await until(named, first, 'écran : ‹ ne revient pas à la pile d’avant');
+          await page.getByRole('button', { name: 'objet suivant' }).tap();
+          await page.waitForFunction(
+            (first) =>
+              document.querySelector('[role=dialog]')?.getAttribute('aria-label') !== first,
+            first,
+            { timeout: 5000 },
+          );
+          // Retour ferme la fiche : il ne rouvre pas la pile d'avant.
+          await page.goBack();
+          await sheet
+            .waitFor({ state: 'detached', timeout: 5000 })
+            .catch(() => assert.fail('écran : Retour laisse une fiche de pile ouverte'));
+          assert.equal(await depth(), base, 'écran : Retour laisse une entrée');
+        },
+      },
+      {
+        // Un bâtiment touché ouvre sa fiche, la carte en vue ; au bureau le plateau personnel
+        // reste ce qu'il est (#587).
+        name: 'la fiche d’une caserne au téléphone',
+        run: async () => {
+          if (!phone) return;
+          const until = async (read, wanted, message) => {
+            const deadline = Date.now() + 5000;
+            while ((await read()) !== wanted && Date.now() < deadline)
+              await page.waitForTimeout(50);
+            assert.equal(await read(), wanted, message);
+          };
+          // La démo n'a pas de caserne : la scène de `--niveaux` en pose une à la capitale. Elle est
+          // IRRÉVERSIBLE (elle change la base) : ce geste reste le dernier de la liste, aucun
+          // autre ne doit en dépendre ni le suivre.
+          const rows = execFileSync(
+            'npx',
+            ['convex', 'data', 'players', '--limit', '200', '--format', 'jsonl'],
+            {
+              cwd: root,
+              encoding: 'utf8',
+            },
+          )
+            .split('\n')
+            .filter((line) => line.startsWith('{'))
+            .map((line) => JSON.parse(line));
+          const mine = rows.find(
+            (row) => row.seasonId === accounts.seasonId && row.nation === 'france',
+          );
+          execFileSync(
+            'npx',
+            ['convex', 'run', 'dev:levelsScene', JSON.stringify({ playerId: mine._id })],
+            {
+              cwd: root,
+              stdio: 'ignore',
+            },
+          );
+          const site = await serverSays(seat, 'une caserne à la capitale', (view) =>
+            view.me.buildings.some((building) => building.key === 'barracks'),
+          )
+            .then(() => client.query(api.view.playerView, seat))
+            .then((view) => view.me.buildings.find((building) => building.key === 'barracks'));
+          // Un peu à l'ouest et au sud : la capitale tombe à droite, hors de la pile « En cours ».
+          await frame([site.point[0] - 0.35, site.point[1] - 0.15], 2);
+          const sheet = page.getByRole('dialog', { name: 'Caserne' });
+          const step = () => sheet.getAttribute('data-height');
+          // À la capitale la caserne et le QG partagent un point : leurs mâts forment un groupe, dont la
+          // liste ouvre le bâtiment choisi.
+          await page
+            .getByRole('button', { name: /2 sites/i })
+            .first()
+            // Le jeton de bord d'un geste précédent peut couvrir l'étiquette selon l'azimut : on
+            // ne dépend pas de ce cadrage.
+            .dispatchEvent('click');
+          await page
+            .locator('.label-group-list-row', { hasText: /Caserne/ })
+            .first()
+            .tap();
+          await sheet.waitFor({ timeout: 5000 });
+          assert.equal(await step(), 'peek', 'écran : la fiche ne s’ouvre pas au rang');
+          assert.equal(
+            await page.getByRole('tab').count(),
+            0,
+            'écran : la fiche courte a des onglets',
+          );
+          // Toucher la ligne de titre la déroule : moitié, les onglets.
+          await page.waitForTimeout(800); // la feuille finit de monter
+          await sheet.getByRole('heading', { name: 'Caserne' }).tap();
+          await until(step, 'half', 'écran : toucher le titre ne déroule pas la fiche');
+          assert.ok(
+            (await page.getByRole('tab').count()) > 0,
+            'écran : la fiche déroulée n’a pas d’onglets',
+          );
+          const lower = async () => {
+            const box = await sheet.boundingBox();
+            const grip = [box.x + box.width / 2, box.y + 20];
+            await touch('touchStart', [grip]);
+            await fingers([grip], [[grip[0], grip[1] + 200]], 120);
+            await touch('touchEnd', []);
+          };
+          await lower();
+          await until(
+            step,
+            'peek',
+            'écran : un lancer vers le bas ne redescend pas à la fiche courte',
+          );
+          await page.waitForTimeout(500);
+          // Un lancer vers le bas la réduit à son en-tête, le site reste sélectionné.
+          await lower();
+          await until(step, 'collapsed', 'écran : un lancer vers le bas ne réduit pas la fiche');
+          assert.ok(await sheet.isVisible(), 'écran : la fiche réduite a disparu');
+          // La carte nue la ferme.
+          await frame([-6.5, 46], 3);
+          const [spot] = await bareSpots(380);
+          assert.ok(spot, 'aucun point de mer nue');
+          await page.touchscreen.tap(...spot);
+          await sheet
+            .waitFor({ state: 'detached', timeout: 5000 })
+            .catch(() => assert.fail('écran : la carte nue ne ferme pas la fiche'));
         },
       },
     ];

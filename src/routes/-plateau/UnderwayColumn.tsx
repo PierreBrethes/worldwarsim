@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { fr } from '@/i18n/fr';
 import { asDuration, asShortDuration } from '@/domain/duration';
 import type { Underway, UnderwayFace } from '@/domain/underway';
@@ -7,6 +7,58 @@ import { BuildingPlate } from '@/emblems/Plate';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { Pictogram } from '@/shell/IndicatorGlyph';
 import { useClock } from '@/shell/clock';
+import { crowdedBy } from './underway-room';
+
+/** @a-mesurer : la hauteur d'un onglet et d'une ligne, l'écart entre elles et la largeur d'une ligne
+ *  dépliée : la pile dépliée se calcule d'eux. La largeur n'est pas lue sur le nœud, car la pile
+ *  repliée n'a plus de lignes à mesurer : elle se reprendrait puis se replierait en boucle. */
+const HEAD_PX = 28;
+const ROW_PX = 44;
+const ROW_GAP_PX = 5;
+export const ROW_WIDTH_PX = 174;
+const FOLDED_ROW_PX = 90;
+
+/**
+ * **La pile se replie sur son onglet quand ce qui monte du bas de la carte la recouvrirait**
+ * (#587) : les boutons et « Sonder » (`data-poster-floor`) suivent l'étage. Mesuré sur l'écran, à
+ * chaque changement d'étage (`--mat-rise` s'écrit sur la racine), de taille ou de lignes.
+ */
+function useCrowded(section: React.RefObject<HTMLElement | null>, count: number): boolean {
+  const [crowded, setCrowded] = useState(false);
+  useLayoutEffect(() => {
+    let queued = 0;
+    const measure = () => {
+      const head = section.current?.firstElementChild;
+      if (!head) return;
+      const at = head.getBoundingClientRect();
+      const scale = at.height / HEAD_PX || 1;
+      const pile = {
+        left: at.left,
+        right: at.left + ROW_WIDTH_PX * scale,
+        top: at.top,
+        bottom: at.top + (HEAD_PX + count * (ROW_PX + ROW_GAP_PX)) * scale,
+      };
+      const floors = [...document.querySelectorAll('[data-poster-floor]')].map((node) =>
+        node.getBoundingClientRect(),
+      );
+      setCrowded(crowdedBy(pile, floors));
+    };
+    /** Le style de la racine change à chaque image d'un glisser d'étage : une mesure par image. */
+    const later = () => {
+      if (queued === 0) queued = requestAnimationFrame(() => ((queued = 0), measure()));
+    };
+    measure();
+    const watch = new MutationObserver(later);
+    watch.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
+    addEventListener('resize', later);
+    return () => {
+      cancelAnimationFrame(queued);
+      watch.disconnect();
+      removeEventListener('resize', later);
+    };
+  }, [section, count]);
+  return crowded;
+}
 
 /**
  * **« En cours », sous le bandeau du téléphone** (refonte mobile, 1a et 1d) : les horaires sans
@@ -35,14 +87,16 @@ export function UnderwayColumn({
 }) {
   const now = useClock();
   const [folded, setFolded] = useState(readUnderwayFolded);
+  const section = useRef<HTMLElement>(null);
+  const crowded = useCrowded(section, lines.length);
   if (lines.length === 0) return null;
 
   return (
-    <section className="hud flex flex-col items-start gap-[5px]">
+    <section ref={section} className="hud flex flex-col items-start gap-[5px]">
       <button
         type="button"
-        aria-expanded={!folded}
-        title={folded ? fr.underway.unfold : fr.underway.fold}
+        aria-expanded={!folded && !crowded}
+        title={folded || crowded ? fr.underway.unfold : fr.underway.fold}
         onClick={() => {
           keepUnderwayFolded(!folded);
           setFolded(!folded);
@@ -54,10 +108,10 @@ export function UnderwayColumn({
           {lines.length}
         </span>
         <span aria-hidden className="tracking-normal text-[var(--ink)]">
-          {folded ? '›' : '‹'}
+          {folded || crowded ? '›' : '‹'}
         </span>
       </button>
-      {lines.map((line) => {
+      {(crowded ? [] : lines).map((line) => {
         const isFresh = line.id === fresh;
         const open = !folded || isFresh;
         const minutesLeft = (line.endsAt - now) / 60_000;
@@ -68,9 +122,8 @@ export function UnderwayColumn({
             type="button"
             title={fr.underway.locate(line.label)}
             onClick={() => onLocate(line)}
-            className={`flex h-[44px] cursor-pointer items-center gap-[7px] pr-[8px] pl-[4px] text-left float ${
-              open ? 'w-[174px]' : 'w-[90px]'
-            } ${isFresh ? 'border-2 border-[var(--ink)] bg-[color-mix(in_srgb,var(--paper),white_45%)]' : 'paper-grain border border-[var(--ink)]'}`}
+            style={{ width: open ? ROW_WIDTH_PX : FOLDED_ROW_PX }}
+            className={`flex h-[44px] cursor-pointer items-center gap-[7px] pr-[8px] pl-[4px] text-left float ${isFresh ? 'border-2 border-[var(--ink)] bg-[color-mix(in_srgb,var(--paper),white_45%)]' : 'paper-grain border border-[var(--ink)]'}`}
           >
             <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center">
               <Face face={line.face} nation={nation} />

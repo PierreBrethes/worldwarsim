@@ -19,15 +19,17 @@ import {
   onNewView,
   type Announcement,
 } from '@/domain/reserve-counter';
+import { heapBinOf } from '@/domain/heap-reading';
 import { drynessOf, marksOf, sourceOf } from '@/domain/resource-band';
 import { useMapMotion } from '@/data/mapMotion';
+import { HeapBinBar } from '@/routes/-plateau/HeapReadouts';
 import { ResourcePlate } from '@/emblems/Plate';
 import { resourceColor } from '@/emblems/resource-color';
 
 /**
  * **Les registres épinglés** (#121), que `Shell` tient et que chaque réserve lit : un toucher sur
  * une réserve en pose ou en décroche le ticket, d'où qu'elle se lise — la barre basse du téléphone,
- * la ligne repliée du plateau au bureau, ses jauges dépliées.
+ * la ligne du plateau au bureau, repliée ou dépliée.
  */
 export const PinContext = createContext<{
   pinned: ReadonlyArray<ResourceKey>;
@@ -42,7 +44,7 @@ const TAP_PX = 5;
  * peut prendre pour charger un transport (`onTake`) garde le geste de la prise, qui avale le clic
  * qui suit — un appui qui n'a pas bougé épingle alors à la levée du doigt.
  */
-export function usePinning(
+function usePinning(
   resource: ResourceKey,
   onTake: ((event: ReactPointerEvent<HTMLElement>) => void) | null,
 ) {
@@ -70,7 +72,7 @@ export function usePinning(
 }
 
 /** Une heure entière, jamais « dans 0 h » : sous l'heure, c'est déjà à sec dans l'heure. `null` :
- *  rien à dire. **La seule phrase de l'alerte**, lue par la cellule et par la jauge dépliée. */
+ *  rien à dire. **La seule phrase de l'alerte**, lue par la cellule. */
 export function dryLabelOf(stock: number, netPerHour: number): string | null {
   const dry = drynessOf(stock, netPerHour);
   if (dry === null) return null;
@@ -79,17 +81,36 @@ export function dryLabelOf(stock: number, netPerHour: number): string | null {
     : fr.resourceBand.drySoonShort(Math.max(1, Math.floor(dry.hoursLeft)));
 }
 
+/** The duration alone (« 18 H »), for a narrow cell: the word « à sec » stays in the title.
+ *  `null` under the hour, where the label is already the short « à sec ». */
+function dryShortOf(stock: number, netPerHour: number): string | null {
+  const dry = drynessOf(stock, netPerHour);
+  return dry === null || dry.hoursLeft === 0
+    ? null
+    : fr.resourceBand.dryHoursShort(Math.max(1, Math.floor(dry.hoursLeft)));
+}
+
 /** L'étiquette d'une réserve, qui prend la place du débit, jamais une ligne de plus : rouge pour
  *  l'alerte (« à sec »), à encre pleine pour un bac au plafond — rien ne s'arrête, ce qui entre
  *  est perdu. */
-export function StateTag({ label, tone }: { label: string; tone: 'dry' | 'full' }) {
+function StateTag({
+  label,
+  short = null,
+  tone,
+}: {
+  label: string;
+  /** What a narrow cell (`@max-[70px]`) says instead of `label`; `null` : the same word. */
+  short?: string | null;
+  tone: 'dry' | 'full';
+}) {
   return (
     <span
-      className={`px-[3px] py-[2px] text-[7px] leading-none font-semibold tracking-[.04em] whitespace-nowrap text-[var(--paper)] uppercase ${
+      className={`px-[3px] py-[1px] text-[12px] leading-none font-bold tracking-[.04em] whitespace-normal @max-[70px]:px-0 @max-[70px]:tracking-normal text-center uppercase text-[var(--paper)] ${
         tone === 'dry' ? 'bg-[var(--critical)]' : 'bg-[var(--ink)]'
       }`}
     >
-      {label}
+      <span className={short === null ? '' : '@max-[70px]:hidden'}>{label}</span>
+      {short !== null && <span className="hidden @max-[70px]:inline">{short}</span>}
     </span>
   );
 }
@@ -97,10 +118,9 @@ export function StateTag({ label, tone }: { label: string; tone: 'dry' | 'full' 
 /**
  * **La seule lecture d'une réserve** : le stock réel, ce qu'on en montre (`shown`, le chiffre que la
  * récolte rejoue, sinon le stock), la part du plafond que la jauge remplit, l'alerte — qui se dit
- * sur le stock réel, jamais sur le chiffre rejoué — et la phrase du survol. La cellule de la ligne et
- * la jauge du plateau tiré la lisent.
+ * sur le stock réel, jamais sur le chiffre rejoué — et la phrase du survol. La cellule de la ligne la lit.
  */
-export function reserveReading(
+function reserveReading(
   view: PlayerView,
   resource: ResourceKey,
   now: number,
@@ -113,17 +133,28 @@ export function reserveReading(
   const alert = dryLabelOf(stock, reserve.ratePerHour);
   const source = sourceOf(view, resource);
   const mark = marksOf(view, now)[resource];
+  const heap = heapBinOf(view, resource, now);
   const title = [
     fr.resourceBand.tooltip(fr.resources[resource], stock, reserve.cap, reserve.ratePerHour),
     source === null ? null : fr.resourceBand.source(fr.buildings[source.by], source.level),
     mark?.diagnosis ?? null,
+    // A narrow cell says only the duration: the title keeps the whole alert.
+    alert,
+    // The bar drops the word « tas » on a narrow cell: the title keeps it.
+    heap?.kind === 'foot' ? `${fr.heap.board.atFootShort} ${heap.amount}` : null,
   ]
     .filter((part) => part !== null)
     .join(' · ');
-  return { reserve, stock, displayed, share, alert, full: mark !== null, title };
+  const alertShort = dryShortOf(stock, reserve.ratePerHour);
+  return { reserve, stock, displayed, share, alert, alertShort, full: mark !== null, title };
 }
 
 const PLATE = 16;
+
+/** The gauge's travel per setting (#578): « actives » slides, « réduites » jumps to the notch and
+ *  fades (`.reserve-gauge--notch`), « coupées » moves with no transition. @a-mesurer */
+const GAUGE_MOTION = { full: 'transform 320ms var(--ease-out)', reduced: '', off: 'none' } as const;
+const GAUGE_NOTCHES = 10;
 
 /**
  * **Une réserve, sur une ligne de barre** — la seule : la barre basse du téléphone et la ligne
@@ -156,6 +187,7 @@ export function ReserveCell({
     stock,
     share: fill,
     alert,
+    alertShort,
     full,
     title,
   } = reserveReading(view, resource, now, shown);
@@ -163,6 +195,8 @@ export function ReserveCell({
   const motion = useMapMotion();
   const still = motion === 'off';
   const announced = useAnnouncedStock(reserve, view.loadedAt, still);
+  const notch = Math.round(fill * GAUGE_NOTCHES) / GAUGE_NOTCHES;
+  const gauge = GAUGE_MOTION[motion];
   return (
     <button
       ref={register as Ref<HTMLButtonElement>}
@@ -171,7 +205,7 @@ export function ReserveCell({
       title={onTake === null ? title : `${title} — ${fr.logistics.grab}`}
       aria-label={title}
       {...usePinning(resource, onTake)}
-      className={`relative flex h-full min-w-0 flex-1 touch-none flex-col items-center justify-center gap-[3px] border-l border-dotted border-(color:--ink)/25 px-[1px] select-none first:border-l-0 ${
+      className={`@container relative flex h-full min-w-0 flex-1 touch-none flex-col items-center justify-center gap-[3px] @max-[70px]:gap-[1px] border-l border-dotted border-(color:--ink)/25 px-[1px] select-none first:border-l-0 aria-pressed:shadow-[inset_0_-2px_0_var(--ink)] ${
         onTake === null ? '' : 'cursor-grab hover:bg-(--arc-mine)/14'
       }`}
     >
@@ -201,13 +235,13 @@ export function ReserveCell({
         </span>
       </span>
       {alert !== null ? (
-        <StateTag label={alert} tone="dry" />
+        <StateTag label={alert} short={alertShort} tone="dry" />
       ) : full ? (
         <StateTag label={fr.resourceBand.full} tone="full" />
       ) : (
         <span
           aria-hidden
-          className="font-(family-name:--font-mono) text-[9.5px] leading-none whitespace-nowrap"
+          className="font-(family-name:--font-mono) text-[12px] leading-none whitespace-nowrap"
           style={{ color: reserve.ratePerHour < 0 ? 'var(--critical)' : 'var(--ink-soft)' }}
         >
           {fr.personalBoard.rateShort(reserve.ratePerHour)}
@@ -215,13 +249,17 @@ export function ReserveCell({
       )}
       <span aria-hidden className="block h-[3px] w-[calc(100%-10px)] bg-(--ink)/15">
         <span
-          className="block h-full"
+          data-gauge
+          key={motion === 'reduced' ? notch : undefined}
+          className={`block h-full origin-left ${motion === 'reduced' ? 'reserve-gauge--notch' : ''}`}
           style={{
-            width: `${fill * 100}%`,
+            transform: `scaleX(${motion === 'reduced' ? notch : fill})`,
+            transition: gauge,
             background: alert === null ? resourceColor(resource, true) : ink,
           }}
         />
       </span>
+      <HeapBinBar view={view} resource={resource} now={now} />
     </button>
   );
 }
@@ -387,6 +425,89 @@ function Wheel({ digit, up, roll }: { digit: number; up: boolean; roll: boolean 
           </span>
         ))}
       </span>
+    </span>
+  );
+}
+
+/**
+ * **Une réserve en une ligne, dans le volet du bureau** (#580, maquette « 340 / 400 · +4/h · au
+ * pied 46 ⚑1 ») : le nom, le stock sur son plafond, le débit et l'étiquette d'état, ce qui attend au
+ * pied en long, puis la jauge sur toute la ligne. La barre garde l'abrégé (`ReserveCell`) ; un
+ * toucher épingle le registre comme elle.
+ */
+export function ReserveLine({
+  resource,
+  view,
+  now,
+}: {
+  resource: ResourceKey;
+  view: PlayerView;
+  now: number;
+}) {
+  const { reserve, displayed, share, alert, full, title } = reserveReading(view, resource, now);
+  const heap = heapBinOf(view, resource, now);
+  const ink = alert === null ? 'var(--ink)' : 'var(--critical)';
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      {...usePinning(resource, null)}
+      className="mat-line grid w-full min-w-0 cursor-pointer grid-cols-[18px_auto_auto_auto_minmax(0,1fr)] items-center gap-x-[6px] gap-y-[1px] border-b border-(color:--ink)/14 pt-[1px] text-left text-[12px] leading-[1.15] aria-pressed:shadow-[inset_0_-2px_0_var(--ink)]"
+    >
+      <ResourcePlate resource={resource} height={PLATE} width={PLATE} />
+      <span className="truncate">{fr.resources[resource]}</span>
+      <span aria-hidden className="font-(family-name:--font-mono) whitespace-nowrap">
+        <b className="text-[13px] font-semibold" style={{ color: ink }}>
+          {displayed.toLocaleString('fr-FR')}
+        </b>{' '}
+        <span className="text-[var(--ink-soft)]">/ {reserve.cap.toLocaleString('fr-FR')}</span>
+      </span>
+      <span aria-hidden className="flex items-center gap-[5px] whitespace-nowrap">
+        <span
+          className="font-(family-name:--font-mono)"
+          style={{ color: reserve.ratePerHour < 0 ? 'var(--critical)' : 'var(--ink-soft)' }}
+        >
+          {fr.personalBoard.rateShort(reserve.ratePerHour)}
+        </span>
+        {alert !== null ? (
+          <StateTag label={alert} tone="dry" />
+        ) : full ? (
+          <StateTag label={fr.resourceBand.full} tone="full" />
+        ) : null}
+      </span>
+      <small aria-hidden className="truncate text-right text-[11px]">
+        <HeapLong heap={heap} />
+      </small>
+      <span aria-hidden className="col-span-full block h-[3px] bg-(--ink)/15">
+        <span
+          className="block h-full origin-left"
+          style={{
+            transform: `scaleX(${share})`,
+            background: alert === null ? resourceColor(resource, true) : ink,
+          }}
+        />
+      </span>
+    </button>
+  );
+}
+
+/** Ce qui attend au pied, en long : « au pied 46 ⚑1 ▲ 120 », ou pourquoi rien n'y attend. */
+function HeapLong({ heap }: { heap: ReturnType<typeof heapBinOf> }) {
+  if (heap === null) return <span className="text-[var(--ink-soft)]">{fr.heap.board.noHeap}</span>;
+  if (heap.kind !== 'foot')
+    return (
+      <span className="text-[var(--ink-soft)] italic">
+        {heap.kind === 'arsenal' ? fr.heap.board.fromArsenal : fr.heap.board.foundationOnly}
+      </span>
+    );
+  return (
+    <span className="font-(family-name:--font-mono)">
+      {fr.heap.board.atFoot} {heap.amount}
+      {heap.full > 0 && <span className="text-[var(--critical)]"> ⚑{heap.full}</span>}
+      {heap.come !== null && (
+        <span className="text-[var(--valid)]"> ▲ {Math.floor(heap.come.amount)}</span>
+      )}
     </span>
   );
 }

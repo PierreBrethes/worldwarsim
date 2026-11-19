@@ -16,8 +16,10 @@ import {
   keyRefusal,
   nearestBuilding,
   placementRefusal,
+  PRICE_ORDER,
   settlesDebt,
   siteOfPoint,
+  UNIQUE_BUILDINGS,
   type PlacementRefusal,
   type Reach,
 } from './economy';
@@ -222,6 +224,23 @@ function verdictAmong(
   return { refusal: { code: refusal as Exclude<PlacementRefusal, 'TOO_CLOSE'> }, free };
 }
 
+/**
+ * **The standing twin a unique key aimed at its own point raises** (#579): the point is the
+ * spacing, the same disc that refuses a neighbour as `TOO_CLOSE`. Elsewhere, and for any key
+ * that may stand twice, nothing — the ghost keeps its refusal.
+ */
+export function raisableUnder(view: PlayerView, key: BuildingKey, lonLat: LonLat): Building | null {
+  if (!UNIQUE_BUILDINGS.includes(key)) return null;
+  return (
+    view.me.buildings.find(
+      (building) =>
+        building.key === key &&
+        building.captured !== true &&
+        distanceKm(building.point, lonLat) < BUILDING_SPACING_KM,
+    ) ?? null
+  );
+}
+
 /** A free deposit a held key calls (#239), with what the pose would say on its very point. */
 export type DepositCall = {
   readonly deposit: DepositPoint;
@@ -403,6 +422,60 @@ export function availabilityOf(needed: number, held: Resource, stock: number): A
   if (held.ratePerHour <= 0) return { kind: 'never' };
   if (needed > held.cap) return { kind: 'overCap', cap: held.cap };
   return { kind: 'inMinutes', minutes: ((needed - stock) / held.ratePerHour) * 60 };
+}
+
+/**
+ * **The price a tile reads**: nothing for a free foundation, a new building's price when the
+ * kept level pays it or none stands, else the next level of the lowest standing one. With several
+ * of a key, the server may debit another level by the aimed point (`convex/constructions.ts`):
+ * flagged, not solved.
+ */
+export function tileCostOf(
+  free: boolean,
+  kept: number | null,
+  lowest: { readonly nextLevelCost: Cost } | null,
+  newCost: Cost,
+): Cost {
+  if (free) return {};
+  return lowest === null || kept !== null ? newCost : lowest.nextLevelCost;
+}
+
+export type TileBillLine = {
+  readonly resource: ResourceKey;
+  readonly due: number;
+  readonly held: number;
+  readonly missing: number;
+  readonly availability: Availability;
+};
+
+/**
+ * **A tile's bill, line by line** — the price in the order the server refuses in (`PRICE_ORDER`),
+ * each matter with what is held now, what is missing and when it will be there. An empty list
+ * is a bill that can be paid. Which price is read (free, kept, new, raise) is the caller's.
+ */
+export function tileBillOf(
+  cost: Cost,
+  resourceOf: (resource: ResourceKey) => Resource,
+  loadedAt: number,
+  now: number,
+): ReadonlyArray<TileBillLine> {
+  return PRICE_ORDER.flatMap((resource) => {
+    const due = cost[resource] ?? 0;
+    if (due <= 0) return [];
+    const reserve = resourceOf(resource);
+    const stock = currentStock(reserve, loadedAt, now);
+    // A negation, so that a stock which is not a number holds nothing.
+    const held = stock >= 0 ? stock : 0;
+    return [
+      {
+        resource,
+        due,
+        held,
+        missing: held >= due ? 0 : due - held,
+        availability: availabilityOf(due, reserve, held),
+      },
+    ];
+  });
 }
 
 /** A raise as the rules read it — the facts both ends hold: `reached` (a standing outpost, or
@@ -623,6 +696,16 @@ export const demolitionRefusalOf = (building: Demolition): DemolitionRefusal | n
         ? 'DEMOLITION_UNDER_CAPTURE'
         : null;
 
+/**
+ * **Un chantier commencé ne s'annule plus** (#587, décision du 19/11) : la file entière se rend, la
+ * tête qui court non — elle a déjà consommé le temps de la file, et la reprendre à mi-chemin
+ * ouvrirait un aller-retour gratuit entre matière et temps. Le serveur (`constructions.cancel`) et
+ * la tête de file, qui dit sa phrase à la place du bouton, lisent cette seule fonction.
+ */
+export const cancelWorkRefusalOf = (work: {
+  readonly started: boolean;
+}): 'CONSTRUCTION_ALREADY_STARTED' | null => (work.started ? 'CONSTRUCTION_ALREADY_STARTED' : null);
+
 /** Une capture telle que le refus la lit, des deux côtés : ce qu'elle vise, et si elle court. */
 export type Siege = { readonly targetId: string; readonly stoppedAt?: number | null };
 
@@ -763,6 +846,8 @@ export const riseOf = (minutesLeft: number, totalMinutes: number): number =>
  * its own mast.
  */
 export type WorkSite = {
+  /** La ligne de travail (`me.construction` ou `me.constructionQueue`) que ce mât porte. */
+  readonly workId: string;
   readonly phase: 'queued' | 'rising' | 'raising';
   readonly key: BuildingKey;
   readonly regionId: string;
@@ -780,7 +865,7 @@ export type WorkSite = {
 
 type RisingWork = Pick<
   NonNullable<PlayerView['me']['construction']>,
-  'key' | 'outpostId' | 'point' | 'regionId' | 'regionName' | 'minutesLeft'
+  'id' | 'key' | 'outpostId' | 'point' | 'regionId' | 'regionName' | 'minutesLeft'
 > & { readonly minutes?: number; readonly kept?: number };
 
 export function workSitesOf(
@@ -799,6 +884,7 @@ export function workSitesOf(
         ? undefined
         : me.buildings.find((building) => samePoint(building.point, at) && building.key === key);
     sites.push({
+      workId: work.id,
       phase: standing === undefined ? 'rising' : 'raising',
       key,
       regionId: work.regionId,
@@ -821,6 +907,7 @@ export function workSitesOf(
   me.constructionQueue.forEach((queued, k) => {
     if (queued.outpostId !== null || queued.key === 'outpost' || queued.level !== 1) return;
     sites.push({
+      workId: queued.id,
       phase: 'queued',
       key: queued.key,
       regionId: queued.regionId,

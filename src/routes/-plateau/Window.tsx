@@ -94,7 +94,7 @@ function WindowSheet({ name, onClose, rank, inFront, children }: FrameProps) {
   }, [count]);
   useOpeningFocus(container);
   useEscapeToClose(onClose, inFront);
-  useSoleSurface(onClose, inFront);
+  useSoleSurface(onClose, inFront, false);
   useClosedWhenCovered(onClose, inFront);
   useLeaveGhost(container, 'sheet-rise', 'sheet-sink');
   const keyboard = useKeyboardEdges();

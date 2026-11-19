@@ -20,6 +20,7 @@ import {
   raiseChoosesSpecialty,
   upgradeHold,
   type OutpostRaiseHold,
+  type TileBillLine,
   type UpgradeHold,
 } from './construction';
 import { asDuration } from './duration';
@@ -347,12 +348,19 @@ export function build(
   }
 }
 
+/** **Le prix et la durée d'une fondation**, dits comme la branche de la rose les dit : la fiche de
+ *  la pile en main les lit sans refaire la rose (#585). */
+export const foundingTerms = (view: PlayerView) => ({
+  bill: billOf(view.outpostFoundation.cost, view),
+  duration: asDuration(view.outpostFoundation.minutes),
+});
+
 /**
  * La phrase d'un refus de fondation, nourrie de ce que la rose a sous les yeux : le premier rôle
  * qui n'est pas de l'infanterie, et le nom de la région déjà bâtie. `fr.errors` reste la seule
  * table de phrases — il n'y a pas de seconde formulation ici, seulement des détails en plus.
  */
-function foundingMotive(
+export function foundingMotive(
   refusal: OrderRefusal,
   held: ReadonlyArray<TroopView>,
   target: Extract<CompassTarget, { kind: 'force' }>,
@@ -442,8 +450,7 @@ function foundHere(
       regionId: target.regionId,
       troopIds: held.map((troop) => troop.id),
       figure: cost,
-      bill: billOf(cost, view),
-      duration: asDuration(view.outpostFoundation.minutes),
+      ...foundingTerms(view),
     },
     refusal: null,
   };
@@ -509,6 +516,25 @@ export function neverText(
   return deposit === undefined
     ? fr.upgrade.never(none)
     : fr.upgrade.neverOnDeposit(none, fr.deposits[deposit]);
+}
+
+/**
+ * **Le manque d'une facture, dit** (le fantôme de pose) : la première ligne en manque, dans
+ * l'ordre du serveur, avec la phrase qui la date — la même que celle de l'élévation. `null`
+ * quand la facture se paie.
+ */
+export function billShortageText(bill: ReadonlyArray<TileBillLine>): string | null {
+  const line = bill.find((one) => one.missing > 0);
+  if (line === undefined) return null;
+  const when = line.availability;
+  const dated =
+    when.kind === 'inMinutes'
+      ? fr.upgrade.availableIn(asDuration(when.minutes))
+      : when.kind === 'now'
+        ? null
+        : neverText(line.resource, when);
+  const missing = fr.placing.missing(line.missing, fr.resources[line.resource]);
+  return dated === null ? missing : `${missing} · ${dated}`;
 }
 
 /**

@@ -135,13 +135,16 @@ export function boardingDropOf<T extends Seated>(
   return { kind: 'board', boarding, refusal: boardingRefusalOf(boarding) };
 }
 
-/** The ticked troops are the hand; in a Blitz, the last one ticked says the unit (`tickedUnit`). */
+/** The ticked troops are the hand; in a Blitz, the last one ticked says the unit (`tickedUnit`).
+ *  `keepEmpty`: the phone's sheet leaves « Aucune » on screen, saying there is nothing to send. */
 export function composeHand(
   hand: Hand,
   troopIds: ReadonlyArray<string>,
-  { units }: { units?: Units } = {},
+  { units, keepEmpty = false }: { units?: Units; keepEmpty?: boolean } = {},
 ): HandMove {
-  if (hand.kind === 'empty' || troopIds.length === 0) return { kind: 'drop' };
+  if (hand.kind === 'empty') return { kind: 'drop' };
+  if (troopIds.length === 0)
+    return keepEmpty ? { kind: 'lift', hand: { ...hand, troopIds } } : { kind: 'drop' };
   return {
     kind: 'lift',
     hand: { ...hand, troopIds: units === undefined ? troopIds : tickedUnit(hand, troopIds, units) },

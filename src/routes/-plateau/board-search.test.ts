@@ -1,11 +1,36 @@
-import { describe, expect, it } from 'vitest';
-import { withWindow, withoutWindow, toggleWindow, windowOpen } from './board-search';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  navigateOnce,
+  sameAddress,
+  withWindow,
+  withoutWindow,
+  toggleWindow,
+  windowOpen,
+} from './board-search';
 
 /**
  * The URL is the board's whole state, so it is where the guarantees live: a shared link
  * reopens the same screen, and a focus never outlives the window it was opened for.
  */
 describe('the board’s search state', () => {
+  /** #584 : le toucher d'un mât déjà ouvert ne pousse pas la même adresse une seconde fois. */
+  it('tells the address of a surface already open from another one', () => {
+    const open = { ...withWindow({}, 'site'), building: 'k17abc' };
+    expect(sameAddress(open, { ...open })).toBe(true);
+    expect(sameAddress(open, { ...open, building: 'k18' })).toBe(false);
+    expect(sameAddress(open, withoutWindow(open, 'site'))).toBe(false);
+  });
+
+  it('pushes an address once: touching the same mast again navigates nowhere', () => {
+    const open = { ...withWindow({}, 'site'), building: 'k17abc' };
+    const navigate = vi.fn();
+    const same = () => ({ ...open });
+    navigateOnce(navigate, open, same);
+    expect(navigate).not.toHaveBeenCalled();
+    navigateOnce(navigate, open, (previous) => ({ ...previous, building: 'k18' }));
+    expect(navigate).toHaveBeenCalledOnce();
+  });
+
   it('stacks a window last, and never twice', () => {
     const opened = withWindow(withWindow({}, 'personalBoard'), 'nation');
     expect(opened.windows).toEqual(['personalBoard', 'nation']);
@@ -32,6 +57,11 @@ describe('the board’s search state', () => {
     const toggled = toggleWindow(focused, 'site');
     expect(windowOpen(toggled, 'site')).toBe(false);
     expect(toggled.building).toBeUndefined();
+  });
+
+  it('lets the building focus go with the band', () => {
+    const open = { ...withWindow({}, 'personalBoard'), building: 'k17abc' };
+    expect(withoutWindow(open, 'personalBoard').building).toBeUndefined();
   });
 
   it('keeps one surface of the column at a time, and leaves the band alone', () => {

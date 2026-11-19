@@ -159,8 +159,9 @@ body {
 }
 
 /* La feuille basse, à trois hauteurs (`shell/BottomSheet.tsx`). Le plein écran est tout ce qui
-   reste entre les deux bords — jamais par-dessus le bandeau ni la barre. Les deux fractions sont
-   relues par `SHEET_SHARE` : la carte remonte ce qu'une feuille couvrira. */
+   reste entre les deux bords, aux trois quarts de `--board-room` (`FULL_SHARE_OF_ROOM`), pour
+   garder une lucarne de carte sous le bandeau ; l'étage des tuiles est l'exception : il prend
+   tout `--board-room` (voir plus bas). Les fractions sont relues par `SHEET_SHARE` et `FULL_SHARE_OF_ROOM` : la carte remonte ce qu'une feuille couvrira. */
 .board-sheet {
   --board-room: calc((100dvh - var(--board-top) - var(--board-bottom)) / var(--hud-scale));
   position: fixed;
@@ -179,7 +180,7 @@ body {
 }
 
 .board-sheet[data-height='full'] {
-  height: var(--board-room);
+  height: calc(var(--board-room) * 0.75);
 }
 
 /* La feuille d'une sélection réduite à son en-tête (décision 3a du 05/10) : la carte se dégage,
@@ -193,6 +194,22 @@ body {
 .board-sheet[data-hug][data-height='peek'] {
   height: auto;
   max-height: min(var(--board-room), calc(50dvh / var(--hud-scale)));
+}
+
+/* La feuille qui bouge garde la hauteur du cran haut (0,75 ; 1,0 pour l'étage, ci-dessous) et se pose par `translateY` (BottomSheet.tsx) :
+   le doigt et le ressort ne remettent rien en page. */
+.board-sheet[data-moving][data-height] {
+  height: calc(var(--board-room) * 0.75);
+  max-height: var(--board-room);
+}
+
+/* **Le plein de l'étage des tuiles** (#590) : toute la place entre le bandeau et la barre ; le
+   rang de tuiles s'y compacte (nom et figure) pour que les sept « annuler » d'une file tiennent
+   à 375×667.
+   @a-mesurer : la part de `--board-room`. */
+.board-sheet[data-stage][data-height='full'],
+.board-sheet[data-stage][data-moving][data-height] {
+  height: var(--board-room);
 }
 
 /* Le dossier de la nation (refonte mobile, 1s) : posé sous le bandeau, la carte voilée jusqu'à
@@ -510,6 +527,16 @@ body {
   }
 }
 
+/* La jauge d'une réserve sous « réduites » : elle saute au cran, et le cran se fond (#578). */
+.reserve-gauge--notch {
+  animation: reserve-gauge-fade 120ms var(--ease-out);
+}
+@keyframes reserve-gauge-fade {
+  from {
+    opacity: 0;
+  }
+}
+
 @keyframes reserve-tag-fade {
   10%,
   85% {
@@ -557,8 +584,17 @@ body {
 /* **Le sous-main** (#122) : la bande qui se plie au pas des fenêtres (#161), la tuile qui se lève
    au survol, la jauge qui monte. Réduites, rien ne glisse et la bande paraît en fondu bref ;
    coupées, la tuile ne se lève pas non plus. */
+/* Le volet du bureau (#580) : 172 px d'écran, 204 px sur un écran de plus de 860 px de haut, barre
+   et volet sous 40 % de l'écran à 1280×720. Il se déplie en 260 ms ; la maquette vise 320 ms
+   (@a-mesurer). */
 .mat-fold {
+  --volet-h: calc(172px / var(--hud-scale));
   transition: grid-template-rows 260ms var(--ease-out);
+}
+@media (min-height: 860px) {
+  .mat-fold {
+    --volet-h: calc(204px / var(--hud-scale));
+  }
 }
 .mat-tile {
   transition:
@@ -569,11 +605,7 @@ body {
   transform: translateY(-3px);
   box-shadow: 0 5px 0 var(--ink);
 }
-.mat-gauge {
-  transform-origin: bottom;
-  transition: height 500ms var(--ease-out);
-}
-:root:is([data-motion='reduced'], [data-motion='off']) :is(.mat-fold, .mat-tile, .mat-gauge) {
+:root:is([data-motion='reduced'], [data-motion='off']) :is(.mat-fold, .mat-tile) {
   transition: none;
 }
 :root[data-motion='reduced'] .mat-fold > * {
@@ -587,48 +619,67 @@ body {
   box-shadow: 0 2px 0 var(--ink);
 }
 
-/* **Les bacs suivent la bande** (#251) : `board-density.ts` pose `data-density` sur le plateau
-   d'après sa largeur ; les jauges, la poignée de l'en-tête et la colonne des chantiers lisent ces
-   variables. Le chiffre ne descend jamais sous 12px, le débit sous 8,5px. */
-.mat-board {
-  --bin-w: 66px;
-  --bin-gap: 6px;
-  --bin-pad: 12px;
-  --tube-w: 16px;
-  --tube-h: 58px;
-  --bin-n: 13px;
-  --bin-s: 9.5px;
-  --works-w: 236px;
+/* **La tuile debout** (#579) : survolée ou au clavier, elle se lève et son pied sort de la barre,
+   chaque matière contre le stock et la phrase entière. Au doigt rien ne se lève. Réduites, elle
+   se lève sans trajet et son pied paraît en fondu bref ; coupées, sans fondu. */
+.desk-tile {
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out);
 }
-.mat-board[data-density='moyen'] {
-  --bin-w: 54px;
-  --bin-gap: 4px;
-  --bin-pad: 10px;
-  --tube-w: 14px;
-  --tube-h: 54px;
-  --bin-n: 12px;
-  --bin-s: 9px;
-  --works-w: 212px;
+.desk-tile-more {
+  position: absolute;
+  left: -1px;
+  right: -1px;
+  top: 100%;
+  height: 98px;
+  padding: 5px 6px;
+  overflow: hidden;
+  border: 1px solid var(--ink);
+  visibility: hidden;
+  transition: visibility 0s var(--dur-base);
 }
-.mat-board[data-density='serre'] {
-  --bin-w: 44px;
-  --bin-gap: 2px;
-  --bin-pad: 8px;
-  --tube-w: 12px;
-  --tube-h: 50px;
-  --bin-n: 12px;
-  --bin-s: 8.5px;
-  --works-w: 196px;
+.desk-tile-more[data-refused] {
+  border-style: dashed;
+  border-top-style: solid;
 }
-.mat-bins-width {
-  /* + 1px : le filet de la poignée se pose sur celui des tuiles. */
-  width: calc(5 * var(--bin-w) + 4 * var(--bin-gap) + 2 * var(--bin-pad) + 1px);
+.desk-tile:focus-visible {
+  transform: translateY(-98px);
+  z-index: 4;
+  box-shadow:
+    0 2px 0 var(--ink),
+    0 12px 18px rgb(0 0 0 / 35%);
 }
-/* Le chiffre sous la jauge : ses deux lignes dès que la colonne se resserre. */
-.mat-board:is([data-density='moyen'], [data-density='serre']) .mat-bin-cap {
-  display: block;
-  margin-top: 2px;
-  text-align: center;
+.desk-tile:focus-visible .desk-tile-more {
+  visibility: visible;
+  transition-delay: 0s;
+}
+@media (hover: hover) and (pointer: fine) {
+  .desk-tile:hover {
+    transform: translateY(-98px);
+    z-index: 4;
+    box-shadow:
+      0 2px 0 var(--ink),
+      0 12px 18px rgb(0 0 0 / 35%);
+  }
+  .desk-tile:hover .desk-tile-more {
+    visibility: visible;
+    transition-delay: 0s;
+  }
+  :root[data-motion='reduced'] .desk-tile:hover .desk-tile-more {
+    animation: desk-tile-fade var(--dur-quick) var(--ease-out);
+  }
+}
+:root:is([data-motion='reduced'], [data-motion='off']) :is(.desk-tile, .desk-tile-more) {
+  transition: none;
+}
+:root[data-motion='reduced'] .desk-tile:focus-visible .desk-tile-more {
+  animation: desk-tile-fade var(--dur-quick) var(--ease-out);
+}
+@keyframes desk-tile-fade {
+  from {
+    opacity: 0;
+  }
 }
 
 /* Le fondu d'un rang ou d'une colonne qui continue : seul le côté où il y a une suite s'estompe. */
@@ -667,20 +718,6 @@ body {
   color: var(--paper);
   font: 600 9px/1 var(--font-mono);
 }
-/* Le registre épinglé se voit sur le bac même : un filet au pied, un losange dans le coin. */
-.mat-bin[aria-pressed='true'] {
-  box-shadow: inset 0 -3px 0 var(--arc-mine);
-}
-.mat-bin[aria-pressed='true']::before {
-  content: '';
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 5px;
-  height: 5px;
-  background: var(--arc-mine);
-  rotate: 45deg;
-}
 /* Le refus entier d'une tuile retenue : une fiche de papier posée sur elle, au survol ou au focus. */
 .mat-refusal {
   animation: mat-slip 160ms var(--ease-out);
@@ -700,17 +737,7 @@ body {
     transform: translateY(-3px);
   }
 }
-.first-step-ring {
-  outline: 2px solid var(--arc-mine);
-  outline-offset: 3px;
-  animation: first-step-ring 1.4s ease-in-out infinite alternate;
-}
-@keyframes first-step-ring {
-  to {
-    outline-offset: 6px;
-  }
-}
-:root:is([data-motion='reduced'], [data-motion='off']) :is(.first-step-cue, .first-step-ring) {
+:root:is([data-motion='reduced'], [data-motion='off']) .first-step-cue {
   animation: none;
 }
 
@@ -733,6 +760,11 @@ body {
 
 .surface-in {
   animation: surface-in var(--dur-base) var(--ease-out) both;
+}
+
+/* **Un onglet change le contenu** : fondu de 120 ms, sans échelle ; coupées, rien ne bouge. */
+.tab-fade {
+  animation: surface-fade 120ms var(--ease-out) both;
 }
 
 .sheet-return {
@@ -889,6 +921,14 @@ body {
   height: 44px;
   border-radius: 50%;
   border: 3px solid var(--ink);
+}
+
+.placed-tile {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border: 1px solid var(--ink);
+  background: var(--paper) center / contain no-repeat;
 }
 
 .harvest-pastille {

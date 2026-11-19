@@ -31,13 +31,29 @@ même fonction que le refus du serveur (ADR 0015). **Aucune règle de jeu ne cha
 > le glisser est le geste. La pastille sous le pointeur lit la rose de la cible
 > (`dropReadingOf`) et dit l'ordre que le lâcher donnera — Tab ou 1-2-3 quand il y en a
 > plusieurs — ou le refus ; **lâchée, la pièce l'envoie**, sans rose ni « envoyer —
-> irréversible » ; refusée, elle hoche la tête et rentre. Au doigt, plusieurs ordres ouvrent une
-> rose réduite à eux. Échap ou le bouton droit annulent le geste ; il n'y a pas d'annulation
+> irréversible » ; refusée, elle hoche la tête et rentre. Sous le seuil téléphone, le toucher
+> vise et « Envoyer » ordonne (précisé le 19/11). Échap ou le bouton droit annulent le geste ; il n'y a pas d'annulation
 > après coup. Le glisser prend l'escouade entière ; un appui long sur elle (450 ms, un anneau
 > qui se remplit) n'en prend qu'une troupe — **le déploiement au sol disparaît**. Pendant le
 > geste, le milieu interdit se voile (la mer sous ce qui marche, l'intérieur des terres sous ce
 > qui flotte, `forbiddenGroundOf`), un anneau et un fil à plomb marquent le point de chute, et la
 > fiche se tait. Le clic-clic reste. Hors lot : le lasso, le parachutage, rediriger en route.
+
+> **Révisée le 18/11/2026, précisée le 19/11/2026 — « sous le seuil téléphone, on vise puis on
+> envoie »** (refonte du bas d'écran, finaliste du 15/11, question 2 ; retour de Pierre du 15/11 :
+> « bloqué, mal voir l'écran » ; #586, décisions de Pierre des 18 et 19/11). Le §6 révisé le 16/10
+> ne tient plus **sous le seuil téléphone** (`narrow`, < 768 px) : pile en main, un toucher ou un
+> lâcher sur la carte **vise**. Rien ne part ; la visée reste après le lever du doigt, trace la
+> route et pose son étiquette près de la destination — lieu, distance, durée et heure d'arrivée se
+> lisent aussi dans la feuille — et l'ordre part de son bouton « Envoyer ». « Annuler » retire la
+> visée et la pièce reste en main ; la croix ou la pièce retouchée la défont. La carte nue, pile en
+> main, vise au lieu de fermer : un toucher qui ferme n'envoie plus rien. La rose ne s'ouvre pas
+> pour un ordre de pièce (elle garde le sol seul : bâtir, élever, raser) ; un point qui offre
+> plusieurs ordres les range en une rangée de choix, le premier par défaut. Embarquer, dont la
+> cible est une pièce et non la carte nue, part tout de suite. **Tablette et bureau ne changent
+> pas** : le clic et le lâcher posent. La Blitz suit le même chemin que la Mondiale. Restent au
+> doigt : l'appui long qui prend une troupe pour scinder, l'étiquette de cargaison, la pastille
+> qui dit l'ordre ou le refus.
 
 > **Révisée le 18/10/2026 par l'[ADR 0028](0028-l-economie-de-la-mondiale.md) §6** : au-delà de
 > douze troupes, une escouade de Mondiale se dessine en une figurine par rôle, et son fanion porte

@@ -64,7 +64,7 @@ export function SurfaceKey({
   const rank = blitz ? null : (view.press?.mine?.rank ?? null);
   const onMap = !menu && !todoOpen && !SURFACES.some((name) => windowOpen(search, name));
 
-  useSoleSurface(() => setMenu(false), menu);
+  useSoleSurface(() => setMenu(false), menu, false);
   useEffect(() => {
     if (!menu) return;
     // Caught before the windows' own Escape: one key folds the menu, not the window under it.
@@ -81,8 +81,8 @@ export function SurfaceKey({
   const go = (to: BoardSearch) => void navigate({ to: '/plateau', search: to });
   const press = () => {
     if (onMap) {
+      // The menu claims the place: an unfolded board yields by itself and keeps its site.
       setMenu(true);
-      if (windowOpen(search, 'personalBoard')) go(withoutWindow(search, 'personalBoard'));
       return;
     }
     setMenu(false);

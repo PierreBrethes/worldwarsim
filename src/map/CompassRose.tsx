@@ -64,6 +64,7 @@ export function CompassRose({
   /** The medallion a finger has read, waiting for the touch that acts. */
   const [read, setRead] = useState(-1);
   const pressedWith = useRef('mouse');
+  const openedAt = useRef(Date.now());
   const [bubbleHeight, setBubbleHeight] = useState(BUBBLE_HEIGHT);
 
   useEffect(() => {
@@ -234,6 +235,7 @@ export function CompassRose({
                   onClick={() => {
                     const touched = pressedWith.current === 'touch';
                     pressedWith.current = 'mouse';
+                    if (touched && Date.now() - openedAt.current < DOUBLE_TOUCH_MS) return;
                     if (touched && readsFirst(candidate, finger !== null) && read !== rank) {
                       setRead(rank);
                       setHovered(rank);
@@ -422,6 +424,10 @@ export const readsFirst = (action: CompassAction, captioned: boolean): boolean =
  *  puisse le devenir par distraction (ADR 0015, exception 54a). */
 const isHeld = (action: CompassAction): boolean =>
   (action.key === 'upgrade' || action.key === 'raiseOutpost') && action.hold !== null;
+
+/** Le toucher qui ouvre la rose et le second d'un double toucher tombent sur le même point : un
+ *  médaillon n'entend pas un toucher dans ce délai. @a-mesurer */
+export const DOUBLE_TOUCH_MS = 300;
 
 const FRAME = 240;
 const CENTER = 120;

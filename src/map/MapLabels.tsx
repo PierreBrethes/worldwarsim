@@ -72,8 +72,9 @@ import {
 } from '@/domain/poster-placement';
 import type { MapEngine } from './engine';
 import { NameSheet } from './map-names';
+import { aimShiftOf } from './aim-shift';
 import { bandOf, matBand } from './board-band';
-import { useBoardInsets } from '@/shell/viewport';
+import { useBoardInsets, useNarrowScreen } from '@/shell/viewport';
 
 /** Prendre des jetons au dépôt d'un avant-poste : la prise suit la main jusqu'à un transport. */
 export type TakeDepot = (
@@ -133,6 +134,7 @@ export function MapLabels({
   poster,
   onSelect,
   onOpenBuilding,
+  onOpenWork,
   onOpenStack,
   onOpenLoot,
   onOpenCamp,
@@ -201,6 +203,7 @@ export function MapLabels({
   onSelect: (name: string | null) => void;
   /** The click's screen point travels with it: what a mast opens is anchored to the mast. */
   onOpenBuilding: (buildingId: string, clientX: number, clientY: number) => void;
+  onOpenWork?: ((workId: string) => void) | undefined;
   /** **Une pile à moi se lève, une adresse de garnison s'ouvre** (ADR 0026 §6) : l'étiquette
    *  entière, la carte en tire la pile ou la cible de la pose. */
   onOpenStack: (label: MapLabel, clientX: number, clientY: number) => void;
@@ -305,6 +308,10 @@ export function MapLabels({
   const barAnchor = useRef<HTMLDivElement | null>(null);
   const barLabels = useRef<ReadonlyArray<string>>([]);
   barLabels.current = selectionBar?.labelIds ?? [];
+  /** Sous le seuil, la barre qui attend sa première pile ne se range pas en haut : le bandeau et la
+   *  colonne « en cours » la couvriraient (#588). */
+  const narrowBar = useRef(false);
+  narrowBar.current = useNarrowScreen();
   const layer = useRef<HTMLDivElement>(null);
   const layerSize = useLayerSize(layer);
   const shellInsets = useBoardInsets();
@@ -799,6 +806,14 @@ export function MapLabels({
         anchor.style.transform = `translate3d(${projection.x}px, ${y}px, 0)`;
         state.x = projection.x;
         state.y = y;
+        // **L'étiquette de la visée** reste dans l'écran : décalée, jamais coupée au bord droit.
+        if (projection.id === 'gate-aim') {
+          const room = anchor.parentElement?.clientWidth ?? 0;
+          const width = blocks.current.get(projection.id)?.getBoundingClientRect().width ?? 0;
+          const shift = `${Math.round(aimShiftOf(projection.x, width, room))}px`;
+          if (anchor.style.getPropertyValue('--aim-shift') !== shift)
+            anchor.style.setProperty('--aim-shift', shift);
+        }
         // A transport's tag hangs over its figurines, not its point: on a shore they stand inland.
         if (cargoed.current.has(projection.id)) {
           const rect =
@@ -872,7 +887,8 @@ export function MapLabels({
           const height = box?.offsetHeight ?? 0;
           const half = width / 2 + 8;
           const left = Math.min(Math.max(x, half), layerSize.current.width - half);
-          const bottom = Math.max(height + 8, y - 64);
+          const waitingAt = narrowBar.current ? layerSize.current.height * 0.4 : 0;
+          const bottom = Math.max(height + 8, waiting ? waitingAt : y - 64);
           bar.style.transform = `translate3d(${left}px, ${bottom}px, 0)`;
           barLeft = left;
           if (!waiting)
@@ -1086,6 +1102,8 @@ export function MapLabels({
         onOpenLoot(nearbyLootSightings(label, labels, states.current), clientX, clientY);
       } else if (label.building !== null) {
         onOpenBuilding(label.building.id, clientX, clientY);
+      } else if (label.works !== null && onOpenWork !== undefined) {
+        onOpenWork(label.works.workId);
       } else if (label.station !== null) {
         onOpenStack(label, clientX, clientY);
         // Lever ne fait que lever (ADR 0026 §6) : la pile ne rouvre pas de rose au même clic.

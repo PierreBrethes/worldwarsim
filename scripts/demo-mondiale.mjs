@@ -44,11 +44,13 @@
  * qui serre son môle : le port y est posé en miroir (`id` du port : `building-port@-1.84,37.12`). `--exploitations` pose pour la France sa ferme et ses deux mines sur les gisements de son sol,
  * posées offertes comme la fondation : de quoi lire un registre de consommation à deux colonnes
  * (production et consommation, #121). `--chantiers` élève le QG au niveau 3 et met quatre
- * chantiers en file : un monte, 28 % plus vite, les autres attendent (ADR 0031). `--niveaux` y
+ * chantiers en file : un monte, 28 % plus vite, les autres attendent (ADR 0031). `--huit-chantiers`
+ * (#580) en met huit : la file du volet sur deux colonnes. `--niveaux` y
  * ajoute une caserne de niveau 3. `--caserne-chantier` (#365) met en chantier une caserne dans
  * l'Aube, en tête de file : son premier niveau monte. `--caserne-montee` (#366) élève la caserne
  * de niveau 3 du QG au niveau 4, en tête de file.
  * `--edition` publie tout de suite deux éditions de presse : le classement et ses variations.
+ * `--stock-court` (#577) laisse vingt d'acier et zéro charbon à chaque nation : le fantôme d'une pose dit ce qui manque.
  * `--tournee --sans-depart` pose la scène des tournées sans les lancer. `--tournee --rangoun` fait
  * tenir Rangoun à la France avant le départ, et poste deux fantassins de l'adversaire près de la
  * route de Bruxelles : l'un à 12 km, qui relève la tournée à mi-portée, l'autre à 45 km, qui la
@@ -394,8 +396,14 @@ const levels =
   recruitIn !== null ||
   process.argv.includes('--niveaux') ||
   process.argv.includes('--echelle');
+/** `--huit-chantiers` (#580) : `--chantiers`, puis trois chantiers de plus près de Paris : huit en
+ *  tout, la file du volet sur deux colonnes, sept « annuler ». */
+const eightWorks = process.argv.includes('--huit-chantiers');
 const works =
-  levels || process.argv.includes('--chantiers') || process.argv.includes('--quai-dense');
+  levels ||
+  eightWorks ||
+  process.argv.includes('--chantiers') ||
+  process.argv.includes('--quai-dense');
 /** `--caserne-chantier` (#365) : une caserne seule en chantier dans l'Aube, son premier niveau
  *  qui monte — le bâtiment coupé sur son socle entier. */
 const risingBarracks = process.argv.includes('--caserne-chantier');
@@ -477,6 +485,9 @@ const lookout = process.argv.includes('--guet');
 /** `--accrochages` (#441) : des accrochages en Lorraine, en Manche, devant Francfort et en Égypte. */
 const contacts = process.argv.includes('--accrochages');
 const dryCoal = process.argv.includes('--sans-charbon');
+/** `--stock-court` (#577) : l'acier presque à sec et le charbon à zéro, pour lire le manque d'une
+ *  facture sur le fantôme de pose. */
+const shortStock = process.argv.includes('--stock-court');
 /** `--epingles [N]` : N piles semées sur la France (1000 par défaut), des relevés en face (#234). */
 const pinsAt = process.argv.indexOf('--epingles');
 const pins = pinsAt < 0 ? null : Number(process.argv[pinsAt + 1]) || 1000;
@@ -1093,6 +1104,23 @@ if (!bare) {
         regionId: id,
         point: { lon: region.point[0], lat: region.point[1] },
       });
+    }
+    // The next regions out from Paris, until eight works stand: a refusal (too close) is skipped.
+    const km = ([a, b], [c, d]) => 111 * Math.hypot((a - c) * Math.cos((b * Math.PI) / 180), b - d);
+    for (const region of eightWorks
+      ? me.regions.toSorted((a, b) => km(a.point, paris.point) - km(b.point, paris.point))
+      : []) {
+      const { me: now } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+      if (now.constructionQueue.length + (now.construction === null ? 0 : 1) >= 8) break;
+      await client
+        .mutation(api.constructions.start, {
+          token: tokenA,
+          seasonId,
+          building: 'barracks',
+          regionId: region.id,
+          point: { lon: region.point[0], lat: region.point[1] },
+        })
+        .catch(() => {});
     }
   }
   /** `--recrue` : une infanterie de rang 2 formée à la caserne, qui sort dans `recruitIn` secondes. */
@@ -2083,6 +2111,11 @@ if (conclusion !== null)
     places,
     await concludeDemo({ client, cli, pause, tokens, seasonId, ...conclusion }),
   );
+
+if (shortStock) {
+  cli(['run', 'dev:fillStocks', JSON.stringify({ seasonId, stock: 20, only: 'steel' })]);
+  cli(['run', 'dev:fillStocks', JSON.stringify({ seasonId, stock: 0, only: 'coal' })]);
+}
 
 writeFileSync(
   accountsFile,

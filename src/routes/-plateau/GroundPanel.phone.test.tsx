@@ -34,3 +34,18 @@ it('opens a tapped region as a compact sheet: name and terrain first, the rest b
   expect(screen.getByText('Valais')).toBeTruthy();
   expect(screen.getByText('détails')).toBeTruthy();
 });
+
+it('is not opened by a touch alone: a finger is no hover, the ground sheet follows the selection (#588, decision 7)', () => {
+  render(
+    <GroundPanel
+      selected={null}
+      hoveredCountry="CHE"
+      hoveredRegion={{ id: 'r-1', country: 'CHE', name: 'Valais', type: 'mountain' }}
+      holding={null}
+      suspendedUntil={null}
+      view={view}
+      onDeselect={() => {}}
+    />,
+  );
+  expect(screen.queryByRole('dialog')).toBeNull();
+});

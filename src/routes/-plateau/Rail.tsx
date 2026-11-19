@@ -61,11 +61,14 @@ const NO_PICK = { pick: null, lift: null } as const;
  *  continue, et la flèche de ce côté n'est posée que s'il y a une suite (#251). */
 export function Rail({
   narrow,
+  standing = false,
   motion,
   label,
   children,
 }: {
   narrow: boolean;
+  /** **Debout dans la barre du bureau** (#579) : le rang monte au-dessus d'elle pour la tuile levée. */
+  standing?: boolean;
   motion: MapMotion;
   label: string;
   children: (grip: ReturnType<typeof gripOf>) => ReactNode;
@@ -92,28 +95,31 @@ export function Rail({
     },
   };
 
-  // The wheel turns the rail: a vertical wheel over a horizontal row means "the next ones".
+  // The wheel turns the rail: a vertical wheel over a horizontal row means "the next ones". It is
+  // heard on the box: a standing rail lets the pointer through between its tiles (#579).
   useEffect(() => {
     const node = rail.current;
-    if (node === null) return;
+    const over = box.current;
+    if (node === null || over === null) return;
     const wheel = (event: WheelEvent) => {
       if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
       event.preventDefault();
       node.scrollLeft += event.deltaY;
     };
-    node.addEventListener('wheel', wheel, { passive: false });
-    return () => node.removeEventListener('wheel', wheel);
+    over.addEventListener('wheel', wheel, { passive: false });
+    return () => over.removeEventListener('wheel', wheel);
   }, []);
   const scroll = (direction: 1 | -1) =>
     rail.current?.scrollBy({
       left: direction * 324,
       behavior: motion === 'full' ? 'smooth' : 'auto',
     });
-  const arrow =
-    'paper-grain absolute top-1/2 h-[48px] w-[22px] -translate-y-[60%] cursor-pointer border border-[var(--ink)] text-[15px] leading-none hover:bg-[var(--ink)] hover:text-[var(--paper)]';
+  const arrow = `paper-grain absolute top-1/2 h-[48px] w-[22px] cursor-pointer border border-[var(--ink)] text-[15px] leading-none hover:bg-[var(--ink)] hover:text-[var(--paper)] ${
+    standing ? 'z-[6] -translate-y-1/2' : '-translate-y-[60%]'
+  }`;
 
   return (
-    <div ref={box} className="relative min-w-0">
+    <div ref={box} className={`relative min-w-0 ${standing ? 'h-full' : ''}`}>
       <div
         ref={rail}
         role="group"
@@ -121,8 +127,13 @@ export function Rail({
         data-before={narrow ? undefined : before}
         data-after={narrow ? undefined : after}
         onPointerDown={(event) => pressRail(event, rail.current, NO_PICK, motion)}
-        className={`mat-rail flex h-full touch-pan-x touch-pan-y snap-x snap-proximity gap-[8px] overflow-x-auto [scrollbar-color:var(--ink-soft)_transparent] [scrollbar-width:thin] ${
-          narrow ? 'pt-[2px] pr-3 pb-[6px] pl-[2px]' : 'pt-[2px] pb-[10px] pl-[2px]'
+        className={`mat-rail flex touch-pan-x touch-pan-y snap-x snap-proximity gap-[8px] overflow-x-auto ${
+          standing
+            ? // Plus haut que la barre, transparent : la tuile levée n'y est pas rognée (#579).
+              'pointer-events-none absolute inset-x-0 bottom-0 h-[178px] scroll-px-[8px] items-end overflow-y-hidden px-[8px] pb-[3px] [scrollbar-width:none] *:pointer-events-auto'
+            : `h-full [scrollbar-color:var(--ink-soft)_transparent] [scrollbar-width:thin] ${
+                narrow ? 'pt-[2px] pr-3 pb-[6px] pl-[2px]' : 'pt-[2px] pb-[10px] pl-[2px]'
+              }`
         }`}
       >
         {children(gripOf(rail, motion))}

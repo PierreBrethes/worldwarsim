@@ -1,4 +1,4 @@
-import { outpostPinId, pinsOf } from '@/domain/pins';
+import { campPinId, outpostPinId, pinsOf } from '@/domain/pins';
 import { contactsOf } from '@/domain/contacts';
 import { PIN_APPROACH_DISTANCE } from '@/map/engine/pins';
 import { DISPATCH_VIEW_DISTANCE, HOME_VIEW_DISTANCE } from './-plateau/view-distance';
@@ -21,13 +21,8 @@ import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { contactKm, outpostReachKm } from '../../convex/constants';
 import { effectiveSpecialty, isOnWatch, lookoutKmOf, sameLiaison } from '@/domain/outposts';
-import {
-  drawnLiaisonsIn,
-  holdsPatrolTroop,
-  outpostNameIn,
-  patrolLineOf,
-  withoutPatrols,
-} from '@/domain/patrol';
+import { drawnLiaisonsIn, holdsPatrolTroop, outpostNameIn, withoutPatrols } from '@/domain/patrol';
+import { offersOf, type GroundFacts, type Offer, type OfferTarget } from '@/domain/offers';
 import { fr } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
@@ -35,15 +30,18 @@ import { type Dismantled, type MapCombat, WorldMap } from '@/map/WorldMap';
 import { homewardOf, REPORT_HOLD_MS, scenesToPlay } from '@/domain/combat-on-map';
 import { withoutHeld } from '@/domain/journal';
 import type { TakeDepot } from '@/map/MapLabels';
-import type { PieceClick } from '@/map/engine';
+import type { DropVerdict, PieceClick } from '@/map/engine';
 import {
+  navigateOnce,
   readWindows,
   withWindow,
   withoutWindow,
   type BoardSearch,
   type BoardWindow,
 } from './-plateau/board-search';
-import { forbiddenGroundOf } from '@/domain/drop-order';
+import { chipOf, forbiddenGroundOf } from '@/domain/drop-order';
+import { aimPlaceOf, cargoOpenUnder, handAimOf } from './-plateau/hand-aim';
+import { useHandAim } from './-plateau/useHandAim';
 import { endingOf } from '@/domain/ending';
 import { useOpenedOnce } from './-plateau/useOpenedOnce';
 import { momentOf, type Moment } from '@/domain/moments';
@@ -61,15 +59,25 @@ import {
   useEscapeKey,
 } from './-plateau/blitzkrieg-hand';
 import { chainRefusalOf } from '@/domain/blitzkrieg';
-import { gateLabel } from '@/domain/labels';
+import { aimLabel, gateLabel } from '@/domain/labels';
 import { useTourSheet } from './-plateau/useTourSheet';
 import { TourSheet } from './-plateau/TourSheet';
 import { usePlacing } from './-plateau/usePlacing';
 import { BoardWindows } from './-plateau/BoardWindows';
 import { SheetCount } from './-plateau/Window';
 import { Shell } from '@/shell/Shell';
-import { SelectionSheetReport, sheetHeight, sheetLift } from '@/shell/BottomSheet';
-import { tallest, useFrameOnOpen } from './-plateau/useFrameOnOpen';
+import { SelectionSheetReport, sheetHeight, sheetLift, type SheetCycle } from '@/shell/BottomSheet';
+import { cycleOf, type FamilySpot } from '@/domain/family-cycle';
+import { familiesOf, liftsAsPile } from './-plateau/board-families';
+import { BareMapPort } from '@/shell/sole-surface';
+import {
+  forgetThen,
+  garrisonRetouched as garrisonRetouchedBy,
+  retouches,
+  sheetAfterTouch,
+  siteRetouched,
+} from './-plateau/retouch';
+import { useFrameOnOpen } from './-plateau/useFrameOnOpen';
 import { MAT_LIFT, boardBottomPx, useNarrowScreen } from '@/shell/viewport';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleSeat } from '@/shell/StaleSeat';
@@ -117,6 +125,8 @@ import {
   campsShown,
   markerOfStation,
   markersOf,
+  objectiveMarkerId,
+  strategicMarkerId,
   standingPilesOf,
   marchingPiecesOf,
   type MaquetteAt,
@@ -215,6 +225,7 @@ import { CombatToasts } from './-plateau/CombatToasts';
 import { useFrontSound } from './-plateau/FrontTape';
 import { DispatchSheet } from './-plateau/DispatchSheet';
 import { ReplayDeck, ReplayLaunch } from './-plateau/ReplayDeck';
+import { heldUnlessReplay } from '@/map/frame-need';
 import { REPLAY_MS, SINK_HOLD_MS, type ReplayStep } from '@/domain/replay';
 import { WAIT_MS } from '@/map/engine/combats';
 import { NextActions } from './-plateau/NextActions';
@@ -226,6 +237,8 @@ import { shownStepOf } from '@/domain/first-steps';
 import { absenceTourOf } from '@/domain/absence-tour';
 import type { MapMotion } from '@/domain/map-motion';
 import { HandSheet } from './-plateau/HandSheet';
+import { handOffersOf } from './-plateau/hand-offers';
+import { offerPilesOf } from './-plateau/offer-piles';
 import { LivePoster } from './-plateau/MapPoster';
 import { posterOf } from '@/domain/map-poster';
 import { LootCrateCard } from './-plateau/LootCrateCard';
@@ -277,6 +290,10 @@ const pileIdOf = (station: MarchStation): string =>
 /** **L'ordre qui vient de partir**, tant que le cartouche « transmis » le dit (refonte mobile,
  *  1d) : de quoi le suivre, et le nom de l'ordre que la branche portait. */
 type SentOrder = Sent & { readonly order: string };
+
+const WorkSheet = lazy(() =>
+  import('./-plateau/WorkSheet').then((module) => ({ default: module.WorkSheet })),
+);
 
 const PersonalBoard = lazy(() =>
   import('./-plateau/PersonalBoard').then((module) => ({ default: module.PersonalBoard })),
@@ -428,7 +445,8 @@ function BoardContent({
   view: PlayerView;
   seat: Seat;
 }) {
-  const { country, windows = [], building: focused, report } = Route.useSearch();
+  const routeSearch = Route.useSearch();
+  const { country, windows = [], building: focused, report } = routeSearch;
   /**
    * **Une seule surface ouverte sous le seuil** (piste A, passe 2, qui révise le 15/09) : la pile
    * est rendue entière, et une fenêtre qu'une autre recouvre se ferme d'elle-même (`Window.tsx`) —
@@ -465,6 +483,8 @@ function BoardContent({
    * the guarantee rather than a missing button (decision 13a).
    */
   const [garrison, setGarrison] = useState<OpenGarrison | null>(null);
+  /** **La fiche d'un chantier**, au téléphone (#587) : la ligne de travail touchée sur la carte. */
+  const [workId, setWorkId] = useState<string | null>(null);
   /** **La pièce en main, seule source** (ADR 0026 §6) : la colonne armée et la main du moteur
    *  en dérivent, et `clickPile` est la seule règle qui la change sur la carte. */
   const [hand, setHand] = useState<Hand>(EMPTY_HAND);
@@ -518,8 +538,19 @@ function BoardContent({
     [hand, forbidden],
   );
   const [resting, setResting] = useState<RestAim | null>(null);
-  /** La rose de la pile en main, lue par la carte : la fiche y prend « fonder ». */
-  const [heldCompass, setHeldCompass] = useState<Compass | null>(null);
+  /** **La visée du doigt** (#586), sous le seuil : ce que le toucher a désigné et le verbe qui part
+   *  par défaut. Elle reste après le lever du doigt et nourrit l'aperçu comme l'arrêt du pointeur ;
+   *  fermer, reposer la pièce ou recomposer la main la retire. */
+  const handAimState = useHandAim(hand);
+  const { aim, verb: aimedVerb } = handAimState;
+  /** La rose de la pile en main et sa cible, lues par la carte : la fiche y prend « fonder » et
+   *  ses offres (`handOffersOf`). */
+  const [heldRose, setHeld] = useState<{ compass: Compass; target: CompassTarget } | null>(null);
+  const setHeldCompass = useCallback(
+    (compass: Compass | null, target: CompassTarget | null) =>
+      setHeld(compass === null || target === null ? null : { compass, target }),
+    [],
+  );
   const [sent, setSent] = useState<SentOrder | null>(null);
   /** La carte ouverte au coin bas-droit — une seule à la fois, la colonne ne déborde pas. */
   const [corner, setCorner] = useState<Corner | null>(null);
@@ -558,6 +589,12 @@ function BoardContent({
   /** De quoi nommer la maquette sous un point, dès que la carte est prête (#205). */
   const [maquetteAt, setMaquetteAt] = useState<MaquetteAt | null>(null);
   const keepMaquetteAt = useCallback((lookup: MaquetteAt) => setMaquetteAt(() => lookup), []);
+  /** Le sol sous un point, lu comme la rose le lit : la fiche d'un camp y prend côte et pied (#588). */
+  const [groundFacts, setGroundFacts] = useState<((lonLat: LonLat) => GroundFacts) | null>(null);
+  const keepGroundFacts = useCallback(
+    (lookup: (lonLat: LonLat) => GroundFacts) => setGroundFacts(() => lookup),
+    [],
+  );
   const [orderError, setOrderError] = useState<string | null>(null);
   const [focus, setFocus] = useState<{
     readonly ids: ReadonlyArray<string>;
@@ -586,8 +623,7 @@ function BoardContent({
   /** Une pose de rose en cours, cachée sous une feuille si l'on n'y prend garde : un point qu'une
    *  surface basse va couvrir est remonté au-dessus d'elle (`WorldMap.reveal`). */
   const [reveal, setReveal] = useState<{
-    readonly x: number;
-    readonly y: number;
+    readonly at: LonLat;
     readonly floor: number;
     readonly nonce: number;
   } | null>(null);
@@ -596,21 +632,56 @@ function BoardContent({
    *  avec ses cibles, y monte (refonte mobile, 1b) : mesurée au tiers, elle laissait la troupe
    *  sous la feuille. */
   const [selectionSheet, setSelectionSheet] = useState<number | null>(null);
-  /** La hauteur du plateau personnel quand il couvre la carte sur un site, mesurée de même. */
-  const [boardCover, setBoardCover] = useState<number | null>(null);
   /** **Ce que la surface ouverte couvre de la carte** : l'objet touché se recadre une fois,
    *  au-dessus d'elle, quand elle est mesurée (`useFrameOnOpen`). */
-  const { ask: frameOnOpen, cancel: cancelFrame } = useFrameOnOpen<
+  /** Le sujet a déjà été cadré une fois : ce qui le sert encore (un cran lâché, le plateau qui se
+   *  déplie) ne bouge la carte que s'il est caché. Remis à zéro par chaque nouvelle demande. */
+  const reframing = useRef(false);
+  const {
+    ask,
+    cancel: cancelFrame,
+    forget: forgetFrame,
+    replay: replayFrame,
+  } = useFrameOnOpen<
     | { readonly kind: 'journey'; readonly ids: ReadonlyArray<string> }
-    | { readonly kind: 'reveal'; readonly x: number; readonly y: number }
+    | { readonly kind: 'reveal'; readonly at: LonLat }
   >(
-    tallest(selectionSheet === null ? null : selectionSheet + boardBottomPx(), boardCover),
+    selectionSheet === null ? null : selectionSheet + boardBottomPx(),
     useCallback((request, covered) => {
       if (request.kind === 'reveal')
-        setReveal({ x: request.x, y: request.y, floor: covered, nonce: Date.now() });
-      else setFocus({ ids: request.ids, lift: covered / 2, onPiece: true, nonce: Date.now() });
+        setReveal({ at: request.at, floor: covered, nonce: Date.now() });
+      else
+        setFocus({
+          ids: request.ids,
+          lift: covered / 2,
+          onPiece: true,
+          ...(reframing.current ? { hiddenBy: covered } : {}),
+          nonce: Date.now(),
+        });
     }, []),
+    selectionSheet !== null || (focused ?? null) !== null,
   );
+  const frameOnOpen = useCallback(
+    (request: Parameters<typeof ask>[0]) => {
+      reframing.current = false;
+      ask(request);
+    },
+    [ask],
+  );
+  const reframe = useCallback(
+    (covered?: number) => {
+      reframing.current = true;
+      replayFrame(covered);
+    },
+    [replayFrame],
+  );
+  /** Une feuille lâchée sur un cran (peek, half) : ce qu'elle couvre, c'est son cran visé. */
+  const stepSheet = useCallback((goal: number) => reframe(goal + boardBottomPx()), [reframe]);
+  const sheetPorts = useMemo(() => ({ report: setSelectionSheet, onStep: stepSheet }), [stepSheet]);
+  const pointAt = useRef<((clientX: number, clientY: number) => LonLat | null) | null>(null);
+  const keepPointAt = useCallback((lookup: typeof pointAt.current) => {
+    pointAt.current = lookup;
+  }, []);
   const [selectedRumorId, setSelectedRumorId] = useState<string | null>(null);
   const [selectedLoot, setSelectedLoot] = useState<OpenLoot | null>(null);
   const [selectedCamp, setSelectedCamp] = useState<OpenCamp | null>(null);
@@ -654,38 +725,53 @@ function BoardContent({
    */
   const aimingOnPhone = narrow && column !== null;
 
+  /** **Une seule fermeture par feuille** : le bouton, le lancer, la carte nue, le retour et le
+   *  toucher de l'objet déjà ouvert passent tous par ces fonctions (#584). */
+  const closeLoot = useCallback(() => setSelectedLoot(null), []);
+  const closeCamp = useCallback(() => setSelectedCamp(null), []);
+  const closeObjective = useCallback(() => setSelectedObjective(null), []);
+  const closePoint = useCallback(() => setSelectedPoint(null), []);
+
   const openLoot = useCallback(
     (ids: ReadonlyArray<string>, clientX: number, clientY: number) => {
       const first = ids[0];
       if (first === undefined || aimingOnPhone) return;
-      const at = boardPoint(clientX, clientY);
       setSelectedLoot((previous) => {
         const rank = previous === null ? -1 : ids.indexOf(previous.id);
-        return { id: ids[(rank + 1) % ids.length] ?? first, ...at };
+        const id = ids[(rank + 1) % ids.length] ?? first;
+        return sheetAfterTouch(narrow, previous, { id, ...boardPoint(clientX, clientY) });
       });
     },
-    [boardPoint, aimingOnPhone],
+    [boardPoint, aimingOnPhone, narrow],
   );
 
   const openCamp = useCallback(
     (campId: string, clientX: number, clientY: number) => {
-      if (!aimingOnPhone) setSelectedCamp({ id: campId, ...boardPoint(clientX, clientY) });
+      if (aimingOnPhone) return;
+      setSelectedCamp((previous) =>
+        sheetAfterTouch(narrow, previous, { id: campId, ...boardPoint(clientX, clientY) }),
+      );
     },
-    [boardPoint, aimingOnPhone],
+    [boardPoint, aimingOnPhone, narrow],
   );
 
   const openObjective = useCallback(
     (objectiveId: string, clientX: number, clientY: number) => {
-      if (!aimingOnPhone)
-        setSelectedObjective({ id: objectiveId, ...boardPoint(clientX, clientY) });
+      if (aimingOnPhone) return;
+      setSelectedObjective((previous) =>
+        sheetAfterTouch(narrow, previous, { id: objectiveId, ...boardPoint(clientX, clientY) }),
+      );
     },
-    [boardPoint, aimingOnPhone],
+    [boardPoint, aimingOnPhone, narrow],
   );
   const openStrategic = useCallback(
     (pointId: string, clientX: number, clientY: number) => {
-      if (!aimingOnPhone) setSelectedPoint({ id: pointId, ...boardPoint(clientX, clientY) });
+      if (aimingOnPhone) return;
+      setSelectedPoint((previous) =>
+        sheetAfterTouch(narrow, previous, { id: pointId, ...boardPoint(clientX, clientY) }),
+      );
     },
-    [boardPoint, aimingOnPhone],
+    [boardPoint, aimingOnPhone, narrow],
   );
 
   /** Un relevé que le délai a périmé emporte le cartouche qui le lisait : la carte ne garde pas
@@ -762,6 +848,22 @@ function BoardContent({
     setBarRefusal(null);
   }, []);
 
+  /** Fermée, la garnison lâche aussi le cadrage qu'elle avait demandé : un cran lâché ensuite ne
+   *  doit pas ramener la carte sur elle. */
+  const closeGarrison = useMemo(
+    () => forgetThen(forgetFrame, () => setGarrison(null)),
+    [forgetFrame],
+  );
+  const garrisonRetouched = useCallback(
+    (station: TroopStation) =>
+      garrisonRetouchedBy(
+        narrow,
+        garrison === null ? null : stationKeyOf(garrison.station),
+        stationKeyOf(station),
+      ),
+    [narrow, garrison],
+  );
+
   const openGarrison = useCallback(
     (station: TroopStation, preselect: ReadonlyArray<string>, at: { x: number; y: number }) => {
       setHand(EMPTY_HAND);
@@ -776,9 +878,12 @@ function BoardContent({
        *  point au-dessus d'elle plutôt que de le cadrer dessous. */
       if (marker === null) return;
       if (narrow) frameOnOpen({ kind: 'journey', ids: [marker] });
-      else setFocus({ ids: [marker], nonce: Date.now() });
+      else {
+        forgetFrame();
+        setFocus({ ids: [marker], nonce: Date.now() });
+      }
     },
-    [view.me, narrow, frameOnOpen],
+    [view.me, narrow, frameOnOpen, forgetFrame],
   );
 
   /**
@@ -816,13 +921,17 @@ function BoardContent({
     setOrderError(null);
   }, []);
 
-  const dropHand = useCallback(() => {
-    setHand(EMPTY_HAND);
-    setChain(null);
-    lastSeen.current = undefined;
-    lastThen.current = undefined;
-    setResting(null);
-  }, []);
+  const dropHand = useMemo(
+    () =>
+      forgetThen(forgetFrame, () => {
+        setHand(EMPTY_HAND);
+        setChain(null);
+        lastSeen.current = undefined;
+        lastThen.current = undefined;
+        setResting(null);
+      }),
+    [forgetFrame],
+  );
 
   /**
    * **Maj + clic, ou au doigt un toucher pendant qu'on choisit** (#130) : la pile entre dans la
@@ -864,12 +973,13 @@ function BoardContent({
         liftHand(move.hand);
         /** La fiche monte à l'aperçu : la pièce levée remonte au-dessus d'elle, sans quoi le
          *  toucher qui la repose tomberait sur la feuille. */
-        if (narrow && click.kind === 'pile')
-          frameOnOpen({ kind: 'reveal', ...boardPoint(clientX, clientY) });
+        const at = narrow && click.kind === 'pile' ? pointAt.current?.(clientX, clientY) : null;
+        if (at) frameOnOpen({ kind: 'reveal', at });
+        else forgetFrame();
       }
       return false;
     },
-    [hand, liftHand, dropHand, narrow, boardPoint, unitsAt, frameOnOpen],
+    [hand, liftHand, dropHand, narrow, unitsAt, frameOnOpen, forgetFrame],
   );
 
   /**
@@ -887,6 +997,14 @@ function BoardContent({
    * destination — il n'y a jamais deux réponses au même clic, l'une exclut l'autre — mais elle
    * suit ce qui se tient là : une garnison quand il y en a une, la ligne du bâtiment sinon.
    */
+  /** **Retourner à la même adresse ne pousse rien** (#584) : toucher le mât d'un site déjà
+   *  sélectionné ne doit pas empiler une entrée que « retour » aurait à défaire. */
+  const goTo = useCallback(
+    (to: (previous: BoardSearch) => BoardSearch) => {
+      navigateOnce(navigate, routeSearch, to);
+    },
+    [navigate, routeSearch],
+  );
   const openBuilding = useCallback(
     (buildingId: string, clientX?: number, clientY?: number) => {
       const standing = view.me.buildings.find((candidate) => candidate.id === buildingId);
@@ -909,19 +1027,15 @@ function BoardContent({
       /** **En Mondiale, un site de projection se sélectionne** (#163, comme dans Warcraft III) :
        *  l'anneau sur son mât, et la bande du plateau personnel montre ce qu'il forme. Sa fiche
        *  s'ouvre depuis la bande. */
-      if (!blitz && isProjectionKey(standing.key)) {
+      /** Retoucher ce mât ne ferme rien : c'est une sélection, pas une feuille. */
+      if (!blitz && !narrow && isProjectionKey(standing.key)) {
         setGarrison(null);
         setHand(EMPTY_HAND);
-        if (narrow) frameOnOpen({ kind: 'journey', ids: [buildingLabelId(standing)] });
-        else setFocus({ ids: [buildingLabelId(standing)], nonce: Date.now() });
-        void navigate({
-          search: (previous) => {
-            const windows = (previous.windows ?? []).filter((open) => open !== 'site');
-            return {
-              ...withWindow({ ...previous, windows }, 'personalBoard'),
-              building: buildingId,
-            };
-          },
+        forgetFrame();
+        setFocus({ ids: [buildingLabelId(standing)], nonce: Date.now() });
+        goTo((previous) => {
+          const windows = (previous.windows ?? []).filter((open) => open !== 'site');
+          return { ...withWindow({ ...previous, windows }, 'personalBoard'), building: buildingId };
         });
         return;
       }
@@ -929,10 +1043,29 @@ function BoardContent({
       /** **En Blitz tout bâtiment tenu a sa modale** : le QG forme l'infanterie, la ville dit ce
        *  qu'elle verse, et la garnison s'y compose comme dans une caserne. */
       const siteModal = hasSiteSheet(view.mode, standing.key);
-      if (siteModal) {
+      /** Sa fiche est déjà ouverte : le doigt qui revient dessus la ferme (#584). */
+      if (siteModal && siteRetouched(narrow, windows, focused, buildingId)) {
+        void navigate({ search: (previous) => withoutWindow(previous, 'site') });
+        return;
+      }
+      /** Le Centre de recherche a sa fiche au téléphone, comme un site : le retoucher la ferme. */
+      const research = narrow && standing.key === 'researchCenter';
+      if (
+        research &&
+        retouches(narrow, windows.includes('research') ? { id: focused ?? '' } : null, buildingId)
+      ) {
+        void navigate({ search: (previous) => withoutWindow(previous, 'research') });
+        return;
+      }
+      if (siteModal || research) {
         setGarrison(null);
         setHand(EMPTY_HAND);
-        setFocus({ ids: [buildingLabelId(standing)], nonce: Date.now() });
+        setWorkId(null);
+        if (narrow) frameOnOpen({ kind: 'journey', ids: [buildingLabelId(standing)] });
+        else {
+          forgetFrame();
+          setFocus({ ids: [buildingLabelId(standing)], nonce: Date.now() });
+        }
       } else if (!view.me.defeated) {
         /** **L'observateur garde la ligne, pas la pile** (décision du 31/08) : le panneau de
          *  garnison n'a qu'une sortie — « préparer » — et l'ouvrir à un défait promettrait
@@ -958,17 +1091,16 @@ function BoardContent({
           return;
         }
         if (garrison.length > 0) {
-          openGarrison(station, [], boardPoint(clientX, clientY));
+          if (garrisonRetouched(station)) closeGarrison();
+          else openGarrison(station, [], boardPoint(clientX, clientY));
           return;
         }
       }
-      void navigate({
-        search: (previous) => {
-          const next = withWindow(previous, siteModal ? 'site' : WINDOW_OF_BUILDING[standing.key]);
-          /** Un site resté ouvert se retargeterait sur ce bâtiment, qui n'a pas de fiche de site. */
-          const windows = (next.windows ?? []).filter((open) => siteModal || open !== 'site');
-          return { ...next, windows, building: buildingId };
-        },
+      goTo((previous) => {
+        const next = withWindow(previous, siteModal ? 'site' : WINDOW_OF_BUILDING[standing.key]);
+        /** Un site resté ouvert se retargeterait sur ce bâtiment, qui n'a pas de fiche de site. */
+        const windows = (next.windows ?? []).filter((open) => siteModal || open !== 'site');
+        return { ...next, windows, building: buildingId };
       });
     },
     [
@@ -986,7 +1118,27 @@ function BoardContent({
       selectClick,
       applyPileClick,
       frameOnOpen,
+      forgetFrame,
+      garrisonRetouched,
+      closeGarrison,
+      focused,
+      windows,
+      goTo,
     ],
+  );
+
+  /** **Le mât d'un chantier ouvre sa fiche** (#587), au téléphone : le doigt qui y revient la ferme. */
+  const openWork = useCallback(
+    (id: string) => {
+      setGarrison(null);
+      setHand(EMPTY_HAND);
+      setWorkId((open) => (retouches(narrow, open === null ? null : { id: open }, id) ? null : id));
+      const at = [view.me.construction, ...view.me.constructionQueue].find(
+        (work) => work?.id === id,
+      )?.point;
+      if (at) frameOnOpen({ kind: 'reveal', at });
+    },
+    [narrow, view.me.construction, view.me.constructionQueue, frameOnOpen],
   );
 
   /**
@@ -1011,7 +1163,8 @@ function BoardContent({
   const openStack = useCallback(
     (station: TroopStation, clientX: number, clientY: number): boolean => {
       if (station.kind !== 'point' || view.me.defeated) {
-        openGarrison(station, [], boardPoint(clientX, clientY));
+        if (garrisonRetouched(station)) closeGarrison();
+        else openGarrison(station, [], boardPoint(clientX, clientY));
         return false;
       }
       const troopIds = troopsAt(view.me, stationKeyOf(station), marching).map((troop) => troop.id);
@@ -1019,7 +1172,16 @@ function BoardContent({
       if (selectClick(click)) return false;
       return applyPileClick(click, clientX, clientY);
     },
-    [openGarrison, boardPoint, view.me, marching, applyPileClick, selectClick],
+    [
+      openGarrison,
+      closeGarrison,
+      garrisonRetouched,
+      boardPoint,
+      view.me,
+      marching,
+      applyPileClick,
+      selectClick,
+    ],
   );
 
   /**
@@ -1558,14 +1720,18 @@ function BoardContent({
   const compose = useCallback(
     (troopIds: ReadonlyArray<string>) => {
       if (hand.kind === 'held' && hand.troopIds.join() === troopIds.join()) return;
-      const move = composeHand(hand, troopIds, hand.kind === 'held' ? unitsAt(hand.station) : {});
+      const move = composeHand(hand, troopIds, {
+        ...(hand.kind === 'held' ? unitsAt(hand.station) : {}),
+        /** Au doigt, « Aucune » laisse la fiche ouverte : elle dit « rien à envoyer ». */
+        keepEmpty: narrow,
+      });
       if (move.kind !== 'lift') {
         dropHand();
         return;
       }
       setHand(move.hand);
     },
-    [hand, dropHand, unitsAt],
+    [hand, dropHand, unitsAt, narrow],
   );
 
   const restAt = useCallback(
@@ -1703,6 +1869,70 @@ function BoardContent({
       toggles.objectives,
     ],
   );
+
+  /**
+   * **‹ et › de l'en-tête d'une fiche, au téléphone** (#593) : l'objet voisin de sa famille, qui
+   * prend la place de la fiche ouverte — la carte y va par `frameOnOpen`, jamais `journeyTo`, et
+   * rien ne s'empile dans l'historique : Retour ferme, il ne revient pas à la précédente.
+   */
+  const families = useMemo(() => familiesOf(view, markers, marching), [view, markers, marching]);
+  const cycleOfFamily = (
+    family: ReadonlyArray<FamilySpot>,
+    openId: string | null | undefined,
+    go: (id: string) => void,
+  ): SheetCycle | undefined => {
+    const around = narrow && openId ? cycleOf(family, openId) : null;
+    return around === null
+      ? undefined
+      : { at: openId!, onPrev: () => go(around.prev), onNext: () => go(around.next) };
+  };
+  const frameMarker = (marker: string | null) => {
+    if (marker !== null) frameOnOpen({ kind: 'journey', ids: [marker] });
+  };
+  const handCycle = cycleOfFamily(
+    families.pile,
+    hand.kind === 'held' ? stationKeyOf(hand.station) : null,
+    (key) => {
+      const station = families.stations.get(key);
+      if (station === undefined) return;
+      clearSelection();
+      const pile = troopsAt(view.me, key, marching);
+      if (liftsAsPile(view.me, station, pile))
+        liftHand({ kind: 'held', station, troopIds: pile.map((troop) => troop.id) });
+      else openGarrison(station, [], boardPoint());
+      frameMarker(markerOfStation({ me: view.me }, station));
+    },
+  );
+  const outpostCycle = cycleOfFamily(
+    families.outpost,
+    garrison?.station.kind === 'outpost' ? garrison.station.outpostId : null,
+    (outpostId) => openGarrison({ kind: 'outpost', outpostId }, [], boardPoint()),
+  );
+  const siteCycle = cycleOfFamily(
+    families.building,
+    windows.includes('site') ? focused : null,
+    (buildingId) => {
+      const standing = view.me.buildings.find((candidate) => candidate.id === buildingId);
+      if (standing === undefined) return;
+      frameMarker(buildingLabelId(standing));
+      void navigate({
+        search: (previous) => ({ ...previous, building: buildingId }),
+        replace: true,
+      });
+    },
+  );
+  const campCycle = cycleOfFamily(families.camp, selectedCamp?.id, (id) => {
+    setSelectedCamp({ id, ...boardPoint() });
+    frameMarker(campPinId(id));
+  });
+  const objectiveCycle = cycleOfFamily(families.objective, selectedObjective?.id, (id) => {
+    setSelectedObjective({ id, ...boardPoint() });
+    frameMarker(objectiveMarkerId(id));
+  });
+  const pointCycle = cycleOfFamily(families.point, selectedPoint?.id, (id) => {
+    setSelectedPoint({ id, ...boardPoint() });
+    frameMarker(strategicMarkerId(id));
+  });
 
   const { arcs, loadedAt, captures, mode, journal } = view;
   const raceRings = useRaceRings(
@@ -2065,6 +2295,76 @@ function BoardContent({
     );
   }, [chosen, disbandRefusal, disbandMutation, seat, clearSelection]);
 
+  /** **Les ordres de la pile en main** (#585) : `offersOf` seul, sur ce que le plateau lit déjà. */
+  const handOffers = useMemo(
+    () =>
+      hand.kind === 'held' && hand.course === undefined
+        ? handOffersOf(view, hand, heldRose?.target ?? null, view.loadedAt, disbandGround)
+        : [],
+    [view, hand, heldRose, disbandGround],
+  );
+  /** **Exécuter une offre de la fiche** : la branche que la rose porterait, le même serveur. */
+  const runOffer = useCallback(
+    (offer: Offer) => {
+      setOrderError(null);
+      const failed = (problem: unknown) => handleError(problem, setOrderError);
+      switch (offer.key) {
+        case 'found': {
+          const found = heldRose?.compass.actions.find((action) => action.key === 'found');
+          // Jamais muet : sans branche de la rose, l'offre ou la rose dit pourquoi.
+          if (found !== undefined) actOnCompass(found, boardPoint());
+          else setOrderError(offer.refusal ?? heldRose?.compass.refusal ?? fr.compass.refused);
+          return;
+        }
+        case 'disembark':
+          void disembark({
+            ...seat,
+            troopIds: offer.troopIds.map((troopId) => troopId as Id<'troops'>),
+          }).then(
+            () =>
+              hand.kind === 'held' &&
+              compose(hand.troopIds.filter((troopId) => !offer.troopIds.includes(troopId))),
+            failed,
+          );
+          return;
+        case 'patrol':
+          launchPatrol(offer.troopId, offer.liaison);
+          return;
+        case 'recall':
+          void recallPatrol({ ...seat, troopId: offer.troopId as Id<'troops'> }).then(
+            dropHand,
+            failed,
+          );
+          return;
+        case 'disband':
+          void disbandMutation({
+            ...seat,
+            point: { lon: offer.point[0], lat: offer.point[1] },
+          }).then(() => {
+            clearSelection();
+            dropHand();
+          }, failed);
+          return;
+        default:
+          return;
+      }
+    },
+    [
+      heldRose,
+      actOnCompass,
+      boardPoint,
+      disembark,
+      seat,
+      hand,
+      compose,
+      launchPatrol,
+      recallPatrol,
+      dropHand,
+      disbandMutation,
+      clearSelection,
+    ],
+  );
+
   /** Échap lâche la sélection une fois la main vide ; G et U parlent à la sélection. */
   useEffect(() => {
     if (chosen.length === 0 && !picking) return;
@@ -2098,7 +2398,7 @@ function BoardContent({
   /** **Le site de projection sélectionné** (#163) : celui que la bande fait former, tant
    *  qu'elle est dépliée et que sa fiche n'est pas devant. */
   const selectedSite =
-    blitz || !windows.includes('personalBoard') || windows.includes('site')
+    blitz || narrow || !windows.includes('personalBoard') || windows.includes('site')
       ? null
       : (view.me.buildings.find(
           (building) => building.id === focused && isProjectionKey(building.key),
@@ -2114,6 +2414,7 @@ function BoardContent({
   const readGround = useCallback(
     (name: string | null) => {
       if (!picking && hand.kind === 'empty') clearSelection();
+      forgetFrame();
       void navigate({
         search: ({ country: _country, building, ...rest }) => ({
           ...rest,
@@ -2123,8 +2424,12 @@ function BoardContent({
         replace: true,
       });
     },
-    [picking, hand.kind, clearSelection, navigate, selectedSite?.id],
+    [picking, hand.kind, clearSelection, forgetFrame, navigate, selectedSite?.id],
   );
+  /** **La carte nue** (#584) : un toucher sur le sol ferme la surface ouverte, seulement ; sans
+   *  surface, il lit le sol. Une pile en main garde sa place (la visée est #586). */
+  const bareTap = useRef<(name: string | null) => void>(readGround);
+  const readBare = useCallback((name: string | null) => bareTap.current(name), []);
   const startPicking = useCallback(() => {
     dropHand();
     setPicking(true);
@@ -2361,6 +2666,145 @@ function BoardContent({
     selectedPoint === null
       ? null
       : (view.strategicPoints.find((point) => point.id === selectedPoint.id) ?? null);
+  /** **L'objet que la surface ouverte tient** (#591), un seul : la pile en main, puis le site, le
+   *  camp, l'objectif, le point. Hors champ ou sous la feuille, la carte le rappelle au bord. */
+  const heldId =
+    (hand.kind === 'held' ? markerOfStation(view, hand.station) : null) ??
+    (() => {
+      const site = view.me.buildings.find((building) => building.id === focused);
+      return site === undefined ? null : buildingLabelId(site);
+    })() ??
+    (selectedCampView === null ? null : campPinId(selectedCampView.id)) ??
+    (selectedObjectiveView === null ? null : objectiveMarkerId(selectedObjectiveView.id)) ??
+    (selectedPointView === null ? null : strategicMarkerId(selectedPointView.id));
+  /** Avec ce que la feuille ouverte couvre, mesuré sur elle (`selectionSheet`) comme le recadrage. */
+  const heldCovered = selectionSheet === null ? 0 : selectionSheet + boardBottomPx();
+  const heldLabel = useMemo(
+    () => (heldId === null ? null : { id: heldId, covered: heldCovered }),
+    [heldId, heldCovered],
+  );
+  /** **Les ordres des fiches de cible** (#588) : une offre par pile, lue sur la même fonction que
+   *  le serveur relit. Le sol d'un camp se lit sur son milieu : le serveur relit la grille. */
+  const targetOffers = useCallback(
+    (target: OfferTarget, point: LonLat) =>
+      offersOf(target, view, {
+        now: view.loadedAt,
+        ground: null,
+        afloat: false,
+        atAirfield: false,
+        piles: offerPilesOf(view, regionAt, point),
+      }),
+    [view, regionAt],
+  );
+  const campOffers = useMemo(
+    () =>
+      selectedCampView === null
+        ? []
+        : targetOffers(
+            {
+              kind: 'camp',
+              id: selectedCampView.id,
+              point: selectedCampView.point,
+              country: null,
+              name: fr.camps.marker,
+              ...(groundFacts?.(selectedCampView.point) ?? {
+                ground: selectedCampView.medium === 'sea' ? 'sea' : 'land',
+              }),
+            },
+            selectedCampView.point,
+          ),
+    [selectedCampView, targetOffers, groundFacts],
+  );
+  const objectiveOffers = useMemo(
+    () =>
+      selectedObjectiveView === null
+        ? []
+        : targetOffers(
+            {
+              kind: 'objective',
+              id: selectedObjectiveView.id,
+              point: selectedObjectiveView.point,
+              country: null,
+              name: fr.objectives.names[selectedObjectiveView.key] ?? selectedObjectiveView.key,
+              tier: '',
+            },
+            selectedObjectiveView.point,
+          ),
+    [selectedObjectiveView, targetOffers],
+  );
+  const pointOffers = useMemo(
+    () =>
+      selectedPointView === null
+        ? []
+        : targetOffers(
+            {
+              kind: 'strategic',
+              id: selectedPointView.id,
+              point: selectedPointView.point,
+              country: null,
+              name: fr.points.names[selectedPointView.key],
+            },
+            selectedPointView.point,
+          ),
+    [selectedPointView, targetOffers],
+  );
+  /** **Un toucher sur « Attaquer » envoie la pile** (#588, décision de Pierre du 19/11) : sans visée
+   *  ni « Envoyer », par le même envoi que la rose (`sendOrder`). La fiche se ferme au départ. */
+  const strikeFrom = useCallback(
+    (offer: Offer) => {
+      if (
+        (offer.key !== 'strike' && offer.key !== 'march' && offer.key !== 'capture') ||
+        inFlight.current
+      )
+        return;
+      const { aim, pile } = offer;
+      const capturing = offer.key === 'capture' && aim.kind === 'strategic';
+      const label =
+        offer.key === 'capture'
+          ? fr.strikes.takeVerb
+          : offer.key === 'march'
+            ? fr.strikes.marchVerb
+            : fr.drop.verbs.attack;
+      const named =
+        aim.kind === 'camp'
+          ? fr.camps.marker
+          : aim.kind === 'objective'
+            ? (fr.objectives.names[
+                view.objectives.find((objective) => objective.id === aim.objectiveId)?.key ?? ''
+              ] ?? '—')
+            : aim.kind === 'strategic'
+              ? (() => {
+                  const key = view.strategicPoints.find((point) => point.id === aim.pointId)?.key;
+                  return key === undefined ? '—' : fr.points.names[key];
+                })()
+              : '—';
+      inFlight.current = true;
+      setOrderError(null);
+      sendOrder(pile.station, pile.troopIds, {
+        aim,
+        type: 'attack',
+        label,
+        consequence: '',
+        mission:
+          capturing && aim.kind === 'strategic'
+            ? { kind: 'capture', target: { kind: 'point', id: aim.pointId } }
+            : { kind: 'march' },
+      }).then(
+        (filed) => {
+          settle();
+          afterSent({ ...filed, destination: named }, label);
+          setSelectedCamp(null);
+          setSelectedObjective(null);
+          setSelectedPoint(null);
+        },
+        (problem: unknown) => {
+          settle();
+          handleError(problem, setOrderError);
+        },
+      );
+    },
+    [sendOrder, settle, afterSent, view.objectives, view.strategicPoints],
+  );
   const selectedLootSighting =
     selectedLoot === null
       ? null
@@ -2376,8 +2820,8 @@ function BoardContent({
     [view],
   );
   const closeWindow = useCallback(
-    (name: BoardWindow) => {
-      void navigate({ search: (previous) => withoutWindow(previous, name) });
+    (name: BoardWindow, replace = false) => {
+      void navigate({ search: (previous) => withoutWindow(previous, name), replace });
     },
     [navigate],
   );
@@ -2741,16 +3185,25 @@ function BoardContent({
     const arc = view.arcs.find((one) => one.id === heldCourse);
     return arc?.state === 'mine' ? { arc, asset: view.me.asset } : null;
   }, [view.arcs, view.me.asset, heldCourse]);
-  const { preview, dropNotes, dropFuel, aimRoute, then } = useOrderPreview(seat, column, resting, {
+  /** **Le verbe visé et sa route** : sous le doigt, la visée tient la place de l'arrêt du pointeur. */
+  const aimResting = useMemo(
+    (): RestAim | null =>
+      aim === null || aimedVerb === null || !isOrder(aimedVerb)
+        ? null
+        : { ...choiceOf(aimedVerb), ...aim.target.at },
+    [aim, aimedVerb],
+  );
+  const rested = aimResting ?? resting;
+  const { preview, dropNotes, dropFuel, aimRoute, then } = useOrderPreview(seat, column, rested, {
     grouped,
     blitz,
     course: courseHand,
     chain,
   });
   previewNow.current =
-    resting === null || preview === undefined ? undefined : { choice: resting, preview };
+    rested === null || preview === undefined ? undefined : { choice: rested, preview };
   if (previewNow.current !== undefined) lastSeen.current = previewNow.current;
-  if (resting !== null && then !== undefined) lastThen.current = { choice: resting, then };
+  if (rested !== null && then !== undefined) lastThen.current = { choice: rested, then };
   const chainChip = useMemo(
     () =>
       !chainable
@@ -2759,23 +3212,63 @@ function BoardContent({
             asset: view.me.asset,
             key: chainKey.held,
             chain,
-            resting,
+            resting: rested,
             preview,
             then,
             column: column?.rule ?? null,
           }),
-    [chainable, view.me.asset, chainKey.held, chain, resting, preview, then, column],
+    [chainable, view.me.asset, chainKey.held, chain, rested, preview, then, column],
   );
   const chainRun = useMemo(
     () => chain?.preview.route.points.map((point) => [point.lon, point.lat] as LonLat) ?? null,
     [chain],
   );
+  /** **Ce que la feuille et l'étiquette disent de la visée** (#586) : le verbe de la pastille, le
+   *  lieu que l'aperçu nomme, puis ses notes ; un refus connu remplace « Envoyer ». */
+  const handAim = useMemo(() => {
+    if (aim === null || aimedVerb === null) return null;
+    const { target } = aim;
+    const place = isOrder(aimedVerb)
+      ? aimPlaceOf(choiceOf(aimedVerb).aim, preview ?? undefined)
+      : target.lonLat === null
+        ? '—'
+        : fr.aim.pointAt(target.lonLat[0], target.lonLat[1]);
+    return handAimOf(
+      target.verbs.map((verb) => chipOf(verb, target.forbidden).verb),
+      aim.chosen,
+      place === '—' ? '…' : place,
+      dropNotes,
+    );
+  }, [aim, aimedVerb, preview, dropNotes]);
+  const keptAim = useMemo((): Exclude<DropVerdict, 'none'> | null => {
+    if (aim === null || aimedVerb === null || handAim === null) return null;
+    return handAim.refusal !== null
+      ? 'refused'
+      : chipOf(aimedVerb, aim.target.forbidden).tone === 'fight'
+        ? 'fight'
+        : 'order';
+  }, [aim, aimedVerb, handAim]);
   const shownLabels = useMemo(
-    () =>
-      chain === null || hand.kind !== 'held' || hand.station.kind !== 'point'
+    () => [
+      ...(chain === null || hand.kind !== 'held' || hand.station.kind !== 'point'
         ? labels
-        : [...labels, gateLabel('hand', hand.station.lonLat)],
-    [labels, chain, hand],
+        : [...labels, gateLabel('hand', hand.station.lonLat)]),
+      ...(handAim === null || aim?.target.lonLat == null
+        ? []
+        : [aimLabel(aim.target.lonLat, handAim.line)]),
+    ],
+    [labels, chain, hand, handAim, aim],
+  );
+  const cargoOpen = cargoOpenUnder(aim !== null, availablePiles, carryingTokens);
+  const {
+    touch: aimTouched,
+    choose: chooseVerb,
+    cancel: cancelAim,
+    send: sendHandAim,
+  } = handAimState;
+  const sendAim = useCallback(
+    () => sendHandAim(handAim?.refusal ?? null, actOnCompass),
+    [sendHandAim, handAim, actOnCompass],
   );
 
   /** Le mât visé par la confirmation, relu dans la vue : effacé, la carte se ferme d'elle-même
@@ -2803,9 +3296,10 @@ function BoardContent({
 
   /**
    * **Les recrutements commencés, datés par l'atelier** : la vue ne sert que la liste des casernes
-   * occupées, et « En cours » ne vit que sous le seuil — l'abonnement aussi.
+   * occupées, et « En cours » ne vit que sous le seuil. Le bureau s'abonne aussi, pour que les
+   * cartes d'un site sélectionné soient prêtes au premier clic (#581).
    */
-  const workshop = useQuery(api.troops.workshop, narrow ? seat : 'skip');
+  const workshop = useQuery(api.troops.workshop, seat);
   const recruitments = useMemo<ReadonlyArray<RecruitmentDue>>(
     () =>
       (workshop?.facilities ?? []).flatMap((facility) => {
@@ -2914,7 +3408,7 @@ function BoardContent({
       onResumeSteps={resumeSteps}
       sweep={replay === null ? sweepButton(false) : null}
     >
-      <SelectionSheetReport.Provider value={setSelectionSheet}>
+      <SelectionSheetReport.Provider value={sheetPorts}>
         <SheetCount.Provider value={countSheet}>
           <ReplayLaunch.Provider value={launchReplay}>
             <RazeContext.Provider
@@ -2926,6 +3420,7 @@ function BoardContent({
               })}
             >
               <div ref={board} className="relative min-w-0 flex-1">
+                <BareMapPort read={readGround} keep={hand.kind === 'held'} port={bareTap} />
                 {blitzTheatre !== null && view.me.hqLevel === 0 && !view.me.defeated && (
                   <div
                     role="status"
@@ -2973,8 +3468,9 @@ function BoardContent({
                       </div>
                     ) : undefined
                   }
-                  onSelect={aimingOnPhone ? keepSelection : readGround}
+                  onSelect={aimingOnPhone ? keepSelection : readBare}
                   onOpenBuilding={openBuilding}
+                  onOpenWork={narrow ? openWork : undefined}
                   onOpenStack={openStack}
                   holding={holding}
                   departures={departures}
@@ -2984,6 +3480,8 @@ function BoardContent({
                   dropHintOf={dropHintOf}
                   onRestAim={restAt}
                   onRoseDismiss={dropHand}
+                  onAim={aimTouched}
+                  keptAim={keptAim}
                   onHeldCompass={setHeldCompass}
                   onOpenLoot={openLoot}
                   onOpenCamp={openCamp}
@@ -3001,12 +3499,15 @@ function BoardContent({
                         : stationKeyOf({ kind: 'building', buildingId: selectedSite.id })
                   }
                   selectedLootLabel={selectedLoot === null ? null : `loot-${selectedLoot.id}`}
+                  heldLabel={heldUnlessReplay(heldLabel, replay !== null)}
                   reach={handReach ?? movementReach}
                   onCountryHover={setHoveredCountry}
                   onRegionHover={setHoveredRegion}
                   onRegionsLoaded={keepRegionAt}
                   onDisbandGround={blitz ? undefined : setDisbandGround}
                   onMaquetteLookup={keepMaquetteAt}
+                  onGroundLookup={keepGroundFacts}
+                  onPointLookup={keepPointAt}
                   onArcHover={setHoveredArc}
                   onLabelHover={setHoveredLabel}
                   poster={poster}
@@ -3019,10 +3520,10 @@ function BoardContent({
                   course={hand.kind === 'held' ? (hand.course ?? null) : null}
                   chain={chainChip}
                   chainRun={chainRun}
-                  availablePiles={availablePiles}
+                  availablePiles={cargoOpen.availablePiles}
                   onCarryEnd={carryEnded}
                   onDisembark={view.me.defeated ? undefined : disembarkFromTag}
-                  carriersShown={carryingTokens}
+                  carriersShown={cargoOpen.carriersShown}
                   onTour={view.me.defeated || blitz ? undefined : tourSheet.onTour}
                   sheetMarks={tourSheet.marks}
                   onSheetPick={tourSheet.pick}
@@ -3068,7 +3569,7 @@ function BoardContent({
                     key={selectedLoot.id}
                     sighting={selectedLootSighting}
                     at={selectedLoot}
-                    onClose={() => setSelectedLoot(null)}
+                    onClose={closeLoot}
                   />
                 )}
                 {selectedCamp !== null && selectedCampView !== null && (
@@ -3076,8 +3577,11 @@ function BoardContent({
                     key={selectedCamp.id}
                     camp={selectedCampView}
                     at={selectedCamp}
+                    offers={campOffers}
+                    onOffer={strikeFrom}
                     onOpenGunnery={() => openWindow('gunnery')}
-                    onClose={() => setSelectedCamp(null)}
+                    cycle={campCycle}
+                    onClose={closeCamp}
                   />
                 )}
                 {selectedObjective !== null && selectedObjectiveView !== null && (
@@ -3085,7 +3589,10 @@ function BoardContent({
                     key={selectedObjective.id}
                     objective={selectedObjectiveView}
                     at={selectedObjective}
-                    onClose={() => setSelectedObjective(null)}
+                    offers={objectiveOffers}
+                    onOffer={strikeFrom}
+                    cycle={objectiveCycle}
+                    onClose={closeObjective}
                   />
                 )}
                 {selectedPoint !== null && selectedPointView !== null && (
@@ -3096,7 +3603,10 @@ function BoardContent({
                     seat={seat}
                     nations={view.opponents.map((opponent) => opponent.nation)}
                     at={selectedPoint}
-                    onClose={() => setSelectedPoint(null)}
+                    offers={pointOffers}
+                    onOffer={strikeFrom}
+                    cycle={pointCycle}
+                    onClose={closePoint}
                   />
                 )}
                 {demolition !== null && razed !== undefined && (
@@ -3146,9 +3656,10 @@ function BoardContent({
                     station={garrison.station}
                     at={garrison}
                     preselect={garrison.preselect}
-                    onClose={() => setGarrison(null)}
+                    onClose={closeGarrison}
                     onPrepare={prepareColumn}
                     onPickedChange={setGarrisonPicked}
+                    cycle={outpostCycle}
                     onDismantle={(outpostId, at) => {
                       setGarrison(null);
                       setOrderError(null);
@@ -3156,6 +3667,16 @@ function BoardContent({
                       setDismantling({ outpostId, x: window.innerWidth, y: at.y });
                     }}
                   />
+                )}
+                {narrow && workId !== null && (
+                  <Suspense fallback={null}>
+                    <WorkSheet
+                      view={view}
+                      seat={seat}
+                      workId={workId}
+                      onClose={() => setWorkId(null)}
+                    />
+                  </Suspense>
                 )}
                 {/* **La feuille de route d'un transport** (#551) : ouverte depuis son étiquette. */}
                 {!blitz && <TourSheet sheet={tourSheet} />}
@@ -3184,45 +3705,16 @@ function BoardContent({
                           nonce: Date.now(),
                         });
                     }}
+                    offers={handOffers}
+                    aim={handAim}
+                    onChooseVerb={chooseVerb}
+                    onSend={sendAim}
+                    onCancelAim={cancelAim}
                     onCompose={compose}
-                    onDisembark={(troopIds) =>
-                      disembark({
-                        ...seat,
-                        troopIds: troopIds.map((troopId) => troopId as Id<'troops'>),
-                      }).then(
-                        () =>
-                          compose(hand.troopIds.filter((troopId) => !troopIds.includes(troopId))),
-                        (problem: unknown) => handleError(problem, setOrderError),
-                      )
-                    }
-                    founding={
-                      heldCompass === null
-                        ? null
-                        : {
-                            action:
-                              heldCompass.actions.find(
-                                (action): action is Extract<CompassAction, { key: 'found' }> =>
-                                  action.key === 'found',
-                              ) ?? null,
-                            refusal: heldCompass.refusal,
-                            onFound: () => {
-                              const found = heldCompass.actions.find(
-                                (action) => action.key === 'found',
-                              );
-                              if (found !== undefined) actOnCompass(found, boardPoint());
-                            },
-                          }
-                    }
-                    patrol={patrolLineOf(view, hand.troopIds)}
-                    onPatrol={launchPatrol}
-                    onRecallPatrol={(troopId) =>
-                      recallPatrol({ ...seat, troopId: troopId as Id<'troops'> }).then(
-                        dropHand,
-                        (problem: unknown) => handleError(problem, setOrderError),
-                      )
-                    }
+                    onOffer={runOffer}
                     onOpenGunnery={() => openWindow('gunnery')}
                     onDrop={dropHand}
+                    cycle={handCycle}
                   />
                 )}
                 <CombatToasts
@@ -3414,14 +3906,14 @@ function BoardContent({
                     research={researchOpen}
                     onResearch={(open) => (open ? openWindow('research') : closeWindow('research'))}
                     front={surfaces.length === 0 || windows.at(-1) === 'personalBoard'}
-                    onOpen={(open) =>
-                      open ? openWindow('personalBoard') : closeWindow('personalBoard')
+                    onOpen={(open, replace) =>
+                      open ? openWindow('personalBoard') : closeWindow('personalBoard', replace)
                     }
                     focused={boardOpen ? (focused ?? null) : null}
                     site={selectedSite}
                     onDeselectSite={deselectSite}
                     onOpenSiteSheet={() => openWindow('site')}
-                    onCover={setBoardCover}
+                    onUnfold={reframe}
                     onHoldTile={holdTile}
                     placing={placing?.key ?? null}
                     onPlaceTile={placeTile}
@@ -3446,6 +3938,7 @@ function BoardContent({
                 ending={ending.facts}
                 blitz={blitz}
                 focused={focused}
+                siteCycle={siteCycle}
                 journalLead={journalLead}
                 rumors={lootRumors}
                 selectedRumorId={selectedRumorId}

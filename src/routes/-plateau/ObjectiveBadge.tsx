@@ -3,7 +3,11 @@ import { lootWords } from '@/domain/journal';
 import type { ObjectiveView } from '@/domain/player-view';
 import { objectiveArchetype } from '../../../convex/constants';
 import { ObjectivePlate } from '@/emblems/Plate';
+import type { Offer } from '@/domain/offers';
+import { useNarrowScreen } from '@/shell/viewport';
+import type { SheetCycle } from '@/shell/BottomSheet';
 import { MapCard } from './MapCard';
+import { leadOffersOf, StrikeOrders } from './StrikeOrders';
 
 /**
  * **La popin lit, la carte agit** (décision Pierre, 30/08). Celle-ci lit ce qui est **public** —
@@ -15,21 +19,33 @@ import { MapCard } from './MapCard';
  * Le palier se relit de la palette (`OBJECTIVE_ARCHETYPES`), la seule table qui le porte : une
  * copie cliente aurait dit « légères » d'une garnison que le serveur pose avec un blindé.
  *
- * Elle ne porte aucun ordre : l'attaque se donne au clic droit sur le même mât, comme partout
- * ailleurs sur la carte.
+ * Au bureau elle ne porte aucun ordre : l'attaque se donne au clic droit sur le même mât. Au
+ * téléphone c'est la fiche commune (#588) : « Attaquer » par pile, d'un toucher.
  */
 export function ObjectiveBadge({
   objective,
   at,
+  offers = [],
+  onOffer,
+  cycle,
   onClose,
 }: {
   objective: ObjectiveView;
   at: { x: number; y: number };
+  /** Une offre par pile du joueur (`offersOf`), au téléphone : « Attaquer » part d'un toucher. */
+  offers?: ReadonlyArray<Offer>;
+  onOffer?: (offer: Offer) => void;
+  /** ‹ › de la fiche au téléphone : l'objet voisin de sa famille (#593). */
+  cycle?: SheetCycle | undefined;
   onClose: () => void;
 }) {
   const name = fr.objectives.names[objective.key] ?? objective.key;
   const tier = fr.objectives.tiers[objectiveArchetype(objective.key)?.tier ?? ''] ?? '';
   const emptied = objective.status === 'taken';
+  const narrow = useNarrowScreen();
+  const depot = emptied
+    ? fr.objectives.emptied
+    : `${fr.objectives.depot} : ${lootWords(objective.depot)}`;
 
   return (
     <MapCard
@@ -37,7 +53,27 @@ export function ObjectiveBadge({
       at={at}
       gap={{ x: ANCHOR_GAP, y: 14 }}
       width={228}
+      cycle={cycle}
       onClose={onClose}
+      sheet={{
+        summary: (
+          <>
+            <span className="block truncate font-bold">{name}</span>
+            <span className="block truncate text-[var(--ink-soft)]">
+              {tier} · {depot}
+            </span>
+          </>
+        ),
+        lead:
+          onOffer === undefined ? undefined : (
+            <div className="paper-grain px-4 pb-[8px]">
+              <StrikeOrders offers={leadOffersOf(offers)} onOffer={onOffer} />
+            </div>
+          ),
+        tabs: [{ id: 'depot', label: fr.objectives.tab }],
+        tab: 'depot',
+        onTab: () => {},
+      }}
     >
       <div className="mt-[7px] flex items-center gap-[9px]">
         {/* La planche de l'archétype, ou le cadre pointillé qui porte son nom : jamais une
@@ -54,12 +90,16 @@ export function ObjectiveBadge({
       </div>
 
       <p className="mt-[6px] font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
-        {emptied ? fr.objectives.emptied : `${fr.objectives.depot} : ${lootWords(objective.depot)}`}
+        {depot}
       </p>
 
       <p className="mt-[6px] text-[10.5px] leading-[1.4] text-[var(--ink-quiet)]">
         {fr.objectives.unknownGarrison}
       </p>
+
+      {narrow && onOffer !== undefined && !emptied && (
+        <StrikeOrders offers={offers} onOffer={onOffer} />
+      )}
     </MapCard>
   );
 }

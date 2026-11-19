@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   aimVerdict,
   availabilityOf,
+  cancelWorkRefusalOf,
   depositCalls,
   outpostRaiseHold,
   placementOf,
@@ -762,5 +763,15 @@ describe('the sentence of a bill that time will not pay', () => {
     expect(text).toContain('100');
     expect(text).toContain('entrepôt');
     expect(text).not.toContain('aucune');
+  });
+});
+
+describe('cancelling a work line', () => {
+  it('lets a queued line go', () => {
+    expect(cancelWorkRefusalOf({ started: false })).toBeNull();
+  });
+
+  it('refuses a work that has started, with the code the server throws', () => {
+    expect(cancelWorkRefusalOf({ started: true })).toBe('CONSTRUCTION_ALREADY_STARTED');
   });
 });

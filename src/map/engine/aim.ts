@@ -15,6 +15,28 @@ import { dashPitch, Ribbon, RibbonMaterial, ribbonWidth } from './route-ribbon';
 /** What the drop would do, as the hand reads it (`DropHint`'s tone): the ink of the road. */
 export type AimTone = 'order' | 'fight' | 'refused';
 
+/**
+ * **Quelle route et quelle encre le ruban de la visée prend** : sous un doigt la main ne porte rien,
+ * et la route que le plateau garde (`setAimRoute(points, kept)`) se dessine d'elle-même, à l'encre
+ * de son verdict. Sinon la main la dicte : la route du serveur, ou la droite d'où à où tant qu'elle
+ * manque ou que l'ordre est refusé.
+ */
+export function aimRibbonOf<Point>(input: {
+  kept: AimTone | null;
+  route: ReadonlyArray<Point> | null;
+  reading: { from: Point; to: Point } | null;
+  verdict: AimTone | 'none';
+}): { points: ReadonlyArray<Point> | null; tone: AimTone } {
+  const { kept, route, reading, verdict } = input;
+  if (kept !== null && route !== null) return { points: route, tone: kept };
+  const tone = verdict === 'none' ? 'order' : verdict;
+  if (reading === null || verdict === 'none') return { points: null, tone };
+  return {
+    points: verdict !== 'refused' && route !== null ? route : [reading.from, reading.to],
+    tone,
+  };
+}
+
 /** The prototype's preview road (`ribbon({ width: .22, dash: .7, flow: 2.2 })`) in our units:
  *  its piece is some three times a pile's (`PROTOTYPE_UNIT` in `standing.ts`), and a pile is
  *  drawn at a tank's span (ADR 0035), as tanks are drawn. */

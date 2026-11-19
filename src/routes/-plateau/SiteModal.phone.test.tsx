@@ -101,6 +101,7 @@ const workshopWith = (
 
 const resource = (stock: number) => ({ stock, ratePerHour: 0, cap: 1_000 });
 const view = {
+  mode: 'mondiale',
   loadedAt: NOW,
   captures: [],
   arcs: [],
@@ -176,12 +177,9 @@ describe('the sheets that cover the map', () => {
     return { count: () => count, unmount };
   };
 
-  it('counts a site sheet while it stands, and no more once it leaves', () => {
+  it('counts nothing for a site sheet: it is a low sheet, the map stays in view (#587)', () => {
     workshop = workshopWith([]);
-    const sheet = covering('B-1');
-    expect(sheet.count()).toBe(1);
-    sheet.unmount();
-    expect(sheet.count()).toBe(0);
+    expect(covering('B-1').count()).toBe(0);
   });
 
   it('counts nothing for the sheet of a fallen building that the URL still names', () => {
@@ -190,10 +188,41 @@ describe('the sheets that cover the map', () => {
   });
 });
 
+/** Unrolls the sheet by touching its title line, as a finger does. */
+const unroll = () => act(() => screen.getByRole('heading', { name: 'Caserne' }).click());
+
 describe('a site sheet on a phone', () => {
+  it('opens short, header and one summary line, and unrolls by touching the title (#587)', () => {
+    workshop = workshopWith([]);
+    mount();
+
+    const sheet = screen.getByRole('dialog');
+    expect(sheet.getAttribute('data-height')).toBe('peek');
+    expect(screen.queryByRole('tab')).toBeNull();
+    expect(screen.getByText(fr.production.sheet.capLine(3, 0))).toBeTruthy();
+    expect(screen.queryByText(fr.production.sheet.formHeader)).toBeNull();
+
+    unroll();
+    expect(sheet.getAttribute('data-height')).toBe('half');
+    expect(screen.getAllByRole('tab').length).toBeGreaterThan(0);
+  });
+
+  it('names the abacus in the site tab, and keeps the plate in the header (#587)', () => {
+    workshop = workshopWith([]);
+    mount();
+    expect(screen.queryByRole('button', { name: fr.gunnery.open })).toBeNull();
+
+    unroll();
+    act(() => screen.getByRole('tab', { name: new RegExp(fr.production.sheet.tabs.site) }).click());
+    expect(screen.getByRole('button', { name: fr.gunnery.open }).textContent).toBe(
+      fr.gunnery.openShort,
+    );
+  });
+
   it('forms what is open and sends what a card holds below, naming the card', () => {
     workshop = workshopWith([]);
     mount();
+    unroll();
 
     expect(screen.getByText(fr.production.sheet.capLine(3, 0))).toBeTruthy();
     expect(screen.getByText(fr.common.levelSpeed(1))).toBeTruthy();
@@ -213,6 +242,7 @@ describe('a site sheet on a phone', () => {
       { id: 'R-2', role: 'infantry', tier: 2, strength: 30, started: false, minutesLeft: 38 },
     ]);
     mount();
+    unroll();
 
     const queueTab = screen.getByRole('tab', { name: /file/ });
     expect(queueTab.textContent).toContain('2');
@@ -231,8 +261,124 @@ describe('a site sheet on a phone', () => {
   it('says what stands nowhere when the garrison is empty', () => {
     workshop = workshopWith([]);
     mount();
+    unroll();
 
     act(() => screen.getByRole('tab', { name: /garnison/ }).click());
     expect(screen.getByText(fr.production.sheet.garrisonEmpty.land)).toBeTruthy();
+  });
+
+  it('reads the garrison as the pile sheet of #585, under its own tabs', () => {
+    workshop = workshopWith([]);
+    const station = { kind: 'building', buildingId: 'B-1' };
+    const withTroop = {
+      ...view,
+      me: {
+        ...view.me,
+        upkeep: { troops: 1 },
+        troops: [
+          {
+            id: 'T-1',
+            role: 'infantry',
+            tier: 1,
+            strength: 50,
+            nominalStrength: 50,
+            stationedAt: station,
+            supplied: true,
+            mending: false,
+          },
+        ],
+      },
+    } as unknown as PlayerView;
+    render(
+      <ConvexProvider client={client}>
+        <SiteModal
+          view={withTroop}
+          seat={SEAT}
+          buildingId="B-1"
+          rank={0}
+          inFront
+          onBringForward={() => {}}
+          onOpenGunnery={() => {}}
+          onPrepare={() => {}}
+          onClose={() => {}}
+        />
+      </ConvexProvider>,
+    );
+    unroll();
+    act(() => screen.getByRole('tab', { name: /garnison/ }).click());
+    expect(screen.getByRole('tab', { name: fr.stats.rubrics.move })).toBeTruthy();
+  });
+
+  it('puts « +1 troupe » on each queue line, the same order as « Former » for that role (#587)', () => {
+    workshop = workshopWith([
+      { id: 'R-1', role: 'infantry', tier: 1, strength: 50, started: true, minutesLeft: 12 },
+      { id: 'R-2', role: 'landTransport', tier: 1, strength: 24, started: false, minutesLeft: 38 },
+    ]);
+    mount();
+    unroll();
+
+    act(() => screen.getByRole('tab', { name: /file/ }).click());
+    const more = screen.getAllByRole('button', { name: fr.production.sheet.plusOne });
+    expect(more).toHaveLength(2);
+    act(() => more[1]!.click());
+    expect(sent).toHaveBeenCalledWith(
+      expect.objectContaining({ buildingId: 'B-1', role: 'landTransport', tier: 1 }),
+    );
+  });
+
+  it('says one sentence on an empty queue (#587)', () => {
+    workshop = workshopWith([]);
+    mount();
+    unroll();
+
+    act(() => screen.getByRole('tab', { name: /file/ }).click());
+    expect(screen.getByText(fr.personalBoard.siteQueueEmpty)).toBeTruthy();
+  });
+
+  it("closes by the sheet's own header, which names the building", () => {
+    workshop = workshopWith([]);
+    const onClose = vi.fn();
+    render(
+      <ConvexProvider client={client}>
+        <SiteModal
+          view={view}
+          seat={SEAT}
+          buildingId="B-1"
+          rank={0}
+          inFront
+          onBringForward={() => {}}
+          onOpenGunnery={() => {}}
+          onPrepare={() => {}}
+          onClose={onClose}
+        />
+      </ConvexProvider>,
+    );
+    expect(screen.getByRole('heading', { name: 'Caserne' })).toBeTruthy();
+    act(() => screen.getByRole('button', { name: fr.common.close }).click());
+    expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe('a Blitz site on a phone', () => {
+  it('opens at half with no tabs (#587)', () => {
+    workshop = undefined;
+    const blitz = { ...view, mode: 'blitz' } as unknown as PlayerView;
+    render(
+      <ConvexProvider client={client}>
+        <SiteModal
+          view={blitz}
+          seat={SEAT}
+          buildingId="B-1"
+          rank={0}
+          inFront
+          onBringForward={() => {}}
+          onOpenGunnery={() => {}}
+          onPrepare={() => {}}
+          onClose={() => {}}
+        />
+      </ConvexProvider>,
+    );
+    expect(screen.getByRole('dialog').getAttribute('data-height')).toBe('half');
+    expect(screen.queryByRole('tab')).toBeNull();
   });
 });

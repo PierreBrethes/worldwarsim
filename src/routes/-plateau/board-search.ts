@@ -90,6 +90,19 @@ export function withoutWindow(search: BoardSearch, name: BoardWindow): BoardSear
   return remaining.length ? { ...kept, windows: remaining } : kept;
 }
 
+/** **Deux adresses qui disent la même surface** : y retourner ne pousse pas une entrée de plus. */
+export const sameAddress = (a: BoardSearch, b: BoardSearch): boolean =>
+  a.building === b.building && (a.windows ?? []).join() === (b.windows ?? []).join();
+
+/** **Retourner à la même adresse ne pousse rien** : l'entrée qu'« retour » aurait à défaire. */
+export const navigateOnce = (
+  navigate: (options: { search: (previous: BoardSearch) => BoardSearch }) => unknown,
+  current: BoardSearch,
+  to: (previous: BoardSearch) => BoardSearch,
+): void => {
+  if (!sameAddress(current, to(current))) void navigate({ search: to });
+};
+
 export const toggleWindow = (search: BoardSearch, name: BoardWindow): BoardSearch =>
   (search.windows ?? []).includes(name) ? withoutWindow(search, name) : withWindow(search, name);
 

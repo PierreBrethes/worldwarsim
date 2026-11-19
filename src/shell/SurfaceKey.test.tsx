@@ -168,14 +168,6 @@ describe('the surface key', () => {
     expect(key().textContent).toContain(fr.foot.todo);
   });
 
-  it('folds the personal board when the menu opens over it', async () => {
-    const router = await mount(view, '/plateau?windows=%5B%22personalBoard%22%5D');
-    await act(async () => key().click());
-
-    expect(router.state.location.search).toEqual({});
-    expect(menu()).not.toBeNull();
-  });
-
   it('opens « à faire » as a sheet carrying the board’s lines', async () => {
     await mount();
     act(() => key().click());

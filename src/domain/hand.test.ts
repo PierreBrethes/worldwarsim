@@ -110,6 +110,14 @@ describe('composeHand', () => {
   it('drops with an empty hand', () => {
     expect(composeHand(empty, ['t1'])).toEqual({ kind: 'drop' });
   });
+
+  it('keeps the hand, with nothing in it, when the sheet asks to keep an empty selection (#585)', () => {
+    expect(composeHand(held(['t1']), [], { keepEmpty: true })).toEqual({
+      kind: 'lift',
+      hand: held([]),
+    });
+    expect(composeHand(empty, [], { keepEmpty: true })).toEqual({ kind: 'drop' });
+  });
 });
 
 describe('clickPile in a Blitz: one piece per unit (15/10)', () => {

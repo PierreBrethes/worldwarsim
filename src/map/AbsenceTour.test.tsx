@@ -284,8 +284,15 @@ describe('what stops the tour', () => {
     ['a combat replayed', 'if (!readyEngine || replayView === null) return;'],
   ])('gives way to %s', (_, from) => {
     const map = readFileSync(join(here, 'WorldMap.tsx'), 'utf-8');
-    const effect = map.slice(map.indexOf(from)).slice(0, 200);
+    const effect = map.slice(map.indexOf(from)).slice(0, 700);
     expect(effect).toContain('stopTourNow.current();');
+  });
+
+  it('keeps the tour running when a located dispatch needs no reframing', () => {
+    const map = readFileSync(join(here, 'WorldMap.tsx'), 'utf-8');
+    const effect = map.slice(map.indexOf('if (focus === null) return;')).slice(0, 700);
+    expect(effect.indexOf('needsFrame(')).toBeGreaterThan(-1);
+    expect(effect.indexOf('needsFrame(')).toBeLessThan(effect.indexOf('stopTourNow.current();'));
   });
 
   it('stops for a combat the map plays', () => {

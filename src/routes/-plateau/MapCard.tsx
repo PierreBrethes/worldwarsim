@@ -1,8 +1,19 @@
 import type { ReactNode } from 'react';
 import { fr } from '@/i18n/fr';
-import { BottomSheet, type SheetHeight } from '@/shell/BottomSheet';
+import { BottomSheet, type SheetCycle, type SheetHeight } from '@/shell/BottomSheet';
 import { useNarrowScreen } from '@/shell/viewport';
 import { Draggable, DragHandle } from './Draggable';
+import { FicheSheet, type FicheTab } from './FicheSheet';
+
+/** **La fiche commune du téléphone** (#588) : courte puis déroulée, onglets épinglés. Sans elle, la
+ *  feuille garde son aperçu seul. Au bureau, rien de ceci ne se lit. */
+type CardSheet = {
+  readonly summary: ReactNode;
+  readonly lead?: ReactNode;
+  readonly tabs: ReadonlyArray<FicheTab>;
+  readonly tab: string;
+  readonly onTab: (id: string) => void;
+};
 
 /**
  * **La fiche de ce que le doigt a touché** — une troupe, un camp relevé, un objectif, une caisse.
@@ -21,6 +32,9 @@ export function MapCard({
   width,
   hug = true,
   initial = 'peek',
+  pinned,
+  sheet,
+  cycle,
   onClose,
   children,
 }: {
@@ -35,10 +49,24 @@ export function MapCard({
   hug?: boolean;
   /** Le cran où la feuille s'ouvre au doigt. */
   initial?: SheetHeight;
+  /** Sous le seuil, ce qui reste épinglé sous l'en-tête de la feuille (`BottomSheet.pinned`). */
+  pinned?: ReactNode;
+  /** Sous le seuil, la fiche à deux états et à onglets (#588) : `children` est le contenu de
+   *  l'onglet ouvert. */
+  sheet?: CardSheet;
+  /** Sous le seuil, ‹ › dans l'en-tête : l'objet voisin de sa famille (#593). */
+  cycle?: SheetCycle | undefined;
   onClose: () => void;
   children: ReactNode;
 }) {
   const narrow = useNarrowScreen();
+  if (narrow && sheet !== undefined) {
+    return (
+      <FicheSheet title={kicker} aside={aside} {...sheet} cycle={cycle} onClose={onClose}>
+        {children}
+      </FicheSheet>
+    );
+  }
   if (narrow) {
     return (
       <BottomSheet
@@ -49,6 +77,8 @@ export function MapCard({
         kicker
         hug={hug}
         keepsSelection
+        pinned={pinned}
+        cycle={cycle}
       >
         <div className="px-4 py-[10px]">{children}</div>
       </BottomSheet>
