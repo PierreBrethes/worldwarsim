@@ -840,6 +840,122 @@ async function runProfile(profile) {
         },
       },
       {
+        // Sous une fiche de cible, la carte nue la ferme et ne lit pas le sol : celui-ci ne s'ouvre
+        // que si rien n'est ouvert (décision 7, #588). Au bureau rien ne change.
+        name: 'la carte nue ne lit le sol que si rien n’est ouvert',
+        run: async () => {
+          if (!phone) return;
+          const until = async (read, wanted, message) => {
+            const deadline = Date.now() + 5000;
+            while ((await read()) !== wanted && Date.now() < deadline)
+              await page.waitForTimeout(50);
+            assert.equal(await read(), wanted, message);
+          };
+          const sheets = () => page.getByRole('dialog').count();
+          const country = () => new URL(page.url()).searchParams.has('country');
+          const point = start.strategicPoints[0];
+          await frame(point.point, 4);
+          await tap(page.locator(`[data-label-id="strategic-${point.id}"] .label-pictogram`));
+          await until(sheets, 1, 'écran : le mât n’ouvre pas la fiche du point');
+          await frame([2.35, 47.5], 3);
+          const [land] = await bareSpots(380);
+          assert.ok(land, 'aucun point de terre nue');
+          await page.touchscreen.tap(...land);
+          await until(sheets, 0, 'écran : la carte nue laisse la fiche du point ouverte');
+          assert.ok(!country(), 'écran : la carte nue sous une fiche a lu le sol');
+          // Rien d'ouvert : le même toucher lit le sol.
+          await page.touchscreen.tap(...land);
+          await until(sheets, 1, 'écran : la carte nue, rien d’ouvert, n’ouvre pas le sol');
+          assert.ok(country(), 'écran : le sol touché n’est pas dans l’adresse');
+          await page.goBack();
+          await until(sheets, 0, 'écran : Retour laisse la fiche du sol');
+        },
+      },
+      {
+        // Le pincement zoome toujours, même quand les touchers choisissent des piles (#588).
+        name: 'pincer pendant la sélection',
+        run: async () => {
+          if (!phone) return;
+          const distance = () =>
+            page.evaluate(() => {
+              const { camera, controls } = globalThis.mapEngine;
+              return camera.position.distanceTo(controls.target);
+            });
+          await frame([-6.5, 46], 6);
+          const [spot] = await bareSpots(380);
+          assert.ok(spot, 'aucun point de mer nue');
+          // Un doigt tenu immobile sur la carte nue lance la sélection.
+          await touch('touchStart', [spot]);
+          await page.waitForTimeout(900);
+          await touch('touchEnd', []);
+          const bar = page.getByRole('toolbar', { name: 'Sélection' });
+          await bar.waitFor({ timeout: 5000 });
+          const before = await distance();
+          const [x, y] = spot;
+          await touch('touchStart', [
+            [x - 15, y],
+            [x + 15, y],
+          ]);
+          await fingers(
+            [
+              [x - 15, y],
+              [x + 15, y],
+            ],
+            [
+              [x - 90, y],
+              [x + 90, y],
+            ],
+            400,
+          );
+          await touch('touchEnd', []);
+          await page.waitForTimeout(800);
+          assert.ok(
+            Math.abs((await distance()) - before) > 0.1 * before,
+            'écran : le pincement ne zoome pas pendant la sélection',
+          );
+          assert.ok(await bar.isVisible(), 'écran : le pincement a défait la sélection');
+          await page.getByRole('button', { name: 'Terminer' }).tap();
+          await bar.waitFor({ state: 'detached', timeout: 5000 });
+        },
+      },
+      {
+        // « Attaquer » part d'un toucher depuis la fiche, la pile nommée sur le bouton : ni visée ni
+        // « Envoyer » (décision de Pierre, 19/11). Au bureau l'attaque reste à la rose.
+        name: 'attaquer un objectif d’un toucher depuis sa fiche',
+        run: async () => {
+          if (!phone) return;
+          const objective = start.objectives[0];
+          assert.ok(objective, 'la démo n’a pas d’objectif');
+          const before = (await client.query(api.view.playerView, seat)).movements.length;
+          await frame(objective.point, 2);
+          await page
+            .locator(`[data-label-id="objective-${objective.id}"] .label-pictogram`)
+            .dispatchEvent('click');
+          const sheet = page.getByRole('dialog', { name: 'objectif neutre' });
+          await sheet.waitFor({ timeout: 5000 });
+          const strike = sheet.getByRole('button', { name: /^attaquer/i }).first();
+          await strike.waitFor({ timeout: 5000 });
+          assert.equal(
+            await page.getByRole('button', { name: 'Envoyer' }).count(),
+            0,
+            'écran : la fiche de l’objectif passe par « Envoyer »',
+          );
+          await strike.tap();
+          // Les gestes d'avant ont engagé les slots de la démo : le serveur peut répondre « tous
+          // engagés ». L'une ou l'autre réponse prouve que l'ordre est parti du toucher, sans visée.
+          const answered = async () =>
+            (await client.query(api.view.playerView, seat)).movements.length > before ||
+            (await page.getByText(/slots de mouvement tous engagés/i).count()) > 0;
+          const deadline = Date.now() + 8000;
+          while (!(await answered()) && Date.now() < deadline) await page.waitForTimeout(200);
+          assert.ok(await answered(), 'serveur : le toucher sur « Attaquer » n’envoie rien');
+          if ((await client.query(api.view.playerView, seat)).movements.length <= before) return;
+          await sheet
+            .waitFor({ state: 'detached', timeout: 5000 })
+            .catch(() => assert.fail('écran : la fiche reste ouverte après l’envoi'));
+        },
+      },
+      {
         // Un bâtiment touché ouvre sa fiche, la carte en vue ; au bureau le plateau personnel
         // reste ce qu'il est (#587).
         name: 'la fiche d’une caserne au téléphone',

@@ -74,7 +74,7 @@ import type { MapEngine } from './engine';
 import { NameSheet } from './map-names';
 import { aimShiftOf } from './aim-shift';
 import { bandOf, matBand } from './board-band';
-import { useBoardInsets } from '@/shell/viewport';
+import { useBoardInsets, useNarrowScreen } from '@/shell/viewport';
 
 /** Prendre des jetons au dépôt d'un avant-poste : la prise suit la main jusqu'à un transport. */
 export type TakeDepot = (
@@ -308,6 +308,10 @@ export function MapLabels({
   const barAnchor = useRef<HTMLDivElement | null>(null);
   const barLabels = useRef<ReadonlyArray<string>>([]);
   barLabels.current = selectionBar?.labelIds ?? [];
+  /** Sous le seuil, la barre qui attend sa première pile ne se range pas en haut : le bandeau et la
+   *  colonne « en cours » la couvriraient (#588). */
+  const narrowBar = useRef(false);
+  narrowBar.current = useNarrowScreen();
   const layer = useRef<HTMLDivElement>(null);
   const layerSize = useLayerSize(layer);
   const shellInsets = useBoardInsets();
@@ -883,7 +887,8 @@ export function MapLabels({
           const height = box?.offsetHeight ?? 0;
           const half = width / 2 + 8;
           const left = Math.min(Math.max(x, half), layerSize.current.width - half);
-          const bottom = Math.max(height + 8, y - 64);
+          const waitingAt = narrowBar.current ? layerSize.current.height * 0.4 : 0;
+          const bottom = Math.max(height + 8, waiting ? waitingAt : y - 64);
           bar.style.transform = `translate3d(${left}px, ${bottom}px, 0)`;
           barLeft = left;
           if (!waiting)

@@ -76,6 +76,10 @@ export function GroundPanel({
 }) {
   const coastal = useCoastalRegions();
   const narrow = useNarrowScreen();
+  /** **Sous le seuil, un doigt n'est pas un survol** (#588, décision 7) : le toucher qui ferme une
+   *  fiche laisse son survol derrière lui, et c'est la sélection — le sol lu, rien d'autre d'ouvert —
+   *  qui ouvre cette feuille. */
+  if (narrow && selected === null) return null;
   const country = hoveredRegion?.country ?? hoveredCountry ?? selected;
   if (country === null) return null;
   const hovered = hoveredRegion?.country === country ? hoveredRegion : null;

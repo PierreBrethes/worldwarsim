@@ -564,6 +564,18 @@
   font-weight: 600;
   cursor: pointer;
 }
+/* La barre d'une sélection au téléphone (#588) : un doigt vise 44 px, et le pincement zoome
+   toujours — seuls ses boutons prennent le toucher, le reste de la barre laisse passer le geste à
+   la carte. */
+@media (max-width: 767px) {
+  .selection-bar {
+    pointer-events: none;
+  }
+  .selection-bar-verbs button {
+    min-height: 44px;
+    pointer-events: auto;
+  }
+}
 .selection-bar-verbs button + button {
   border-left: 1px solid rgb(42 33 24 / 25%);
 }
