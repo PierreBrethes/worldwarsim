@@ -26,11 +26,11 @@ import type { Offer } from '@/domain/offers';
 import { fr } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
-import { type Dismantled, type MapCombat, WorldMap } from '@/map/WorldMap';
+import { type Dismantled, type MapAim, type MapCombat, WorldMap } from '@/map/WorldMap';
 import { homewardOf, REPORT_HOLD_MS, scenesToPlay } from '@/domain/combat-on-map';
 import { withoutHeld } from '@/domain/journal';
 import type { TakeDepot } from '@/map/MapLabels';
-import type { PieceClick } from '@/map/engine';
+import type { DropVerdict, PieceClick } from '@/map/engine';
 import {
   navigateOnce,
   readWindows,
@@ -40,7 +40,8 @@ import {
   type BoardSearch,
   type BoardWindow,
 } from './-plateau/board-search';
-import { forbiddenGroundOf } from '@/domain/drop-order';
+import { chipOf, forbiddenGroundOf } from '@/domain/drop-order';
+import { handAimOf } from './-plateau/hand-aim';
 import { endingOf } from '@/domain/ending';
 import { useOpenedOnce } from './-plateau/useOpenedOnce';
 import { momentOf, type Moment } from '@/domain/moments';
@@ -58,7 +59,7 @@ import {
   useEscapeKey,
 } from './-plateau/blitzkrieg-hand';
 import { chainRefusalOf } from '@/domain/blitzkrieg';
-import { gateLabel } from '@/domain/labels';
+import { aimLabel, gateLabel } from '@/domain/labels';
 import { useTourSheet } from './-plateau/useTourSheet';
 import { TourSheet } from './-plateau/TourSheet';
 import { usePlacing } from './-plateau/usePlacing';
@@ -206,6 +207,7 @@ import {
   useChangeCourse,
   wireOrigin,
   choiceOf,
+  destinationOf,
   groupKeyOf,
   type OrderChoice,
   type Previewed,
@@ -524,6 +526,10 @@ function BoardContent({
     [hand, forbidden],
   );
   const [resting, setResting] = useState<RestAim | null>(null);
+  /** **La visée du doigt** (#586), sous le seuil : ce que le toucher a désigné et le verbe qui part
+   *  par défaut. Elle reste après le lever du doigt et nourrit l'aperçu comme l'arrêt du pointeur ;
+   *  fermer, reposer la pièce ou recomposer la main la retire. */
+  const [aim, setAim] = useState<{ readonly target: MapAim; readonly chosen: number } | null>(null);
   /** La rose de la pile en main et sa cible, lues par la carte : la fiche y prend « fonder » et
    *  ses offres (`handOffersOf`). */
   const [heldRose, setHeld] = useState<{ compass: Compass; target: CompassTarget } | null>(null);
@@ -893,6 +899,7 @@ function BoardContent({
 
   const liftHand = useCallback((next: Hand) => {
     setHand(next);
+    setAim(null);
     setChain(null);
     lastSeen.current = undefined;
     lastThen.current = undefined;
@@ -909,6 +916,7 @@ function BoardContent({
         lastSeen.current = undefined;
         lastThen.current = undefined;
         setResting(null);
+        setAim(null);
       }),
     [forgetFrame],
   );
@@ -1686,6 +1694,8 @@ function BoardContent({
         return;
       }
       setHand(move.hand);
+      /** Une autre composition, un autre départ : les ordres que le point offre sont à relire. */
+      setAim(null);
     },
     [hand, dropHand, unitsAt, narrow],
   );
@@ -2938,16 +2948,26 @@ function BoardContent({
     const arc = view.arcs.find((one) => one.id === heldCourse);
     return arc?.state === 'mine' ? { arc, asset: view.me.asset } : null;
   }, [view.arcs, view.me.asset, heldCourse]);
-  const { preview, dropNotes, dropFuel, aimRoute, then } = useOrderPreview(seat, column, resting, {
+  /** **Le verbe visé et sa route** : sous le doigt, la visée tient la place de l'arrêt du pointeur. */
+  const aimedVerb = aim?.target.verbs[aim.chosen] ?? null;
+  const aimResting = useMemo(
+    (): RestAim | null =>
+      aim === null || aimedVerb === null || !isOrder(aimedVerb)
+        ? null
+        : { ...choiceOf(aimedVerb), ...aim.target.at },
+    [aim, aimedVerb],
+  );
+  const rested = aimResting ?? resting;
+  const { preview, dropNotes, dropFuel, aimRoute, then } = useOrderPreview(seat, column, rested, {
     grouped,
     blitz,
     course: courseHand,
     chain,
   });
   previewNow.current =
-    resting === null || preview === undefined ? undefined : { choice: resting, preview };
+    rested === null || preview === undefined ? undefined : { choice: rested, preview };
   if (previewNow.current !== undefined) lastSeen.current = previewNow.current;
-  if (resting !== null && then !== undefined) lastThen.current = { choice: resting, then };
+  if (rested !== null && then !== undefined) lastThen.current = { choice: rested, then };
   const chainChip = useMemo(
     () =>
       !chainable
@@ -2956,24 +2976,62 @@ function BoardContent({
             asset: view.me.asset,
             key: chainKey.held,
             chain,
-            resting,
+            resting: rested,
             preview,
             then,
             column: column?.rule ?? null,
           }),
-    [chainable, view.me.asset, chainKey.held, chain, resting, preview, then, column],
+    [chainable, view.me.asset, chainKey.held, chain, rested, preview, then, column],
   );
   const chainRun = useMemo(
     () => chain?.preview.route.points.map((point) => [point.lon, point.lat] as LonLat) ?? null,
     [chain],
   );
+  /** **Ce que la feuille et l'étiquette disent de la visée** (#586) : le verbe de la pastille, le
+   *  lieu que l'aperçu nomme, puis ses notes ; un refus connu remplace « Envoyer ». */
+  const handAim = useMemo(() => {
+    if (aim === null || aimedVerb === null) return null;
+    const { target } = aim;
+    const place = isOrder(aimedVerb)
+      ? destinationOf(choiceOf(aimedVerb).aim, preview ?? undefined)
+      : target.lonLat === null
+        ? '—'
+        : fr.aim.pointAt(target.lonLat[0], target.lonLat[1]);
+    return handAimOf(
+      target.verbs.map((verb) => chipOf(verb, target.forbidden).verb),
+      aim.chosen,
+      place === '—' ? '…' : place,
+      dropNotes,
+    );
+  }, [aim, aimedVerb, preview, dropNotes]);
+  const keptAim = useMemo((): Exclude<DropVerdict, 'none'> | null => {
+    if (aim === null || aimedVerb === null || handAim === null) return null;
+    return handAim.refusal !== null
+      ? 'refused'
+      : chipOf(aimedVerb, aim.target.forbidden).tone === 'fight'
+        ? 'fight'
+        : 'order';
+  }, [aim, aimedVerb, handAim]);
   const shownLabels = useMemo(
-    () =>
-      chain === null || hand.kind !== 'held' || hand.station.kind !== 'point'
+    () => [
+      ...(chain === null || hand.kind !== 'held' || hand.station.kind !== 'point'
         ? labels
-        : [...labels, gateLabel('hand', hand.station.lonLat)],
-    [labels, chain, hand],
+        : [...labels, gateLabel('hand', hand.station.lonLat)]),
+      ...(handAim === null || aim?.target.lonLat == null
+        ? []
+        : [aimLabel(aim.target.lonLat, handAim.line)]),
+    ],
+    [labels, chain, hand, handAim, aim],
   );
+  const aimTouched = useCallback((target: MapAim) => setAim({ target, chosen: 0 }), []);
+  const chooseVerb = useCallback(
+    (chosen: number) => setAim((was) => (was === null ? null : { ...was, chosen })),
+    [],
+  );
+  const cancelAim = useCallback(() => setAim(null), []);
+  const sendAim = useCallback(() => {
+    if (aim !== null && aimedVerb !== null) actOnCompass(aimedVerb, aim.target.at);
+  }, [aim, aimedVerb, actOnCompass]);
 
   /** Le mât visé par la confirmation, relu dans la vue : effacé, la carte se ferme d'elle-même
    *  plutôt que d'annoncer un niveau qui n'existe plus. */
@@ -3183,6 +3241,8 @@ function BoardContent({
                   dropHintOf={dropHintOf}
                   onRestAim={restAt}
                   onRoseDismiss={dropHand}
+                  onAim={aimTouched}
+                  keptAim={keptAim}
                   onHeldCompass={setHeldCompass}
                   onOpenLoot={openLoot}
                   onOpenCamp={openCamp}
@@ -3385,6 +3445,10 @@ function BoardContent({
                         });
                     }}
                     offers={handOffers}
+                    aim={handAim}
+                    onChooseVerb={chooseVerb}
+                    onSend={sendAim}
+                    onCancelAim={cancelAim}
                     onCompose={compose}
                     onOffer={runOffer}
                     onOpenGunnery={() => openWindow('gunnery')}

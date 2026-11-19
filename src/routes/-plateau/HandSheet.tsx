@@ -13,6 +13,7 @@ import { useNarrowScreen } from '@/shell/viewport';
 import { GarrisonStack } from './GarrisonStack';
 import { GunneryButton } from './GunneryButton';
 import { MapCard } from './MapCard';
+import type { HandAim } from './hand-aim';
 import { PileTabs, type PileTab } from './PileTabs';
 
 /**
@@ -32,6 +33,10 @@ export function HandSheet({
   held,
   troopIds,
   offers,
+  aim = null,
+  onChooseVerb,
+  onSend,
+  onCancelAim,
   onCompose,
   onOffer,
   onOpenGunnery,
@@ -48,6 +53,12 @@ export function HandSheet({
   troopIds: ReadonlyArray<string>;
   /** Les ordres que la pile en main a (`offersOf`) : fonder, débarquer, la ronde, dissoudre. */
   offers: ReadonlyArray<Offer>;
+  /** **La visée du doigt** (#586), sous le seuil : ce que la pièce ferait là où l'on a touché. */
+  aim?: HandAim | null;
+  onChooseVerb?: (index: number) => void;
+  onSend?: () => void;
+  /** Retire la visée ; la pièce reste en main. */
+  onCancelAim?: () => void;
   onCompose: (troopIds: ReadonlyArray<string>) => void;
   /** Exécute une offre dont le refus est nul : le plateau la lit comme la rose la lirait. */
   onOffer: (offer: Offer) => void;
@@ -88,6 +99,17 @@ export function HandSheet({
       />
     </>
   );
+  /** **Épinglé sous l'en-tête, il tient à l'aperçu** : la visée et ses deux boutons, ou ce qu'il
+   *  reste à faire pour viser (#586). Un refus connu prend la place d'« Envoyer ». */
+  const pinned = narrow ? (
+    <AimBar
+      count={troopIds.length}
+      aim={troopIds.length === 0 ? null : aim}
+      onChooseVerb={onChooseVerb}
+      onSend={onSend}
+      onCancelAim={onCancelAim}
+    />
+  ) : undefined;
   const [unit, ...aboard] = unitsOf(inHand)[0] ?? [];
   /** A Blitz hand holds one unit: a strip says it, the pile's grid and its range say nothing more.
    *  What rides a transport is listed under it, and « débarquer » sets it ashore beside it — a
@@ -100,6 +122,7 @@ export function HandSheet({
         gap={{ x: 0, y: 0 }}
         width={240}
         hug={false}
+        pinned={pinned}
         onClose={onDrop}
       >
         <div className="mt-[6px] flex items-center gap-[8px]">
@@ -158,6 +181,7 @@ export function HandSheet({
       /* Au doigt, la feuille s'ouvre à l'aperçu : l'essentiel — poser, fonder, débarquer — y tient,
          et la carte où l'on pose reste en vue ; les onglets se lisent en la déroulant. */
       hug={false}
+      pinned={pinned}
       onClose={onDrop}
     >
       {narrow && (
@@ -215,6 +239,75 @@ export function HandSheet({
         </>
       )}
     </MapCard>
+  );
+}
+
+/**
+ * **La visée et son verdict, épinglés** (#586) : la ligne de l'étiquette, une rangée de verbes
+ * quand le point en offre plusieurs, puis « Envoyer » et « Annuler ». Un refus connu remplace
+ * « Envoyer » par sa phrase ; à zéro coché, rien ne part et la phrase le dit.
+ */
+function AimBar({
+  count,
+  aim,
+  onChooseVerb,
+  onSend,
+  onCancelAim,
+}: {
+  count: number;
+  aim: HandAim | null;
+  onChooseVerb: ((index: number) => void) | undefined;
+  onSend: (() => void) | undefined;
+  onCancelAim: (() => void) | undefined;
+}) {
+  const quiet = 'text-[11.5px] leading-[1.4] text-[var(--ink-soft)]';
+  const wrap = 'border-b border-[var(--ink)] px-4 py-[8px]';
+  if (count === 0) return <p className={`${wrap} ${quiet}`}>{fr.hand.pickedNone}</p>;
+  if (aim === null) return <p className={`${wrap} ${quiet}`}>{fr.hand.pickedAim(count)}</p>;
+  return (
+    <div className={wrap}>
+      <p className="text-[12px] leading-[1.35] font-bold">{aim.line}</p>
+      {aim.verbs.length > 1 && (
+        <div role="radiogroup" className="mt-[6px] flex flex-wrap gap-[6px]">
+          {aim.verbs.map((verb, index) => (
+            <button
+              key={`${verb}-${index}`}
+              type="button"
+              role="radio"
+              aria-checked={index === aim.chosen}
+              onClick={() => onChooseVerb?.(index)}
+              className={`min-h-[44px] flex-1 cursor-pointer border border-[var(--ink)] px-[8px] text-[10px] tracking-[.14em] uppercase ${
+                index === aim.chosen ? 'bg-[var(--ink)] text-[var(--paper)]' : ''
+              }`}
+            >
+              {verb}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="mt-[8px] flex items-stretch gap-[8px]">
+        {aim.refusal === null ? (
+          <button
+            type="button"
+            onClick={onSend}
+            className="min-h-[44px] flex-1 cursor-pointer bg-[var(--ink)] px-[12px] text-[12px] font-bold tracking-[.18em] text-[var(--paper)] uppercase"
+          >
+            {fr.hand.send}
+          </button>
+        ) : (
+          <p className="min-w-0 flex-1 self-center text-[11px] leading-[1.35] text-[var(--critical)]">
+            {aim.refusal}
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={onCancelAim}
+          className="min-h-[44px] flex-1 cursor-pointer border border-[var(--ink)] px-[12px] text-[11px] font-bold tracking-[.18em] uppercase"
+        >
+          {fr.hand.cancelAim}
+        </button>
+      </div>
+    </div>
   );
 }
 

@@ -114,11 +114,19 @@ describe('chipOf', () => {
 });
 
 describe('dropOutcomeOf', () => {
+  const march = branch('aim', 'marcher');
+  const boarding = { ...branch('aim', 'embarquer'), boardsOn: 'truck' } as unknown as CompassAction;
+
   it('sends the order at once with a mouse, whatever the verbs', () => {
-    expect(dropOutcomeOf(false)).toBe('send');
+    expect(dropOutcomeOf(false, march)).toBe('send');
   });
 
-  it('opens the rose under a finger, even on a single verb: the touch aims, the medallion sends', () => {
-    expect(dropOutcomeOf(true)).toBe('rose');
+  it('aims under the phone threshold, even on a single verb: the touch aims, « Envoyer » sends', () => {
+    expect(dropOutcomeOf(true, march)).toBe('aim');
+  });
+
+  it('boards at once under a finger too: the target is a piece, not the bare map (#586)', () => {
+    expect(dropOutcomeOf(true, branch('board', 'embarquer'))).toBe('send');
+    expect(dropOutcomeOf(true, boarding)).toBe('send');
   });
 });

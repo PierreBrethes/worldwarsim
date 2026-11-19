@@ -117,7 +117,13 @@ import {
   type PieceFrom,
 } from './DropHint';
 import { insideStroke } from '@/domain/selection';
-import { dropOutcomeOf, dropReadingOf, turnChoice, type DropReading } from '@/domain/drop-order';
+import {
+  dropOutcomeOf,
+  dropReadingOf,
+  turnChoice,
+  type DropReading,
+  type Forbidden,
+} from '@/domain/drop-order';
 import type { TakeDepot } from './MapLabels';
 import type { TourLoop } from './engine/tour-ink';
 export type { TourLoop };
@@ -131,6 +137,7 @@ import {
   type HeldClaim,
   type HeldPlacing,
   type PieceClick,
+  type DropVerdict,
   type PieceHold,
   type PlacingMagnet,
   type PlacingSpot,
@@ -241,6 +248,14 @@ type Props = {
   onRestAim?: (action: OrderAction | null, at: { x: number; y: number }) => void;
   /** La rose s'est refermée sans ordre : la pièce en main se repose. */
   onRoseDismiss?: () => void;
+  /**
+   * **Sous le seuil, un toucher ou un lâcher vise** (#586) : les ordres de pièce que le point offre,
+   * dans l'ordre de la rose, et où il a été touché. La rose ne s'ouvre pas ; le plateau tient la
+   * visée et son « Envoyer ».
+   */
+  onAim?: (aim: MapAim) => void;
+  /** Le verdict de la route que la visée garde, pour l'encre du tracé ; `null` sans visée. */
+  keptAim?: Exclude<DropVerdict, 'none'> | null;
   /** **La rose de la pile en main**, celle que son étiquette ouvrirait, `null` sans pile posée :
    *  la fiche latérale y lit « fonder » ; `target`, ce que la pile pose sous elle (sa région, son
    *  sol), dont la fiche lit ses offres (`offersOf`). */
@@ -560,6 +575,8 @@ export function WorldMap({
   dropHintOf,
   onRestAim,
   onRoseDismiss,
+  onAim,
+  keptAim = null,
   onHeldCompass,
   onOpenLoot,
   onOpenCamp,
@@ -810,7 +827,7 @@ export function WorldMap({
   const openRose = useCallback(
     (target: CompassTarget, clientX: number, clientY: number) => {
       lastAim.current = { target, clientX, clientY };
-      let drawn = compassOf(target);
+      const drawn = compassOf(target);
       const rect = container.current?.getBoundingClientRect();
       if (rect === undefined) return;
       const fromDrag = aiming && dragging.current;
@@ -838,13 +855,21 @@ export function WorldMap({
       }
       // Lifted by a click, a pose with nothing to order opens the rose on its reason, in hand.
       if (reading?.kind === 'orders') {
-        setDown();
-        if (dropOutcomeOf(fingerRose !== null) === 'send') {
-          setRose(null);
-          onCompassAction(reading.verbs[chosenOf(reading.verbs)]!, at);
+        const verb = reading.verbs[chosenOf(reading.verbs)]!;
+        setRose(null);
+        if (dropOutcomeOf(fingerRose !== null, verb) === 'aim') {
+          /** La pièce reste en main : rien n'est posé, le doigt n'a que visé. */
+          onAim?.({
+            verbs: reading.verbs,
+            at,
+            lonLat: engine.current?.pointAt(clientX, clientY) ?? null,
+            forbidden: holding?.forbidden ?? null,
+          });
           return;
         }
-        drawn = { ...drawn, actions: reading.verbs };
+        setDown();
+        onCompassAction(verb, at);
+        return;
       }
       const margin = (ROSE_MARGIN * readHudScale()) / 100;
       /** Sous le doigt, la rose reste sur ce qu'elle désigne : c'est la carte qui se recale
@@ -860,7 +885,7 @@ export function WorldMap({
         height: rect.height,
       });
     },
-    [compassOf, fingerRose, aiming, onDropRefused, onCompassAction, holding, chosenOf],
+    [compassOf, fingerRose, aiming, onDropRefused, onCompassAction, onAim, holding, chosenOf],
   );
 
   const fitRose = useCallback((dx: number, dy: number) => {
@@ -1608,8 +1633,8 @@ export function WorldMap({
   }, [readyEngine, standing]);
 
   useEffect(() => {
-    readyEngine?.setAimRoute(aimRoute);
-  }, [readyEngine, aimRoute]);
+    readyEngine?.setAimRoute(aimRoute, keptAim);
+  }, [readyEngine, aimRoute, keptAim]);
 
   /** **La seconde cible refusée** (Guerre éclair, maquette A) : le trait de la première à elle
    *  prend l'encre du refus, comme la pastille ; le refus arrive après le pointeur. */
@@ -2397,6 +2422,16 @@ function DetachRing({ x, y, done }: { x: number; y: number; done: boolean }) {
     </svg>
   );
 }
+
+/** Une visée du doigt : ce que le point offre à la pièce en main (`onAim`). */
+export type MapAim = {
+  readonly verbs: ReadonlyArray<CompassAction>;
+  /** Où il a été touché, dans le cadre de la carte. */
+  readonly at: { readonly x: number; readonly y: number };
+  /** Le point du sol touché : l'étiquette de la visée s'y ancre. */
+  readonly lonLat: LonLat | null;
+  readonly forbidden: Forbidden;
+};
 
 type OpenRose = {
   opening: number;

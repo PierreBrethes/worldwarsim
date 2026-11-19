@@ -429,6 +429,77 @@ async function runProfile(profile) {
         },
       },
       {
+        // Au bureau le clic pose ; sous le seuil, le toucher vise et « Envoyer » ordonne (#586).
+        name: 'viser au téléphone, puis annuler',
+        run: async () => {
+          if (!phone) return;
+          const pileId = 'stack-point:3.4,47.6';
+          const truck = start.me.troops.find(
+            (troop) => troop.stationedAt.kind === 'point' && troop.stationedAt.lonLat[0] === 3.4,
+          );
+          await frame([3.4, 47.6], 3);
+          const [piece] = await piecesOf(pileId);
+          assert.ok(piece?.at, `${pileId} n'est pas dessinée à nu`);
+          await touch('touchStart', [piece.at]);
+          await touch('touchEnd', []);
+          const hand = page.getByRole('dialog', { name: /en main/ });
+          await hand.waitFor({ timeout: 5000 });
+          // Un point de la carte nue, au-dessus de la feuille : ni mât, ni pièce, ni bandeau.
+          const bare = await page.evaluate(() => {
+            const canvas = globalThis.mapEngine.renderer.domElement;
+            for (const [x, y] of [
+              [195, 300],
+              [110, 300],
+              [280, 300],
+              [195, 220],
+              [110, 400],
+            ])
+              if (document.elementFromPoint(x, y) === canvas) return [x, y];
+            return null;
+          });
+          assert.ok(bare, 'aucun point de carte nue sous le doigt');
+          await page.touchscreen.tap(...bare);
+          const label = page.locator('[data-label-id="gate-aim"]');
+          await label
+            .waitFor({ state: 'attached', timeout: 5000 })
+            .catch(() => assert.fail('écran : le toucher sur la carte nue n’inscrit aucune visée'));
+          const send = page.getByRole('button', { name: 'Envoyer' });
+          await send.waitFor({ timeout: 5000 });
+          assert.equal(
+            await page.getByRole('dialog').count(),
+            1,
+            'écran : la visée ouvre une fiche du sol',
+          );
+          assert.ok(await hand.isVisible(), 'écran : la fiche de la main a disparu');
+          const seen = await client.query(api.view.playerView, seat);
+          assert.ok(
+            !seen.movements.some((movement) => JSON.stringify(movement).includes(truck.id)),
+            'serveur : la visée a envoyé la colonne',
+          );
+          // Un double toucher n'envoie rien non plus.
+          await page.touchscreen.tap(...bare);
+          await page.touchscreen.tap(...bare);
+          await page.waitForTimeout(800);
+          assert.ok(
+            !(await client.query(api.view.playerView, seat)).movements.some((movement) =>
+              JSON.stringify(movement).includes(truck.id),
+            ),
+            'serveur : un double toucher a envoyé la colonne',
+          );
+          await page.getByRole('button', { name: 'Annuler' }).tap();
+          await label
+            .waitFor({ state: 'detached', timeout: 5000 })
+            .catch(() => assert.fail('écran : « Annuler » laisse l’étiquette'));
+          assert.ok(await hand.isVisible(), 'écran : « Annuler » a lâché la pièce');
+          assert.equal(await send.count(), 0, 'écran : « Envoyer » reste offert sans visée');
+          await page
+            .getByRole('button', { name: /^fermer$/i })
+            .first()
+            .tap();
+          await hand.waitFor({ state: 'detached', timeout: 5000 });
+        },
+      },
+      {
         name: 'lever une pile et la poser (marche)',
         run: async () => {
           // Le camion vide de `--passagers`, seul sur son point.
@@ -440,6 +511,8 @@ async function runProfile(profile) {
           const [piece] = await piecesOf(pileId);
           assert.ok(piece?.at, `${pileId} n'est pas dessinée à nu`);
           await carry(piece.at, [piece.at[0] - 260, piece.at[1] + 120], { hold: phone ? 500 : 0 });
+          // Sous le seuil, le lâcher vise : « Envoyer » donne l'ordre (#586).
+          if (phone) await page.getByRole('button', { name: 'Envoyer' }).tap();
           await serverSays(seat, 'le camion est en marche', (view) =>
             view.movements.some((movement) => JSON.stringify(movement).includes(truck.id)),
           );

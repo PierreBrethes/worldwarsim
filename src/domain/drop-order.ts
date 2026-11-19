@@ -49,11 +49,16 @@ export function dropReadingOf(compass: Compass | null): DropReading {
 }
 
 /**
- * **Envoyer ou ouvrir la rose** (ADR 0026, amendement du 18/11) : à la souris, poser ordonne ;
- * au doigt, un toucher ou un lâcher vise, la rose s'ouvre — même sur un seul verbe — et c'est le
- * médaillon qui envoie. Un toucher ailleurs ne part donc jamais au serveur.
+ * **Envoyer ou viser** (ADR 0026, amendement du 18/11, précisé le 19/11) : à la souris, poser
+ * ordonne ; sous le seuil téléphone, un toucher ou un lâcher vise — la rose ne s'ouvre pas pour un
+ * ordre de pièce — et « Envoyer » donne l'ordre. Un toucher ne part donc jamais au serveur, sauf
+ * embarquer : sa cible est une pièce, pas la carte nue.
  */
-export const dropOutcomeOf = (finger: boolean): 'send' | 'rose' => (finger ? 'rose' : 'send');
+export const dropOutcomeOf = (finger: boolean, verb: CompassAction): 'send' | 'aim' =>
+  finger && !boardsAtOnce(verb) ? 'aim' : 'send';
+
+const boardsAtOnce = (verb: CompassAction): boolean =>
+  verb.key === 'board' || (verb.key === 'aim' && verb.boardsOn !== undefined);
 
 /** Le verbe choisi parmi `count`, tourné d'un cran dans un sens ou l'autre (Tab, chiffres). */
 export const turnChoice = (count: number, chosen: number, step: number): number =>

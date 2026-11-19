@@ -21,6 +21,7 @@ export function MapCard({
   width,
   hug = true,
   initial = 'peek',
+  pinned,
   onClose,
   children,
 }: {
@@ -35,6 +36,8 @@ export function MapCard({
   hug?: boolean;
   /** Le cran où la feuille s'ouvre au doigt. */
   initial?: SheetHeight;
+  /** Sous le seuil, ce qui reste épinglé sous l'en-tête de la feuille (`BottomSheet.pinned`). */
+  pinned?: ReactNode;
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -49,6 +52,7 @@ export function MapCard({
         kicker
         hug={hug}
         keepsSelection
+        pinned={pinned}
       >
         <div className="px-4 py-[10px]">{children}</div>
       </BottomSheet>

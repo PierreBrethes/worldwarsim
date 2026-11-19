@@ -5,6 +5,7 @@ import { fr, roleLabel } from '@/i18n/fr';
 import type { PlayerView, TroopView } from '@/domain/player-view';
 import type { Offer } from '@/domain/offers';
 import { HandSheet } from './HandSheet';
+import type { HandAim } from './hand-aim';
 import { handOffersOf } from './hand-offers';
 
 beforeEach(() =>
@@ -565,5 +566,112 @@ describe('HandSheet on a phone', () => {
     phone([{ ...disband, refusal: 'pas de place' }]);
     expect(screen.queryByRole('button', { name: fr.selection.disband })).toBeNull();
     expect(screen.getByText('pas de place')).toBeTruthy();
+  });
+});
+
+/** **Au téléphone, le doigt vise et « Envoyer » ordonne** (#586) : la feuille épingle la visée,
+ *  sa ligne, ses verbes et ses deux boutons ; un refus remplace « Envoyer ». */
+describe('HandSheet aiming on a phone', () => {
+  beforeEach(() =>
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query.includes('max-width'),
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })),
+  );
+  const held = [troop('inf', 'infantry'), troop('tank', 'armor')];
+  const aim = (patch: Partial<HandAim> = {}): HandAim => ({
+    verbs: ['Marcher'],
+    chosen: 0,
+    line: 'Marcher → près de Bourges · ≈ 177 km · 8 h 51',
+    refusal: null,
+    ...patch,
+  });
+  const sheet = (
+    aimed: HandAim | null,
+    spies: Partial<{
+      onSend: () => void;
+      onCancelAim: () => void;
+      onChooseVerb: (index: number) => void;
+      onDrop: () => void;
+    }> = {},
+    troopIds: ReadonlyArray<string> = ['inf', 'tank'],
+  ) =>
+    render(
+      <HandSheet
+        view={
+          {
+            me: { nation: 'france', stationedCargo: [], troops: [], upkeep: { troops: 2 } },
+          } as unknown as PlayerView
+        }
+        station={station}
+        place="Saône-et-Loire"
+        held={held}
+        troopIds={troopIds}
+        offers={[]}
+        aim={aimed}
+        onChooseVerb={spies.onChooseVerb ?? (() => {})}
+        onSend={spies.onSend ?? (() => {})}
+        onCancelAim={spies.onCancelAim ?? (() => {})}
+        onCompose={() => {}}
+        onOffer={() => {}}
+        onOpenGunnery={() => {}}
+        onDrop={spies.onDrop ?? (() => {})}
+        onApproach={() => {}}
+      />,
+    );
+
+  it('says how many are ticked and to touch the map, while nothing is aimed', () => {
+    sheet(null);
+    expect(screen.getByText(fr.hand.pickedAim(2))).toBeTruthy();
+    expect(screen.queryByRole('button', { name: fr.hand.send })).toBeNull();
+  });
+
+  it('shows the aim line with « Envoyer » and « Annuler »: the first sends, the second keeps the piece', () => {
+    const onSend = vi.fn();
+    const onCancelAim = vi.fn();
+    const onDrop = vi.fn();
+    sheet(aim(), { onSend, onCancelAim, onDrop });
+    expect(screen.getByText(aim().line)).toBeTruthy();
+    act(() => screen.getByRole('button', { name: fr.hand.send }).click());
+    expect(onSend).toHaveBeenCalledTimes(1);
+    act(() => screen.getByRole('button', { name: fr.hand.cancelAim }).click());
+    expect(onCancelAim).toHaveBeenCalledTimes(1);
+    expect(onDrop).not.toHaveBeenCalled();
+  });
+
+  it('puts the refusal where « Envoyer » was, « Annuler » staying', () => {
+    sheet(aim({ refusal: 'Aucune route terrestre vers cette destination.' }));
+    expect(screen.queryByRole('button', { name: fr.hand.send })).toBeNull();
+    expect(screen.getByText('Aucune route terrestre vers cette destination.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: fr.hand.cancelAim })).toBeTruthy();
+  });
+
+  it('offers a row of verbs when the point takes several, the first being chosen', () => {
+    const onChooseVerb = vi.fn();
+    sheet(aim({ verbs: ['Marcher', 'Attaquer'] }), { onChooseVerb });
+    expect(screen.getByRole('radio', { name: 'Marcher' }).getAttribute('aria-checked')).toBe(
+      'true',
+    );
+    act(() => screen.getByRole('radio', { name: 'Attaquer' }).click());
+    expect(onChooseVerb).toHaveBeenCalledWith(1);
+  });
+
+  it('has no row of verbs for a single one', () => {
+    sheet(aim());
+    expect(screen.queryByRole('radio')).toBeNull();
+  });
+
+  it('offers no « Envoyer » at zero ticked, and the phrase says why', () => {
+    sheet(aim(), {}, []);
+    expect(screen.queryByRole('button', { name: fr.hand.send })).toBeNull();
+    expect(screen.getByText(fr.hand.pickedNone)).toBeTruthy();
+  });
+
+  it('pins the aim under the header, outside the scrolling body', () => {
+    sheet(aim());
+    const send = screen.getByRole('button', { name: fr.hand.send });
+    expect(send.closest('[role="dialog"] > .shrink-0')).not.toBeNull();
   });
 });

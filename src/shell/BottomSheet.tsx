@@ -103,6 +103,7 @@ export function BottomSheet({
   kicker = false,
   hug = false,
   keepsSelection = false,
+  pinned,
   children,
 }: {
   title: string;
@@ -124,6 +125,9 @@ export function BottomSheet({
    *  glisser vers le bas depuis l'aperçu la **réduit** à son en-tête au lieu de la fermer, et la
    *  sélection survit. Seul « fermer », ou la carte touchée ailleurs, la défait. */
   keepsSelection?: boolean;
+  /** **Ce qui reste épinglé sous l'en-tête** quand le corps défile (#586) : l'ordre visé et ses
+   *  boutons tiennent à l'aperçu. Ses boutons ne tirent pas la feuille. */
+  pinned?: ReactNode;
   children: ReactNode;
 }) {
   const [height, setHeight] = useState<KeepingHeight>(initial);
@@ -311,6 +315,7 @@ export function BottomSheet({
             </button>
           </div>
         </div>
+        {pinned !== undefined && <div className="shrink-0">{pinned}</div>}
         {/* Caché plutôt que démonté : ce qu'il porte garde son état, et revient tel quel. */}
         <div
           ref={body}

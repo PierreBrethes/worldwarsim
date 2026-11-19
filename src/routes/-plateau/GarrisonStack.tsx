@@ -517,7 +517,8 @@ export function PrepareBar({
     <div className="paper-grain sticky bottom-0 -mx-3 mt-[11px] flex flex-col gap-[8px] border-t-2 border-[var(--ink)] px-3 pt-[9px] pb-[2px]">
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-[11.5px] font-bold tracking-[.08em] uppercase">
-          {picked === null ? '' : fr.garrison.picked(picked)}
+          {/* Sans « préparer », la fiche de la main dit le compte elle-même (#586). */}
+          {picked === null || !onPrepare ? '' : fr.garrison.picked(picked)}
         </span>
         {detail}
       </div>

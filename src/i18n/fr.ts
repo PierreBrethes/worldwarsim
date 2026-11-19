@@ -3310,7 +3310,15 @@ export const fr = {
   hand: {
     kicker: (place: string) => `en main · ${place}`,
     hint: 'clic gauche sur la carte, ou glisser : poser · sur un transport : embarquer · échap : reposer',
-    hintFinger: 'touchez la carte pour poser, la pièce pour la reposer — appui long pour la porter',
+    hintFinger: 'touchez la carte pour viser, la pièce pour la reposer — appui long pour la porter',
+    /** **La visée au téléphone** (#586) : « Envoyer » donne l'ordre, « Annuler » retire la visée et
+     *  laisse la pièce en main. */
+    send: 'Envoyer',
+    cancelAim: 'Annuler',
+    /** Ce que la feuille dit tant que rien n'est visé : le compte, et le geste qui suit. */
+    pickedAim: (count: number) =>
+      `${count} troupe${plural(count, '', 's')} cochée${plural(count, '', 's')} — touchez la carte pour viser`,
+    pickedNone: 'aucune troupe cochée — rien à envoyer',
     found: 'fonder un avant-poste ici',
     /** Au téléphone, les ordres de la fiche tiennent en verbes courts (#585). */
     foundShort: 'fonder',
@@ -3724,6 +3732,9 @@ export const fr = {
     pointAt: (lon: number, lat: number) =>
       `${Math.abs(lat).toFixed(1)}° ${lat >= 0 ? 'N' : 'S'} · ${Math.abs(lon).toFixed(1)}° ${lon >= 0 ? 'E' : 'O'}`,
     arrival: (time: string) => `arrivée ${time}`,
+    /** **L'étiquette de la visée** (#586), posée près de la destination : le verbe de la pastille
+     *  et le lieu, que les notes de la visée (`dropNotes`) suivent. */
+    label: (verb: string, place: string) => `${verb} → ${place}`,
     /** **La longueur de la route**, en kilomètres du serveur (#302) : la durée si elle est datée,
      *  la part de mer quand le trajet en a une. */
     distance: (km: number, span: string) => `≈ ${km} km · ${span}`,
@@ -4621,7 +4632,7 @@ export const fr = {
               lines: [
                 'Toucher net : ouvrir la rose et lire ce qui est touché. Un doigt glissé déplace la carte ; deux doigts pincent pour zoomer et tournent pour orienter.',
                 'La rose des vents propose ce que ce point accepte, et rien d’autre.',
-                'Touchez une de vos piles pour la lever, ou tenez-la appuyée pour la porter. Touchez la carte pour la poser : l’ordre part — s’il y en a plusieurs, une rose réduite laisse choisir. Touchez la pile pour la reposer.',
+                'Touchez une de vos piles pour la lever, ou tenez-la appuyée pour la porter. Touchez la carte pour viser : l’étiquette dit l’ordre, « Envoyer » le donne, « Annuler » le retire — la pièce reste en main. Touchez la pile pour la reposer.',
                 regions,
               ],
             }
@@ -4909,10 +4920,11 @@ export const fr = {
     choice: (index: number, count: number, next: string) => `${index}/${count} · Tab : ${next}`,
     release: 'relâcher pour ordonner · Échap annule',
     refused: 'relâcher : la pièce revient · Échap',
-    /** Au doigt, ni Tab ni Échap : plusieurs ordres, la rose les propose au lâcher. */
+    /** Au doigt, ni Tab ni Échap : plusieurs ordres, la feuille les propose une fois visé. */
     choiceTouch: (count: number) => `${count} ordres au choix`,
-    releaseTouch: 'lever le doigt pour ordonner · sur la pièce, rien ne part',
-    releaseChoiceTouch: 'lever le doigt : choisir l’ordre · sur la pièce, rien ne part',
+    releaseTouch: 'lever le doigt pour viser · « Envoyer » ordonne · sur la pièce, rien ne part',
+    releaseChoiceTouch:
+      'lever le doigt pour viser : l’ordre se choisit ensuite · sur la pièce, rien ne part',
     /** Sans rose sous le doigt (écran large), le verbe affiché est celui qui part. */
     releaseDirectTouch: 'lever le doigt : l’ordre affiché part · sur la pièce, rien ne part',
     refusedTouch: 'lever le doigt : la pièce revient · sur la pièce, rien ne part',

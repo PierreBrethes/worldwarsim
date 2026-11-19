@@ -887,6 +887,9 @@ export class MapEngine {
   private readonly aimRibbon = new AimRibbon();
   private readonly tourInk: TourInk;
   private aimRoute: Vector3[] | null = null;
+  /** **La visée du téléphone** (#586) : sous un doigt la main ne porte rien, et la route se garde
+   *  d'elle-même, à l'encre de son verdict, tant que le plateau la dit. */
+  private aimKept: Exclude<DropVerdict, 'none'> | null = null;
   private verdict: DropVerdict = 'none';
   /** What the carried piece is over, and the ring the drop gives it (POC, `ringStyle`). */
   private carryOver: CarryTarget | { readonly kind: 'ground' } | null = null;
@@ -1966,9 +1969,13 @@ export class MapEngine {
 
   /** **The server's road for the drop under the resting pointer**, `null` while it moves: the
    *  hand draws a straight line from home until then (`AimRibbon`). */
-  setAimRoute(points: ReadonlyArray<LonLat> | null): void {
+  setAimRoute(
+    points: ReadonlyArray<LonLat> | null,
+    kept: Exclude<DropVerdict, 'none'> | null = null,
+  ): void {
     this.invalidate();
     this.aimRoute = points === null ? null : points.map((point) => this.frame.projectLonLat(point));
+    this.aimKept = kept;
   }
 
   /** **Les boucles de mes tournées**, à l'encre (ADR 0028) : posées une fois, sans flux. */
@@ -6548,13 +6555,16 @@ export class MapEngine {
     );
     const reading = this.standing.reading;
     const tone = this.verdict;
+    const kept = this.aimKept !== null && this.aimRoute !== null;
     this.aimRibbon.show(
-      reading === null || tone === 'none'
-        ? null
-        : tone !== 'refused' && this.aimRoute !== null
-          ? this.aimRoute
-          : [reading.from, reading.to],
-      tone === 'none' ? 'order' : tone,
+      kept
+        ? this.aimRoute
+        : reading === null || tone === 'none'
+          ? null
+          : tone !== 'refused' && this.aimRoute !== null
+            ? this.aimRoute
+            : [reading.from, reading.to],
+      kept ? this.aimKept! : tone === 'none' ? 'order' : tone,
     );
     this.tourInk.animate(this.unitsPerPixel(distance), this.screenHeight);
     this.aimRibbon.animate(

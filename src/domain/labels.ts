@@ -1400,6 +1400,13 @@ function gateOf(arc: ArcView): MapLabel[] {
   return arc.state !== 'mine' || arc.then === undefined ? [] : [gateLabel(arc.id, arc.to)];
 }
 
+/** **L'étiquette de la visée du doigt** (#586) : une ligne, près du point touché, que la carte
+ *  place et suit au pan et au zoom comme un trait sur le fil. */
+export const aimLabel = (lonLat: LonLat, text: string): MapLabel => ({
+  ...gateLabel('aim', lonLat),
+  lines: [{ role: 'mention', text }],
+});
+
 /** Le losange, aussi sous la main entre les deux cibles (`plateau.tsx`). */
 export const gateLabel = (id: string, lonLat: LonLat): MapLabel => ({
   id: `gate-${id}`,

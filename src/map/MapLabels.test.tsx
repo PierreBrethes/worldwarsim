@@ -707,3 +707,17 @@ describe('the interface zoom under a round of degradation (#560)', () => {
     vi.useRealTimers();
   });
 });
+
+/** **L'étiquette de la visée entre d'un fondu, sauf en « réduites » et « coupées »** (#586). */
+describe('the aim label of a finger', () => {
+  const sheet = readFileSync('src/styles/labels.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+
+  it('fades in under full motion only', () => {
+    expect(sheet).toMatch(
+      /\[data-label-id='gate-aim'\] \.label-lines \{[^}]*animation: aim-label-in/,
+    );
+    expect(sheet).toMatch(
+      /\[data-motion='reduced'\], \[data-motion='off'\]\) \[data-label-id='gate-aim'\] \.label-lines \{\s*animation: none;/,
+    );
+  });
+});

@@ -1417,6 +1417,25 @@
   background: var(--arc-mine);
 }
 
+/* **L'étiquette de la visée du doigt** (#586) : la ligne de l'ordre — verbe, lieu, kilomètres,
+   arrivée — passe à la ligne plutôt que de déborder l'écran d'un téléphone, et paraît d'un fondu
+   que « réduites » et « coupées » n'ont pas. */
+[data-label-id='gate-aim'] .label-lines {
+  white-space: normal;
+  width: max-content;
+  max-width: 210px;
+  text-align: center;
+  animation: aim-label-in 0.16s ease-out;
+}
+:root:is([data-motion='reduced'], [data-motion='off']) [data-label-id='gate-aim'] .label-lines {
+  animation: none;
+}
+@keyframes aim-label-in {
+  from {
+    opacity: 0;
+  }
+}
+
 /* Les noms du décor (#440) : sous les étiquettes, sans pointeur. */
 .map-names {
   position: absolute;
