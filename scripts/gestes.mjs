@@ -1149,7 +1149,9 @@ async function runProfile(profile) {
           await page
             .getByRole('button', { name: /2 sites/i })
             .first()
-            .tap();
+            // Le jeton de bord d'un geste précédent peut couvrir l'étiquette selon l'azimut : on
+            // ne dépend pas de ce cadrage.
+            .dispatchEvent('click');
           await page
             .locator('.label-group-list-row', { hasText: /Caserne/ })
             .first()
