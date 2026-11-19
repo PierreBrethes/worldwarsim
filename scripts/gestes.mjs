@@ -1008,10 +1008,12 @@ async function runProfile(profile) {
           const objective = start.objectives[0];
           assert.ok(objective, 'la démo n’a pas d’objectif');
           await frame(objective.point, 2);
-          await page
-            .locator(`[data-label-id="objective-${objective.id}"] .label-pictogram`)
-            .dispatchEvent('click');
           const sheet = page.getByRole('dialog', { name: 'objectif neutre' });
+          // Le geste d'avant peut laisser sa fiche ouverte : un second toucher la refermerait.
+          if (!(await sheet.isVisible()))
+            await page
+              .locator(`[data-label-id="objective-${objective.id}"] .label-pictogram`)
+              .dispatchEvent('click');
           await sheet.waitFor({ timeout: 5000 });
           await page.waitForTimeout(1500);
           const token = page.getByRole('button', { name: /Revenir à l.objet sélectionné/ });
