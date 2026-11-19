@@ -1,7 +1,14 @@
 import type { FamilySpot } from '@/domain/family-cycle';
 import type { MapMarker } from '@/domain/labels';
 import type { PlayerView } from '@/domain/player-view';
-import { hasSiteSheet, stationKeyOf, troopsAt, type MarchStation } from '@/domain/troops';
+import {
+  hasSiteSheet,
+  stationKeyOf,
+  troopsAt,
+  unitsOf,
+  type MarchStation,
+  type Seated,
+} from '@/domain/troops';
 
 /**
  * **Les familles de fiches du téléphone** (#593) : ce que ‹ et › parcourent, lu sur les marqueurs
@@ -80,4 +87,18 @@ export function familiesOf(
     objective,
     point,
   };
+}
+
+/**
+ * **Ce que › fait d'une pile : ce que fait le toucher** (#593). Il ne lève en main qu'une pile
+ * posée sur un point ou la troupe seule d'une garnison ; un avant-poste, une garnison de
+ * plusieurs unités, ou n'importe quelle adresse pour l'observateur ouvrent son panneau.
+ */
+export function liftsAsPile(
+  me: { readonly defeated: boolean },
+  station: MarchStation,
+  pile: ReadonlyArray<Seated>,
+): boolean {
+  if (me.defeated) return false;
+  return station.kind === 'point' || (station.kind === 'building' && unitsOf(pile).length === 1);
 }

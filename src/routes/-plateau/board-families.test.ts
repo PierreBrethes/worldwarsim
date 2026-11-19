@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { familiesOf } from './board-families';
+import { familiesOf, liftsAsPile } from './board-families';
 
 const troop = (id: string, stationedAt: unknown) => ({ id, stationedAt });
 const view = (mode: 'mondiale' | 'blitz', troops: unknown[] = []) =>
@@ -53,5 +53,30 @@ describe('familiesOf', () => {
     const hq = [{ kind: 'building', id: 'h', buildingId: 'h', key: 'hq', lonLat: [0, 0] }] as never;
     expect(ids(familiesOf(view('blitz'), hq, new Set()).building)).toEqual(['h']);
     expect(ids(familiesOf(view('mondiale'), hq, new Set()).building)).toEqual([]);
+  });
+});
+
+describe('liftsAsPile', () => {
+  const at = (key: string, ...roles: string[]) =>
+    roles.map((role, i) => ({ id: `${key}${i}`, role, stationedAt: key, carriedBy: undefined }));
+  const me = (troops: unknown[], defeated = false) => ({ troops, defeated }) as never;
+  const point = { kind: 'point', lonLat: [4, 4] } as never;
+  const garrison = { kind: 'building', buildingId: 'b2' } as never;
+  const outpost = { kind: 'outpost', outpostId: 'o1' } as never;
+
+  it('lifts a pile standing on a point, as a touch does', () => {
+    expect(liftsAsPile(me([]), point, [])).toBe(true);
+  });
+
+  it('lifts a lone troop of a garrison, and opens the panel of a garrison of several units', () => {
+    const [one] = at('building:b2', 'infantry');
+    expect(liftsAsPile(me([one]), garrison, [one] as never)).toBe(true);
+    const two = at('building:b2', 'infantry', 'artillery');
+    expect(liftsAsPile(me(two), garrison, two as never)).toBe(false);
+  });
+
+  it('opens the panel of an outpost, and of every address to a defeated observer', () => {
+    expect(liftsAsPile(me([]), outpost, [])).toBe(false);
+    expect(liftsAsPile(me([], true), point, [])).toBe(false);
   });
 });

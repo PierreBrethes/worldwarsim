@@ -68,7 +68,7 @@ import { SheetCount } from './-plateau/Window';
 import { Shell } from '@/shell/Shell';
 import { SelectionSheetReport, sheetHeight, sheetLift, type SheetCycle } from '@/shell/BottomSheet';
 import { cycleOf, type FamilySpot } from '@/domain/family-cycle';
-import { familiesOf } from './-plateau/board-families';
+import { familiesOf, liftsAsPile } from './-plateau/board-families';
 import { BareMapPort } from '@/shell/sole-surface';
 import {
   forgetThen,
@@ -1896,11 +1896,10 @@ function BoardContent({
       const station = families.stations.get(key);
       if (station === undefined) return;
       clearSelection();
-      liftHand({
-        kind: 'held',
-        station,
-        troopIds: troopsAt(view.me, key, marching).map((troop) => troop.id),
-      });
+      const pile = troopsAt(view.me, key, marching);
+      if (liftsAsPile(view.me, station, pile))
+        liftHand({ kind: 'held', station, troopIds: pile.map((troop) => troop.id) });
+      else openGarrison(station, [], boardPoint());
       frameMarker(markerOfStation({ me: view.me }, station));
     },
   );
