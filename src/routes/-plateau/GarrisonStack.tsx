@@ -1,6 +1,7 @@
 import { SupplyPictos } from '@/shell/SupplyPictos';
 import { pileSupplies } from '@/domain/supplies';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { CARRY_CAPACITY_BY_ROLE, UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/constants';
 import { fr, roleLabel } from '@/i18n/fr';
 import { carryCapacityOf } from '@/domain/loot';
@@ -18,6 +19,7 @@ import {
 import { liftOf, liftRefusalOf, motorized } from '@/domain/movement-orders';
 import type { PlayerView, TroopStation, TroopView } from '@/domain/player-view';
 import { UnitSprite } from '@/emblems/UnitSprite';
+import { useSheetFoot } from '@/shell/BottomSheet';
 import { useNarrowScreen } from '@/shell/viewport';
 import { CargoReadout } from './CargoReadout';
 import { StrengthBar } from './StrengthBar';
@@ -513,8 +515,13 @@ export function PrepareBar({
   detail?: ReactNode;
   onPrepare: ((station: TroopStation, troopIds: ReadonlyArray<string>) => void) | undefined;
 }) {
-  return (
-    <div className="paper-grain sticky bottom-0 -mx-3 mt-[11px] flex flex-col gap-[8px] border-t-2 border-[var(--ink)] px-3 pt-[9px] pb-[2px]">
+  /** Dans une feuille, la barre est son pied : le corps défile au-dessus d'elle, et aucune ligne de
+   *  troupe ne passe dessous (#588). Ailleurs elle reste collée au bas de son cadre. */
+  const foot = useSheetFoot();
+  const bar = (
+    <div
+      className={`paper-grain flex flex-col gap-[6px] border-t-2 border-[var(--ink)] px-3 pt-[8px] pb-[8px] ${foot === null ? 'sticky bottom-0 -mx-3 mt-[11px] pb-[2px]' : ''}`}
+    >
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-[11.5px] font-bold tracking-[.08em] uppercase">
           {/* Sans « préparer », la fiche de la main dit le compte elle-même (#586). */}
@@ -527,11 +534,12 @@ export function PrepareBar({
           type="button"
           disabled={pickedIds.length === 0}
           onClick={() => onPrepare(station, pickedIds)}
-          className="min-h-[52px] w-full cursor-pointer bg-[var(--ink)] px-[12px] text-[12px] font-bold tracking-[.18em] text-[var(--paper)] uppercase disabled:cursor-not-allowed disabled:opacity-40"
+          className="min-h-[48px] w-full cursor-pointer bg-[var(--ink)] px-[12px] text-[12px] font-bold tracking-[.18em] text-[var(--paper)] uppercase disabled:cursor-not-allowed disabled:opacity-40"
         >
           {fr.garrison.prepare}
         </button>
       )}
     </div>
   );
+  return foot === null ? bar : createPortal(bar, foot);
 }

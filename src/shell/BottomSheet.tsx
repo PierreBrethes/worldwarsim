@@ -63,6 +63,11 @@ const VELOCITY_WINDOW_MS = 80;
 
 const SheetCloseContext = createContext<(() => void) | null>(null);
 
+/** **Le pied de la feuille** : ce qui s'y pose (`useSheetFoot`) reste sous le corps, qui défile
+ *  dans ce qu'il laisse — rien de collé en bas ne recouvre une ligne. `null` hors d'une feuille. */
+const SheetFootContext = createContext<HTMLElement | null>(null);
+export const useSheetFoot = (): HTMLElement | null => useContext(SheetFootContext);
+
 /**
  * **Où se tient la feuille d'une sélection, mesurée** : `report` dit sa hauteur en pixels d'écran
  * au repos, `null` quand elle part. Ce qui garde un point visible au-dessus d'elle — la rose au
@@ -170,6 +175,7 @@ export function BottomSheet({
   const sheet = useRef<HTMLElement>(null);
   const body = useRef<HTMLDivElement>(null);
   const pin = useRef<HTMLDivElement>(null);
+  const [foot, setFoot] = useState<HTMLDivElement | null>(null);
   useLeaveGhost(sheet, 'sheet-rise', 'sheet-sink');
   /** Un glisser peut finir par un clic sur l'en-tête : sans ce témoin, ramener la feuille réduite
    *  à sa place la rouvrirait aussitôt. Remis à zéro à chaque appui, car le clic ne suit pas
@@ -312,109 +318,116 @@ export function BottomSheet({
 
   return createPortal(
     <SheetCloseContext.Provider value={onClose}>
-      <section
-        ref={sheet}
-        // L'étage des tuiles est posé là en permanence : une région, pas une boîte de dialogue.
-        role={stage ? undefined : 'dialog'}
-        aria-label={title}
-        data-height={height}
-        data-moving={moving ? '' : undefined}
-        data-hug={hug ? '' : undefined}
-        data-stage={stage ? '' : undefined}
-        // Cachée et non retirée : sa place reste, ce qu'elle porte garde son état, et un doigt
-        // qui a pris une tuile dedans la tient encore.
-        style={ceded ? { visibility: 'hidden' } : undefined}
-        className={`hud board-sheet paper-grain sheet-rise z-[var(--z-band)] flex flex-col border-t-2 border-[var(--ink)] text-[var(--ink)]`}
-      >
-        {crest}
-        <div
-          onPointerDown={(event) => {
-            swiped.current = false;
-            take();
-            grip.onPointerDown(event);
-          }}
-          className="min-h-[44px] shrink-0 cursor-grab"
-          style={{ touchAction: 'none' }}
-          onClick={(event) => {
-            // Le clic déplie sans recadrer la carte : seul le glisser rejoue le cadrage.
-            if (swiped.current) return;
-            if (event.target instanceof Element && event.target.closest('button') !== null) return;
-            if (collapsed) setHeight('peek');
-            else if (unfolds && height === 'peek') setHeight('half');
-          }}
+      <SheetFootContext.Provider value={foot}>
+        <section
+          ref={sheet}
+          // L'étage des tuiles est posé là en permanence : une région, pas une boîte de dialogue.
+          role={stage ? undefined : 'dialog'}
+          aria-label={title}
+          data-height={height}
+          data-moving={moving ? '' : undefined}
+          data-hug={hug ? '' : undefined}
+          data-stage={stage ? '' : undefined}
+          // Cachée et non retirée : sa place reste, ce qu'elle porte garde son état, et un doigt
+          // qui a pris une tuile dedans la tient encore.
+          style={ceded ? { visibility: 'hidden' } : undefined}
+          className={`hud board-sheet paper-grain sheet-rise z-[var(--z-band)] flex flex-col border-t-2 border-[var(--ink)] text-[var(--ink)]`}
         >
-          {stage ? (
-            /* **Une barre de 44 px d'écran** : le titre, le chantier en cours dessous, le bouton. */
-            <div
-              className="relative flex items-center gap-2 border-b border-[var(--ink)] pl-4"
-              style={{ height: 'calc(44px / var(--hud-scale))' }}
-            >
-              <span
-                aria-hidden
-                className="absolute top-0 left-1/2 block h-[3px] w-[40px] -translate-x-1/2 bg-(--ink)/35"
-              />
-              <div className="flex min-w-0 flex-1 flex-col justify-center">
-                <h2 className="truncate font-(family-name:--font-display) text-[16px] leading-[1.25] font-extrabold tracking-[.02em]">
-                  {title}
-                </h2>
-                {aside}
-              </div>
-              <button
-                type="button"
-                aria-expanded={!collapsed}
-                aria-label={collapsed ? fr.footBar.grip.open : fr.footBar.grip.fold}
-                onClick={() => setHeight(collapsed ? 'peek' : 'collapsed')}
-                onPointerDown={(event) => event.stopPropagation()}
-                className="h-full min-h-0 min-w-[44px] shrink-0 cursor-pointer text-[14px] text-[var(--ink)]"
+          {crest}
+          <div
+            onPointerDown={(event) => {
+              swiped.current = false;
+              take();
+              grip.onPointerDown(event);
+            }}
+            className="min-h-[44px] shrink-0 cursor-grab"
+            style={{ touchAction: 'none' }}
+            onClick={(event) => {
+              // Le clic déplie sans recadrer la carte : seul le glisser rejoue le cadrage.
+              if (swiped.current) return;
+              if (event.target instanceof Element && event.target.closest('button') !== null)
+                return;
+              if (collapsed) setHeight('peek');
+              else if (unfolds && height === 'peek') setHeight('half');
+            }}
+          >
+            {stage ? (
+              /* **Une barre de 44 px d'écran** : le titre, le chantier en cours dessous, le bouton. */
+              <div
+                className="relative flex items-center gap-2 border-b border-[var(--ink)] pl-4"
+                style={{ height: 'calc(44px / var(--hud-scale))' }}
               >
-                {collapsed ? '▴' : '▾'}
-              </button>
-            </div>
-          ) : (
-            <>
-              <span aria-hidden className="mx-auto mt-[6px] block h-[3px] w-[40px] bg-(--ink)/35" />
-              <div className="flex items-center gap-3 border-b border-[var(--ink)] px-4 pt-[6px] pb-[8px]">
-                <h2
-                  className={
-                    kicker
-                      ? 'line-clamp-2 text-[10px] leading-[1.35] font-semibold tracking-[.18em] text-[var(--ink-soft)] uppercase'
-                      : 'line-clamp-2 min-w-0 font-(family-name:--font-display) text-[18px] leading-[1.05] font-extrabold tracking-[.02em] first-letter:uppercase'
-                  }
-                >
-                  {title}
-                </h2>
-                {aside}
-                <span className="flex-1" />
+                <span
+                  aria-hidden
+                  className="absolute top-0 left-1/2 block h-[3px] w-[40px] -translate-x-1/2 bg-(--ink)/35"
+                />
+                <div className="flex min-w-0 flex-1 flex-col justify-center">
+                  <h2 className="truncate font-(family-name:--font-display) text-[16px] leading-[1.25] font-extrabold tracking-[.02em]">
+                    {title}
+                  </h2>
+                  {aside}
+                </div>
                 <button
                   type="button"
-                  onClick={onClose}
+                  aria-expanded={!collapsed}
+                  aria-label={collapsed ? fr.footBar.grip.open : fr.footBar.grip.fold}
+                  onClick={() => setHeight(collapsed ? 'peek' : 'collapsed')}
                   onPointerDown={(event) => event.stopPropagation()}
-                  className="min-h-[44px] shrink-0 cursor-pointer border border-[var(--ink)] px-[12px] text-[10px] tracking-[.18em] text-[var(--ink)] uppercase"
+                  className="h-full min-h-0 min-w-[44px] shrink-0 cursor-pointer text-[14px] text-[var(--ink)]"
                 >
-                  {fr.common.close}
+                  {collapsed ? '▴' : '▾'}
                 </button>
               </div>
-            </>
-          )}
-        </div>
-        {pinned !== undefined && (
-          <div ref={pin} className="shrink-0" hidden={collapsed && !moving}>
-            {pinned}
+            ) : (
+              <>
+                <span
+                  aria-hidden
+                  className="mx-auto mt-[6px] block h-[3px] w-[40px] bg-(--ink)/35"
+                />
+                <div className="flex items-center gap-3 border-b border-[var(--ink)] px-4 pt-[6px] pb-[8px]">
+                  <h2
+                    className={
+                      kicker
+                        ? 'line-clamp-2 text-[10px] leading-[1.35] font-semibold tracking-[.18em] text-[var(--ink-soft)] uppercase'
+                        : 'line-clamp-2 min-w-0 font-(family-name:--font-display) text-[18px] leading-[1.05] font-extrabold tracking-[.02em] first-letter:uppercase'
+                    }
+                  >
+                    {title}
+                  </h2>
+                  {aside}
+                  <span className="flex-1" />
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    className="min-h-[44px] shrink-0 cursor-pointer border border-[var(--ink)] px-[12px] text-[10px] tracking-[.18em] text-[var(--ink)] uppercase"
+                  >
+                    {fr.common.close}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
-        )}
-        {/* Caché plutôt que démonté : ce qu'il porte garde son état, et revient tel quel. */}
-        <div
-          ref={body}
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
-          // La fin du corps ne passe pas sous la barre d'accueil.
-          style={
-            stage ? undefined : { paddingBottom: 'calc(var(--board-bottom) / var(--hud-scale))' }
-          }
-          hidden={collapsed && !moving}
-        >
-          {children}
-        </div>
-      </section>
+          {pinned !== undefined && (
+            <div ref={pin} className="shrink-0" hidden={collapsed && !moving}>
+              {pinned}
+            </div>
+          )}
+          {/* Caché plutôt que démonté : ce qu'il porte garde son état, et revient tel quel. */}
+          <div
+            ref={body}
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+            // La fin du corps ne passe pas sous la barre d'accueil.
+            style={
+              stage ? undefined : { paddingBottom: 'calc(var(--board-bottom) / var(--hud-scale))' }
+            }
+            hidden={collapsed && !moving}
+          >
+            {children}
+          </div>
+          <div ref={setFoot} className="shrink-0 empty:hidden" hidden={collapsed && !moving} />
+        </section>
+      </SheetFootContext.Provider>
     </SheetCloseContext.Provider>,
     document.body,
   );

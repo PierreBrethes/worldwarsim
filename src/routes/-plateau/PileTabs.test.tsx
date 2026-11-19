@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setMapMotionSetting } from '@/data/mapMotion';
 import { fr } from '@/i18n/fr';
 import type { PlayerView, TroopView } from '@/domain/player-view';
+import { BottomSheet } from '@/shell/BottomSheet';
 import { PileTabs } from './PileTabs';
 
 beforeEach(() => {
@@ -181,5 +182,30 @@ describe('PileTabs', () => {
     );
     act(() => tab(fr.stats.rubrics.fight).click());
     expect(onTabChange).toHaveBeenLastCalledWith('fight');
+  });
+
+  it('puts « préparer » in the sheet’s foot, under the body that scrolls: no row passes beneath it (#588)', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: true,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    render(
+      <BottomSheet title="Caserne" onClose={() => {}} initial="half">
+        <PileTabs
+          view={view}
+          station={station}
+          held={held}
+          preselect={['inf']}
+          canPrepare
+          observing={false}
+          onPrepare={() => {}}
+        />
+      </BottomSheet>,
+    );
+    const prepare = screen.getByRole('button', { name: fr.garrison.prepare });
+    expect(prepare.closest('.overflow-y-auto')).toBeNull();
+    expect(prepare.closest('[role=dialog]')).not.toBeNull();
   });
 });

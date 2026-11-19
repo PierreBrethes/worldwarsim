@@ -863,7 +863,9 @@ function NarrowSite({
           </button>
         ))}
       </div>
-      {ready && (
+      {/* Le plafond de l'armée dit ce que forme et ce que tient le site : la garnison et la fiche
+          n'en ont pas l'usage, et leur place sert aux troupes (#588). */}
+      {ready && (tab === 'form' || tab === 'queue') && (
         <div className="flex min-h-[42px] items-center border-t border-(color:--ink)/25 py-[6px] pr-[14px] pl-4">
           <span className="truncate text-[12.5px] leading-[1.1]">
             {fr.production.sheet.capLine(workshop.troopsInService, workshop.troopsQueued)}
