@@ -6,6 +6,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
   type ReactNode,
 } from 'react';
 
@@ -29,6 +30,11 @@ type Sole = { readonly claim: Claim; readonly closeCurrent: () => boolean };
 
 const SoleSurfaceContext = createContext<Sole | null>(null);
 
+/** **Une surface tient la place** : l'étage des tuiles du plateau personnel ne la réclame pas, il
+ *  se cache tant que ceci est vrai (#589) et revient quand elle part. */
+const SurfaceHeldContext = createContext(false);
+export const useSurfaceHeld = (): boolean => useContext(SurfaceHeldContext);
+
 /** Hors du rendu : le compilateur lierait `claim` à `history.location`, qui change à chaque
  *  navigation, et toute surface ouverte se réclamerait alors sous le même geste. */
 type History = NonNullable<ReturnType<typeof useRouter>>['history'];
@@ -36,6 +42,7 @@ const indexOf = (history: History): number => history.location.state.__TSR_index
 
 export function SoleSurfaceProvider({ children }: { children: ReactNode }) {
   const history = useRouter({ warn: false })?.history;
+  const [held, setHeld] = useState(false);
   const current = useRef<{ close: () => void; marks: boolean } | null>(null);
   /** L'index de l'entrée que nous avons posée, `null` quand il n'y en a pas. */
   const marker = useRef<number | null>(null);
@@ -86,6 +93,7 @@ export function SoleSurfaceProvider({ children }: { children: ReactNode }) {
       const mine = { close, marks };
       const previous = current.current;
       current.current = mine;
+      setHeld(true);
       if (marks && history !== undefined && !atMarker()) {
         below.current = history.location.href;
         history.push(below.current);
@@ -96,6 +104,7 @@ export function SoleSurfaceProvider({ children }: { children: ReactNode }) {
       return () => {
         if (current.current !== mine) return;
         current.current = null;
+        setHeld(false);
         settle();
       };
     },
@@ -108,7 +117,11 @@ export function SoleSurfaceProvider({ children }: { children: ReactNode }) {
     return held !== null;
   }, []);
   const value = useMemo(() => ({ claim, closeCurrent }), [claim, closeCurrent]);
-  return <SoleSurfaceContext.Provider value={value}>{children}</SoleSurfaceContext.Provider>;
+  return (
+    <SoleSurfaceContext.Provider value={value}>
+      <SurfaceHeldContext.Provider value={held}>{children}</SurfaceHeldContext.Provider>
+    </SoleSurfaceContext.Provider>
+  );
 }
 
 /**

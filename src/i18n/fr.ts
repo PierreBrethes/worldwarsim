@@ -2359,10 +2359,9 @@ export const fr = {
       press: 'Presse',
       telegraph: 'Télégraphe',
     },
-    /** La poignée du plateau : replié → mi-hauteur → plein → replié. */
+    /** Le bouton de l'étage des tuiles : replié sur sa barre, ou au rang. */
     grip: {
       open: 'déplier le plateau personnel',
-      full: 'agrandir le plateau personnel',
       fold: 'replier le plateau personnel',
     },
   },
@@ -3361,8 +3360,6 @@ export const fr = {
     },
     /** Ce que dit la bulle, là où le geste se fait. */
     cue: {
-      /** La bande repliée : on la déplie d'abord. */
-      unfold: 'Dépliez le plateau personnel',
       hq: 'Cliquez la tuile du QG, puis votre sol',
       tiles: 'D’abord une caserne : sa tuile sur la carte',
       pieces: 'Cliquez ce site : ses troupes viennent dans la bande',
@@ -4134,7 +4131,10 @@ export const fr = {
     delta: (amount: number) => `${amount > 0 ? '+' : '−'}${num(Math.abs(amount))}`,
     tilesNote: 'survolez une tuile, cliquez-la puis la carte',
     /** Au téléphone rien ne se survole : la tuile se touche, puis la carte. */
-    tilesNotePhone: 'cliquez une tuile, puis la carte pour bâtir ou sa pareille pour l’élever',
+    tilesNotePhone: 'touchez la carte pour bâtir, sa pareille pour l’élever',
+    /** Le feuillet d'une tuile refusée : sa fermeture. */
+    refusalClose: 'fermer le refus',
+    refusalOf: (name: string) => `refus : ${name}`,
     tileCount: (count: number) => `×${count}`,
     /** La réserve de l'Évacuation sur la tuile : la prochaine pose sort à ce niveau. */
     tileKept: (kept: number, stands: number) =>

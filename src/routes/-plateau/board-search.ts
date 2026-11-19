@@ -90,21 +90,6 @@ export function withoutWindow(search: BoardSearch, name: BoardWindow): BoardSear
   return remaining.length ? { ...kept, windows: remaining } : kept;
 }
 
-/** **Une fenêtre cédée la place** : elle quitte l'adresse, mais le site qu'elle portait reste
- *  sélectionné — ce n'est pas le joueur qui la ferme, une autre surface vient de s'ouvrir. */
-export function yieldWindow(search: BoardSearch, name: BoardWindow): BoardSearch {
-  const { windows, ...rest } = search;
-  const remaining = (windows ?? []).filter((open) => open !== name);
-  return remaining.length ? { ...rest, windows: remaining } : rest;
-}
-
-/** The navigation of a yield: it replaces the entry, so Back never lands on the board that the
- *  surface which took the place had just folded (a loop between the two). */
-export const yieldNavigation = (name: BoardWindow) => ({
-  search: (previous: BoardSearch) => yieldWindow(previous, name),
-  replace: true as const,
-});
-
 /** **Deux adresses qui disent la même surface** : y retourner ne pousse pas une entrée de plus. */
 export const sameAddress = (a: BoardSearch, b: BoardSearch): boolean =>
   a.building === b.building && (a.windows ?? []).join() === (b.windows ?? []).join();

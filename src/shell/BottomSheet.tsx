@@ -22,7 +22,10 @@ export type SheetHeight = (typeof SHEET_HEIGHTS)[number];
  *  poignée et l'en-tête seuls — on dégage la carte sans perdre ce qu'on a désigné. */
 const KEEPING_HEIGHTS = ['collapsed', ...SHEET_HEIGHTS] as const;
 
-type KeepingHeight = (typeof KEEPING_HEIGHTS)[number];
+export type KeepingHeight = (typeof KEEPING_HEIGHTS)[number];
+
+/** **Les crans de l'étage des tuiles** (#589) : replié, rang, moitié — pas le plein avant #590. */
+const STAGE_HEIGHTS = ['collapsed', 'peek', 'half'] as const;
 
 /**
  * **La part d'écran de chaque cran** — les mêmes fractions que `.board-sheet` (`index.css`), lues
@@ -103,6 +106,12 @@ export function BottomSheet({
   kicker = false,
   hug = false,
   keepsSelection = false,
+  stage = false,
+  height: chosen,
+  onHeight,
+  ceded = false,
+  sheetRef,
+  crest,
   pinned,
   children,
 }: {
@@ -112,7 +121,22 @@ export function BottomSheet({
   /** **Le seul chemin de fermeture** : le bouton, le lancer, une autre surface qui prend la place,
    *  le retour du navigateur et la carte nue l'appellent tous (#584). */
   onClose: () => void;
-  initial?: SheetHeight;
+  initial?: KeepingHeight;
+  /** **L'étage du plateau personnel** (#589) : il ne se ferme jamais — glisser vers le bas le
+   *  replie sur une barre de 44 px, un toucher la rouvre —, ne réclame pas la place, ne parle pas à
+   *  la sélection, et n'expose pas le cran plein. Son bouton plie et déplie au lieu de fermer. */
+  stage?: boolean;
+  /** Le cran que l'appelant tient (étage) ; sans lui, la feuille garde le sien. */
+  height?: KeepingHeight;
+  /** Le cran qu'un doigt, un toucher ou le bouton vient de choisir. */
+  onHeight?: (height: KeepingHeight) => void;
+  /** **Cédée** : une autre surface tient la place, ou la main a quitté l'étage : il se cache sans
+   *  se fermer et revient tel quel — ni état perdu, ni `sheet-sink`. */
+  ceded?: boolean;
+  /** L'élément de la feuille, pour qui mesure son sommet. */
+  sheetRef?: (element: HTMLElement | null) => void;
+  /** Ce qui se pose sur le bord haut de la feuille : la bulle d'un premier pas. */
+  crest?: ReactNode;
   /** **Le titre en surtitre** (lot mobile-3) : quand la feuille porte son propre nom en vedette —
    *  une troupe, une destination, une dépêche —, l'en-tête ne dit que *de quoi il s'agit*, en
    *  petites capitales, sans tronquer la phrase. */
@@ -130,7 +154,12 @@ export function BottomSheet({
   pinned?: ReactNode;
   children: ReactNode;
 }) {
-  const [height, setHeight] = useState<KeepingHeight>(initial);
+  const [own, setOwn] = useState<KeepingHeight>(initial);
+  const height = chosen ?? own;
+  const setHeight = (next: KeepingHeight) => {
+    setOwn(next);
+    onHeight?.(next);
+  };
   /** Pendant un glisser et son ressort, la feuille garde la hauteur du cran haut (`data-moving`) et
    *  se pose par `translateY` : ni mise en page ni recadrage de carte à chaque image. */
   const [moving, setMoving] = useState(false);
@@ -147,9 +176,13 @@ export function BottomSheet({
   const live = useRef<Spring | null>(null);
   const frame = useRef(0);
   const base = useRef(0);
-  useSoleSurface(onClose);
+  useSoleSurface(onClose, !stage);
+  useLayoutEffect(() => {
+    sheetRef?.(sheet.current);
+    return () => sheetRef?.(null);
+  }, [sheetRef]);
   const ports = useContext(SelectionSheetReport);
-  const reporting = keepsSelection ? (ports?.report ?? null) : null;
+  const reporting = keepsSelection && !stage ? (ports?.report ?? null) : null;
   const onStep = ports?.onStep;
 
   useEffect(() => () => cancelAnimationFrame(frame.current), []);
@@ -191,7 +224,12 @@ export function BottomSheet({
     sheet.current?.style.removeProperty('clip-path');
   }, [moving]);
 
-  const steps: ReadonlyArray<KeepingHeight> = keepsSelection ? KEEPING_HEIGHTS : SHEET_HEIGHTS;
+  const keeps = keepsSelection || stage;
+  const steps: ReadonlyArray<KeepingHeight> = stage
+    ? STAGE_HEIGHTS
+    : keepsSelection
+      ? KEEPING_HEIGHTS
+      : SHEET_HEIGHTS;
   const grip = useSwipe(
     (travel) => {
       const top = measured.current.full ?? 0;
@@ -205,7 +243,7 @@ export function BottomSheet({
       let closing = false;
       if (thrown > STEP_PX) {
         if (rank > 0) target = rank - 1;
-        else closing = !keepsSelection;
+        else closing = !keeps;
       } else if (thrown < -STEP_PX && rank < steps.length - 1) {
         target = rank + 1;
       }
@@ -217,6 +255,7 @@ export function BottomSheet({
       const reached = steps[target]!;
       if (
         keepsSelection &&
+        !stage &&
         target !== rank &&
         (reached === 'peek' || reached === 'half') &&
         goal > 0
@@ -270,13 +309,19 @@ export function BottomSheet({
     <SheetCloseContext.Provider value={onClose}>
       <section
         ref={sheet}
-        role="dialog"
+        // L'étage des tuiles est posé là en permanence : une région, pas une boîte de dialogue.
+        role={stage ? undefined : 'dialog'}
         aria-label={title}
         data-height={height}
         data-moving={moving ? '' : undefined}
         data-hug={hug ? '' : undefined}
-        className="hud board-sheet paper-grain sheet-rise z-[var(--z-band)] flex flex-col border-t-2 border-[var(--ink)] text-[var(--ink)]"
+        data-stage={stage ? '' : undefined}
+        // Cachée et non retirée : sa place reste, ce qu'elle porte garde son état, et un doigt
+        // qui a pris une tuile dedans la tient encore.
+        style={ceded ? { visibility: 'hidden' } : undefined}
+        className={`hud board-sheet paper-grain sheet-rise z-[var(--z-band)] flex flex-col border-t-2 border-[var(--ink)] text-[var(--ink)]`}
       >
+        {crest}
         <div
           onPointerDown={(event) => {
             swiped.current = false;
@@ -292,28 +337,59 @@ export function BottomSheet({
             setHeight('peek');
           }}
         >
-          <span aria-hidden className="mx-auto mt-[6px] block h-[3px] w-[40px] bg-(--ink)/35" />
-          <div className="flex items-center gap-3 border-b border-[var(--ink)] px-4 pt-[6px] pb-[8px]">
-            <h2
-              className={
-                kicker
-                  ? 'line-clamp-2 text-[10px] leading-[1.35] font-semibold tracking-[.18em] text-[var(--ink-soft)] uppercase'
-                  : 'line-clamp-2 min-w-0 font-(family-name:--font-display) text-[18px] leading-[1.05] font-extrabold tracking-[.02em] first-letter:uppercase'
-              }
+          {stage ? (
+            /* **Une barre de 44 px d'écran** : le titre, le chantier en cours dessous, le bouton. */
+            <div
+              className="relative flex items-center gap-2 border-b border-[var(--ink)] pl-4"
+              style={{ height: 'calc(44px / var(--hud-scale))' }}
             >
-              {title}
-            </h2>
-            {aside}
-            <span className="flex-1" />
-            <button
-              type="button"
-              onClick={onClose}
-              onPointerDown={(event) => event.stopPropagation()}
-              className="min-h-[44px] shrink-0 cursor-pointer border border-[var(--ink)] px-[12px] text-[10px] tracking-[.18em] text-[var(--ink)] uppercase"
-            >
-              {fr.common.close}
-            </button>
-          </div>
+              <span
+                aria-hidden
+                className="absolute top-0 left-1/2 block h-[3px] w-[40px] -translate-x-1/2 bg-(--ink)/35"
+              />
+              <div className="flex min-w-0 flex-1 flex-col justify-center">
+                <h2 className="truncate font-(family-name:--font-display) text-[16px] leading-[1.25] font-extrabold tracking-[.02em]">
+                  {title}
+                </h2>
+                {aside}
+              </div>
+              <button
+                type="button"
+                aria-expanded={!collapsed}
+                aria-label={collapsed ? fr.footBar.grip.open : fr.footBar.grip.fold}
+                onClick={() => setHeight(collapsed ? 'peek' : 'collapsed')}
+                onPointerDown={(event) => event.stopPropagation()}
+                className="h-full min-h-0 min-w-[44px] shrink-0 cursor-pointer text-[14px] text-[var(--ink)]"
+              >
+                {collapsed ? '▴' : '▾'}
+              </button>
+            </div>
+          ) : (
+            <>
+              <span aria-hidden className="mx-auto mt-[6px] block h-[3px] w-[40px] bg-(--ink)/35" />
+              <div className="flex items-center gap-3 border-b border-[var(--ink)] px-4 pt-[6px] pb-[8px]">
+                <h2
+                  className={
+                    kicker
+                      ? 'line-clamp-2 text-[10px] leading-[1.35] font-semibold tracking-[.18em] text-[var(--ink-soft)] uppercase'
+                      : 'line-clamp-2 min-w-0 font-(family-name:--font-display) text-[18px] leading-[1.05] font-extrabold tracking-[.02em] first-letter:uppercase'
+                  }
+                >
+                  {title}
+                </h2>
+                {aside}
+                <span className="flex-1" />
+                <button
+                  type="button"
+                  onClick={onClose}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  className="min-h-[44px] shrink-0 cursor-pointer border border-[var(--ink)] px-[12px] text-[10px] tracking-[.18em] text-[var(--ink)] uppercase"
+                >
+                  {fr.common.close}
+                </button>
+              </div>
+            </>
+          )}
         </div>
         {pinned !== undefined && <div className="shrink-0">{pinned}</div>}
         {/* Caché plutôt que démonté : ce qu'il porte garde son état, et revient tel quel. */}
@@ -321,7 +397,9 @@ export function BottomSheet({
           ref={body}
           className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
           // La fin du corps ne passe pas sous la barre d'accueil.
-          style={{ paddingBottom: 'calc(var(--board-bottom) / var(--hud-scale))' }}
+          style={
+            stage ? undefined : { paddingBottom: 'calc(var(--board-bottom) / var(--hud-scale))' }
+          }
           hidden={collapsed && !moving}
         >
           {children}

@@ -31,7 +31,7 @@ export const FootContext = createContext<Foot | null>(null);
 export const useFoot = (): Foot | null => useContext(FootContext);
 
 /** Dit à la coque quel élément est la barre, tant qu'il est monté. */
-export function useClaimFoot(foot: Foot | null, node: RefObject<HTMLElement | null>): void {
+function useClaimFoot(foot: Foot | null, node: RefObject<HTMLElement | null>): void {
   const claim = foot?.claim;
   useEffect(() => {
     if (claim === undefined) return;

@@ -925,3 +925,9 @@ body {
     inset 0 0 0 1.5px var(--pastille-rim),
     0 1px 0 color-mix(in srgb, var(--ink) 50%, transparent);
 }
+
+/* **Le rang des tuiles ne montre que les tuiles** (#589) : les tas et la file n'apparaissent
+   qu'à la moitié. */
+.board-sheet[data-stage][data-height='peek'] [data-half-only] {
+  display: none;
+}

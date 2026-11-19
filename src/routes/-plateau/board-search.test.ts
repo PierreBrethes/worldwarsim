@@ -6,7 +6,6 @@ import {
   withoutWindow,
   toggleWindow,
   windowOpen,
-  yieldWindow,
 } from './board-search';
 
 /**
@@ -60,9 +59,8 @@ describe('the board’s search state', () => {
     expect(toggled.building).toBeUndefined();
   });
 
-  it('yields the band without letting the selected site go', () => {
+  it('lets the building focus go with the band', () => {
     const open = { ...withWindow({}, 'personalBoard'), building: 'k17abc' };
-    expect(yieldWindow(open, 'personalBoard')).toEqual({ building: 'k17abc' });
     expect(withoutWindow(open, 'personalBoard').building).toBeUndefined();
   });
 

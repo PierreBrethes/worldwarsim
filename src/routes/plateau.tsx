@@ -36,7 +36,6 @@ import {
   readWindows,
   withWindow,
   withoutWindow,
-  yieldNavigation,
   type BoardSearch,
   type BoardWindow,
 } from './-plateau/board-search';
@@ -3645,7 +3644,6 @@ function BoardContent({
                     onOpen={(open) =>
                       open ? openWindow('personalBoard') : closeWindow('personalBoard')
                     }
-                    onYield={() => void navigate(yieldNavigation('personalBoard'))}
                     focused={boardOpen ? (focused ?? null) : null}
                     site={selectedSite}
                     onDeselectSite={deselectSite}

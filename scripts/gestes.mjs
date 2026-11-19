@@ -15,7 +15,7 @@
  * La souris porte du bouton premier : le moteur ne lève une pièce que de lui, quel que soit le
  * réglage des boutons (`armCarry`), et aucun geste de la liste ne passe par la rose.
  */
-/* global document, innerWidth, innerHeight, history, location -- les fonctions passées à `page.evaluate` tournent dans la page. */
+/* global document, innerWidth, innerHeight, history, location, getComputedStyle -- les fonctions passées à `page.evaluate` tournent dans la page. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
@@ -259,8 +259,8 @@ async function runProfile(profile) {
           return { role: group.role, aboard: group.aboard ?? 0, at: bare ? [x, y] : null };
         });
       }, pileId);
-    /** La poignée du plateau personnel : au doigt son nom dit l'état suivant (déplier, agrandir,
-     *  replier), à la souris `aria-expanded` dit s'il est déplié. */
+    /** La poignée du plateau personnel : au doigt, le bouton de l'étage des tuiles dit son état
+     *  suivant (déplier, replier) ; à la souris `aria-expanded` dit s'il est déplié. */
     const boardHandle = () => page.getByRole('button', { name: /le plateau personnel$/ }).first();
     const boardOpen = async () =>
       phone
@@ -282,6 +282,61 @@ async function runProfile(profile) {
     const closeBoard = () => board(false);
 
     const gestures = [
+      {
+        // L'étage des tuiles n'existe que sous le seuil (#589) ; il se joue en tête, avant que
+        // d'autres gestes n'aient touché au cran.
+        name: 'l’étage des tuiles au téléphone',
+        run: async () => {
+          if (!phone) return;
+          const stage = page.locator('[data-stage]');
+          const step = () => stage.getAttribute('data-height');
+          const until = async (read, wanted, message) => {
+            const deadline = Date.now() + 5000;
+            while ((await read()) !== wanted && Date.now() < deadline)
+              await page.waitForTimeout(50);
+            assert.equal(await read(), wanted, message);
+          };
+          const kept = () => page.evaluate(() => localStorage.getItem('wws-tiles-step'));
+          // Sorti au premier lancement, au rang, sans rien dans l'adresse ni dans l'historique.
+          assert.equal(await step(), 'peek', 'écran : l’étage n’est pas au rang au lancement');
+          assert.ok(!new URL(page.url()).searchParams.has('windows'), 'écran : étage dans l’URL');
+          const tile = page.getByRole('button', { name: /^Quartier général — / }).first();
+          assert.ok(await tile.isVisible(), 'écran : le rang ne montre pas ses tuiles');
+          // Un lancer vers le bas le replie sur sa barre, et l'appareil s'en souvient.
+          const box = await stage.boundingBox();
+          const grip = [box.x + 60, box.y + 20];
+          await touch('touchStart', [grip]);
+          await fingers([grip], [[grip[0], grip[1] + 160]], 120);
+          await touch('touchEnd', []);
+          await until(step, 'collapsed', 'écran : un lancer vers le bas ne replie pas l’étage');
+          assert.equal(await kept(), 'collapsed', 'écran : le cran replié n’est pas retenu');
+          // Une feuille prend la place : l'étage se cache sans se fermer, et revient à sa fermeture.
+          const layers = page.getByRole('button', { name: 'Calques de la carte' }).first();
+          await tap(layers);
+          await page
+            .getByRole('dialog', { name: 'Calques de la carte' })
+            .waitFor({ timeout: 5000 });
+          await until(
+            () => stage.evaluate((node) => getComputedStyle(node).visibility),
+            'hidden',
+            'écran : l’étage reste visible sous la feuille',
+          );
+          await tap(page.getByRole('button', { name: /^fermer$/i }).first());
+          await page
+            .getByRole('dialog', { name: 'Calques de la carte' })
+            .waitFor({ state: 'detached', timeout: 5000 });
+          await until(
+            () => stage.evaluate((node) => getComputedStyle(node).visibility),
+            'visible',
+            'écran : l’étage ne revient pas à la fermeture',
+          );
+          assert.equal(await step(), 'collapsed', 'écran : l’étage a perdu son cran');
+          // Un toucher sur la barre le rouvre au rang.
+          await tap(boardHandle());
+          await until(step, 'peek', 'écran : le toucher ne rouvre pas l’étage');
+          assert.equal(await kept(), 'peek', 'écran : le cran rang n’est pas retenu');
+        },
+      },
       {
         name: 'ouvrir et fermer chaque surface',
         run: async () => {
@@ -346,9 +401,9 @@ async function runProfile(profile) {
         name: 'défiler le plateau personnel',
         run: async () => {
           await closeBoard();
-          // Au doigt : replié → mi-hauteur → plein → replié, la poignée disant chaque fois la suite.
+          // Au doigt : replié → rang → replié, le bouton disant chaque fois la suite.
           if (phone)
-            for (const next of [/^agrandir/, /^replier/, /^déplier/]) {
+            for (const next of [/^replier/, /^déplier/]) {
               await tap(boardHandle());
               await page.waitForTimeout(700);
               const said = await boardHandle().getAttribute('aria-label');

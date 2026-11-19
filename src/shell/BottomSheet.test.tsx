@@ -330,3 +330,59 @@ describe('a selection sheet released on a step', () => {
     expect(stepped.mock.calls.map(([height]) => height)).toEqual([HEIGHTS.half, HEIGHTS.peek]);
   });
 });
+
+describe('the tiles stage', () => {
+  const stage = (): HTMLElement => document.querySelector<HTMLElement>('[data-stage]')!;
+  const pull = (travel: number): void => {
+    act(() => {
+      stage().firstElementChild!.dispatchEvent(
+        new MouseEvent('pointerdown', { bubbles: true, clientY: 300, button: 0 }),
+      );
+      window.dispatchEvent(new MouseEvent('pointermove', { clientY: 300 + travel }));
+      window.dispatchEvent(new MouseEvent('pointerup', { clientY: 300 + travel }));
+    });
+  };
+
+  it('folds on a swipe down instead of closing, climbs to the half and no higher', () => {
+    const onClose = vi.fn();
+    const heights: string[] = [];
+    render(
+      <BottomSheet
+        stage
+        hug
+        title="Plateau personnel"
+        initial="peek"
+        onClose={onClose}
+        onHeight={(next) => heights.push(next)}
+      >
+        <p>tuiles</p>
+      </BottomSheet>,
+    );
+    pull(120);
+    expect(stage().dataset.height).toBe('collapsed');
+    pull(120);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(stage().dataset.height).toBe('collapsed');
+    pull(-120);
+    pull(-120);
+    pull(-120);
+    expect(stage().dataset.height).toBe('half');
+    expect(heights).toEqual(['collapsed', 'peek', 'half']);
+  });
+
+  it('claims no place, and says nothing to a selection', () => {
+    const onClose = vi.fn();
+    render(
+      <SoleSurfaceProvider>
+        <BottomSheet stage title="Plateau personnel" onClose={onClose}>
+          <p>tuiles</p>
+        </BottomSheet>
+        <BottomSheet title="Infanterie" onClose={() => {}}>
+          <p>fiche</p>
+        </BottomSheet>
+      </SoleSurfaceProvider>,
+    );
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'Infanterie' })).toBeTruthy();
+  });
+});
