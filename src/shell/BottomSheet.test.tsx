@@ -343,7 +343,7 @@ describe('the tiles stage', () => {
     });
   };
 
-  it('folds on a swipe down instead of closing, climbs to the half and no higher', () => {
+  it('folds on a swipe down instead of closing, climbs to the full and no higher', () => {
     const onClose = vi.fn();
     const heights: string[] = [];
     render(
@@ -366,8 +366,12 @@ describe('the tiles stage', () => {
     pull(-120);
     pull(-120);
     pull(-120);
+    pull(-120);
+    pull(-120);
+    expect(stage().dataset.height).toBe('full');
+    expect(heights).toEqual(['collapsed', 'peek', 'half', 'full']);
+    pull(120);
     expect(stage().dataset.height).toBe('half');
-    expect(heights).toEqual(['collapsed', 'peek', 'half']);
   });
 
   it('claims no place, and says nothing to a selection', () => {

@@ -24,13 +24,12 @@ import { notify } from '@/shell/notifications';
 import { Price } from '@/shell/Price';
 import { CueBubble } from '@/shell/CueBubble';
 import { FOOT_ROW, useFoot } from '@/shell/foot';
-import { ReserveCell, ReserveLine } from '@/shell/ReserveCell';
+import { ReserveCell } from '@/shell/ReserveCell';
 import { BottomSheet, type KeepingHeight } from '@/shell/BottomSheet';
 import { useSurfaceHeld } from '@/shell/sole-surface';
 import { useNarrowScreen } from '@/shell/viewport';
 import {
   keptLevelOf,
-  cancelWorkRefusalOf,
   keptOf,
   placementOf,
   reachesOf,
@@ -55,11 +54,10 @@ import { isSupplyKey, type SupplyLoad } from '@/domain/logistics';
 import type { MapMotion } from '@/domain/map-motion';
 import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
 import { UnitSprite } from '@/emblems/UnitSprite';
-import { worksOf, useCancelWork } from './works';
+import { CASCADE, enter } from './cascade';
 import { buildingsOfMaquette, type MaquetteAt } from './board-markers';
 import { conditionText } from './FoundationRows';
-import { LotControl } from './LotControl';
-import { HeapBinLines, HeapBoardNotes } from './HeapBinLines';
+import { StageTabs, Volet, type StageTab } from './Volet';
 import { Rail, type Grab, type Grip } from './Rail';
 import { useOverflow } from './useOverflow';
 import { RazeButton } from './RazeButton';
@@ -170,6 +168,8 @@ export function PersonalBoard({
   const [bar, setBar] = useState<HTMLElement | null>(null);
   const [sheet, setSheet] = useState<HTMLElement | null>(null);
   const [refused, setRefused] = useState<BuildingKey | null>(null);
+  /** L'onglet de l'étage : un état local, ni dans l'adresse ni dans l'historique (#590). */
+  const [tab, setTab] = useState<StageTab>('works');
   const barRef = useCallback((node: HTMLElement | null) => {
     board.current = node;
     setBar(node);
@@ -426,8 +426,8 @@ export function PersonalBoard({
               )
             }
           >
-            <div ref={swap} className="relative flex min-h-0 flex-col overflow-hidden">
-              <>
+            <div ref={swap} className="relative flex h-full min-h-0 flex-col overflow-hidden">
+              <div className="shrink-0">
                 {focusedBuilding !== null && (
                   <FocusedBuilding building={focusedBuilding} view={view} />
                 )}
@@ -441,26 +441,21 @@ export function PersonalBoard({
                   motion={motion}
                   onTake={observing ? null : take}
                 />
-                {/* Le rang ne montre que les tuiles ; la moitié y ajoute les tas et la file. */}
-                <div data-half-only>
-                  <div className="grid grid-cols-5 items-start border-t border-(color:--ink)/30 px-[1px] pt-[2px]">
-                    {RESOURCES.map((resource) => (
-                      <div key={resource} className="grid min-w-0 justify-items-center">
-                        <HeapBinLines view={view} resource={resource} now={now} short />
-                      </div>
-                    ))}
-                  </div>
-                  <Works
-                    view={view}
-                    seat={seat}
-                    now={now}
-                    observing={observing}
-                    ledger={ledger}
-                    onReplay={harvest === null ? null : replay}
-                    onSpent={mark}
-                  />
-                </div>
-              </>
+              </div>
+              {/* Le rang ne montre que les tuiles ; la moitié et le plein y ajoutent les onglets. */}
+              {(step === 'half' || step === 'full') && (
+                <StageTabs
+                  tab={tab}
+                  onTab={setTab}
+                  view={view}
+                  seat={seat}
+                  now={now}
+                  observing={observing}
+                  ledger={ledger}
+                  onReplay={harvest === null ? null : replay}
+                  onSpent={mark}
+                />
+              )}
             </div>
           </BottomSheet>
         )}
@@ -635,26 +630,6 @@ function useMatRise(nodes: () => ReadonlyArray<HTMLElement | null>, shape: strin
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `shape` says when the nodes changed
   }, [shape]);
-}
-
-/** The volet's lines come in one after the other in a fade (#251, #580). */
-const CASCADE = {
-  line: { from: 80, step: 35, duration: 195, most: 8 },
-  easing: 'cubic-bezier(.2,.8,.2,1)',
-} as const;
-
-/** The first lines enter one after the other, in opacity and a 10 px rise. */
-function enter(lines: readonly Element[]) {
-  const { line, easing } = CASCADE;
-  lines.slice(0, line.most).forEach((one, rank) =>
-    one.animate(
-      [
-        { opacity: 0, translate: '0 10px' },
-        { opacity: 1, translate: '0 0' },
-      ],
-      { duration: line.duration, delay: line.from + rank * line.step, easing, fill: 'backwards' },
-    ),
-  );
 }
 
 /** Each column cascades on its own: a long queue must not use up the others' share. */
@@ -1546,270 +1521,6 @@ function WorkLine({ view, now }: { view: PlayerView; now: number }) {
         view.me.constructionQueue.length,
       )}
     </>
-  );
-}
-
-/** La barre du chantier en tête : la part déjà bâtie. */
-function WorkBar({ total, left, className }: { total: number; left: number; className: string }) {
-  return (
-    <span aria-hidden className={`block h-[3px] bg-(--ink)/14 ${className}`}>
-      <i
-        className="block h-full bg-[var(--arc-mine)]"
-        style={{ width: `${total > 0 ? Math.min(100, ((total - left) / total) * 100) : 0}%` }}
-      />
-    </span>
-  );
-}
-
-function HarvestLines({ ledger, onReplay }: { ledger: string; onReplay: (() => void) | null }) {
-  return (
-    <>
-      <span className="mt-[4px] flex items-baseline gap-2">
-        <span className="eyebrow">{fr.personalBoard.harvestHeader}</span>
-        {onReplay !== null && (
-          <button
-            type="button"
-            onClick={onReplay}
-            className="ml-auto cursor-pointer text-[9.5px] tracking-[.14em] uppercase underline underline-offset-2"
-          >
-            {fr.personalBoard.harvestReplay}
-          </button>
-        )}
-      </span>
-      <p className="text-[11px] leading-[1.35] text-[var(--ink-soft)]">{ledger}</p>
-    </>
-  );
-}
-
-/** Les lots que le joueur commande, un par chaîne commandée (`LotControl`). */
-const commandedChains = (view: PlayerView) =>
-  view.me.chains.filter((chain) => chain.commanded && chain.level > 0);
-
-function Lots({
-  view,
-  seat,
-  now,
-  observing,
-}: {
-  view: PlayerView;
-  seat: Seat;
-  now: number;
-  observing: boolean;
-}) {
-  return commandedChains(view).map((chain) => (
-    <LotControl
-      key={chain.by}
-      chain={chain}
-      seat={seat}
-      loadedAt={view.loadedAt}
-      now={now}
-      observing={observing}
-    />
-  ));
-}
-
-type WorksProps = {
-  view: PlayerView;
-  seat: Seat;
-  now: number;
-  observing: boolean;
-  ledger: string;
-  /** Rejouer la récolte : la ligne de la barre n'est pas toujours sous la main. */
-  onReplay: (() => void) | null;
-  onSpent: () => void;
-};
-
-/**
- * **Le chantier en tête et la file derrière, au téléphone** : la seule échéance est celle de la
- * tête, sa règle avance ; une ligne en file se retire et se rembourse, un chantier commencé non
- * (`constructions.cancel`). Dessous, la récolte et les lots que le joueur commande ; le tout replié
- * en une ligne qu'on déplie au toucher.
- */
-function Works({ view, seat, now, observing, ledger, onReplay, onSpent }: WorksProps) {
-  const { cancel, error } = useCancelWork(seat, onSpent);
-  const [unfolded, setUnfolded] = useState(false);
-  const list = (
-    <div className="grid gap-[5px]">
-      <span className="eyebrow">{fr.personalBoard.worksHeader}</span>
-      {view.me.construction === null && view.me.constructionQueue.length === 0 && (
-        <p className="text-[11.5px] leading-[1.4] text-[var(--ink-soft)]">
-          {fr.economy.constructionNone}
-        </p>
-      )}
-      {worksOf(view, now).map(({ work, running, total, left, name }, index) => (
-        <div key={work.id} className="grid gap-[2px] text-[12px] leading-[1.2]">
-          <span className="flex items-baseline gap-2">
-            <b className="min-w-0 flex-1 truncate font-semibold">
-              {fr.personalBoard.workRank(index + 1, name)}
-            </b>
-            {running && (
-              <small className="shrink-0 font-(family-name:--font-mono) text-[9.5px] leading-none text-[var(--ink-soft)]">
-                {countdownLabel(left * 60_000)}
-              </small>
-            )}
-            {cancelWorkRefusalOf({ started: running }) === null && !observing && (
-              <button
-                type="button"
-                title={fr.economy.queueCancelTitle}
-                aria-label={fr.personalBoard.cancelWork(name)}
-                onClick={() => cancel(work.id)}
-                className="shrink-0 cursor-pointer text-[9.5px] tracking-[.14em] uppercase underline underline-offset-2 opacity-55 hover:text-[var(--critical)] hover:opacity-100"
-              >
-                {fr.economy.queueCancel}
-              </button>
-            )}
-          </span>
-          {running && <WorkBar total={total} left={left} className="" />}
-          {cancelWorkRefusalOf({ started: running }) !== null && (
-            <small className="block text-[10.5px] leading-[1.3] text-[var(--ink-soft)]">
-              {fr.errors.CONSTRUCTION_ALREADY_STARTED()}
-            </small>
-          )}
-          <small className="block truncate font-(family-name:--font-mono) text-[9.5px] leading-[1.2] text-[var(--ink-soft)]">
-            {running
-              ? fr.personalBoard.runningAt(work.regionName)
-              : fr.personalBoard.queuedAt(work.regionName, countdownLabel(total * 60_000))}
-          </small>
-        </div>
-      ))}
-      {view.me.hqLevel > 0 && (
-        <small className="text-[9.5px] leading-[1.3] text-[var(--ink-soft)]">
-          {fr.personalBoard.hqSpeed(fr.common.levelSpeed(view.me.hqLevel))}
-        </small>
-      )}
-      {error !== null && <p className="text-[11px] text-[var(--critical)]">{error}</p>}
-      <HeapBoardNotes view={view} now={now} />
-      <HarvestLines ledger={ledger} onReplay={onReplay} />
-      <Lots view={view} seat={seat} now={now} observing={observing} />
-    </div>
-  );
-  return (
-    <section className="border-t border-[var(--ink)] px-[10px] py-[6px]">
-      <button
-        type="button"
-        aria-expanded={unfolded}
-        onClick={() => setUnfolded((was) => !was)}
-        className="flex w-full cursor-pointer items-center gap-[6px] px-[2px] py-[6px] text-left text-[12px] leading-[1.2]"
-      >
-        <span aria-hidden className="text-[10px]">
-          {unfolded ? '▾' : '▸'}
-        </span>
-        {/* L'en-tête de l'étage dit déjà le chantier : ici, le libellé et le pli. */}
-        <span className="min-w-0 flex-1 truncate">{fr.personalBoard.worksFold}</span>
-      </button>
-      {unfolded && list}
-    </section>
-  );
-}
-
-/** Au-delà de quatre chantiers, la file du volet passe sur deux colonnes (#580). */
-const QUEUE_ONE_COLUMN = 4;
-
-/**
- * **Le volet du bureau** (#580, finaliste) : au-dessus de la barre, quatre colonnes — la file
- * entière des chantiers, chaque « annuler » visible ; les stocks en lignes, plafond compris ; ce qui
- * arrive, ce qui déborde et la récolte ; les lots. Chaque colonne défile seule.
- */
-function Volet({ view, seat, now, observing, ledger, onReplay, onSpent }: WorksProps) {
-  const { cancel, error } = useCancelWork(seat, onSpent);
-  const works = worksOf(view, now);
-  const column =
-    'grid min-h-0 min-w-0 content-start gap-[4px] overflow-y-auto overscroll-contain border-l border-(color:--ink)/40 px-[12px] py-[6px] first:border-l-0';
-  const chains = commandedChains(view);
-  return (
-    <div className="grid min-h-0 grid-cols-[372fr_310fr_190fr_240fr] border-l border-[var(--ink)]">
-      <section
-        data-volet-column="works"
-        className={`${column} grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden`}
-      >
-        <span className="flex items-baseline gap-[8px]">
-          <span className="eyebrow">{fr.personalBoard.worksHeader}</span>
-          {view.me.hqLevel > 0 && (
-            <small className="truncate text-[11px] text-[var(--ink-soft)]">
-              {fr.personalBoard.hqSpeed(fr.common.levelSpeed(view.me.hqLevel))}
-            </small>
-          )}
-        </span>
-        <div className="grid min-h-0 content-start gap-[4px] overflow-y-auto overscroll-contain">
-          {works.length === 0 ? (
-            <p className="text-[11.5px] leading-[1.4] text-[var(--ink-soft)]">
-              {fr.economy.constructionNone}
-            </p>
-          ) : (
-            <ol
-              aria-label={fr.personalBoard.worksHeader}
-              className="grid gap-x-[14px]"
-              style={
-                works.length > QUEUE_ONE_COLUMN ? { gridTemplateColumns: '1fr 1fr' } : undefined
-              }
-            >
-              {works.map(({ work, running, total, left, name }, index) => (
-                <li
-                  key={work.id}
-                  className="mat-line grid grid-cols-[minmax(0,1fr)_auto] items-center gap-[8px] border-b border-(color:--ink)/14 py-[1px]"
-                >
-                  <span
-                    className="grid min-w-0 leading-[1.15]"
-                    title={`${fr.personalBoard.workRank(index + 1, name)} · ${work.regionName}`}
-                  >
-                    <b className="truncate text-[12px] font-semibold">
-                      {fr.personalBoard.workRank(index + 1, name)}
-                    </b>
-                    <small className="flex min-w-0 font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
-                      <span className="truncate">{work.regionName}</span>
-                      <span className="shrink-0">
-                        {running
-                          ? fr.personalBoard.runningTail(countdownLabel(left * 60_000))
-                          : fr.personalBoard.queuedTail(countdownLabel(total * 60_000))}
-                      </span>
-                    </small>
-                  </span>
-                  {cancelWorkRefusalOf({ started: running }) !== null ? (
-                    <WorkBar total={total} left={left} className="w-[52px]" />
-                  ) : (
-                    !observing && (
-                      <button
-                        type="button"
-                        title={fr.economy.queueCancelTitle}
-                        aria-label={fr.personalBoard.cancelWork(name)}
-                        onClick={() => cancel(work.id)}
-                        className="cursor-pointer border border-[var(--ink)] px-[6px] py-[2px] text-[10px] font-semibold tracking-[.06em] uppercase hover:border-[var(--critical)] hover:text-[var(--critical)]"
-                      >
-                        {fr.economy.queueCancel}
-                      </button>
-                    )
-                  )}
-                </li>
-              ))}
-            </ol>
-          )}
-          {error !== null && <p className="text-[11px] text-[var(--critical)]">{error}</p>}
-        </div>
-        <p
-          title={fr.personalBoard.refundNote}
-          className="shrink-0 truncate text-[11px] leading-[1.3] text-[var(--ink-soft)]"
-        >
-          {fr.personalBoard.refundNote}
-        </p>
-      </section>
-      <section data-volet-column="reserves" className={`${column} gap-0`}>
-        {RESOURCES.map((resource) => (
-          <ReserveLine key={resource} resource={resource} view={view} now={now} />
-        ))}
-      </section>
-      <section data-volet-column="heaps" className={`mat-line ${column}`}>
-        <HeapBoardNotes view={view} now={now} />
-        <HarvestLines ledger={ledger} onReplay={onReplay} />
-      </section>
-      <section data-volet-column="lots" className={`mat-line ${column} [&>div]:px-0`}>
-        <span className="eyebrow">{fr.personalBoard.lotsHeader}</span>
-        {chains.length === 0 ? (
-          <p className="text-[11.5px] text-[var(--ink-soft)]">{fr.personalBoard.noLots}</p>
-        ) : (
-          <Lots view={view} seat={seat} now={now} observing={observing} />
-        )}
-      </section>
-    </div>
   );
 }
 

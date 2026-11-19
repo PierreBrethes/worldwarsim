@@ -202,6 +202,14 @@ body {
   max-height: var(--board-room);
 }
 
+/* **Le plein de l'étage des tuiles** (#590) : toute la place entre le bandeau et la barre — les
+   tuiles gardent leur rang et les sept « annuler » d'une file tiennent à 375×667.
+   @a-mesurer : la part de `--board-room`. */
+.board-sheet[data-stage][data-height='full'],
+.board-sheet[data-stage][data-moving][data-height] {
+  height: var(--board-room);
+}
+
 /* Le dossier de la nation (refonte mobile, 1s) : posé sous le bandeau, la carte voilée jusqu'à
    la barre d'accueil. Il défile s'il ne tient pas — l'iPhone SE couché n'a pas cinq lignes de 56 px
    sous un bandeau. */
@@ -924,10 +932,4 @@ body {
   box-shadow:
     inset 0 0 0 1.5px var(--pastille-rim),
     0 1px 0 color-mix(in srgb, var(--ink) 50%, transparent);
-}
-
-/* **Le rang des tuiles ne montre que les tuiles** (#589) : les tas et la file n'apparaissent
-   qu'à la moitié. */
-.board-sheet[data-stage][data-height='peek'] [data-half-only] {
-  display: none;
 }

@@ -335,6 +335,50 @@ async function runProfile(profile) {
           await tap(boardHandle());
           await until(step, 'peek', 'écran : le toucher ne rouvre pas l’étage');
           assert.equal(await kept(), 'peek', 'écran : le cran rang n’est pas retenu');
+          // Tirée à la poignée, la feuille monte jusqu'aux onglets (#590) : la moitié, puis le plein ;
+          // un lancer vers le bas la redescend. Les onglets changent sans toucher à l'adresse.
+          const pull = async (travel) => {
+            const at = await stage.boundingBox();
+            const from = [at.x + 60, at.y + 20];
+            await touch('touchStart', [from]);
+            await fingers([from], [[from[0], from[1] + travel]], 120);
+            await touch('touchEnd', []);
+            // Le ressort finit de poser la feuille : la prise suivante la mesure au repos.
+            await page.waitForTimeout(700);
+          };
+          const tab = (name) => page.getByRole('tab', { name, exact: true });
+          assert.equal(await tab('chantiers').count(), 0, 'écran : des onglets au rang');
+          await pull(-160);
+          await until(step, 'half', 'écran : tirer vers le haut ne monte pas à la moitié');
+          assert.equal(
+            await tab('chantiers').getAttribute('aria-selected'),
+            'true',
+            'écran : « chantiers » n’est pas l’onglet d’abord',
+          );
+          await tap(tab('stocks'));
+          await page
+            .getByText(/^\/ \d/)
+            .first()
+            .waitFor({ timeout: 5000 });
+          assert.equal(await tab('stocks').getAttribute('aria-selected'), 'true', 'écran : onglet');
+          await pull(-160);
+          await until(step, 'full', 'écran : la feuille ne monte pas au plein');
+          assert.equal(
+            await tab('stocks').getAttribute('aria-selected'),
+            'true',
+            'écran : le plein a perdu l’onglet',
+          );
+          assert.ok(!new URL(page.url()).searchParams.has('windows'), 'écran : onglet dans l’URL');
+          await pull(260);
+          await until(
+            step,
+            'half',
+            'écran : un lancer vers le bas ne redescend pas au cran moitié',
+          );
+          await pull(260);
+          await until(step, 'peek', 'écran : la feuille ne revient pas au rang');
+          assert.equal(await tab('chantiers').count(), 0, 'écran : des onglets au rang, après');
+          assert.equal(await kept(), 'peek', 'écran : le cran rang n’est plus retenu');
         },
       },
       {

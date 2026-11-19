@@ -24,8 +24,9 @@ const KEEPING_HEIGHTS = ['collapsed', ...SHEET_HEIGHTS] as const;
 
 export type KeepingHeight = (typeof KEEPING_HEIGHTS)[number];
 
-/** **Les crans de l'étage des tuiles** (#589) : replié, rang, moitié — pas le plein avant #590. */
-const STAGE_HEIGHTS = ['collapsed', 'peek', 'half'] as const;
+/** **Les crans de l'étage des tuiles** (#589, #590) : replié, rang, moitié, plein — les onglets
+ *  se logent à la moitié et au plein. */
+const STAGE_HEIGHTS = ['collapsed', 'peek', 'half', 'full'] as const;
 
 /**
  * **La part d'écran de chaque cran** — les mêmes fractions que `.board-sheet` (`index.css`), lues
@@ -132,7 +133,7 @@ export function BottomSheet({
   initial?: KeepingHeight;
   /** **L'étage du plateau personnel** (#589) : il ne se ferme jamais — glisser vers le bas le
    *  replie sur une barre de 44 px, un toucher la rouvre —, ne réclame pas la place, ne parle pas à
-   *  la sélection, et n'expose pas le cran plein. Son bouton plie et déplie au lieu de fermer. */
+   *  la sélection. Son bouton plie et déplie au lieu de fermer. */
   stage?: boolean;
   /** Le cran que l'appelant tient (étage) ; sans lui, la feuille garde le sien. */
   height?: KeepingHeight;

@@ -4183,9 +4183,10 @@ export const fr = {
     formed: (role: string) => `${role} en file de formation`,
     raised: (building: string, level: number) => `${building} : niveau ${level} en file`,
     worksHeader: 'chantiers',
+    /** Les onglets de l'étage des tuiles au téléphone (#590) : les colonnes du volet du bureau. */
+    tabs: { works: 'chantiers', reserves: 'stocks', heaps: 'tas', lots: 'lots' },
     /** Ce que le QG rend aux chantiers, dit sous la file (ADR 0031). */
     hqSpeed: (line: string) => `QG ${line} sur chaque chantier`,
-    worksFold: 'chantiers',
     /** **Le volet du bureau** (#580) : sous la file, ce que coûte un « annuler ». */
     refundNote: 'Un chantier en file s’annule et se rembourse ; commencé, il ne s’annule plus.',
     /** La fiche d’un chantier (#587) : ce qu’il ne forme pas encore, et son rang. */
