@@ -36,9 +36,11 @@ import { BLITZ } from '../../../convex/constants';
 import { HelpMark } from './HelpMark';
 import { UpgradeControl } from './UpgradeControl';
 import { RaiseControl } from './RaiseControl';
-import { GunneryButton } from './GunneryButton';
+import { AbacusMark, GunneryButton } from './GunneryButton';
+import { PileTabs } from './PileTabs';
+import { useMapMotion } from '@/data/mapMotion';
 import { GarrisonStack } from './GarrisonStack';
-import { BottomSheet } from '@/shell/BottomSheet';
+import { BottomSheet, type KeepingHeight } from '@/shell/BottomSheet';
 import { FloatingWindow, useWindowSized, type WindowProps, WindowHead } from './Window';
 import { useNarrowScreen } from '@/shell/viewport';
 import { RazeButton } from './RazeButton';
@@ -744,6 +746,12 @@ function NarrowSite({
   onClose: () => void;
 }) {
   const [tab, setTab] = useState<SheetTab>('form');
+  /** **Deux états réels** (#587) : courte (l'aperçu, en-tête et une ligne), déroulée (moitié et au-delà,
+   *  les onglets et leur contenu). Le cran est celui de la feuille : un doigt ou un toucher le change. */
+  const [height, setHeight] = useState<KeepingHeight>('peek');
+  const unrolled = height === 'half' || height === 'full';
+  const motion = useMapMotion();
+  const fade = motion === 'off' ? undefined : 'tab-fade';
   const [recruited, setRecruited] = useState<{ id: string; at: number } | null>(null);
   const sheet = useRef<HTMLElement>(null);
   const pick = (next: SheetTab) => {
@@ -796,8 +804,24 @@ function NarrowSite({
   const running = queue.filter((batch) => batch.started);
   const waiting = queue.filter((batch) => !batch.started);
 
+  /** **La ligne de résumé de la fiche courte** : ce que le site fait, sous l'en-tête ; la toucher
+   *  déroule. */
+  const summary = (
+    <button
+      type="button"
+      onClick={() => setHeight('half')}
+      className="paper-grain flex min-h-[44px] w-full cursor-pointer items-center justify-between gap-2 border-b border-[var(--ink)] px-4 text-left text-[12.5px]"
+    >
+      <span className="truncate">
+        {ready
+          ? fr.production.sheet.capLine(workshop.troopsInService, workshop.troopsQueued)
+          : fr.production.opening}
+      </span>
+      <span aria-hidden>▴</span>
+    </button>
+  );
   const pinned = (
-    <div className="paper-grain border-b border-[var(--ink)]">
+    <div className={`paper-grain border-b border-[var(--ink)] ${fade ?? ''}`}>
       <p className="truncate px-4 pt-[6px] text-[12px] text-[var(--ink-soft)]">
         {fr.production.siteLevel(building.level)} · {fr.economy.inRegion(regionName)}
       </p>
@@ -847,164 +871,179 @@ function NarrowSite({
     <BottomSheet
       title={fr.buildings[building.key]}
       aside={
-        <span className="flex h-[36px] w-[44px] shrink-0 [&>button]:h-full [&>button]:w-full [&>button]:justify-center">
-          <GunneryButton onOpen={onOpenGunnery} />
-        </span>
+        <>
+          <BuildingPlate building={building.key} height={30} />
+          <button
+            type="button"
+            onClick={onOpenGunnery}
+            title={fr.gunnery.open}
+            aria-label={fr.gunnery.open}
+            className="inline-flex min-h-[44px] shrink-0 cursor-pointer items-center gap-[6px] text-[10px] tracking-[.14em] uppercase"
+          >
+            <AbacusMark size={18} />
+            {fr.gunnery.openShort}
+          </button>
+        </>
       }
       onClose={onClose}
       initial="peek"
       hug
       keepsSelection
-      pinned={pinned}
+      unfolds
+      height={height}
+      onHeight={setHeight}
+      pinned={unrolled ? pinned : summary}
     >
-      <article ref={sheet} className="text-[var(--ink)]">
-        {error && (
-          <p className="border-b border-[var(--critical)] px-4 py-[9px] text-[12.5px] text-[var(--critical)]">
-            {error}
-          </p>
-        )}
+      {unrolled && (
+        <article ref={sheet} className={`text-[var(--ink)] ${fade ?? ''}`}>
+          {error && (
+            <p className="border-b border-[var(--critical)] px-4 py-[9px] text-[12.5px] text-[var(--critical)]">
+              {error}
+            </p>
+          )}
 
-        {tab === 'site' ? (
-          <>
-            <SiteStats view={view} building={building} />
-            {/* **« Raser » vit dans la fiche** (#587) : la confirmation dit ce qui est perdu. */}
-            <RazeButton view={view} building={building} className="px-4 py-3" />
-          </>
-        ) : !ready ? (
-          <p className="px-4 py-6 text-[13px] text-[var(--ink-soft)]">{fr.production.opening}</p>
-        ) : tab === 'form' ? (
-          <>
-            {!view.me.defeated && (
-              <SiteLadder
-                building={building}
-                view={view}
-                seat={seat}
-                now={now}
-                siteLevel={siteLevel}
-              />
-            )}
-            <SheetHeading
-              title={fr.production.sheet.formHeader}
-              note={fr.production.sheet.formNote}
-            />
-            {open.map((entry) => (
-              <RoleSheetCard
-                key={entry.role}
-                entry={entry}
-                nation={nation}
-                tier={tiers[entry.role] ?? 1}
-                onTier={(picked) => onTier(entry.role, picked)}
-                owned={workshop.roster.filter((row) => row.role === entry.role)}
-                cost={termsOf(entry).cost}
-                siteName={facility.regionName}
-                blocked={blockOf(entry)}
-                lacking={lackOf(view, now, termsOf(entry).cost.costs)}
-                onEnqueue={enqueueOf(entry.role, (id) => setRecruited({ id, at: Date.now() }))}
-              />
-            ))}
-            {locked.length > 0 && (
-              <>
-                <div className="mt-[18px] flex items-baseline justify-between gap-[10px] border-t-2 border-[var(--ink)] px-4 pt-3 pb-[6px]">
-                  <span className="font-(family-name:--font-display) text-[18px] font-extrabold">
-                    {fr.production.sheet.lockedHeader}
-                  </span>
-                  <span className="text-[12px] text-[var(--ink-quiet)]">
-                    {fr.production.sheet.lockedNote}
-                  </span>
-                </div>
-                {locked.map((entry) => (
-                  <LockedRoleLine key={entry.role} entry={entry} nation={nation} />
-                ))}
-              </>
-            )}
-          </>
-        ) : tab === 'queue' ? (
-          <>
-            {running.map((batch) => (
-              <RunningCard
-                key={batch.id}
-                batch={batch}
-                nation={nation}
-                loadedAt={workshop.loadedAt}
-                now={now}
-                totalMinutes={minutesOf(batch)}
-                deliveredAt={deliveredAt(batch)}
-                onMore={enqueueOf(batch.role, () => {})}
-              />
-            ))}
-            {waiting.length > 0 && (
-              <>
-                <SheetHeading
-                  title={fr.production.sheet.waitingHeader}
-                  note={fr.production.sheet.waitingNote}
+          {tab === 'site' ? (
+            <>
+              <SiteStats view={view} building={building} />
+              {/* **« Raser » vit dans la fiche** (#587) : la confirmation dit ce qui est perdu. */}
+              <RazeButton view={view} building={building} className="px-4 py-3" />
+            </>
+          ) : !ready ? (
+            <p className="px-4 py-6 text-[13px] text-[var(--ink-soft)]">{fr.production.opening}</p>
+          ) : tab === 'form' ? (
+            <>
+              {!view.me.defeated && (
+                <SiteLadder
+                  building={building}
+                  view={view}
+                  seat={seat}
+                  now={now}
+                  siteLevel={siteLevel}
                 />
-                {waiting.map((batch, index) => (
-                  <WaitingLine
-                    key={batch.id}
-                    batch={batch}
-                    rank={index + running.length + 1}
-                    nation={nation}
-                    minutes={minutesOf(batch)}
-                    deliveredAt={deliveredAt(batch)}
-                    onCancel={cancelOf(batch)}
-                    onMore={enqueueOf(batch.role, () => {})}
+              )}
+              <SheetHeading
+                title={fr.production.sheet.formHeader}
+                note={fr.production.sheet.formNote}
+              />
+              {open.map((entry) => (
+                <RoleSheetCard
+                  key={entry.role}
+                  entry={entry}
+                  nation={nation}
+                  tier={tiers[entry.role] ?? 1}
+                  onTier={(picked) => onTier(entry.role, picked)}
+                  owned={workshop.roster.filter((row) => row.role === entry.role)}
+                  cost={termsOf(entry).cost}
+                  siteName={facility.regionName}
+                  blocked={blockOf(entry)}
+                  lacking={lackOf(view, now, termsOf(entry).cost.costs)}
+                  onEnqueue={enqueueOf(entry.role, (id) => setRecruited({ id, at: Date.now() }))}
+                />
+              ))}
+              {locked.length > 0 && (
+                <>
+                  <div className="mt-[18px] flex items-baseline justify-between gap-[10px] border-t-2 border-[var(--ink)] px-4 pt-3 pb-[6px]">
+                    <span className="font-(family-name:--font-display) text-[18px] font-extrabold">
+                      {fr.production.sheet.lockedHeader}
+                    </span>
+                    <span className="text-[12px] text-[var(--ink-quiet)]">
+                      {fr.production.sheet.lockedNote}
+                    </span>
+                  </div>
+                  {locked.map((entry) => (
+                    <LockedRoleLine key={entry.role} entry={entry} nation={nation} />
+                  ))}
+                </>
+              )}
+            </>
+          ) : tab === 'queue' ? (
+            <>
+              {running.map((batch) => (
+                <RunningCard
+                  key={batch.id}
+                  batch={batch}
+                  nation={nation}
+                  loadedAt={workshop.loadedAt}
+                  now={now}
+                  totalMinutes={minutesOf(batch)}
+                  deliveredAt={deliveredAt(batch)}
+                  onMore={enqueueOf(batch.role, () => {})}
+                />
+              ))}
+              {waiting.length > 0 && (
+                <>
+                  <SheetHeading
+                    title={fr.production.sheet.waitingHeader}
+                    note={fr.production.sheet.waitingNote}
                   />
-                ))}
-              </>
-            )}
-            {queue.length === 0 && (
-              <div className="px-4 pt-7 pb-1">
-                <div className="text-[13.5px] leading-[1.45] text-[var(--ink-soft)]">
-                  {fr.personalBoard.siteQueueEmpty}
+                  {waiting.map((batch, index) => (
+                    <WaitingLine
+                      key={batch.id}
+                      batch={batch}
+                      rank={index + running.length + 1}
+                      nation={nation}
+                      minutes={minutesOf(batch)}
+                      deliveredAt={deliveredAt(batch)}
+                      onCancel={cancelOf(batch)}
+                      onMore={enqueueOf(batch.role, () => {})}
+                    />
+                  ))}
+                </>
+              )}
+              {queue.length === 0 && (
+                <div className="px-4 pt-7 pb-1">
+                  <div className="text-[13.5px] leading-[1.45] text-[var(--ink-soft)]">
+                    {fr.personalBoard.siteQueueEmpty}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => pick('form')}
+                    className="mt-[14px] h-[48px] cursor-pointer border border-[var(--ink)] px-[18px] text-[11px] font-bold tracking-[.16em] uppercase"
+                  >
+                    {fr.production.sheet.formHeader}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => pick('form')}
-                  className="mt-[14px] h-[48px] cursor-pointer border border-[var(--ink)] px-[18px] text-[11px] font-bold tracking-[.16em] uppercase"
-                >
-                  {fr.production.sheet.formHeader}
-                </button>
+              )}
+              <div className="mx-4 mt-[18px] mb-6">
+                <HelpMark>{fr.production.sheet.queueNote(aSecondBuilding(building.key))}</HelpMark>
               </div>
-            )}
-            <div className="mx-4 mt-[18px] mb-6">
-              <HelpMark>{fr.production.sheet.queueNote(aSecondBuilding(building.key))}</HelpMark>
+            </>
+          ) : held.length === 0 ? (
+            <div className="px-4 pt-7 pb-6">
+              <div className="font-(family-name:--font-display) text-[19px] leading-[1.2] font-extrabold">
+                {fr.production.sheet.garrisonEmpty[facility.domain]}
+              </div>
+              <div className="mt-[6px] text-[13.5px] leading-[1.45] text-[var(--ink-soft)]">
+                {fr.production.sheet.garrisonEmptyNote}
+              </div>
             </div>
-          </>
-        ) : held.length === 0 ? (
-          <div className="px-4 pt-7 pb-6">
-            <div className="font-(family-name:--font-display) text-[19px] leading-[1.2] font-extrabold">
-              {fr.production.sheet.garrisonEmpty[facility.domain]}
+          ) : (
+            /* La garnison du site est la fiche de pile de #585, le même composant que la pièce en main :
+             ses onglets lisent les troupes du site. */
+            <div className="px-3 pt-3 pb-4">
+              <PileTabs
+                view={view}
+                station={station}
+                held={held}
+                preselect={[]}
+                canPrepare
+                observing={view.me.defeated}
+                onPrepare={onPrepare}
+              />
             </div>
-            <div className="mt-[6px] text-[13.5px] leading-[1.45] text-[var(--ink-soft)]">
-              {fr.production.sheet.garrisonEmptyNote}
-            </div>
-          </div>
-        ) : (
-          /* La garnison du site est la composition même de 1e : la feuille la porte telle quelle
-           plutôt qu'un bouton « composer une pile » qui n'ouvrirait qu'elle. */
-          <div className="px-3 pt-3 pb-4">
-            <GarrisonStack
-              view={view}
-              station={station}
-              held={held}
-              preselect={[]}
-              canPrepare
-              observing={view.me.defeated}
-              onPrepare={onPrepare}
-            />
-          </div>
-        )}
+          )}
 
-        {noticed !== undefined && (
-          <RecruitedNotice
-            batch={noticed}
-            rank={noticeIndex + 1}
-            deliveredAt={deliveredAt(noticed)}
-            onUndo={noticed.started ? null : cancelOf(noticed)}
-            onDone={() => setRecruited(null)}
-          />
-        )}
-      </article>
+          {noticed !== undefined && (
+            <RecruitedNotice
+              batch={noticed}
+              rank={noticeIndex + 1}
+              deliveredAt={deliveredAt(noticed)}
+              onUndo={noticed.started ? null : cancelOf(noticed)}
+              onDone={() => setRecruited(null)}
+            />
+          )}
+        </article>
+      )}
     </BottomSheet>
   );
 }

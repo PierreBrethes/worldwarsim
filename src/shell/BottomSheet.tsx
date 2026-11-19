@@ -113,6 +113,7 @@ export function BottomSheet({
   sheetRef,
   crest,
   pinned,
+  unfolds = false,
   children,
 }: {
   title: string;
@@ -152,6 +153,9 @@ export function BottomSheet({
   /** **Ce qui reste épinglé sous l'en-tête** quand le corps défile (#586) : l'ordre visé et ses
    *  boutons tiennent à l'aperçu. Ses boutons ne tirent pas la feuille. */
   pinned?: ReactNode;
+  /** **Toucher la ligne de titre déroule** : à l'aperçu, un toucher sur l'en-tête passe au cran
+   *  moitié, comme tirer vers le haut (#587). */
+  unfolds?: boolean;
   children: ReactNode;
 }) {
   const [own, setOwn] = useState<KeepingHeight>(initial);
@@ -165,6 +169,7 @@ export function BottomSheet({
   const [moving, setMoving] = useState(false);
   const sheet = useRef<HTMLElement>(null);
   const body = useRef<HTMLDivElement>(null);
+  const pin = useRef<HTMLDivElement>(null);
   useLeaveGhost(sheet, 'sheet-rise', 'sheet-sink');
   /** Un glisser peut finir par un clic sur l'en-tête : sans ce témoin, ramener la feuille réduite
    *  à sa place la rouvrirait aussitôt. Remis à zéro à chaque appui, car le clic ne suit pas
@@ -295,7 +300,7 @@ export function BottomSheet({
     const element = sheet.current;
     if (element === null) return;
     if (live.current === null) {
-      measured.current = measureSteps(element, body.current, steps);
+      measured.current = measureSteps(element, [body.current, pin.current], steps);
       base.current = measured.current[height] ?? 0;
     } else {
       cancelAnimationFrame(frame.current);
@@ -332,9 +337,10 @@ export function BottomSheet({
           style={{ touchAction: 'none' }}
           onClick={(event) => {
             // Le clic déplie sans recadrer la carte : seul le glisser rejoue le cadrage.
-            if (!collapsed || swiped.current) return;
+            if (swiped.current) return;
             if (event.target instanceof Element && event.target.closest('button') !== null) return;
-            setHeight('peek');
+            if (collapsed) setHeight('peek');
+            else if (unfolds && height === 'peek') setHeight('half');
           }}
         >
           {stage ? (
@@ -391,7 +397,11 @@ export function BottomSheet({
             </>
           )}
         </div>
-        {pinned !== undefined && <div className="shrink-0">{pinned}</div>}
+        {pinned !== undefined && (
+          <div ref={pin} className="shrink-0" hidden={collapsed && !moving}>
+            {pinned}
+          </div>
+        )}
         {/* Caché plutôt que démonté : ce qu'il porte garde son état, et revient tel quel. */}
         <div
           ref={body}
@@ -453,24 +463,28 @@ function velocityOf(samples: ReadonlyArray<{ t: number; y: number }>): number {
 }
 
 /** La hauteur en pixels d'écran de chaque cran, lue sur la feuille en le lui donnant un instant :
- *  un aperçu qui épouse son contenu et l'en-tête seul n'ont de hauteur que mesurée. */
+ *  un aperçu qui épouse son contenu et l'en-tête seul n'ont de hauteur que mesurée. `folded` est ce
+ *  que le cran réduit cache : le corps et ce qui reste épinglé. */
 function measureSteps(
   element: HTMLElement,
-  content: HTMLElement | null,
+  folded: ReadonlyArray<HTMLElement | null>,
   steps: ReadonlyArray<KeepingHeight>,
 ): Partial<Record<KeepingHeight, number>> {
   const { height, moving } = element.dataset;
-  const hidden = content?.hidden ?? false;
+  const nodes = folded.filter((node): node is HTMLElement => node !== null);
+  const hidden = nodes.map((node) => node.hidden);
   delete element.dataset.moving;
   const result: Partial<Record<KeepingHeight, number>> = {};
   for (const step of steps) {
     element.dataset.height = step;
-    if (content) content.hidden = step === 'collapsed';
+    for (const node of nodes) node.hidden = step === 'collapsed';
     result[step] = element.getBoundingClientRect().height;
   }
   element.dataset.height = height;
   if (moving !== undefined) element.dataset.moving = moving;
-  if (content) content.hidden = hidden;
+  nodes.forEach((node, index) => {
+    node.hidden = hidden[index]!;
+  });
   return result;
 }
 

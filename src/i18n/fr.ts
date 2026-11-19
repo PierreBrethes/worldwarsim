@@ -3904,6 +3904,8 @@ export const fr = {
     /** Le bouton qui l'ouvre, là où l'information sert : au recrutement, et sur la popin de
      *  troupe. Pas d'entrée de rail — il en a déjà trop (audit du 25/08 §3). */
     open: 'abaque de tir — qui bat qui',
+    /** Le libellé court à côté du pictogramme, dans l'en-tête d'une feuille. */
+    openShort: 'abaque',
     /** Le garde-fou du projet, imprimé : c'est ce que la table garantit, et c'est ce qu'un
      *  joueur doit lire avant de chercher l'arme absolue qui n'existe pas. */
     guarantee: 'Aucune arme ne bat tout, aucune n’est battue par tout.',
@@ -4143,7 +4145,7 @@ export const fr = {
     siteLeave: 'bâtiments',
     siteLeaveTitle: 'Revenir aux tuiles de bâtiments (Échap)',
     siteQueue: 'en formation',
-    siteQueueEmpty: 'Rien en formation : touchez une troupe à former.',
+    siteQueueEmpty: 'Rien en formation : choisissez une troupe à former.',
     /** Ce que dit la main au-dessus d'une cible. */
     raise: (building: string, level: number) => `Élever ${lowerFirst(building)} au niveau ${level}`,
     /** Un bâtiment qu'un niveau accélère dit ce que le suivant rend (ADR 0031). */
