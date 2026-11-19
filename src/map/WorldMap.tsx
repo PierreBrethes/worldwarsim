@@ -33,6 +33,7 @@ import {
   type RegionIdentity,
 } from '@/domain/world';
 import type { LonLat } from '@/domain/geo';
+import { hiddenBy } from './frame-need';
 import type { DisbandGround } from '@/domain/movement-orders';
 import type { Ground } from '@/domain/routing';
 import type { Atlas } from '@/domain/atlas';
@@ -272,6 +273,9 @@ type Props = {
   /** **La carte prête** tend au plateau de quoi nommer la maquette sous un point : une
    *  tuile du plateau personnel se lâche sur une maquette (#205). */
   onMaquetteLookup?: (maquetteAt: (clientX: number, clientY: number) => string | null) => void;
+  /** **La carte prête** tend de même le lieu sous un point de l'écran, pour ce qui doit se garder
+   *  en lon/lat (`reveal`) : un pixel ne survit pas à un geste de carte. */
+  onPointLookup?: (pointAt: (clientX: number, clientY: number) => LonLat | null) => void;
   onArcHover?: (id: string | null) => void;
   onLabelHover?: (id: string | null) => void;
   /** The press card a hovered piece wears; the map places it, the board writes it. */
@@ -317,6 +321,10 @@ type Props = {
     readonly distance?: number;
     /** Cadrer la pièce dessinée plutôt que son étiquette (`MapEngine.journeyTo`). */
     readonly onPiece?: boolean;
+    /** Une demande rejouée au lâcher d'une feuille (#582) : la hauteur que la feuille couvre. La
+     *  carte ne bouge que si elle cache le sujet, ou va le cacher — sans quoi chaque cran lâché
+     *  coûterait 1,5 s d'images. */
+    readonly hiddenBy?: number;
     readonly nonce: number;
   } | null;
   /**
@@ -413,8 +421,8 @@ type Props = {
    * la garnison (A7), appliquée à ce qui n'a pas de marqueur à cadrer, un chantier visé.
    */
   reveal?: {
-    readonly x: number;
-    readonly y: number;
+    /** Le lieu, non des pixels : après un geste de carte, ceux-ci mentent. */
+    readonly at: LonLat;
     readonly floor: number;
     readonly nonce: number;
   } | null;
@@ -566,6 +574,7 @@ export function WorldMap({
   onRegionsLoaded,
   onDisbandGround,
   onMaquetteLookup,
+  onPointLookup,
   onArcHover,
   onLabelHover,
   poster,
@@ -670,6 +679,9 @@ export function WorldMap({
   useEffect(() => {
     if (readyEngine) onMaquetteLookup?.((x, y) => readyEngine.maquetteAtPoint(x, y));
   }, [readyEngine, onMaquetteLookup]);
+  useEffect(() => {
+    if (readyEngine) onPointLookup?.((x, y) => readyEngine.pointAt(x, y));
+  }, [readyEngine, onPointLookup]);
 
   useEffect(() => {
     if (!container.current) return;
@@ -1479,6 +1491,13 @@ export function WorldMap({
     if (focus === null) return;
     stopTourNow.current();
     if (finger.current) setRose(null);
+    const rect = container.current?.getBoundingClientRect();
+    if (focus.hiddenBy !== undefined && readyEngine && rect !== undefined) {
+      const spots = focus.ids.flatMap(
+        (id) => readyEngine.screenOfAnchor(id, focus.onPiece === true) ?? [],
+      );
+      if (!spots.some((spot) => hiddenBy(spot.y - rect.top, rect.height, focus.hiddenBy!))) return;
+    }
     readyEngine?.journeyTo(
       focus.ids,
       focus.places ?? [],
@@ -1556,9 +1575,11 @@ export function WorldMap({
   useEffect(() => {
     const rect = container.current?.getBoundingClientRect();
     if (reveal === null || rect === undefined) return;
-    const visible = rect.height - reveal.floor;
-    if (reveal.y <= visible - REVEAL_MARGIN) return;
-    readyEngine?.nudge(0, visible / 2 - reveal.y);
+    const spot = readyEngine?.screenOf(reveal.at);
+    if (spot === null || spot === undefined) return;
+    const y = spot.y - rect.top;
+    if (!hiddenBy(y, rect.height, reveal.floor)) return;
+    readyEngine?.nudge(0, (rect.height - reveal.floor) / 2 - y);
   }, [readyEngine, reveal]);
 
   useEffect(() => {
@@ -2392,9 +2413,6 @@ type OpenRose = {
  * margin follows the HUD scale, which zooms the whole menu.
  */
 const ROSE_MARGIN = 70;
-
-/** Ce qu'un point garde d'air au-dessus d'une feuille avant que la carte le remonte. */
-const REVEAL_MARGIN = 48;
 
 /** Enough to read the sentence twice, too short for it to become furniture. */
 const HINT_MS = 7000;

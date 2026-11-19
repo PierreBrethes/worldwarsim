@@ -586,8 +586,7 @@ function BoardContent({
   /** Une pose de rose en cours, cachée sous une feuille si l'on n'y prend garde : un point qu'une
    *  surface basse va couvrir est remonté au-dessus d'elle (`WorldMap.reveal`). */
   const [reveal, setReveal] = useState<{
-    readonly x: number;
-    readonly y: number;
+    readonly at: LonLat;
     readonly floor: number;
     readonly nonce: number;
   } | null>(null);
@@ -600,17 +599,56 @@ function BoardContent({
   const [boardCover, setBoardCover] = useState<number | null>(null);
   /** **Ce que la surface ouverte couvre de la carte** : l'objet touché se recadre une fois,
    *  au-dessus d'elle, quand elle est mesurée (`useFrameOnOpen`). */
-  const { ask: frameOnOpen, cancel: cancelFrame } = useFrameOnOpen<
+  /** Le sujet a déjà été cadré une fois : ce qui le sert encore (un cran lâché, le plateau qui se
+   *  déplie) ne bouge la carte que s'il est caché. Remis à zéro par chaque nouvelle demande. */
+  const reframing = useRef(false);
+  const {
+    ask,
+    cancel: cancelFrame,
+    replay: replayFrame,
+  } = useFrameOnOpen<
     | { readonly kind: 'journey'; readonly ids: ReadonlyArray<string> }
-    | { readonly kind: 'reveal'; readonly x: number; readonly y: number }
+    | { readonly kind: 'reveal'; readonly at: LonLat }
   >(
     tallest(selectionSheet === null ? null : selectionSheet + boardBottomPx(), boardCover),
     useCallback((request, covered) => {
       if (request.kind === 'reveal')
-        setReveal({ x: request.x, y: request.y, floor: covered, nonce: Date.now() });
-      else setFocus({ ids: request.ids, lift: covered / 2, onPiece: true, nonce: Date.now() });
+        setReveal({ at: request.at, floor: covered, nonce: Date.now() });
+      else
+        setFocus({
+          ids: request.ids,
+          lift: covered / 2,
+          onPiece: true,
+          ...(reframing.current ? { hiddenBy: covered } : {}),
+          nonce: Date.now(),
+        });
     }, []),
+    selectionSheet !== null || (focused ?? null) !== null,
   );
+  const frameOnOpen = useCallback(
+    (request: Parameters<typeof ask>[0]) => {
+      reframing.current = false;
+      ask(request);
+    },
+    [ask],
+  );
+  const reframe = useCallback(
+    (covered?: number) => {
+      reframing.current = true;
+      replayFrame(covered);
+    },
+    [replayFrame],
+  );
+  /** Une feuille lâchée sur un cran (peek, half) : ce qu'elle couvre, c'est son cran visé. */
+  const stepSheet = useCallback(
+    (goal: number) => reframe(tallest(goal + boardBottomPx(), boardCover) ?? undefined),
+    [reframe, boardCover],
+  );
+  const sheetPorts = useMemo(() => ({ report: setSelectionSheet, onStep: stepSheet }), [stepSheet]);
+  const pointAt = useRef<((clientX: number, clientY: number) => LonLat | null) | null>(null);
+  const keepPointAt = useCallback((lookup: typeof pointAt.current) => {
+    pointAt.current = lookup;
+  }, []);
   const [selectedRumorId, setSelectedRumorId] = useState<string | null>(null);
   const [selectedLoot, setSelectedLoot] = useState<OpenLoot | null>(null);
   const [selectedCamp, setSelectedCamp] = useState<OpenCamp | null>(null);
@@ -864,12 +902,12 @@ function BoardContent({
         liftHand(move.hand);
         /** La fiche monte à l'aperçu : la pièce levée remonte au-dessus d'elle, sans quoi le
          *  toucher qui la repose tomberait sur la feuille. */
-        if (narrow && click.kind === 'pile')
-          frameOnOpen({ kind: 'reveal', ...boardPoint(clientX, clientY) });
+        const at = narrow && click.kind === 'pile' ? pointAt.current?.(clientX, clientY) : null;
+        if (at) frameOnOpen({ kind: 'reveal', at });
       }
       return false;
     },
-    [hand, liftHand, dropHand, narrow, boardPoint, unitsAt, frameOnOpen],
+    [hand, liftHand, dropHand, narrow, unitsAt, frameOnOpen],
   );
 
   /**
@@ -2915,7 +2953,7 @@ function BoardContent({
       onResumeSteps={resumeSteps}
       sweep={replay === null ? sweepButton(false) : null}
     >
-      <SelectionSheetReport.Provider value={setSelectionSheet}>
+      <SelectionSheetReport.Provider value={sheetPorts}>
         <SheetCount.Provider value={countSheet}>
           <ReplayLaunch.Provider value={launchReplay}>
             <RazeContext.Provider
@@ -3008,6 +3046,7 @@ function BoardContent({
                   onRegionsLoaded={keepRegionAt}
                   onDisbandGround={blitz ? undefined : setDisbandGround}
                   onMaquetteLookup={keepMaquetteAt}
+                  onPointLookup={keepPointAt}
                   onArcHover={setHoveredArc}
                   onLabelHover={setHoveredLabel}
                   poster={poster}
@@ -3423,6 +3462,7 @@ function BoardContent({
                     onDeselectSite={deselectSite}
                     onOpenSiteSheet={() => openWindow('site')}
                     onCover={setBoardCover}
+                    onUnfold={reframe}
                     onHoldTile={holdTile}
                     placing={placing?.key ?? null}
                     onPlaceTile={placeTile}

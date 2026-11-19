@@ -3,7 +3,7 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fr } from '@/i18n/fr';
-import { BottomSheet, FULL_SHARE_OF_ROOM, sheetHeight } from './BottomSheet';
+import { BottomSheet, FULL_SHARE_OF_ROOM, SelectionSheetReport, sheetHeight } from './BottomSheet';
 import { SoleSurfaceProvider } from './sole-surface';
 
 /**
@@ -20,6 +20,7 @@ afterEach(() => {
   document.documentElement.style.removeProperty('--board-top');
   document.documentElement.style.removeProperty('--board-bottom');
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 /** Un toucher entier : l'appui, le relâché sur place, puis le clic que le navigateur en tire. */
@@ -272,5 +273,60 @@ describe('the bottom sheet', () => {
     expect(screen.getAllByRole('dialog').map((open) => open.getAttribute('aria-label'))).toEqual([
       'calques',
     ]);
+  });
+});
+
+/**
+ * **Au lâcher, la carte peut se recadrer** (#582) : la feuille d'une sélection dit le cran que le
+ * doigt vient de choisir, mesuré — peek et half seulement, jamais full ni réduit, jamais un glisser
+ * qui revient au même cran.
+ */
+describe('a selection sheet released on a step', () => {
+  const HEIGHTS = { collapsed: 60, peek: 250, half: 420, full: 600 } as const;
+
+  const mount = (initial: 'peek' | 'half') => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const height = HEIGHTS[this.dataset.height as keyof typeof HEIGHTS] ?? 0;
+      return { height, top: 0, left: 0, width: 390, bottom: height, right: 390 } as DOMRect;
+    });
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const stepped = vi.fn();
+    render(
+      <SelectionSheetReport.Provider value={{ report: () => {}, onStep: stepped }}>
+        <BottomSheet title="Infanterie" onClose={() => {}} initial={initial} keepsSelection>
+          <p>la fiche</p>
+        </BottomSheet>
+      </SelectionSheetReport.Provider>,
+    );
+    return stepped;
+  };
+
+  it('tells the measured height of the step it reaches, going up to half or down to peek', () => {
+    const stepped = mount('peek');
+    swipe(-120);
+    expect(stepped).toHaveBeenLastCalledWith(HEIGHTS.half);
+    swipe(120);
+    expect(stepped).toHaveBeenLastCalledWith(HEIGHTS.peek);
+    expect(stepped).toHaveBeenCalledTimes(2);
+  });
+
+  it('says nothing at the top step, collapsed, or when the swipe stays on its step', () => {
+    const stepped = mount('half');
+    swipe(-120);
+    expect(sheet().dataset.height).toBe('full');
+    swipe(5);
+    swipe(120);
+    swipe(120);
+    swipe(120);
+    expect(sheet().dataset.height).toBe('collapsed');
+    expect(stepped.mock.calls.map(([height]) => height)).toEqual([HEIGHTS.half, HEIGHTS.peek]);
   });
 });

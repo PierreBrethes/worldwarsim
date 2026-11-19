@@ -201,6 +201,7 @@ describe('every public method of the engine asks for a frame', () => {
     'pieceRect',
     'ownsPile',
     'screenOf',
+    'screenOfAnchor',
     'nameSpots',
     'subscribeRest',
     'markRects',

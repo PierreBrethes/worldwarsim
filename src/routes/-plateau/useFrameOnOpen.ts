@@ -19,37 +19,72 @@ export const tallest = (...heights: ReadonlyArray<number | null>): number | null
   heights.reduce<number | null>((top, h) => (h === null ? top : Math.max(top ?? 0, h)), null);
 
 /**
- * **Recadrer une fois, à l'ouverture, vers la hauteur réelle de la surface ouverte.** L'objet
- * touché monte au-dessus de ce que la surface couvrira ; `covered` est sa hauteur mesurée, `null`
- * tant qu'elle n'est pas là. La demande attend que la mesure se tienne et la sert une fois : une
- * feuille tirée ensuite ne la rejoue pas (chaque `invalidate()` de la carte coûte 1,5 s d'images).
- * Elle s'abandonne si la surface part, ou si `cancel` est appelé — un geste du joueur sur la carte.
+ * **Recadrer l'objet touché au-dessus de la surface ouverte, à l'ouverture puis à chaque lâcher.**
+ * `covered` est la hauteur mesurée de la surface, `null` tant qu'elle n'est pas là. Le hook tient
+ * deux états : le `subject`, gardé tant que la surface est ouverte, et le `pending`, l'attente de
+ * la mesure à l'ouverture — la demande la sert une fois que la hauteur se tient, et s'abandonne si
+ * `cancel` est appelé (un geste du joueur sur la carte) ; `cancel` n'annule que lui, le sujet
+ * survit. `replay(covered)` relit le sujet au lâcher d'une feuille sur un cran, avec la hauteur
+ * visée, sans attente ; sans hauteur (le plateau se déplie, sa hauteur n'est pas encore là), il
+ * rouvre une attente. Une surface qui part emporte le sujet. Chaque service coûte 1,5 s d'images
+ * à la carte : celui qui sert décide s'il y a lieu de bouger.
  */
 export function useFrameOnOpen<Request>(
   covered: number | null,
   serve: (request: Request, covered: number) => void,
-): { ask: (request: Request) => void; cancel: () => void } {
-  const [asked, setAsked] = useState<{ request: Request; at: number } | null>(null);
-  const served = useRef<typeof asked>(null);
+  /** La surface est ouverte, même si elle ne couvre rien pour l'instant : le plateau replié garde
+   *  son site sélectionné, et le déplier doit le recadrer. Par défaut, elle l'est quand elle se
+   *  mesure. */
+  open: boolean = covered !== null,
+): { ask: (request: Request) => void; cancel: () => void; replay: (covered?: number) => void } {
+  const [pending, setPending] = useState<{ request: Request; at: number } | null>(null);
+  const subject = useRef<Request | null>(null);
+  const served = useRef<typeof pending>(null);
   const measured = useRef(false);
+  const latest = useRef(open);
+  latest.current = open;
   useEffect(() => {
-    if (asked === null || asked === served.current) return;
-    if (covered === null) {
-      if (!measured.current) return;
-      const gone = setTimeout(() => setAsked(null), GONE_MS);
-      return () => clearTimeout(gone);
+    if (subject.current === null) return;
+    if (open) {
+      measured.current = true;
+      return;
     }
+    if (!measured.current) return;
+    const gone = setTimeout(() => {
+      subject.current = null;
+      setPending(null);
+    }, GONE_MS);
+    return () => clearTimeout(gone);
+  }, [open]);
+  useEffect(() => {
+    if (pending === null || pending === served.current || covered === null) return;
     measured.current = true;
     const settled = setTimeout(() => {
-      served.current = asked;
-      if (Date.now() - asked.at <= WAIT_MS) serve(asked.request, covered);
+      served.current = pending;
+      if (Date.now() - pending.at <= WAIT_MS) serve(pending.request, covered);
     }, SETTLE_MS);
     return () => clearTimeout(settled);
-  }, [asked, covered, serve]);
-  const ask = useCallback((request: Request) => {
-    measured.current = false;
-    setAsked({ request, at: Date.now() });
+  }, [pending, covered, serve]);
+  const wait = useCallback((request: Request) => {
+    measured.current = latest.current;
+    setPending({ request, at: Date.now() });
   }, []);
-  const cancel = useCallback(() => setAsked(null), []);
-  return { ask, cancel };
+  const ask = useCallback(
+    (request: Request) => {
+      subject.current = request;
+      wait(request);
+    },
+    [wait],
+  );
+  const replay = useCallback(
+    (height?: number) => {
+      const request = subject.current;
+      if (request === null) return;
+      if (height === undefined) wait(request);
+      else serve(request, height);
+    },
+    [wait, serve],
+  );
+  const cancel = useCallback(() => setPending(null), []);
+  return { ask, cancel, replay };
 }

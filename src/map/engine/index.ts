@@ -2413,11 +2413,7 @@ export class MapEngine {
     this.invalidate();
     const points = [
       ...ids
-        .map((id) => {
-          const anchor = this.labels.position(id, this.arcs.headPositions);
-          const drawn = onPiece ? this.maquettes.drawnAt(id) : null;
-          return drawn === null || anchor === undefined ? anchor : drawn.clone().setY(anchor.y);
-        })
+        .map((id) => this.anchorPoint(id, onPiece))
         .filter((point): point is Vector3 => point !== undefined),
       ...places.map((place) => this.frame.projectLonLat(place)),
     ];
@@ -2439,15 +2435,40 @@ export class MapEngine {
     );
     const orientation = this.camera.position.clone().sub(this.controls.target).normalize();
 
+    /** **Le sujet monte au-dessus de ce qui le couvrirait** : une feuille basse cache le bas de
+     *  la carte, et un point cadré au centre tomberait dessous. */
+    arrival.add(this.groundShift(0, -lift, arrivalDistance, orientation));
+    if (this.ambience.motion !== 'full') {
+      this.travel(arrival, orientation, arrivalDistance, 0);
+      return;
+    }
     this.journey = {
       departure: this.controls.target.clone(),
-      /** **Le sujet monte au-dessus de ce qui le couvrirait** : une feuille basse cache le bas de
-       *  la carte, et un point cadré au centre tomberait dessous. */
-      arrival: arrival.add(this.groundShift(0, -lift, arrivalDistance, orientation)),
+      arrival,
       orientation,
       departureDistance: currentDistance,
       arrivalDistance,
       startMs: performance.now(),
+    };
+  }
+
+  /** Où un ancrage se tient sur le plateau : son étiquette, ou la pièce là où elle est dessinée. */
+  private anchorPoint(id: string, onPiece: boolean): Vector3 | undefined {
+    const anchor = this.labels.position(id, this.arcs.headPositions);
+    const drawn = onPiece ? this.maquettes.drawnAt(id) : null;
+    return drawn === null || anchor === undefined ? anchor : drawn.clone().setY(anchor.y);
+  }
+
+  /** Où `journeyTo` viserait cet ancrage sur la page, `null` s'il n'est plus là ou tourne le dos. */
+  screenOfAnchor(id: string, onPiece: boolean): { x: number; y: number } | null {
+    const at = this.anchorPoint(id, onPiece);
+    if (at === undefined) return null;
+    const point = at.clone().project(this.eye);
+    if (point.z > 1) return null;
+    const box = this.renderer.domElement.getBoundingClientRect();
+    return {
+      x: box.left + ((point.x + 1) / 2) * box.width,
+      y: box.top + ((1 - point.y) / 2) * box.height,
     };
   }
 

@@ -106,6 +106,7 @@ export function PersonalBoard({
   onDeselectSite,
   onOpenSiteSheet,
   onCover,
+  onUnfold,
   onOpen,
   onResearch,
   onHoldTile,
@@ -140,6 +141,9 @@ export function PersonalBoard({
   /** **Ce que le plateau couvre de la carte** sous le seuil, quand il est déplié sur un site : sa
    *  hauteur mesurée, `null` sinon. La caméra y recadre le bâtiment touché. */
   onCover?: (height: number | null) => void;
+  /** **La poignée vient de déplier le plateau** (replié, mi-hauteur) : ce qu'il couvre de la carte
+   *  change, et le sujet touché se recadre s'il est caché. Pas vers plein, qui ne recadre rien. */
+  onUnfold?: () => void;
   /** Arms the map's ghost for the tile in hand, or disarms it (ADR 0029). */
   onHoldTile: (key: BuildingKey | null) => void;
   /** The tile let go over the map, put down where the ghost stands: `true` when it went. */
@@ -286,7 +290,10 @@ export function PersonalBoard({
         onResearch(false);
         if (narrow && !folded && !filled) setFull(true);
         else if (folded && open && shut) setShut(false);
-        else onOpen(folded);
+        else {
+          if (narrow && folded) onUnfold?.();
+          onOpen(folded);
+        }
       }}
       className={`cursor-pointer leading-none font-bold whitespace-nowrap hover:bg-(--ink)/8 ${
         narrow

@@ -61,11 +61,20 @@ const VELOCITY_WINDOW_MS = 80;
 const SheetCloseContext = createContext<(() => void) | null>(null);
 
 /**
- * **Où se tient la feuille d'une sélection, mesurée** : sa hauteur en pixels d'écran à chaque cran,
- * `null` quand elle part. Ce qui garde un point visible au-dessus d'elle — la rose au doigt — suit
- * le cran courant au lieu d'une moitié figée : feuille réduite, la rose se pose plus bas.
+ * **Où se tient la feuille d'une sélection, mesurée** : `report` dit sa hauteur en pixels d'écran
+ * au repos, `null` quand elle part. Ce qui garde un point visible au-dessus d'elle — la rose au
+ * doigt — suit le cran courant au lieu d'une moitié figée : feuille réduite, la rose se pose plus
+ * bas.
+ *
+ * `onStep` dit le cran qu'un doigt vient de choisir, mesuré : peek ou half seulement, au lâcher
+ * d'un glisser qui change de cran (#582). C'est le seul moment où la carte peut se recadrer sur
+ * ce que la feuille cache : ni à chaque hauteur du ressort, ni au cran haut, ni réduit. On y lit
+ * la cible du cran, jamais la hauteur en vol.
  */
-export const SelectionSheetReport = createContext<((height: number | null) => void) | null>(null);
+export const SelectionSheetReport = createContext<{
+  readonly report: (height: number | null) => void;
+  readonly onStep?: (height: number) => void;
+} | null>(null);
 
 /**
  * **Ce qui mène ailleurs referme la feuille** : une ligne « carte › » qui laisserait la moitié de
@@ -135,8 +144,9 @@ export function BottomSheet({
   const frame = useRef(0);
   const base = useRef(0);
   useSoleSurface(onClose ?? (() => {}), onClose !== undefined);
-  const report = useContext(SelectionSheetReport);
-  const reporting = keepsSelection ? report : null;
+  const ports = useContext(SelectionSheetReport);
+  const reporting = keepsSelection ? (ports?.report ?? null) : null;
+  const onStep = ports?.onStep;
 
   useEffect(() => () => cancelAnimationFrame(frame.current), []);
 
@@ -200,6 +210,14 @@ export function BottomSheet({
       const from = live.current;
       const motion = motionNow();
       if (target !== rank) setHeight(steps[target]!);
+      const reached = steps[target]!;
+      if (
+        keepsSelection &&
+        target !== rank &&
+        (reached === 'peek' || reached === 'half') &&
+        goal > 0
+      )
+        onStep?.(goal);
       if (closing) {
         stop();
         onClose?.();
