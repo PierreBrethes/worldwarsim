@@ -222,6 +222,20 @@ async function runProfile(profile) {
       );
       await page.waitForTimeout(2500);
     };
+    /** Les points de la carte nue au-dessus d'une feuille basse : le canvas, ni mât, ni pièce, ni
+     *  bandeau. Le geste les cherche à l'écran plutôt que de les supposer sous un cadrage. */
+    const bareSpots = () =>
+      page.evaluate(() => {
+        const canvas = globalThis.mapEngine.renderer.domElement;
+        return [
+          [195, 300],
+          [110, 300],
+          [280, 300],
+          [195, 220],
+          [110, 250],
+          [280, 250],
+        ].filter(([x, y]) => document.elementFromPoint(x, y) === canvas);
+      });
     /** Le point de l'écran où le moteur trouve cette maquette, et non une pièce devant. */
     const maquettePoint = (id) =>
       page.evaluate((id) => {
@@ -445,18 +459,7 @@ async function runProfile(profile) {
           const hand = page.getByRole('dialog', { name: /en main/ });
           await hand.waitFor({ timeout: 5000 });
           // Un point de la carte nue, au-dessus de la feuille : ni mât, ni pièce, ni bandeau.
-          const bare = await page.evaluate(() => {
-            const canvas = globalThis.mapEngine.renderer.domElement;
-            for (const [x, y] of [
-              [195, 300],
-              [110, 300],
-              [280, 300],
-              [195, 220],
-              [110, 400],
-            ])
-              if (document.elementFromPoint(x, y) === canvas) return [x, y];
-            return null;
-          });
+          const [bare] = await bareSpots();
           assert.ok(bare, 'aucun point de carte nue sous le doigt');
           await page.touchscreen.tap(...bare);
           const label = page.locator('[data-label-id="gate-aim"]');
@@ -725,11 +728,14 @@ async function runProfile(profile) {
           await gone('Calques de la carte');
           assert.equal(await depth(), base, 'écran : Retour après un remplacement');
 
-          // La carte nue ferme la surface, seulement. Les deux points visés ne le sont pas par un
-          // repère : la scène est cadrée sur Paris, (195, 180) tombe sur la mer au-dessus de la
-          // poignée, (95, 330) sur la Bretagne, à découvert de la colonne et des masts.
+          // La carte nue ferme la surface, seulement. La scène est recadrée sur la France (les
+          // gestes d'avant l'ont déplacée) et les deux points se cherchent à l'écran : à découvert
+          // de la colonne, des masts et des pièces, sur la terre.
+          await frame([2.35, 47.5], 3);
+          const [spot, land] = await bareSpots();
+          assert.ok(spot && land, 'aucun couple de points de carte nue');
           await todo();
-          await page.touchscreen.tap(195, 180);
+          await page.touchscreen.tap(...spot);
           await gone('À faire');
           await until(depth, base, 'écran : la carte nue laisse une entrée');
           await until(sheets, 0, 'écran : la carte nue a ouvert une feuille');
@@ -738,15 +744,15 @@ async function runProfile(profile) {
           // ferme et l'adresse la perd, puis Retour la ferme aussi.
           const ground = () => page.getByRole('dialog').first();
           const country = () => new URL(page.url()).searchParams.has('country');
-          await page.touchscreen.tap(95, 330);
+          await page.touchscreen.tap(...land);
           await ground().waitFor({ timeout: 5000 });
           assert.ok(country(), 'écran : le sol touché n’est pas dans l’adresse');
           assert.equal(await depth(), base + 1, 'écran : la fiche du sol pose plus d’une entrée');
-          await page.touchscreen.tap(95, 330);
+          await page.touchscreen.tap(...land);
           await ground().waitFor({ state: 'detached', timeout: 5000 });
           assert.ok(!country(), 'écran : fermer la fiche du sol laisse le pays dans l’adresse');
           assert.equal(await depth(), base, 'écran : la fiche du sol fermée laisse une entrée');
-          await page.touchscreen.tap(95, 330);
+          await page.touchscreen.tap(...land);
           await ground().waitFor({ timeout: 5000 });
           await page.goBack();
           await ground().waitFor({ state: 'detached', timeout: 5000 });
