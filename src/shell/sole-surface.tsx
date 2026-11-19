@@ -55,6 +55,10 @@ export function useSoleSurface(close: () => void, enabled = true): void {
   }, [claim, enabled]);
 }
 
+/** Sous le seuil, la rose est une surface : l'ouvrir referme le plateau déplié ou la feuille. */
+export const useRoseSurface = (rose: unknown, closeRose: () => void): void =>
+  useSoleSurface(closeRose, rose !== null);
+
 /** « Carte » : ferme la surface ouverte par son propre `onClose`, celui qui date la lecture du
  *  journal ou quitte le télégraphe. `false` : aucune n'est ouverte ici, l'adresse décide. */
 export const useCloseSoleSurface = (): (() => boolean) =>

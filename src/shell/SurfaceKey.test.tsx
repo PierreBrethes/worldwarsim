@@ -10,7 +10,12 @@ import {
 } from '@tanstack/react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { windowOpen, withoutWindow, type BoardSearch } from '@/routes/-plateau/board-search';
+import {
+  windowOpen,
+  withoutWindow,
+  yieldNavigation,
+  type BoardSearch,
+} from '@/routes/-plateau/board-search';
 import { fr } from '@/i18n/fr';
 import type { PlayerView } from '@/domain/player-view';
 import { SoleSurfaceProvider, useSoleSurface } from './sole-surface';
@@ -62,6 +67,13 @@ function ReadingWindow({ onClose }: { onClose: () => void }) {
   return <p>fenêtre ouverte</p>;
 }
 
+/** The unfolded personal board, reduced to what it does for the place: it yields by its `onYield`. */
+function UnfoldedBoard() {
+  const navigate = useNavigate();
+  useSoleSurface(() => void navigate({ to: '/plateau', ...yieldNavigation('personalBoard') }));
+  return <p>plateau déplié</p>;
+}
+
 function Board({ view: shown, onClose }: { view: PlayerView; onClose: () => void }) {
   const search = useSearch({ strict: false }) as BoardSearch;
   const navigate = useNavigate();
@@ -73,6 +85,7 @@ function Board({ view: shown, onClose }: { view: PlayerView; onClose: () => void
     <SoleSurfaceProvider>
       <SurfaceKey view={shown} telegraphUnread={3} todo={<p>les lignes à faire</p>} />
       {windowOpen(search, 'journal') && <ReadingWindow onClose={close} />}
+      {windowOpen(search, 'personalBoard') && <UnfoldedBoard />}
     </SoleSurfaceProvider>
   );
 }
@@ -168,11 +181,11 @@ describe('the surface key', () => {
     expect(key().textContent).toContain(fr.foot.todo);
   });
 
-  it('folds the personal board when the menu opens over it', async () => {
-    const router = await mount(view, '/plateau?windows=%5B%22personalBoard%22%5D');
+  it('folds the personal board when the menu opens over it, and the site it held stays', async () => {
+    const router = await mount(view, '/plateau?windows=%5B%22personalBoard%22%5D&building=B-1');
     await act(async () => key().click());
 
-    expect(router.state.location.search).toEqual({});
+    expect(router.state.location.search).toEqual({ building: 'B-1' });
     expect(menu()).not.toBeNull();
   });
 

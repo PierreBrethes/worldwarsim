@@ -81,8 +81,8 @@ export function SurfaceKey({
   const go = (to: BoardSearch) => void navigate({ to: '/plateau', search: to });
   const press = () => {
     if (onMap) {
+      // The menu claims the place: an unfolded board yields by itself and keeps its site.
       setMenu(true);
-      if (windowOpen(search, 'personalBoard')) go(withoutWindow(search, 'personalBoard'));
       return;
     }
     setMenu(false);

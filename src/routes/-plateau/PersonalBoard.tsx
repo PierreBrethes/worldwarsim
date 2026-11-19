@@ -207,8 +207,9 @@ export function PersonalBoard({
       ? fr.footBar.grip.fold
       : fr.footBar.grip.full;
   // Sous le seuil, déplié ou plein, le plateau est une surface comme la feuille ; replié il ne
-  // réclame pas, sinon il fermerait toute feuille.
-  useSoleSurface(onYield, !folded);
+  // réclame pas, sinon il fermerait toute feuille. `away` n'y compte pas : la main qui revient
+  // ne reprend pas la place à une rose ou une feuille ouverte entre-temps.
+  useSoleSurface(onYield, open && !research && !(shut && site === null));
   const foot = useFoot();
   useClaimFoot(narrow ? foot : null, board);
   const covers = narrow && !folded && site !== null;

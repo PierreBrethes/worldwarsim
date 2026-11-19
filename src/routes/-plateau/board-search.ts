@@ -98,6 +98,13 @@ export function yieldWindow(search: BoardSearch, name: BoardWindow): BoardSearch
   return remaining.length ? { ...rest, windows: remaining } : rest;
 }
 
+/** The navigation of a yield: it replaces the entry, so Back never lands on the board that the
+ *  surface which took the place had just folded (a loop between the two). */
+export const yieldNavigation = (name: BoardWindow) => ({
+  search: (previous: BoardSearch) => yieldWindow(previous, name),
+  replace: true as const,
+});
+
 export const toggleWindow = (search: BoardSearch, name: BoardWindow): BoardSearch =>
   (search.windows ?? []).includes(name) ? withoutWindow(search, name) : withWindow(search, name);
 
