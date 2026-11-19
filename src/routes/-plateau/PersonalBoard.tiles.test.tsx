@@ -225,4 +225,76 @@ describe("the pose's flight at the desk (#592)", () => {
     placed('hq', [3, 50], 'full');
     expect(arrival()).toEqual({ x: 720, y: 838.5 });
   });
+
+  it('flies no tile for a second pose when no tile was taken for it', () => {
+    mount(true);
+    board().getBoundingClientRect = () => rectOf(0, 800, 1440, 77);
+    document.querySelector<HTMLElement>('[data-volet-column="works"]')!.getBoundingClientRect =
+      () => rectOf(100, 500, 372, 300);
+    take();
+    placed('hq', [3, 50], 'full');
+    expect(document.querySelector('.placed-tile')).not.toBeNull();
+    document.querySelector('.placed-tile')?.remove();
+    placed('hq', [3, 50], 'full');
+    expect(document.querySelector('.placed-tile')).toBeNull();
+  });
+
+  it('flies no tile for a tile whose taking was abandoned (a refused one)', () => {
+    mount(true);
+    board().getBoundingClientRect = () => rectOf(0, 800, 1440, 77);
+    const refused = tile(fr.buildings.airfield);
+    refused.getBoundingClientRect = () => rectOf(400, 820, 60, 50);
+    fireEvent.click(refused);
+    placed('airfield', [3, 50], 'full');
+    expect(document.querySelector('.placed-tile')).toBeNull();
+  });
+});
+
+describe("the pose's flight on the phone (#592)", () => {
+  let unbind = () => {};
+  beforeEach(() => {
+    recordFlights();
+    unbind = bindSpots({ onMap: () => ({ x: 600, y: 300 }) });
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: !query.includes('reduced'),
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+  });
+  afterEach(() => {
+    unbind();
+    vi.unstubAllGlobals();
+    document.body
+      .querySelectorAll('.pointer-events-none.fixed.inset-0')
+      .forEach((node) => node.remove());
+  });
+
+  const fly = (open: boolean) => {
+    mount(open);
+    const stage = document.querySelector<HTMLElement>('[data-stage]')!;
+    stage.querySelector('h2')!.getBoundingClientRect = () => rectOf(0, 700, 200, 20);
+    stage.getBoundingClientRect = () => rectOf(0, 600, 390, 300);
+    const taken = tile('Quartier général');
+    taken.getBoundingClientRect = () => rectOf(40, 760, 60, 50);
+    fireEvent.click(taken);
+    placed('hq', [3, 50], 'full');
+    return arrival();
+  };
+
+  it("files the tile on the stage's title line when the stage is open", () => {
+    expect(fly(true).y).toBeCloseTo(710);
+  });
+
+  it('files it on the folded bar once the stage is shut', () => {
+    mount(true);
+    const taken = tile('Quartier général');
+    taken.getBoundingClientRect = () => rectOf(40, 760, 60, 50);
+    fireEvent.click(taken);
+    fireEvent.click(screen.getByRole('button', { name: fr.footBar.grip.fold }));
+    screen.getByRole('region', { name: fr.footBar.label }).getBoundingClientRect = () =>
+      rectOf(0, 820, 390, 24);
+    placed('hq', [3, 50], 'full');
+    expect(arrival().y).toBeCloseTo(832);
+  });
 });

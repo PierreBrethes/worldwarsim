@@ -214,6 +214,7 @@ export function PersonalBoard({
   const folded = !open || research || away || (shut && site === null);
   const ceded = staged && (surfaceHeld || away);
   const stageUp = staged && !ceded;
+  const stageHead = stageUp && step !== 'collapsed' ? sheet : null;
   // The pose files its tile on the queue of works, and takes the size of the tile that was taken
   // while its stage is up (#592): a stage ceded has no tile to fly, the ring stays alone.
   const cededNow = useRef(ceded);
@@ -224,10 +225,15 @@ export function PersonalBoard({
     () =>
       bindSpots({
         tile: (key) => {
+          // Read once: a later pose that no tile was taken for flies no tile.
           const box = taken.current;
+          taken.current = null;
           return box === null || box.key !== key || cededNow.current ? null : box;
         },
         queue: () => {
+          // The open stage is the queue's place: its title line, not the middle of the drawer.
+          const head = stageHead?.querySelector('h2');
+          if (head) return centreOf(head);
           const column = narrow
             ? null
             : document.querySelector<HTMLElement>('[data-volet-column="works"]');
@@ -236,7 +242,7 @@ export function PersonalBoard({
           return board.current === null ? null : centreOf(board.current);
         },
       }),
-    [narrow, taken],
+    [narrow, taken, stageHead],
   );
   const collapsed = step === 'collapsed';
   /** Le feuillet d'une tuile refusée ne survit ni au repli, ni à l'étage cédé, ni à son refus. */
@@ -1832,6 +1838,7 @@ function useHand({
       drop({ x: event.clientX, y: event.clientY });
     }
     function abandon() {
+      taken.current = null;
       finish();
       arm(false);
       setHeld(null);
