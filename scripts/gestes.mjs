@@ -15,7 +15,7 @@
  * La souris porte du bouton premier : le moteur ne lève une pièce que de lui, quel que soit le
  * réglage des boutons (`armCarry`), et aucun geste de la liste ne passe par la rose.
  */
-/* global document, innerWidth, innerHeight -- les fonctions passées à `page.evaluate` tournent dans la page. */
+/* global document, innerWidth, innerHeight, history -- les fonctions passées à `page.evaluate` tournent dans la page. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
@@ -108,7 +108,14 @@ async function runProfile(profile) {
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
     // La session posée d'avance : la page de connexion n'admet qu'une tentative toutes les 3 s.
-    await page.addInitScript((token) => localStorage.setItem('wws-session', token), token);
+    await page.addInitScript((token) => {
+      // Le geste « retour » quitte le plateau : `about:blank` refuse le stockage.
+      try {
+        localStorage.setItem('wws-session', token);
+      } catch {
+        // refusé : rien à poser
+      }
+    }, token);
     await page.goto(
       `${origin}/plateau?season=${accounts.seasonId}&heure=${encodeURIComponent(heure)}`,
     );
@@ -589,6 +596,86 @@ async function runProfile(profile) {
             .locator('[data-tour-sheet]')
             .waitFor({ state: 'detached', timeout: 5000 })
             .catch(() => assert.fail('écran : la feuille reste ouverte après « lancer »'));
+        },
+      },
+      {
+        // Au bureau rien ne change : la feuille basse n'existe que sous le seuil (#584).
+        name: 'fermer une feuille au téléphone',
+        run: async () => {
+          if (!phone) return;
+          await closeBoard();
+          const depth = () => page.evaluate(() => history.state?.__TSR_index);
+          const sheet = (name) => page.getByRole('dialog', { name });
+          const gone = (name) =>
+            sheet(name)
+              .waitFor({ state: 'detached', timeout: 5000 })
+              .catch(() => assert.fail(`écran : la feuille « ${name} » reste ouverte`));
+          const layers = () => page.getByRole('button', { name: 'Calques de la carte' }).first();
+          const todo = async () => {
+            await tap(page.getByRole('button', { name: /ouvrir le menu des surfaces/ }).first());
+            await tap(page.getByRole('button', { name: /^à faire/i }).first());
+            await sheet('À faire').waitFor({ timeout: 5000 });
+          };
+          const base = await depth();
+
+          // Une feuille ouverte : une seule entrée, que Retour retire en la fermant.
+          await tap(layers());
+          await sheet('Calques de la carte').waitFor({ timeout: 5000 });
+          assert.equal(await depth(), base + 1, 'écran : une feuille pose plus d’une entrée');
+          await page.goBack();
+          await gone('Calques de la carte');
+          assert.equal(await depth(), base, 'écran : Retour ne rend pas l’entrée');
+
+          // Le bouton rend l'entrée aussi : Retour suivant ne retombe pas sur une feuille fermée.
+          await tap(layers());
+          await sheet('Calques de la carte').waitFor({ timeout: 5000 });
+          await tap(page.getByRole('button', { name: /^fermer$/i }).first());
+          await gone('Calques de la carte');
+          assert.equal(await depth(), base, 'écran : « fermer » laisse une entrée');
+
+          // Une feuille qui en remplace une autre ne pose rien de plus.
+          await todo();
+          assert.equal(await depth(), base + 1, 'écran : « à faire » pose plus d’une entrée');
+          await layers().dispatchEvent('click');
+          await sheet('Calques de la carte').waitFor({ timeout: 5000 });
+          await gone('À faire');
+          assert.equal(await depth(), base + 1, 'écran : un remplacement a poussé ou dépilé');
+          await page.goBack();
+          await gone('Calques de la carte');
+          assert.equal(await depth(), base, 'écran : Retour après un remplacement');
+
+          // La carte nue ferme la surface, seulement.
+          await todo();
+          await page.touchscreen.tap(195, 180);
+          await gone('À faire');
+          await page.waitForTimeout(500);
+          assert.equal(await sheet(/./).count(), 0, 'écran : la carte nue a ouvert une feuille');
+          assert.equal(await depth(), base, 'écran : la carte nue laisse une entrée');
+
+          // Sans surface, le sol touché ouvre sa fiche (adresse comprise) ; le toucher suivant la
+          // ferme et l'adresse la perd, puis Retour la ferme aussi.
+          const ground = () => page.getByRole('dialog').first();
+          const country = () => new URL(page.url()).searchParams.has('country');
+          await page.touchscreen.tap(95, 330);
+          await ground().waitFor({ timeout: 5000 });
+          assert.ok(country(), 'écran : le sol touché n’est pas dans l’adresse');
+          assert.equal(await depth(), base + 1, 'écran : la fiche du sol pose plus d’une entrée');
+          await page.touchscreen.tap(95, 330);
+          await ground().waitFor({ state: 'detached', timeout: 5000 });
+          assert.ok(!country(), 'écran : fermer la fiche du sol laisse le pays dans l’adresse');
+          assert.equal(await depth(), base, 'écran : la fiche du sol fermée laisse une entrée');
+          await page.touchscreen.tap(95, 330);
+          await ground().waitFor({ timeout: 5000 });
+          await page.goBack();
+          await ground().waitFor({ state: 'detached', timeout: 5000 });
+          assert.ok(!country(), 'écran : Retour laisse le pays dans l’adresse');
+
+          // Sans feuille, Retour quitte le plateau comme avant.
+          const here = page.url();
+          await page.goBack();
+          await page.waitForTimeout(800);
+          assert.notEqual(page.url(), here, 'écran : Retour ne quitte pas le plateau');
+          await page.goForward().catch(() => {});
         },
       },
     ];
