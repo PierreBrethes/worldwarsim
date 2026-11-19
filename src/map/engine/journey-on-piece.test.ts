@@ -107,3 +107,56 @@ describe('screenOfAnchor', () => {
     expect(map.screenOfAnchor('gone', true)).toBeNull();
   });
 });
+
+/** **Le jeton de l'objet tenu** (#591) suit l'ancrage dans le cadre de la carte avec une vraie
+ *  caméra : loin derrière le plan lointain il se lit encore, dos tourné il se lit au point opposé. */
+describe('boardPointOfAnchor', () => {
+  const at = (map: ReturnType<typeof engine>, point: Vector3) => {
+    map.camera.lookAt(0, 0, 0);
+    map.camera.updateMatrixWorld();
+    map.camera.updateProjectionMatrix();
+    Object.assign(map, {
+      eye: map.camera,
+      screenWidth: 800,
+      screenHeight: 800,
+      labels: { position: (id: string) => (id === 'gone' ? undefined : point.clone()) },
+      maquettes: { drawnAt: () => null },
+    });
+    return map as unknown as { boardPointOfAnchor: MapEngine['boardPointOfAnchor'] };
+  };
+  const ahead = (map: ReturnType<typeof engine>) =>
+    map.camera.getWorldDirection(new Vector3()).normalize();
+
+  it('still reads an object past the far plane', () => {
+    const map = engine();
+    map.camera.lookAt(0, 0, 0);
+    map.camera.updateMatrixWorld();
+    const far = map.camera.position.clone().addScaledVector(ahead(map), 5000);
+    const spot = at(map, far).boardPointOfAnchor('b', false);
+    expect(spot?.x).toBeCloseTo(400);
+    expect(spot?.y).toBeCloseTo(400);
+  });
+
+  it('mirrors an object behind the camera onto the point opposite its raw projection', () => {
+    const map = engine();
+    map.camera.lookAt(0, 0, 0);
+    map.camera.updateMatrixWorld();
+    const side = new Vector3(1, 0, 0);
+    const behind = map.camera.position
+      .clone()
+      .addScaledVector(ahead(map), -50)
+      .addScaledVector(side, 20);
+    const raw = behind.clone().project(map.camera);
+    const rawX = ((raw.x + 1) / 2) * 800;
+    const rawY = ((1 - raw.y) / 2) * 800;
+    expect(Math.abs(rawX - 400) + Math.abs(rawY - 400)).toBeGreaterThan(1);
+    const spot = at(map, behind).boardPointOfAnchor('b', false);
+    expect(spot?.x).toBeCloseTo(800 - rawX);
+    expect(spot?.y).toBeCloseTo(800 - rawY);
+  });
+
+  it('says nothing of an anchor that is gone', () => {
+    const map = engine();
+    expect(at(map, new Vector3()).boardPointOfAnchor('gone', false)).toBeNull();
+  });
+});
