@@ -101,6 +101,7 @@ const workshopWith = (
 
 const resource = (stock: number) => ({ stock, ratePerHour: 0, cap: 1_000 });
 const view = {
+  mode: 'mondiale',
   loadedAt: NOW,
   captures: [],
   arcs: [],
@@ -206,14 +207,16 @@ describe('a site sheet on a phone', () => {
     expect(screen.getAllByRole('tab').length).toBeGreaterThan(0);
   });
 
-  it('puts the building plate and a readable abacus label in the header (#587)', () => {
+  it('names the abacus in the site tab, and keeps the plate in the header (#587)', () => {
     workshop = workshopWith([]);
     mount();
+    expect(screen.queryByRole('button', { name: fr.gunnery.open })).toBeNull();
 
+    unroll();
+    act(() => screen.getByRole('tab', { name: new RegExp(fr.production.sheet.tabs.site) }).click());
     expect(screen.getByRole('button', { name: fr.gunnery.open }).textContent).toBe(
       fr.gunnery.openShort,
     );
-    expect(screen.getByRole('dialog').querySelector('img, [aria-label]')).toBeTruthy();
   });
 
   it('forms what is open and sends what a card holds below, naming the card', () => {

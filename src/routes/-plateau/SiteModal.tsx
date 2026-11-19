@@ -804,27 +804,35 @@ function NarrowSite({
   const running = queue.filter((batch) => batch.started);
   const waiting = queue.filter((batch) => !batch.started);
 
+  const levelLine = (
+    <p className="truncate px-4 pt-[6px] text-[12px] text-[var(--ink-soft)]">
+      {fr.production.siteLevel(building.level)} · {fr.economy.inRegion(regionName)}
+    </p>
+  );
   /** **La ligne de résumé de la fiche courte** : ce que le site fait, sous l'en-tête ; la toucher
    *  déroule. */
   const summary = (
     <button
       type="button"
       onClick={() => setHeight('half')}
-      className="paper-grain flex min-h-[44px] w-full cursor-pointer items-center justify-between gap-2 border-b border-[var(--ink)] px-4 text-left text-[12.5px]"
+      className="paper-grain flex min-h-[44px] w-full cursor-pointer items-center justify-between gap-2 border-b border-[var(--ink)] px-4 py-[6px] text-left"
     >
-      <span className="truncate">
-        {ready
-          ? fr.production.sheet.capLine(workshop.troopsInService, workshop.troopsQueued)
-          : fr.production.opening}
+      <span className="min-w-0">
+        <span className="block truncate text-[12px] text-[var(--ink-soft)]">
+          {fr.production.siteLevel(building.level)} · {fr.economy.inRegion(regionName)}
+        </span>
+        <span className="block truncate text-[12.5px]">
+          {ready
+            ? fr.production.sheet.capLine(workshop.troopsInService, workshop.troopsQueued)
+            : fr.production.opening}
+        </span>
       </span>
       <span aria-hidden>▴</span>
     </button>
   );
   const pinned = (
     <div className={`paper-grain border-b border-[var(--ink)] ${fade ?? ''}`}>
-      <p className="truncate px-4 pt-[6px] text-[12px] text-[var(--ink-soft)]">
-        {fr.production.siteLevel(building.level)} · {fr.economy.inRegion(regionName)}
-      </p>
+      {levelLine}
       {/* Un état, jamais une action (ADR 0020 §6) : ce qui se reprend se reprend sur la carte. */}
       {unlinked && (
         <div className="px-4 pt-2 pb-2">
@@ -870,21 +878,7 @@ function NarrowSite({
        et le plafond restent épinglés dessous, la caserne touchée reste au-dessus d'elle. */
     <BottomSheet
       title={fr.buildings[building.key]}
-      aside={
-        <>
-          <BuildingPlate building={building.key} height={30} />
-          <button
-            type="button"
-            onClick={onOpenGunnery}
-            title={fr.gunnery.open}
-            aria-label={fr.gunnery.open}
-            className="inline-flex min-h-[44px] shrink-0 cursor-pointer items-center gap-[6px] text-[10px] tracking-[.14em] uppercase"
-          >
-            <AbacusMark size={18} />
-            {fr.gunnery.openShort}
-          </button>
-        </>
-      }
+      aside={<BuildingPlate building={building.key} height={30} />}
       onClose={onClose}
       initial="peek"
       hug
@@ -904,6 +898,18 @@ function NarrowSite({
 
           {tab === 'site' ? (
             <>
+              {/* **L'abaque, à taille lisible et nommé** (#587) : dans la fiche, pas dans l'en-tête qu'il
+                  ferait déborder. */}
+              <button
+                type="button"
+                onClick={onOpenGunnery}
+                title={fr.gunnery.open}
+                aria-label={fr.gunnery.open}
+                className="mx-4 mt-3 inline-flex min-h-[44px] cursor-pointer items-center gap-[8px] border border-[var(--ink)] px-[12px] text-[10px] tracking-[.14em] uppercase"
+              >
+                <AbacusMark size={18} />
+                {fr.gunnery.openShort}
+              </button>
               <SiteStats view={view} building={building} />
               {/* **« Raser » vit dans la fiche** (#587) : la confirmation dit ce qui est perdu. */}
               <RazeButton view={view} building={building} className="px-4 py-3" />
