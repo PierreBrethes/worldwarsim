@@ -222,20 +222,18 @@ async function runProfile(profile) {
       );
       await page.waitForTimeout(2500);
     };
-    /** Les points de la carte nue au-dessus d'une feuille basse : le canvas, ni mât, ni pièce, ni
-     *  bandeau. Le geste les cherche à l'écran plutôt que de les supposer sous un cadrage. */
-    const bareSpots = () =>
-      page.evaluate(() => {
+    /** Les points de la carte nue au-dessus d'une feuille basse, jusqu'à `bottom` : le canvas, ni
+     *  mât, ni pièce, ni bandeau, ni fiche de cargaison. Le geste les cherche à l'écran plutôt que
+     *  de les supposer sous un cadrage. */
+    const bareSpots = (bottom) =>
+      page.evaluate((bottom) => {
         const canvas = globalThis.mapEngine.renderer.domElement;
-        return [
-          [195, 300],
-          [110, 300],
-          [280, 300],
-          [195, 220],
-          [110, 250],
-          [280, 250],
-        ].filter(([x, y]) => document.elementFromPoint(x, y) === canvas);
-      });
+        const spots = [];
+        for (const y of [300, 250, 350, 400, 450, 500, 200])
+          for (const x of [195, 110, 280, 60, 330])
+            if (y <= bottom && document.elementFromPoint(x, y) === canvas) spots.push([x, y]);
+        return spots;
+      }, bottom);
     /** Le point de l'écran où le moteur trouve cette maquette, et non une pièce devant. */
     const maquettePoint = (id) =>
       page.evaluate((id) => {
@@ -459,7 +457,7 @@ async function runProfile(profile) {
           const hand = page.getByRole('dialog', { name: /en main/ });
           await hand.waitFor({ timeout: 5000 });
           // Un point de la carte nue, au-dessus de la feuille : ni mât, ni pièce, ni bandeau.
-          const [bare] = await bareSpots();
+          const [bare] = await bareSpots(500);
           assert.ok(bare, 'aucun point de carte nue sous le doigt');
           await page.touchscreen.tap(...bare);
           const label = page.locator('[data-label-id="gate-aim"]');
@@ -728,12 +726,12 @@ async function runProfile(profile) {
           await gone('Calques de la carte');
           assert.equal(await depth(), base, 'écran : Retour après un remplacement');
 
-          // La carte nue ferme la surface, seulement. La scène est recadrée sur la France (les
-          // gestes d'avant l'ont déplacée) et les deux points se cherchent à l'écran : à découvert
-          // de la colonne, des masts et des pièces, sur la terre.
-          await frame([2.35, 47.5], 3);
-          const [spot, land] = await bareSpots();
-          assert.ok(spot && land, 'aucun couple de points de carte nue');
+          // La carte nue ferme la surface, seulement. Les gestes d'avant ont déplacé la scène : on la
+          // recadre en tête (le golfe de Gascogne, où le toucher ne trouve pas de sol à ouvrir) et
+          // le point se cherche à l'écran, à découvert de la colonne, des masts et des pièces.
+          await frame([-6.5, 46], 3);
+          const [spot] = await bareSpots(380);
+          assert.ok(spot, 'aucun point de mer nue');
           await todo();
           await page.touchscreen.tap(...spot);
           await gone('À faire');
@@ -744,6 +742,9 @@ async function runProfile(profile) {
           // ferme et l'adresse la perd, puis Retour la ferme aussi.
           const ground = () => page.getByRole('dialog').first();
           const country = () => new URL(page.url()).searchParams.has('country');
+          await frame([2.35, 47.5], 3);
+          const [land] = await bareSpots(380);
+          assert.ok(land, 'aucun point de terre nue');
           await page.touchscreen.tap(...land);
           await ground().waitFor({ timeout: 5000 });
           assert.ok(country(), 'écran : le sol touché n’est pas dans l’adresse');
