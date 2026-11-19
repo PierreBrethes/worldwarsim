@@ -228,7 +228,7 @@ import {
   type ZoneLabel,
   type ZonePoint,
 } from './outpost-zones';
-import { AimRibbon } from './aim';
+import { AimRibbon, aimRibbonOf } from './aim';
 import { playTableSound, warmTableSoundOnFirstPress } from '../table-sound';
 import type { RingState } from './ink-ring';
 import type { Reach } from '@/domain/labels';
@@ -6553,19 +6553,13 @@ export class MapEngine {
         return travel ? [{ id: pileId, alone, travel: new Vector3(...travel) }] : [];
       }),
     );
-    const reading = this.standing.reading;
-    const tone = this.verdict;
-    const kept = this.aimKept !== null && this.aimRoute !== null;
-    this.aimRibbon.show(
-      kept
-        ? this.aimRoute
-        : reading === null || tone === 'none'
-          ? null
-          : tone !== 'refused' && this.aimRoute !== null
-            ? this.aimRoute
-            : [reading.from, reading.to],
-      kept ? this.aimKept! : tone === 'none' ? 'order' : tone,
-    );
+    const ribbon = aimRibbonOf({
+      kept: this.aimKept,
+      route: this.aimRoute,
+      reading: this.standing.reading,
+      verdict: this.verdict,
+    });
+    this.aimRibbon.show(ribbon.points, ribbon.tone);
     this.tourInk.animate(this.unitsPerPixel(distance), this.screenHeight);
     this.aimRibbon.animate(
       this.unitsPerPixel(distance),

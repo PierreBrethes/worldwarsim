@@ -72,6 +72,7 @@ import {
 } from '@/domain/poster-placement';
 import type { MapEngine } from './engine';
 import { NameSheet } from './map-names';
+import { aimShiftOf } from './aim-shift';
 import { bandOf, matBand } from './board-band';
 import { useBoardInsets } from '@/shell/viewport';
 
@@ -799,6 +800,14 @@ export function MapLabels({
         anchor.style.transform = `translate3d(${projection.x}px, ${y}px, 0)`;
         state.x = projection.x;
         state.y = y;
+        // **L'étiquette de la visée** reste dans l'écran : décalée, jamais coupée au bord droit.
+        if (projection.id === 'gate-aim') {
+          const room = anchor.parentElement?.clientWidth ?? 0;
+          const width = blocks.current.get(projection.id)?.getBoundingClientRect().width ?? 0;
+          const shift = `${Math.round(aimShiftOf(projection.x, width, room))}px`;
+          if (anchor.style.getPropertyValue('--aim-shift') !== shift)
+            anchor.style.setProperty('--aim-shift', shift);
+        }
         // A transport's tag hangs over its figurines, not its point: on a shore they stand inland.
         if (cargoed.current.has(projection.id)) {
           const rect =

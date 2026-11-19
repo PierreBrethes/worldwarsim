@@ -628,6 +628,12 @@ describe('HandSheet aiming on a phone', () => {
     expect(screen.queryByRole('button', { name: fr.hand.send })).toBeNull();
   });
 
+  it('puts the long-press help in the pinned line, and no hint in the body that the peek would cut', () => {
+    sheet(null);
+    expect(fr.hand.pickedAim(2)).toContain('appui long pour la porter');
+    expect(screen.queryByText(fr.hand.hint)).toBeNull();
+  });
+
   it('shows the aim line with « Envoyer » and « Annuler »: the first sends, the second keeps the piece', () => {
     const onSend = vi.fn();
     const onCancelAim = vi.fn();

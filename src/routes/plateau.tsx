@@ -26,7 +26,7 @@ import type { Offer } from '@/domain/offers';
 import { fr } from '@/i18n/fr';
 import { ControlsCard, CornerCard } from '@/map/ControlsCard';
 import { isTyping } from '@/map/typing';
-import { type Dismantled, type MapAim, type MapCombat, WorldMap } from '@/map/WorldMap';
+import { type Dismantled, type MapCombat, WorldMap } from '@/map/WorldMap';
 import { homewardOf, REPORT_HOLD_MS, scenesToPlay } from '@/domain/combat-on-map';
 import { withoutHeld } from '@/domain/journal';
 import type { TakeDepot } from '@/map/MapLabels';
@@ -41,7 +41,8 @@ import {
   type BoardWindow,
 } from './-plateau/board-search';
 import { chipOf, forbiddenGroundOf } from '@/domain/drop-order';
-import { handAimOf } from './-plateau/hand-aim';
+import { aimPlaceOf, cargoOpenUnder, handAimOf } from './-plateau/hand-aim';
+import { useHandAim } from './-plateau/useHandAim';
 import { endingOf } from '@/domain/ending';
 import { useOpenedOnce } from './-plateau/useOpenedOnce';
 import { momentOf, type Moment } from '@/domain/moments';
@@ -207,7 +208,6 @@ import {
   useChangeCourse,
   wireOrigin,
   choiceOf,
-  destinationOf,
   groupKeyOf,
   type OrderChoice,
   type Previewed,
@@ -529,7 +529,8 @@ function BoardContent({
   /** **La visée du doigt** (#586), sous le seuil : ce que le toucher a désigné et le verbe qui part
    *  par défaut. Elle reste après le lever du doigt et nourrit l'aperçu comme l'arrêt du pointeur ;
    *  fermer, reposer la pièce ou recomposer la main la retire. */
-  const [aim, setAim] = useState<{ readonly target: MapAim; readonly chosen: number } | null>(null);
+  const handAimState = useHandAim(hand);
+  const { aim, verb: aimedVerb } = handAimState;
   /** La rose de la pile en main et sa cible, lues par la carte : la fiche y prend « fonder » et
    *  ses offres (`handOffersOf`). */
   const [heldRose, setHeld] = useState<{ compass: Compass; target: CompassTarget } | null>(null);
@@ -899,7 +900,6 @@ function BoardContent({
 
   const liftHand = useCallback((next: Hand) => {
     setHand(next);
-    setAim(null);
     setChain(null);
     lastSeen.current = undefined;
     lastThen.current = undefined;
@@ -916,7 +916,6 @@ function BoardContent({
         lastSeen.current = undefined;
         lastThen.current = undefined;
         setResting(null);
-        setAim(null);
       }),
     [forgetFrame],
   );
@@ -1694,8 +1693,6 @@ function BoardContent({
         return;
       }
       setHand(move.hand);
-      /** Une autre composition, un autre départ : les ordres que le point offre sont à relire. */
-      setAim(null);
     },
     [hand, dropHand, unitsAt, narrow],
   );
@@ -2949,7 +2946,6 @@ function BoardContent({
     return arc?.state === 'mine' ? { arc, asset: view.me.asset } : null;
   }, [view.arcs, view.me.asset, heldCourse]);
   /** **Le verbe visé et sa route** : sous le doigt, la visée tient la place de l'arrêt du pointeur. */
-  const aimedVerb = aim?.target.verbs[aim.chosen] ?? null;
   const aimResting = useMemo(
     (): RestAim | null =>
       aim === null || aimedVerb === null || !isOrder(aimedVerb)
@@ -2993,7 +2989,7 @@ function BoardContent({
     if (aim === null || aimedVerb === null) return null;
     const { target } = aim;
     const place = isOrder(aimedVerb)
-      ? destinationOf(choiceOf(aimedVerb).aim, preview ?? undefined)
+      ? aimPlaceOf(choiceOf(aimedVerb).aim, preview ?? undefined)
       : target.lonLat === null
         ? '—'
         : fr.aim.pointAt(target.lonLat[0], target.lonLat[1]);
@@ -3023,15 +3019,17 @@ function BoardContent({
     ],
     [labels, chain, hand, handAim, aim],
   );
-  const aimTouched = useCallback((target: MapAim) => setAim({ target, chosen: 0 }), []);
-  const chooseVerb = useCallback(
-    (chosen: number) => setAim((was) => (was === null ? null : { ...was, chosen })),
-    [],
+  const cargoOpen = cargoOpenUnder(aim !== null, availablePiles, carryingTokens);
+  const {
+    touch: aimTouched,
+    choose: chooseVerb,
+    cancel: cancelAim,
+    send: sendHandAim,
+  } = handAimState;
+  const sendAim = useCallback(
+    () => sendHandAim(handAim?.refusal ?? null, actOnCompass),
+    [sendHandAim, handAim, actOnCompass],
   );
-  const cancelAim = useCallback(() => setAim(null), []);
-  const sendAim = useCallback(() => {
-    if (aim !== null && aimedVerb !== null) actOnCompass(aimedVerb, aim.target.at);
-  }, [aim, aimedVerb, actOnCompass]);
 
   /** Le mât visé par la confirmation, relu dans la vue : effacé, la carte se ferme d'elle-même
    *  plutôt que d'annoncer un niveau qui n'existe plus. */
@@ -3279,10 +3277,10 @@ function BoardContent({
                   course={hand.kind === 'held' ? (hand.course ?? null) : null}
                   chain={chainChip}
                   chainRun={chainRun}
-                  availablePiles={availablePiles}
+                  availablePiles={cargoOpen.availablePiles}
                   onCarryEnd={carryEnded}
                   onDisembark={view.me.defeated ? undefined : disembarkFromTag}
-                  carriersShown={carryingTokens}
+                  carriersShown={cargoOpen.carriersShown}
                   onTour={view.me.defeated || blitz ? undefined : tourSheet.onTour}
                   sheetMarks={tourSheet.marks}
                   onSheetPick={tourSheet.pick}

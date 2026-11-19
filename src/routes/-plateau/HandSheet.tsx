@@ -71,9 +71,11 @@ export function HandSheet({
   const [tab, setTab] = useState<PileTab>('troops');
   const inHand = held.filter((troop) => troopIds.includes(troop.id));
   const supplied = inHand.every((troop) => troop.supplied);
-  const hint = (
+  /** Sous le seuil, l'aide vit dans l'en-tête épinglé (`fr.hand.pickedAim`) : ici elle serait
+   *  coupée par l'aperçu. */
+  const hint = narrow ? null : (
     <p className="mt-[6px] text-[11px] leading-[1.35] text-[var(--notable-paper)]">
-      {narrow ? fr.hand.hintFinger : fr.hand.hint}
+      {fr.hand.hint}
     </p>
   );
   /** **Restée d'une Guerre éclair** (#451) : au doigt, pas d'affiche au survol ; la fiche le dit. */

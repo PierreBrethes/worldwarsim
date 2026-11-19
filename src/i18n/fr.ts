@@ -3310,14 +3310,13 @@ export const fr = {
   hand: {
     kicker: (place: string) => `en main · ${place}`,
     hint: 'clic gauche sur la carte, ou glisser : poser · sur un transport : embarquer · échap : reposer',
-    hintFinger: 'touchez la carte pour viser, la pièce pour la reposer — appui long pour la porter',
     /** **La visée au téléphone** (#586) : « Envoyer » donne l'ordre, « Annuler » retire la visée et
      *  laisse la pièce en main. */
     send: 'Envoyer',
     cancelAim: 'Annuler',
     /** Ce que la feuille dit tant que rien n'est visé : le compte, et le geste qui suit. */
     pickedAim: (count: number) =>
-      `${count} troupe${plural(count, '', 's')} cochée${plural(count, '', 's')} — touchez la carte pour viser`,
+      `${count} troupe${plural(count, '', 's')} cochée${plural(count, '', 's')} — touchez la carte pour viser, la pièce pour la reposer — appui long pour la porter`,
     pickedNone: 'aucune troupe cochée — rien à envoyer',
     found: 'fonder un avant-poste ici',
     /** Au téléphone, les ordres de la fiche tiennent en verbes courts (#585). */
@@ -3735,6 +3734,8 @@ export const fr = {
     /** **L'étiquette de la visée** (#586), posée près de la destination : le verbe de la pastille
      *  et le lieu, que les notes de la visée (`dropNotes`) suivent. */
     label: (verb: string, place: string) => `${verb} → ${place}`,
+    /** « près de Kiev » : le lieu qu'une visée du doigt prend à l'aperçu au lieu de ses degrés. */
+    near,
     /** **La longueur de la route**, en kilomètres du serveur (#302) : la durée si elle est datée,
      *  la part de mer quand le trajet en a une. */
     distance: (km: number, span: string) => `≈ ${km} km · ${span}`,

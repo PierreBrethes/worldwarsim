@@ -320,6 +320,8 @@ export function BottomSheet({
         <div
           ref={body}
           className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+          // La fin du corps ne passe pas sous la barre d'accueil.
+          style={{ paddingBottom: 'calc(var(--board-bottom) / var(--hud-scale))' }}
           hidden={collapsed && !moving}
         >
           {children}

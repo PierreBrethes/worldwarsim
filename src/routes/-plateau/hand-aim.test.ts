@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { handAimOf } from './hand-aim';
+import { aimPlaceOf, cargoOpenUnder, handAimOf } from './hand-aim';
+import type { MovementAim } from '@/domain/movement-orders';
+import type { Previewed } from './order-wire';
 
 const notes = [
   { text: '≈ 177 km · 8 h 51', alarm: false },
@@ -30,5 +32,37 @@ describe('handAimOf', () => {
 
   it('leaves « Envoyer » offered while the preview has not come', () => {
     expect(handAimOf(['Marcher'], 0, 'Lyon', []).refusal).toBeNull();
+  });
+});
+
+const previewed = (destinationName: string) => ({ destinationName }) as unknown as Previewed;
+
+describe('aimPlaceOf', () => {
+  const point = { kind: 'point', lon: 2.35, lat: 48.85 } as unknown as MovementAim;
+
+  it('names a touched point by the region the preview gives, not by its degrees', () => {
+    expect(aimPlaceOf(point, previewed('FRA'))).toMatch(/^près /);
+    expect(aimPlaceOf(point, previewed('FRA'))).not.toContain('°');
+  });
+
+  it('writes degrees while the preview has not come', () => {
+    expect(aimPlaceOf(point, undefined)).toBe('48.9° N · 2.4° E');
+  });
+
+  it('says « en mer » at sea, without a « près de »', () => {
+    expect(aimPlaceOf(point, previewed(''))).not.toContain('près');
+  });
+});
+
+describe('cargoOpenUnder', () => {
+  it('shows only the signs under an aim: no transport is made available, no tag opens', () => {
+    expect(cargoOpenUnder(true, ['a'], true)).toEqual({ availablePiles: [], carriersShown: false });
+  });
+
+  it('leaves the transports to the hand without an aim', () => {
+    expect(cargoOpenUnder(false, ['a'], true)).toEqual({
+      availablePiles: ['a'],
+      carriersShown: true,
+    });
   });
 });

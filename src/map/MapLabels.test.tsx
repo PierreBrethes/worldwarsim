@@ -708,16 +708,99 @@ describe('the interface zoom under a round of degradation (#560)', () => {
   });
 });
 
-/** **L'étiquette de la visée entre d'un fondu, sauf en « réduites » et « coupées »** (#586). */
+/** **L'étiquette de la visée** (#586) : montée dans la carte, avec la feuille de style du jeu. */
 describe('the aim label of a finger', () => {
-  const sheet = readFileSync('src/styles/labels.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const aim = {
+    ...outpost('gate-aim', 'Marcher → près de Bourges'),
+    type: 'course-mark',
+  } as MapLabel;
+  const engineOf = (): Record<string, unknown> => ({
+    setLabelAnchors: () => {},
+    subscribeRest: () => () => {},
+    atZoomFloor: () => false,
+    invalidate: () => {},
+    nameSpots: () => ({ cities: [], rivers: [], seas: [], pins: [], night: 0 }),
+    pieceRect: () => null,
+    cameraDistance: () => 20,
+    heldRects: () => [],
+  });
+  const mount = (engine: Record<string, unknown> | null = null) =>
+    render(
+      <MapLabels
+        labels={[aim]}
+        engine={engine as never}
+        selected={null}
+        secondarySelected={null}
+        onMovementHover={noop}
+        onReachHover={noop}
+        poster={() => null}
+        onSelect={noop}
+        onOpenBuilding={noop}
+        onOpenStack={noop}
+        onOpenLoot={noop}
+        onOpenCamp={noop}
+        onOpenObjective={noop}
+        onOpenStrategic={noop}
+        onAct={noop}
+        onCancelHeld={noop}
+        mapping={CLASSIC_MAPPING}
+        holding={false}
+        onHoldOver={noop}
+        muted={false}
+      />,
+    );
+  const fadeNow = () =>
+    getComputedStyle(document.querySelector('[data-label-id="gate-aim"] .label-lines')!).animation;
 
-  it('fades in under full motion only', () => {
-    expect(sheet).toMatch(
-      /\[data-label-id='gate-aim'\] \.label-lines \{[^}]*animation: aim-label-in/,
+  beforeEach(() => {
+    const style = document.createElement('style');
+    style.textContent = readFileSync('src/styles/labels.css', 'utf8');
+    document.head.append(style);
+  });
+  afterEach(() => {
+    document.head.querySelector('style')?.remove();
+    delete document.documentElement.dataset.motion;
+    vi.restoreAllMocks();
+  });
+
+  it('fades in under full motion, and not under reduced or off', () => {
+    mount();
+    document.documentElement.dataset.motion = 'full';
+    expect(fadeNow()).toContain('aim-label-in');
+    for (const motion of ['reduced', 'off']) {
+      document.documentElement.dataset.motion = motion;
+      expect(fadeNow()).toBe('none');
+    }
+  });
+
+  it('shifts left, 8 px short of the edge, when the point is at the right edge', () => {
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue(
+      new DOMRect(0, 0, 200, 20),
     );
-    expect(sheet).toMatch(
-      /\[data-motion='reduced'\], \[data-motion='off'\]\) \[data-label-id='gate-aim'\] \.label-lines \{\s*animation: none;/,
-    );
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(390);
+    const engine = engineOf();
+    mount(engine);
+    const project = (x: number) => ({
+      id: 'gate-aim',
+      visible: true,
+      x,
+      y: 300,
+      lod: 'expanded',
+      fade: 1,
+      dressed: 0,
+      far: false,
+      drawnX: 0,
+      drawnY: 0,
+      distance: 20,
+      atEdge: false,
+      edgeX: 0,
+      edgeY: 0,
+      heading: 0,
+    });
+    const anchor = () => document.querySelector('[data-label-id="gate-aim"]')!.parentElement!;
+    act(() => (engine.onLabels as (projections: ReadonlyArray<unknown>) => void)([project(370)]));
+    expect(anchor().style.getPropertyValue('--aim-shift')).toBe('-88px');
+    act(() => (engine.onLabels as (projections: ReadonlyArray<unknown>) => void)([project(195)]));
+    expect(anchor().style.getPropertyValue('--aim-shift')).toBe('0px');
   });
 });
