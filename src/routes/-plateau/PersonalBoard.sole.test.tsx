@@ -350,30 +350,34 @@ describe("the pose's flight on the phone (#592)", () => {
       .forEach((node) => node.remove());
   });
 
-  it('files the tile taken on its stage on the bar, at the size it had', () => {
+  it("files the tile taken on its stage on the stage's title line, at the size it had", () => {
     render(<Table />);
     const bar = screen.getByRole('region', { name: fr.footBar.label });
     bar.getBoundingClientRect = () => rectOf(0, 800, 390, 44);
+    document.querySelector<HTMLElement>('[data-stage] h2')!.getBoundingClientRect = () =>
+      rectOf(0, 640, 200, 20);
     const taken = tile('Quartier général');
     taken.getBoundingClientRect = () => rectOf(10, 700, 60, 50);
     fireEvent.click(taken);
     placed('hq', [3, 50], 'full');
-    expect(arrival()).toEqual({ x: 195, y: 822 });
+    expect(arrival()).toEqual({ x: 100, y: 650 });
     expect(document.querySelector('.placed-tile')).toHaveProperty('style.width', '44px');
   });
 
-  it('still files it on the bar when the stage shows its works tab', () => {
+  it("still files it on the stage's title line when the stage shows its works tab", () => {
     render(<Table />);
     const bar = screen.getByRole('region', { name: fr.footBar.label });
     bar.getBoundingClientRect = () => rectOf(0, 800, 390, 44);
     pull(-120);
     document.querySelector<HTMLElement>('[data-volet-column="works"]')!.getBoundingClientRect =
       () => rectOf(0, 300, 390, 300);
+    document.querySelector<HTMLElement>('[data-stage] h2')!.getBoundingClientRect = () =>
+      rectOf(0, 640, 200, 20);
     const taken = tile('Quartier général');
     taken.getBoundingClientRect = () => rectOf(10, 700, 60, 50);
     fireEvent.click(taken);
     placed('hq', [3, 50], 'full');
-    expect(arrival()).toEqual({ x: 195, y: 822 });
+    expect(arrival()).toEqual({ x: 100, y: 650 });
   });
 
   it('leaves the ring alone when the stage is ceded', () => {
