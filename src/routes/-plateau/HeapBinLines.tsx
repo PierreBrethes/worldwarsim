@@ -5,55 +5,6 @@ import { asSpan } from '@/domain/duration';
 import { countdownLabel, fr } from '@/i18n/fr';
 
 /**
- * **Sous chaque bac, ce qui attend au pied** (ADR 0041, #548, maquette « Au pied ») : le total des
- * tas, ceux qui sont pleins, ce qui revient à bord d'un transport. `short` : au téléphone, cinq
- * colonnes, sans l'étiquette longue.
- */
-export function HeapBinLines({
-  view,
-  resource,
-  now,
-  short = false,
-}: {
-  view: PlayerView;
-  resource: ResourceKey;
-  now: number;
-  short?: boolean;
-}) {
-  const bin = heapBinOf(view, resource, now);
-  if (bin === null) return null;
-  const line = 'block leading-[1.25]';
-  if (bin.kind !== 'foot')
-    return (
-      <small
-        className={`${line} max-w-full text-center font-(family-name:--font-text) text-[10px] text-[var(--ink-soft)] italic`}
-      >
-        {bin.kind === 'arsenal' ? fr.heap.board.fromArsenal : fr.heap.board.foundationOnly}
-      </small>
-    );
-  return (
-    <span className="grid justify-items-center gap-[1px] font-(family-name:--font-mono) text-[10px] whitespace-nowrap">
-      <small className={line}>
-        {short ? fr.heap.board.atFootShort : fr.heap.board.atFoot} {bin.amount}
-      </small>
-      {bin.full > 0 && (
-        <small className={`${line} text-[var(--critical)]`}>
-          ⚑ {fr.heap.board.fullCount(bin.full)}
-        </small>
-      )}
-      {bin.come !== null && (
-        <small className={`${line} text-[var(--valid)]`} title={fr.heap.board.coming}>
-          ▲ {Math.floor(bin.come.amount)}
-          {bin.come.arrivesAt === null
-            ? ''
-            : ` · ${fr.heap.board.legEnds(countdownLabel(Math.max(0, bin.come.arrivesAt - now)))}`}
-        </small>
-      )}
-    </span>
-  );
-}
-
-/**
  * **L'abrégé du tas dans la barre des stocks** (#578) : « tas 74 ⚑1 ▲ », sans le montant ni le
  * compte à rebours du ▲. Seul un tas au pied (`foot`) s'écrit en barre ; « aucun tas », l'arsenal et
  * la fondation seule sont l'affaire du volet.

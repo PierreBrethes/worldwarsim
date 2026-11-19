@@ -4120,8 +4120,6 @@ export const fr = {
       atFootShort: 'tas',
       /** L'heure est celle de l'étape, pas de l'arrivée au stock : le mot le dit. */
       legEnds: (countdown: string) => `étape ${countdown}`,
-      fullCount: (count: number) => `${count} plein${count > 1 ? 's' : ''}`,
-      coming: 'Ce qu’un transport rapporte : la récolte à bord, et la fin de son étape',
       foundationOnly: 'fondation seule',
       fromArsenal: 'sort de l’arsenal',
       onTheRoad: 'En route',
@@ -4204,9 +4202,6 @@ export const fr = {
       ` · reste ${time}${queued > 0 ? ` · ${queued} en file` : ''}`,
     /** Le rang d'un chantier dans la file : « 1. Caserne niv. 2 ». */
     workRank: (rank: number, work: string) => `${rank}. ${work}`,
-    /** Sous le nom d'un chantier, une ligne : où, et où il en est. */
-    runningAt: (region: string) => `${region} · en cours`,
-    queuedAt: (region: string, time: string) => `${region} · ${time}, en file`,
     /** Le volet coupe la région, jamais la durée : ce qui suit le lieu, seul. */
     runningTail: (time: string) => ` · reste ${time}`,
     queuedTail: (time: string) => ` · ${time}`,

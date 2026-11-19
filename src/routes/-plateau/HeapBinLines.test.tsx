@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { PlayerView } from '@/domain/player-view';
-import { HeapBinBar, HeapBinLines, HeapBoardNotes } from './HeapBinLines';
+import { HeapBinBar, HeapBoardNotes } from './HeapBinLines';
 
 const HOUR = 3_600_000;
 const NOW = 100 * HOUR;
@@ -26,22 +26,6 @@ const view = {
     extraction: [{ buildingId: 'c1', deposit: 'coal', nationalPerHour: 0, heapPerHour: 12 }],
   },
 } as unknown as PlayerView;
-
-describe('HeapBinLines', () => {
-  it('reads what waits at the foot, the full heaps and what comes back', () => {
-    const out = renderToStaticMarkup(<HeapBinLines view={view} resource="coal" now={NOW} />);
-    expect(out).toContain('au pied 288');
-    expect(out).toContain('⚑ 1 plein');
-    expect(out).toContain('▲ 120 · étape ');
-  });
-
-  it('says « tas » on a phone, and nothing of a resource no site yields', () => {
-    expect(
-      renderToStaticMarkup(<HeapBinLines view={view} resource="coal" now={NOW} short />),
-    ).toContain('tas 288');
-    expect(renderToStaticMarkup(<HeapBinLines view={view} resource="oil" now={NOW} />)).toBe('');
-  });
-});
 
 describe('HeapBinBar', () => {
   const bar = (v: PlayerView, resource: 'coal' | 'oil' | 'ammunition') =>
