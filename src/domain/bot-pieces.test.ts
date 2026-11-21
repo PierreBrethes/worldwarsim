@@ -188,7 +188,11 @@ describe('le bot facile défend son QG', () => {
 });
 
 describe('le bot facile avance', () => {
-  const squad = [troop('t1', inBuilding('b-1')), troop('t2', inBuilding('b-1'))];
+  const squad = [
+    troop('t1', inBuilding('b-1')),
+    troop('t2', inBuilding('b-1')),
+    troop('t3', inBuilding('b-1')),
+  ];
 
   it('marche vers le point exact de la région étrangère la plus proche de son QG', () => {
     expect(turn(viewOf({ troops: squad }))).toEqual([
@@ -230,6 +234,22 @@ describe('le bot facile avance', () => {
       outposts: [{ id: 'o-1', regionId: 'BEL-1', standsAt: null, lonLat: BELGIUM }],
     });
     expect(turn(view)).toEqual([]);
+  });
+
+  it("laisse un fantassin à l'adresse qu'il quitte, et ne part pas seul", () => {
+    const two = [troop('t1', inBuilding('b-1')), troop('t2', inBuilding('b-1'))];
+    expect(turn(viewOf({ troops: two }))).toMatchObject([{ args: { troopIds: ['t1'] } }]);
+    expect(turn(viewOf({ troops: [two[0]!] }))).toEqual([]);
+  });
+
+  it("n'attend pas d'une menace que la défense ne peut pas frapper", () => {
+    const near = [2.6, 49.2] as const;
+    const squad = [troop('t1', inBuilding('b-1')), troop('t2', inBuilding('b-1'))];
+    const naval = viewOf({ troops: squad }, { camps: [{ ...camp(near), medium: 'sea' }] });
+    expect(turn(naval).map((order) => order.fn)).toEqual(['movements.marchTo']);
+    const cut = world({ landRoute: (from) => (from === HQ_POINT ? null : { km: 1 }) });
+    const inland = viewOf({ troops: squad }, { camps: [camp(near)] });
+    expect(turn(inland, cut).map((order) => order.fn)).toEqual(['movements.marchTo']);
   });
 
   it("ne garde qu'une marche par slot libre", () => {
@@ -279,6 +299,16 @@ describe('le bot facile fonde', () => {
       ),
     });
     expect(turn(poor).map((order) => order.fn)).not.toContain('movements.foundOutpostHere');
+  });
+
+  it("attend l'acier posé sur sa région, sans se renvoyer marcher sur son propre point", () => {
+    const poor = viewOf({
+      troops: [standing('t1', BELGIUM), standing('t2', BELGIUM)],
+      resources: Object.fromEntries(
+        RESOURCES.map((key) => [key, { stock: 0, ratePerHour: 0, cap: 1000 }]),
+      ),
+    });
+    expect(turn(poor)).toEqual([]);
   });
 
   it('ne double pas un avant-poste déjà posé dans la région', () => {
@@ -363,6 +393,14 @@ describe('le bot facile ravitaille', () => {
       supplies: { rounds: 0, fuel: 0 },
     });
     expect(turn(viewOf({ troops: [dry], outposts: [outpost(10)] }))).toEqual([]);
+  });
+
+  it('essaie le camion suivant quand le premier ne peut pas se charger', () => {
+    const full = Object.fromEntries(RESOURCES.map((key) => [key, 200]));
+    const stuffed = troop('c1', inBuilding('hq-1'), 'landTransport', { harvest: full as never });
+    const free = troop('c2', inBuilding('hq-1'), 'landTransport');
+    const orders = turn(viewOf({ troops: [stuffed, free], outposts: [outpost(10)] }));
+    expect(orders).toMatchObject([{ fn: 'logistics.load', args: { troopId: 'c2' } }]);
   });
 
   it('ne bouge pas un camion en tournée', () => {

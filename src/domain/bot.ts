@@ -416,11 +416,18 @@ const idsOf = (troops: ReadonlyArray<TroopView>) => troops.map((troop) => troop.
 
 const hqOf = (view: PlayerView) => view.me.buildings.find((building) => building.key === 'hq');
 
-/** Les camps relevés à moins de `BOT_HQ_ALERT_KM` du QG, le plus proche d'abord. */
-function threatsOf(view: PlayerView) {
+/**
+ * Les camps relevés à moins de `BOT_HQ_ALERT_KM` du QG que la défense peut frapper (camp à terre,
+ * route à pied), le plus proche d'abord : un camp naval ou coupé du QG ne retient ni l'avance ni la garnison.
+ */
+function threatsOf(view: PlayerView, world: BotWorld) {
   const hq = hqOf(view);
   if (hq === undefined) return [];
   return view.camps
+    .filter(
+      (camp) =>
+        camp.medium === 'land' && world.landRoute(hq.point, camp.point, ['infantry']) !== null,
+    )
     .map((camp) => ({ camp, km: distanceKm(camp.point, hq.point) }))
     .filter(({ km }) => km <= BOT_HQ_ALERT_KM)
     .sort((a, b) => a.km - b.km)
@@ -457,12 +464,11 @@ function marchRefused(
 
 const defendHq = (context: BotContext): Desire[] => {
   const { view, world } = context;
-  const threats = threatsOf(view);
+  const threats = threatsOf(view, world);
   if (threats.length === 0) return [];
   const hq = hqOf(view)!;
   const squads = squadsOf(view, 'infantry');
   for (const camp of threats) {
-    if (camp.medium !== 'land') continue;
     const aim: MovementAim = {
       kind: 'camp',
       campId: camp.id,
@@ -519,7 +525,10 @@ const heldRegionIds = (view: PlayerView): ReadonlySet<string> =>
   ]);
 
 /** Fonder, ou ce qui l'en empêche : `null` quand l'escouade posée peut planter son point. */
-function foundingCall({ view, world, now }: BotContext, squad: Squad): Desire | 'refused' {
+function foundingCall(
+  { view, world, now }: BotContext,
+  squad: Squad,
+): Desire | 'refused' | 'short' {
   if (squad.station.kind !== 'point') return 'refused';
   const point = squad.station.lonLat;
   const here = world.nearestRegionId(point);
@@ -530,7 +539,8 @@ function foundingCall({ view, world, now }: BotContext, squad: Squad): Desire | 
     return 'refused';
   // Le serveur ne regarde que les bâtiments ; le bot ne double pas non plus un avant-poste de la région.
   if (view.me.outposts.some((outpost) => outpost.regionId === here)) return 'refused';
-  if (foundationHold(view, now) !== null) return 'refused';
+  // Faute de matière l'escouade attend sur place : la matière revient, un autre refus ne reviendra pas.
+  if (foundationHold(view, now) !== null) return 'short';
   return {
     want: WANT_FOUND,
     order: {
@@ -547,13 +557,14 @@ function foundingCall({ view, world, now }: BotContext, squad: Squad): Desire | 
 const foundOutpost = (context: BotContext): Desire[] =>
   squadsOf(context.view, 'infantry').flatMap((squad) => {
     const call = foundingCall(context, squad);
-    return call === 'refused' ? [] : [call];
+    return call === 'refused' || call === 'short' ? [] : [call];
   });
 
 const advance = (context: BotContext): Desire[] => {
   const { view, world } = context;
   const hq = hqOf(view);
-  if (hq === undefined || freeSlotsOf(view.me.slots) <= 0 || threatsOf(view).length > 0) return [];
+  if (hq === undefined || freeSlotsOf(view.me.slots) <= 0 || threatsOf(view, world).length > 0)
+    return [];
   const home = isNation(view.me.nation) ? ADM0_BY_NATION[view.me.nation] : null;
   const held = heldRegionIds(view);
   const targets = world.regions
@@ -572,7 +583,8 @@ const advance = (context: BotContext): Desire[] => {
     );
   for (const target of targets) {
     for (const squad of squads) {
-      const troops = squad.troops.slice(0, BOT_SQUAD_SIZE);
+      // Elle laisse un fantassin à son adresse (une colonne vide est refusée) ; la région où elle se tient est tenue ou attend sa fondation, jamais visée.
+      const troops = squad.troops.slice(0, Math.min(BOT_SQUAD_SIZE, squad.troops.length - 1));
       if (
         marchRefused(context, squad, troops, 'march', pointAim(world, target.point), target.point)
       )
@@ -615,53 +627,56 @@ const supply = (context: BotContext): Desire[] => {
   const lorry = squadsOf(view, 'landTransport').flatMap((squad) =>
     squad.troops.map((troop) => ({ squad, troop })),
   );
-  const atHq = lorry.find(
+  const atHq = lorry.filter(
     ({ squad }) => squad.station.kind === 'building' && squad.station.buildingId === hq.id,
   );
-  if (atHq !== undefined) {
-    const { troop } = atHq;
+  if (atHq.length > 0) {
     const place = { kind: 'building', key: 'hq' } as const;
-    if (loadTotal(troop.load) > 0) {
-      const outpost = {
-        level: depot.level,
-        standing: true,
-        depot: depot.depot,
-        capacity: depot.depotCapacity,
-      };
-      const stops = [{ kind: 'depot', id: depot.id }] as const;
-      if (
-        tourRefusalOf({ role: troop.role, place, busy: null, load: troop.load, stops }) !== null ||
-        deliverRefusalOf([troop], outpost, true) !== null
-      )
-        return [];
-      return [
-        {
-          want: WANT_SUPPLY,
-          order: { fn: 'tours.start', args: { troopId: troop.id, stops: [depot.id] } },
-        },
-      ];
-    }
-    const room = roomAboard(loadCapacityOf(troop.role), troop.load, troop.harvest);
-    for (const resource of SUPPLY_KEYS) {
-      const stock = Math.floor(currentStock(view.me.resources[resource], view.loadedAt, now));
-      const amount = Math.min(room, stock, BOT_CONVOY_LOAD);
-      const refusal = loadRefusalOf({
-        role: troop.role,
-        place,
-        busy: null,
-        held: troop.load ?? { ammunition: 0, oil: 0, coal: 0 },
-        harvest: troop.harvest,
-        resource,
-        amount,
-        store: stock,
-      });
-      if (refusal === null)
-        return [
-          {
-            want: WANT_SUPPLY,
-            order: { fn: 'logistics.load', args: { troopId: troop.id, resource, amount } },
-          },
-        ];
+    // Le premier camion que les refus laissent faire ; les autres attendent le passage suivant.
+    for (const { troop } of atHq) {
+      if (loadTotal(troop.load) > 0) {
+        const outpost = {
+          level: depot.level,
+          standing: true,
+          depot: depot.depot,
+          capacity: depot.depotCapacity,
+        };
+        const stops = [{ kind: 'depot', id: depot.id }] as const;
+        if (
+          tourRefusalOf({ role: troop.role, place, busy: null, load: troop.load, stops }) ===
+            null &&
+          deliverRefusalOf([troop], outpost, true) === null
+        )
+          return [
+            {
+              want: WANT_SUPPLY,
+              order: { fn: 'tours.start', args: { troopId: troop.id, stops: [depot.id] } },
+            },
+          ];
+        continue;
+      }
+      const room = roomAboard(loadCapacityOf(troop.role), troop.load, troop.harvest);
+      for (const resource of SUPPLY_KEYS) {
+        const stock = Math.floor(currentStock(view.me.resources[resource], view.loadedAt, now));
+        const amount = Math.min(room, stock, BOT_CONVOY_LOAD);
+        const refusal = loadRefusalOf({
+          role: troop.role,
+          place,
+          busy: null,
+          held: troop.load ?? { ammunition: 0, oil: 0, coal: 0 },
+          harvest: troop.harvest,
+          resource,
+          amount,
+          store: stock,
+        });
+        if (refusal === null)
+          return [
+            {
+              want: WANT_SUPPLY,
+              order: { fn: 'logistics.load', args: { troopId: troop.id, resource, amount } },
+            },
+          ];
+      }
     }
     return [];
   }

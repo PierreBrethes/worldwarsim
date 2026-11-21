@@ -127,7 +127,7 @@ describe("un bot joue son ouverture par la porte d'un joueur", () => {
 
     const refused: string[] = [];
     const played = { france: [] as string[], ussr: [] as string[] };
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 20; i++) {
       for (const seat of [bot, idle])
         await pass(t, seat, refused, played[seat === bot ? 'france' : 'ussr']);
       vi.advanceTimersByTime(HOUR);
