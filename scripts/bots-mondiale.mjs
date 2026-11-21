@@ -240,7 +240,7 @@ while (!stopped) {
     if (stopped) break;
     const name = accounts[KEYS[k]].nickname;
     const seat = { token, seasonId };
-    let orders = [];
+    let orders;
     try {
       const view = adaptServerView(await client.query(api.view.playerView, seat));
       const workshop = await client.query(api.troops.workshop, seat);
