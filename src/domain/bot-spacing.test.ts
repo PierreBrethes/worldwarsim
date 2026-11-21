@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { decideTurn, type BotWorld } from './bot';
+import { noGeography } from './bot-geography.fixture';
 import { BUILDINGS, RESOURCES, type BuildingKey } from './ids';
 import type { BuildSpec, PlayerView } from './player-view';
 
@@ -12,6 +13,7 @@ vi.mock('./economy', async (original) => ({
 const world: BotWorld = {
   carriesBuilding: () => true,
   regionAt: () => ({ id: 'FRA-1', country: 'FRA' }),
+  ...noGeography,
 };
 
 const catalog = Object.fromEntries(
@@ -22,6 +24,8 @@ describe('le socle du bot', () => {
   it("ne pose pas deux gisements à moins de l'espacement dans le même passage", () => {
     const view = {
       loadedAt: 0,
+      arcs: [],
+      camps: [],
       buildCatalog: catalog,
       surveyedInstallations: [],
       me: {
@@ -34,6 +38,8 @@ describe('le socle du bot', () => {
         ],
         buildings: [],
         outposts: [],
+        troops: [],
+        slots: { total: 2, used: 0 },
         construction: null,
         constructionQueue: [],
         regions: [],

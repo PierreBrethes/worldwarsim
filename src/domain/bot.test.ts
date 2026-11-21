@@ -8,6 +8,7 @@ import {
   type BotWorld,
   type BotWorkshop,
 } from './bot';
+import { noGeography } from './bot-geography.fixture';
 import { BUILDINGS, RESOURCES, type BuildingKey } from './ids';
 import { ADM0_BY_NATION } from './nations';
 import type { BuildSpec, PlayerView } from './player-view';
@@ -23,6 +24,7 @@ const world: BotWorld = {
     id: point === CAPITAL ? 'capital' : point === SPARE ? 'spare' : `R@${point.join(',')}`,
     country: ADM0_BY_NATION.france,
   }),
+  ...noGeography,
 };
 
 const catalog = Object.fromEntries(
@@ -32,6 +34,10 @@ const catalog = Object.fromEntries(
 const viewOf = (me: Record<string, unknown> = {}): PlayerView =>
   ({
     loadedAt: NOW,
+    mode: 'mondiale',
+    arcs: [],
+    camps: [],
+    outpostFoundation: { cost: { steel: 10 }, minutes: 60 },
     buildCatalog: catalog,
     surveyedInstallations: [],
     me: {
@@ -41,6 +47,9 @@ const viewOf = (me: Record<string, unknown> = {}): PlayerView =>
       foundation: [],
       buildings: [],
       outposts: [],
+      troops: [],
+      stationedCargo: [],
+      slots: { total: 2, used: 0 },
       construction: null,
       constructionQueue: [],
       regions: [
@@ -224,6 +233,7 @@ describe('worldFrom', () => {
     grid: read('grid.json'),
     coast: read('coast.json'),
     regionGrid: read('region-grid.json'),
+    regionIndex: read('region-index.json'),
   });
 
   it('lit la terre et la région des fichiers cuits', () => {
@@ -231,5 +241,15 @@ describe('worldFrom', () => {
     expect(geo.carriesBuilding([-30, 40])).toBe(false);
     expect(geo.regionAt([2.35, 48.85])?.country).toBe('FRA');
     expect(geo.regionAt([-30, 40])).toBeNull();
+  });
+
+  it('lit le sol, la route à pied et les régions des fichiers cuits', () => {
+    expect(geo.groundAt([2.35, 48.85])).toBe('land');
+    expect(geo.groundAt([-30, 40])).toBe('sea');
+    expect(geo.walkableAt([2.35, 48.85])).toBe(true);
+    const paris = geo.nearestRegionId([2.35, 48.85]);
+    expect(geo.regions.find((region) => region.id === paris)?.country).toBe('FRA');
+    expect(geo.landRoute([2.35, 48.85], [4.35, 50.85], ['infantry'])?.km).toBeGreaterThan(200);
+    expect(geo.landRoute([2.35, 48.85], [-73.9, 40.7], ['infantry'])).toBeNull();
   });
 });

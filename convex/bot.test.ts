@@ -18,6 +18,7 @@ const world = worldFrom({
   grid: read('grid.json'),
   coast: read('coast.json'),
   regionGrid: read('region-grid.json'),
+  regionIndex: read('region-index.json'),
 });
 
 /** Loin du repos de chacun : seul le bot est mesuré. */
@@ -26,21 +27,79 @@ const HOUR = 3_600_000;
 
 type Bench = ReturnType<typeof boot>;
 
+/** La conversion d'un ordre vers sa mutation : les ids viennent de la vue, en `string`. */
+async function submit(t: Bench, seat: Seat, order: BotOrder): Promise<unknown> {
+  const ids = (list: ReadonlyArray<string>) => list as Array<Id<'troops'>>;
+  switch (order.fn) {
+    case 'constructions.start':
+      return t.mutation(api.constructions.start, { ...seat, ...order.args });
+    case 'troops.recruit':
+      return t.mutation(api.troops.recruit, {
+        ...seat,
+        ...order.args,
+        buildingId: order.args.buildingId as Id<'buildings'>,
+      });
+    case 'movements.attack':
+      return t.mutation(api.movements.attack, {
+        ...seat,
+        origin: originOf(order.args.origin),
+        troopIds: ids(order.args.troopIds),
+        target: { kind: 'camp', campId: order.args.target.campId as Id<'campSightings'> },
+      });
+    case 'movements.marchTo':
+      return t.mutation(api.movements.marchTo, {
+        ...seat,
+        origin: originOf(order.args.origin),
+        troopIds: ids(order.args.troopIds),
+        point: order.args.point,
+      });
+    case 'movements.enterGarrison':
+      return t.mutation(api.movements.enterGarrison, {
+        ...seat,
+        origin: originOf(order.args.origin),
+        troopIds: ids(order.args.troopIds),
+        buildingId: order.args.buildingId as Id<'buildings'>,
+      });
+    case 'movements.foundOutpostHere':
+      return t.mutation(api.movements.foundOutpostHere, {
+        ...seat,
+        ...order.args,
+        troopIds: ids(order.args.troopIds),
+      });
+    case 'logistics.load':
+      return t.mutation(api.logistics.load, {
+        ...seat,
+        ...order.args,
+        troopId: order.args.troopId as Id<'troops'>,
+      });
+    case 'tours.start':
+      return t.mutation(api.tours.start, {
+        ...seat,
+        troopId: order.args.troopId as Id<'troops'>,
+        stops: order.args.stops as Array<Id<'outposts'>>,
+      });
+  }
+}
+
+const originOf = (origin: Extract<BotOrder, { fn: 'movements.marchTo' }>['args']['origin']) =>
+  origin.kind === 'building'
+    ? { kind: 'building' as const, buildingId: origin.buildingId as Id<'buildings'> }
+    : origin;
+
 /** Un passage du bot : sa vue, son atelier, ses ordres, posés par la porte d'un joueur. */
-async function pass(t: Bench, seat: Seat, refused: string[]): Promise<BotOrder[]> {
+async function pass(
+  t: Bench,
+  seat: Seat,
+  refused: string[],
+  played: string[] = [],
+): Promise<BotOrder[]> {
   const view = adaptServerView(await t.query(api.view.playerView, seat));
   const workshop = await t.query(api.troops.workshop, seat);
   const orders = decideTurn({ view, workshop, world, now: Date.now() });
   for (const order of orders) {
     try {
-      if (order.fn === 'constructions.start')
-        await t.mutation(api.constructions.start, { ...seat, ...order.args });
-      else
-        await t.mutation(api.troops.recruit, {
-          ...seat,
-          ...order.args,
-          buildingId: order.args.buildingId as Id<'buildings'>,
-        });
+      await submit(t, seat, order);
+      played.push(order.fn);
     } catch (error) {
       refused.push(`${order.fn}: ${String(error)}`);
     }
@@ -55,7 +114,7 @@ describe("un bot joue son ouverture par la porte d'un joueur", () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it("deux bots (France, URSS) posent le QG, soldent le socle et mettent une caserne en chantier sans qu'aucun ordre soit refusé", async () => {
+  it("deux bots (France, URSS) ouvrent, envoient une colonne, fondent un avant-poste et ravitaillent sans qu'aucun ordre soit refusé", async () => {
     const t = boot();
     const { seat: bot, code } = await foundSeat(t, 'Bot1', 0.5);
     const idle = await joinSeat(t, code, 'Bot2');
@@ -67,16 +126,29 @@ describe("un bot joue son ouverture par la porte d'un joueur", () => {
     await unclocked(t);
 
     const refused: string[] = [];
+    const played = { france: [] as string[], ussr: [] as string[] };
     for (let i = 0; i < 12; i++) {
-      for (const seat of [bot, idle]) await pass(t, seat, refused);
+      for (const seat of [bot, idle])
+        await pass(t, seat, refused, played[seat === bot ? 'france' : 'ussr']);
       vi.advanceTimersByTime(HOUR);
       await t.finishInProgressScheduledFunctions();
     }
     expect(refused).toEqual([]);
+    // Après l'ouverture : une colonne part, un avant-poste est fondé, un camion se charge et tourne.
+    for (const nation of [played.france, played.ussr]) {
+      for (const fn of [
+        'movements.marchTo',
+        'movements.foundOutpostHere',
+        'logistics.load',
+        'tours.start',
+      ])
+        expect(nation).toContain(fn);
+    }
 
     for (const seat of [bot, idle]) {
       const { me } = adaptServerView(await t.query(api.view.playerView, seat));
       expect(me.hqLevel).toBe(1);
+      expect(me.outposts.length).toBeGreaterThan(0);
       expect(me.foundation).toEqual([]);
       const barracks =
         me.buildings.some((b) => b.key === 'barracks') ||
@@ -85,5 +157,5 @@ describe("un bot joue son ouverture par la porte d'un joueur", () => {
       const workshop = await t.query(api.troops.workshop, seat);
       expect(workshop.troopsInService + workshop.troopsQueued).toBeGreaterThan(1);
     }
-  });
+  }, 30_000);
 });
