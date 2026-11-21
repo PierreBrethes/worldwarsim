@@ -8,6 +8,7 @@ import {
   tileBillOf,
   type Aim,
 } from './construction';
+import { BUILDING_SPACING_KM } from './economy';
 import { decodeCoast, carriesBuilding, regionOf, type CoastAsset } from './coast';
 import { distanceKm, type LonLat } from './geo';
 import { RESOURCES, type BuildingKey, type ResourceKey, type UnitRole, type UnitTier } from './ids';
@@ -50,7 +51,7 @@ export type BotWorkshop = {
   readonly facilities: ReadonlyArray<{
     readonly id: string;
     readonly key: BuildingKey;
-    readonly queue: ReadonlyArray<unknown>;
+    readonly queue: ReadonlyArray<{ readonly role: UnitRole }>;
   }>;
   readonly roster: ReadonlyArray<{ readonly role: UnitRole; readonly count: number }>;
   readonly grid: ReadonlyArray<{
@@ -121,9 +122,8 @@ const placeHq = ({ view, world }: BotContext): Desire[] => {
   const { me } = view;
   if (me.hqLevel > 0 || me.capitalPoint === null) return [];
   const capital = me.capitalPoint;
-  const row = me.regions.find((region) => distanceKm(region.point, capital) === 0);
   const aim = aimAt(world, capital);
-  if (row === undefined || aim === null) return [];
+  if (aim?.region == null) return [];
   if (
     aimVerdict(
       view,
@@ -138,7 +138,7 @@ const placeHq = ({ view, world }: BotContext): Desire[] => {
       want: WANT_HQ,
       order: {
         fn: 'constructions.start',
-        args: { building: 'hq', regionId: row.id, point: pointArg(capital) },
+        args: { building: 'hq', regionId: aim.region.id, point: pointArg(capital) },
       },
     },
   ];
@@ -148,17 +148,19 @@ const placeFoundation = ({ view }: BotContext): Desire[] => {
   const { me } = view;
   if (me.hqLevel === 0 || me.capitalPoint === null) return [];
   const reaches = reachesOf(view, () => 0);
-  const taken = new Set<string>();
+  const taken: LonLat[] = [];
   const desires: Desire[] = [];
   for (const due of me.foundation) {
     if (due.deposit === null) continue;
     const open = depositCalls(view, due.key, [due.deposit], reaches).filter(
-      (call) => call.refusal === null && !taken.has(call.deposit.id),
+      (call) =>
+        call.refusal === null &&
+        !taken.some((point) => distanceKm(point, call.deposit.lonLat) < BUILDING_SPACING_KM),
     );
     const nearest = nearestDeposit(open, me.capitalPoint);
     if (nearest === null) continue;
     const { deposit } = nearest.call;
-    taken.add(deposit.id);
+    taken.push(deposit.lonLat);
     desires.push({
       want: WANT_FOUNDATION,
       order: {
@@ -196,7 +198,7 @@ const buildBarracks = ({ view, world, now }: BotContext): Desire[] => {
         want: WANT_BARRACKS,
         order: {
           fn: 'constructions.start',
-          args: { building: 'barracks', regionId: region.id, point: pointArg(region.point) },
+          args: { building: 'barracks', regionId: aim.region!.id, point: pointArg(region.point) },
         },
       },
     ];
@@ -208,7 +210,11 @@ const recruit = ({ view, workshop, now }: BotContext): Desire[] => {
   const site = workshop.facilities.find((facility) => facility.key === 'barracks');
   const army = workshop.troopsInService + workshop.troopsQueued;
   if (site === undefined || army >= BOT_ARMY_TARGET || army >= MONDIALE_TROOP_BOUND) return [];
-  const trucks = workshop.roster.some((line) => line.role === 'landTransport');
+  const trucks =
+    workshop.roster.some((line) => line.role === 'landTransport') ||
+    workshop.facilities.some((facility) =>
+      facility.queue.some((batch) => batch.role === 'landTransport'),
+    );
   const role: UnitRole = trucks || army === 0 ? 'infantry' : 'landTransport';
   const unit = workshop.grid.find((line) => line.role === role)?.unit;
   if (unit === undefined) return [];

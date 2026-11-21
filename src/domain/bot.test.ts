@@ -19,7 +19,10 @@ const NOW = 1_000_000;
 
 const world: BotWorld = {
   carriesBuilding: () => true,
-  regionAt: (point) => ({ id: `R@${point.join(',')}`, country: ADM0_BY_NATION.france }),
+  regionAt: (point) => ({
+    id: point === CAPITAL ? 'capital' : point === SPARE ? 'spare' : `R@${point.join(',')}`,
+    country: ADM0_BY_NATION.france,
+  }),
 };
 
 const catalog = Object.fromEntries(
@@ -41,8 +44,8 @@ const viewOf = (me: Record<string, unknown> = {}): PlayerView =>
       construction: null,
       constructionQueue: [],
       regions: [
-        { id: 'capital', point: CAPITAL, site: null },
-        { id: 'spare', point: SPARE, site: null },
+        { id: 'row-capital', point: CAPITAL, site: null },
+        { id: 'row-spare', point: SPARE, site: null },
       ],
       research: { researched: [], running: null, queue: [] },
       resources: Object.fromEntries(
@@ -101,7 +104,7 @@ describe('le bot facile, son ouverture', () => {
       viewOf({
         hqLevel: 1,
         buildings: [hqStanding],
-        regions: [{ id: 'spare', point: SPARE, site: { id: null } }],
+        regions: [{ id: 'row-spare', point: SPARE, site: { id: null } }],
       }),
     );
     expect(orders).toEqual([
@@ -118,8 +121,8 @@ describe('le bot facile, son ouverture', () => {
         hqLevel: 1,
         buildings: [hqStanding],
         regions: [
-          { id: 'capital', point: CAPITAL, site: { id: null } },
-          { id: 'spare', point: SPARE, site: { id: null } },
+          { id: 'row-capital', point: CAPITAL, site: { id: null } },
+          { id: 'row-spare', point: SPARE, site: { id: null } },
         ],
       }),
     );
@@ -127,7 +130,7 @@ describe('le bot facile, son ouverture', () => {
   });
 
   it('ne bâtit pas de caserne sans la matière, ni quand une est déjà là', () => {
-    const regions = [{ id: 'spare', point: SPARE, site: { id: null } }];
+    const regions = [{ id: 'row-spare', point: SPARE, site: { id: null } }];
     const poor = Object.fromEntries(
       RESOURCES.map((key) => [key, { stock: 0, ratePerHour: 0, cap: 1000 }]),
     );
@@ -172,17 +175,44 @@ describe('le bot facile, son ouverture', () => {
     ).toEqual([]);
   });
 
-  it('garde les deux envies les plus fortes', () => {
+  it('garde les deux envies les plus fortes sur trois', () => {
     const home = ADM0_BY_NATION.france;
-    const due = DEPOSIT_POINTS.filter((d) => d.country === home).slice(0, 3);
+    const iron = DEPOSIT_POINTS.find((d) => d.country === home && d.deposit === 'iron')!;
+    const food = DEPOSIT_POINTS.find((d) => d.country === home && d.deposit === 'food')!;
     const orders = turn(
       viewOf({
         hqLevel: 1,
         buildings: [hqStanding],
-        foundation: due.map((d) => ({ key: 'mine', deposit: d.deposit })),
+        foundation: [
+          { key: 'mine', deposit: 'iron' },
+          { key: 'farm', deposit: 'food' },
+        ],
       }),
+      workshopOf({ facilities: [{ id: 'b-1', key: 'barracks', queue: [] }] }),
     );
-    expect(orders.length).toBeLessThanOrEqual(2);
+    // Trois envies (deux poses du socle, un recrutement) ; seules les deux poses, plus fortes, sortent.
+    expect(orders).toHaveLength(2);
+    expect(orders.map((order) => order.fn)).toEqual(['constructions.start', 'constructions.start']);
+    expect(
+      orders.map((order) => (order as { args: { regionId: string } }).args.regionId).sort(),
+    ).toEqual([iron.regionId, food.regionId].sort());
+  });
+
+  it('envoie la région de la visée, pas celle de la ligne de la vue', () => {
+    const [order] = turn(viewOf());
+    expect(order).toMatchObject({ args: { regionId: 'capital' } });
+  });
+
+  it('ne forme pas de camion de plus quand un attend en file', () => {
+    const view = viewOf({ hqLevel: 1, buildings: [hqStanding] });
+    const barracks = {
+      id: 'b-1',
+      key: 'barracks' as const,
+      queue: [{ role: 'landTransport' as const }],
+    };
+    expect(
+      turn(view, workshopOf({ facilities: [barracks], troopsInService: 1, troopsQueued: 1 })),
+    ).toEqual([{ fn: 'troops.recruit', args: { buildingId: 'b-1', role: 'infantry', tier: 1 } }]);
   });
 });
 

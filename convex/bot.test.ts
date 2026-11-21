@@ -55,10 +55,10 @@ describe("un bot joue son ouverture par la porte d'un joueur", () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it("pose le QG, solde le socle et met une caserne en chantier sans qu'aucun ordre soit refusé", async () => {
+  it("deux bots (France, URSS) posent le QG, soldent le socle et mettent une caserne en chantier sans qu'aucun ordre soit refusé", async () => {
     const t = boot();
     const { seat: bot, code } = await foundSeat(t, 'Bot1', 0.5);
-    const idle = await joinSeat(t, code, 'Inerte');
+    const idle = await joinSeat(t, code, 'Bot2');
     await t.mutation(api.players.reserveNation, { ...bot, nation: 'france' });
     await t.mutation(api.players.declareReady, { ...bot, ready: true });
     await t.mutation(api.players.reserveNation, { ...idle, nation: 'ussr' });
@@ -68,20 +68,22 @@ describe("un bot joue son ouverture par la porte d'un joueur", () => {
 
     const refused: string[] = [];
     for (let i = 0; i < 12; i++) {
-      await pass(t, bot, refused);
+      for (const seat of [bot, idle]) await pass(t, seat, refused);
       vi.advanceTimersByTime(HOUR);
       await t.finishInProgressScheduledFunctions();
     }
-
-    const { me } = adaptServerView(await t.query(api.view.playerView, bot));
     expect(refused).toEqual([]);
-    expect(me.hqLevel).toBe(1);
-    expect(me.foundation).toEqual([]);
-    const barracks =
-      me.buildings.some((b) => b.key === 'barracks') ||
-      [me.construction, ...me.constructionQueue].some((work) => work?.key === 'barracks');
-    expect(barracks).toBe(true);
-    const workshop = await t.query(api.troops.workshop, bot);
-    expect(workshop.troopsInService + workshop.troopsQueued).toBeGreaterThan(1);
+
+    for (const seat of [bot, idle]) {
+      const { me } = adaptServerView(await t.query(api.view.playerView, seat));
+      expect(me.hqLevel).toBe(1);
+      expect(me.foundation).toEqual([]);
+      const barracks =
+        me.buildings.some((b) => b.key === 'barracks') ||
+        [me.construction, ...me.constructionQueue].some((work) => work?.key === 'barracks');
+      expect(barracks).toBe(true);
+      const workshop = await t.query(api.troops.workshop, seat);
+      expect(workshop.troopsInService + workshop.troopsQueued).toBeGreaterThan(1);
+    }
   });
 });

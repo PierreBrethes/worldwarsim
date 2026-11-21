@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 9ee5c6e -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : e7dc808 -->
 
 # Les constantes à mesurer
 
@@ -100,8 +100,8 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `TOUR_HOLD_MS` | `2200` | `src/domain/absence-tour.ts:29` | le maintien d'un tampon du rejeu, et l'écart du second (« terrain tenu »). |
 | `SECOND_STAMP_MS` | `800` | `src/domain/absence-tour.ts:30` | le maintien d'un tampon du rejeu, et l'écart du second (« terrain tenu »). |
 | `BLITZ_CROSSING_MINUTES` | `14.4` | `src/domain/blitz.ts:152` | the decision says 15 to 20 minutes, sped up by a quarter; nothing has played one yet |
-| `BOT_ORDERS_PER_TURN` | `2` | `src/domain/bot.ts:97` | combien d'ordres un passage garde ; peu, pour qu'un bot reste facile (ADR 0042 §5). |
-| `BOT_ARMY_TARGET` | `6` | `src/domain/bot.ts:99` | les troupes, debout et en file, à partir desquelles le bot cesse de recruter. |
+| `BOT_ORDERS_PER_TURN` | `2` | `src/domain/bot.ts:98` | combien d'ordres un passage garde ; peu, pour qu'un bot reste facile (ADR 0042 §5). |
+| `BOT_ARMY_TARGET` | `6` | `src/domain/bot.ts:100` | les troupes, debout et en file, à partir desquelles le bot cesse de recruter. |
 | `STALE_MARGIN_MS` | `30_000` | `src/domain/combat-on-map.ts:28` | un |
 | `FINAL_POSE_MS` | `STEP_MS['compte-rendu']` | `src/domain/combat-on-map.ts:32` | le temps du compte-rendu, assez pour lire qui reste debout ? |
 | `REPORT_HOLD_MS` | `STEP_MS['compte-rendu'] + 6000` | `src/domain/combat-on-map.ts:200` | le temps de lire « nos pièces » et de l'ouvrir. |
