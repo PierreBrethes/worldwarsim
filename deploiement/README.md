@@ -161,6 +161,28 @@ l'œil : `--geste 'lieu=@stack-point:4.94,49.7'` cadre la pile là où elle est 
 `doigt=@id`, `clic=@id` visent l'étiquette de l'id (`building-barracks@lon,lat`). `--compte` prend
 toute clé du fichier des comptes.
 
+## Jouer une Mondiale contre des bots en local (#601, ADR 0042)
+
+Avant : Docker (`worldwarsim-backend-1`) levé, `.env.local` visant 127.0.0.1, fonctions de `main`
+déployées, `npm run dev` en cours. Un bot est un joueur : il lit sa vue et passe ses ordres par les
+mutations publiques, jamais par `dev:*`. Le script refuse tout backend non local et ne lit que
+`VITE_CONVEX_URL` de `.env.local`.
+
+```bash
+npm run bots:mondiale -- --bots 3 --humains 1   # fonde, imprime le lien, attend 4 places prêtes, lance
+npm run bots:mondiale -- --bots 2 --cadence 5   # sans humain : deux bots seuls, un passage toutes les 5 s
+npm run bots:mondiale -- --bots 3 --code ABC123 # rejoint la saison d'un humain, qui la lance lui-même
+```
+
+- **Avec ton compte** : sans `--code`, ouvre le lien `/rejoindre/CODE` imprimé, prends une nation
+  libre, déclare-toi prêt ; le script lance dès que les `--bots` plus `--humains` places sont
+  prêtes. Avec `--code`, fonde ta saison dans le jeu, donne son code, puis lance-la toi-même.
+- `--cadence` : secondes entre deux passages (30 par défaut). Un refus du serveur s'écrit sur une
+  ligne (bot, ordre, code) et la boucle continue.
+- Comptes `Bot1`…`BotN` (clés `a`…) et saison dans `scripts/bots-mondiale.accounts.json`, ignoré
+  par git ; `npm run capture -- … --comptes scripts/bots-mondiale.accounts.json --compte a` filme la carte d'un bot.
+- **Arrêter** : Ctrl-C, ou la fin de la saison.
+
 ## Banc de charge de la Mondiale (#143)
 
 Même prérequis que ci-dessus (Docker levé, `.env.local` sur 127.0.0.1, `npx convex deploy` : le banc

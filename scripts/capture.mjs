@@ -2,7 +2,7 @@
  * **Une capture du jeu en local**, connecté avec un compte de démo (`npm run demo:mondiale`).
  *
  *     PLAYWRIGHT_DIR=/chemin/vers/pw npm run capture -- <url> <sortie.png> \
- *       [--heure 2026-10-21T12:00Z] [--horloge 2026-11-04T13:00:00.250Z] [--compris ms] [--compte a|b] [--largeur 390 --hauteur 844] [--densite 2] [--attendre ms] [--geste … ]
+ *       [--heure 2026-10-21T12:00Z] [--horloge 2026-11-04T13:00:00.250Z] [--compris ms] [--compte a|b] [--comptes fichier.json] [--largeur 390 --hauteur 844] [--densite 2] [--attendre ms] [--geste … ]
  *
  * `PLAYWRIGHT_DIR` : un dossier hors du dépôt où `npm i playwright-core@1.58` a été fait. L'URL
  * peut être un chemin (`/plateau`) pris sur http://localhost:5173 ; `{saison}` y devient
@@ -54,6 +54,7 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromiumPath } from './chromium.mjs';
 import { hourOf, splitSpot, spotOf } from './capture-cible.mjs';
@@ -65,6 +66,7 @@ const option = (name, fallback) => {
 };
 const flags = new Set([
   '--compte',
+  '--comptes',
   '--largeur',
   '--hauteur',
   '--densite',
@@ -93,7 +95,10 @@ if (!dir)
   throw new Error('PLAYWRIGHT_DIR absent : dossier hors dépôt où `npm i playwright-core@1.58`');
 const { chromium } = createRequire(`${dir}/`)('playwright-core');
 
-const accountsFile = fileURLToPath(new URL('./demo-mondiale.accounts.json', import.meta.url));
+/** `--comptes <fichier>` : le fichier des comptes d'un autre script (les bots de `bots:mondiale`). */
+const accountsFile = option('comptes')
+  ? resolve(option('comptes'))
+  : fileURLToPath(new URL('./demo-mondiale.accounts.json', import.meta.url));
 if (!existsSync(accountsFile))
   throw new Error('Pas de comptes de démo : lance `npm run demo:mondiale`.');
 const accounts = JSON.parse(readFileSync(accountsFile, 'utf8'));
