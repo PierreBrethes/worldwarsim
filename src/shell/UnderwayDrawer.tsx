@@ -6,8 +6,9 @@ import { useClock } from './clock';
 
 /** @a-mesurer : la largeur du volet et la hauteur de son corps (le plafond de 440 px de carte
  *  couverte, moins son en-tête). */
-const DRAWER_WIDTH_PX = 372;
-const BODY_MAX_PX = 396;
+/** Mesures d'écran : le volet est dans `.hud`, rendu à l'échelle (`--hud-scale`). */
+const DRAWER_WIDTH = 'calc(372px / var(--hud-scale))';
+const BODY_MAX = 'calc(380px / var(--hud-scale))';
 
 /**
  * **Le volet « En cours » du bureau** (#615), pendu à la réglette sous le compteur de slots : les
@@ -40,7 +41,7 @@ export function UnderwayDrawer({
     <section
       id={id}
       aria-label={fr.underway.drawer.title}
-      style={{ width: DRAWER_WIDTH_PX }}
+      style={{ width: DRAWER_WIDTH }}
       className="paper-grain float absolute top-[calc(100%+6px)] left-0 z-[1] border border-[var(--ink)] text-[var(--ink)]"
     >
       <header className="flex items-baseline gap-[10px] border-b-2 border-[var(--ink)] px-[14px] pt-[10px] pb-[8px]">
@@ -58,7 +59,7 @@ export function UnderwayDrawer({
           {fr.underway.drawer.close}
         </button>
       </header>
-      <div className="overflow-y-auto" style={{ maxHeight: BODY_MAX_PX }}>
+      <div className="overflow-y-auto" style={{ maxHeight: BODY_MAX }}>
         {lines.length === 0 && (
           <p className="px-[14px] py-[12px] text-[12.5px] text-[var(--ink-soft)]">
             {fr.underway.drawer.empty}
@@ -140,7 +141,7 @@ function Row({
       <span className="flex h-[34px] w-[34px] items-center justify-center">
         <Face face={line.face} nation={nation} />
       </span>
-      <span className="grid grid-cols-[62px_1fr] items-center gap-x-[8px]">
+      <span className="grid grid-cols-[76px_1fr] items-center gap-x-[8px]">
         <b
           className={`font-(family-name:--font-mono) text-[15px] font-medium ${
             line.moving ? 'text-[var(--notable-paper)]' : ''
