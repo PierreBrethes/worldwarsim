@@ -17,7 +17,7 @@ import { notifyPlayer } from './notifications';
 import { journalUrl, push } from '../src/domain/push';
 import { publishFinalEdition } from './press';
 import { ERASE_FALLBACK_MS, editionPending } from './finalEdition';
-import { layOut, seasonPoints } from './strategicPoints';
+import { drawnOf, layOut, seasonPoints } from './strategicPoints';
 import { heapRowsOf } from './heaps';
 import { SEASON_MODE, VERDICT } from './validators';
 import { MODE_RULES, modeOf, seatRangeOf, type SeasonMode } from '../src/domain/season-mode';
@@ -497,6 +497,8 @@ export const lobby = query({
       maximum: maximumOf(season),
       durationHours: season.durationHours,
       orders: ordersOf(season),
+      /** The seven the launch will lay out (#610), public by nature; the seed itself never leaves. */
+      points: modeOf(season.mode) === 'mondiale' ? [...drawnOf(season)] : null,
       /** Frozen at launch, and only widening while the lobby is still open. */
       playableRegion: season.playableRegion ?? playableRegion(present.length),
       me: {

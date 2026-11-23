@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode, type Ref } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode, type Ref } from 'react';
 import { Link, useSearch } from '@tanstack/react-router';
 import { fr, nationLabel } from '@/i18n/fr';
 import { isOutpostWork } from '@/domain/ids';
@@ -14,6 +14,8 @@ import { BuildingPlate } from '@/emblems/Plate';
 import { withWindow, type BoardSearch } from '@/routes/-plateau/board-search';
 import { Odometer, ReserveTag, useAnnouncedStock } from './ReserveCell';
 import { Stamp } from './Stamp';
+import { UnderwayDrawer } from './UnderwayDrawer';
+import type { Underway } from '@/domain/underway';
 import { SurfaceTabs } from './SurfaceColumn';
 import { useClock } from './clock';
 
@@ -29,17 +31,46 @@ export function Reglette({
   view,
   telegraphUnread,
   sweep = null,
+  underway = [],
+  onLocate = () => {},
+  covered = false,
   ref,
 }: {
   view: PlayerView;
   telegraphUnread: number;
   /** Le bouton « Sonder · espèce » (#249), que le plateau seul sait mener. */
   sweep?: ReactNode;
+  /** **Les échéances en cours**, que le compteur de slots ouvre en volet (#615). */
+  underway?: ReadonlyArray<Underway>;
+  onLocate?: (line: Underway) => void;
+  /** Une fiche, une fenêtre ou une pile en main est ouverte : le volet cède la place. */
+  covered?: boolean;
   ref?: Ref<HTMLElement>;
 }) {
   const { me } = view;
   const search = useSearch({ strict: false }) as BoardSearch;
   const now = useClock();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const drawerId = useId();
+  const slotsCell = useRef<HTMLDivElement>(null);
+  const showDrawer = drawerOpen && !covered && view.mode !== 'blitz';
+  useEffect(() => {
+    if (covered) setDrawerOpen(false);
+  }, [covered]);
+  useEffect(() => {
+    if (!showDrawer) return;
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && setDrawerOpen(false);
+    const onPointer = (event: PointerEvent) => {
+      if (!slotsCell.current?.contains(event.target as Node)) setDrawerOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPointer);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointer);
+    };
+  }, [showDrawer]);
+  const next = underway[0];
 
   return (
     <header
@@ -99,33 +130,46 @@ export function Reglette({
 
       {/* Pas de slots en Blitz (B5) : la cadence est le rechargement. */}
       {view.mode !== 'blitz' && (
-        <div
-          className={`${CELL} gap-[9px] whitespace-nowrap`}
-          title={fr.banner.slotsTitle(
-            me.slots.used,
-            me.slots.total,
-            slotCardsOf(me.research.researched),
-            halifaxNoteOf(me.slots),
-          )}
-        >
-          <span className="text-[8.5px] leading-none font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase max-[1500px]:hidden">
-            {fr.resourceBand.slots}
-          </span>
-          <span className="max-[1350px]:hidden">
-            <SlotBoxes used={me.slots.used} total={me.slots.total} />
-          </span>
-          <span
-            className="font-(family-name:--font-mono) text-[13px] leading-none font-medium tabular-nums"
-            aria-label={fr.banner.slotsTitle(
+        <div ref={slotsCell} className="relative flex shrink-0">
+          <button
+            type="button"
+            aria-expanded={showDrawer}
+            aria-controls={showDrawer ? drawerId : undefined}
+            title={fr.banner.slotsTitle(
               me.slots.used,
               me.slots.total,
               slotCardsOf(me.research.researched),
               halifaxNoteOf(me.slots),
             )}
+            onClick={() => setDrawerOpen(!showDrawer)}
+            className={`${CELL} cursor-pointer gap-[9px] whitespace-nowrap hover:bg-[var(--paper-clair)] ${showDrawer ? 'bg-[var(--paper-pile)]' : ''}`}
           >
-            {fr.banner.slotsCount(me.slots.used, me.slots.total)}
-          </span>
-          <HalifaxMark slots={me.slots} />
+            <span className="text-[8.5px] leading-none font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase max-[1500px]:hidden">
+              {fr.resourceBand.slots}
+            </span>
+            <span className="max-[1350px]:hidden">
+              <SlotBoxes used={me.slots.used} total={me.slots.total} />
+            </span>
+            <span className="font-(family-name:--font-mono) text-[13px] leading-none font-medium tabular-nums">
+              {fr.banner.slotsCount(me.slots.used, me.slots.total)}
+            </span>
+            <HalifaxMark slots={me.slots} />
+            {next !== undefined && (
+              <span className="border-l border-(color:--ink)/32 pl-[10px] font-(family-name:--font-mono) text-[13px] leading-none font-medium text-[var(--notable-paper)] tabular-nums">
+                {asDuration((next.endsAt - now) / 60_000)}
+              </span>
+            )}
+          </button>
+          {showDrawer && (
+            <UnderwayDrawer
+              id={drawerId}
+              lines={underway}
+              nation={me.nation}
+              slots={me.slots}
+              onLocate={onLocate}
+              onClose={() => setDrawerOpen(false)}
+            />
+          )}
         </div>
       )}
 

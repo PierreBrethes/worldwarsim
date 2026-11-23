@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { underwayOf, type RecruitmentDue } from './underway';
+import { slotsRefusalOf, underwayOf, type RecruitmentDue, type Underway } from './underway';
 import type { ArcView, ChainView, PlayerView } from './player-view';
 
 const LOADED = 1_000_000;
@@ -84,6 +84,9 @@ describe('what runs, nearest first', () => {
       face: { kind: 'unit', role: 'infantry' },
       place: { kind: 'movement', arcId: 'M-1' },
       moving: true,
+      holdsSlot: true,
+      span: 14 * 60_000,
+      slotFreedAt: minutes(14),
     });
   });
 
@@ -266,5 +269,129 @@ describe('a patrol under way', () => {
       place: { kind: 'outpost', outpostId: 'P-2' },
     });
     expect(line!.label).toMatch(/^halte à Hesse jusqu’à \d\d:\d\d$/);
+  });
+});
+
+describe('which lines hold a movement slot', () => {
+  it('holds one for a march and none for a return, a work or a lot', () => {
+    const work = {
+      id: 'W-1',
+      key: 'mine',
+      name: 'Mine',
+      outpostId: null,
+      regionId: 'FRA-1',
+      point: [3, 50],
+      minutesLeft: 89,
+    };
+    const lines = underwayOf(
+      board({ construction: work }, [march('M-1', 14), march('M-2', 20, { type: 'return' })]),
+      [],
+    );
+    expect(lines.map((line) => [line.id, line.holdsSlot])).toEqual([
+      ['movement-M-1', true],
+      ['movement-M-2', false],
+      ['construction-W-1', false],
+    ]);
+  });
+
+  it('keeps the slot of a patrol or a tour past its arrival: its march frees nothing', () => {
+    const lines = underwayOf(
+      board(
+        {
+          troops: [
+            { id: 'T-1', patrol: { ends: ['a', 'b'], to: 'b', haltUntil: null } },
+            { id: 'T-2', tour: { baseId: 'B-1' } },
+          ],
+        },
+        [
+          march('M-1', 5, { troopIds: ['T-1'] }),
+          march('M-2', 6, { troopIds: ['T-2'] }),
+          march('M-3', 7, { troopIds: ['T-3'] }),
+        ],
+      ),
+      [],
+    );
+    expect(lines.map((line) => [line.id, line.holdsSlot])).toEqual([
+      ['movement-M-1', false],
+      ['movement-M-2', false],
+      ['movement-M-3', true],
+    ]);
+  });
+
+  it('gives the slot back at arrival, not at the end of a walk towards a rest window', () => {
+    const walking = march('M-1', 90, {
+      schedule: {
+        departedAt: LOADED,
+        arrivesAt: minutes(90),
+        heldAt: null,
+        holdUntil: minutes(30),
+      },
+    });
+    const [line] = underwayOf(board({}, [walking]), []);
+    expect(line?.endsAt).toBe(minutes(30));
+    expect(line?.slotFreedAt).toBe(minutes(90));
+  });
+});
+
+describe('the refusal said under the movements when every slot is taken (ADR 0015)', () => {
+  const held = (id: string, minutesLeft: number, holdsSlot = true, freed?: number): Underway => ({
+    id,
+    endsAt: minutes(minutesLeft),
+    label: id,
+    face: { kind: 'outpost' },
+    place: { kind: 'outpost', outpostId: id },
+    moving: holdsSlot,
+    holdsSlot,
+    ...(freed === undefined ? {} : { slotFreedAt: minutes(freed) }),
+  });
+
+  it('says nothing while a slot is free', () => {
+    expect(slotsRefusalOf({ total: 2, used: 1 }, [held('a', 5)])).toBeNull();
+  });
+
+  it('names the holder that frees first, at the instant its slot is given back', () => {
+    const lines = [held('a', 5, true, 50), held('r', 7, false), held('b', 9)];
+    expect(slotsRefusalOf({ total: 2, used: 2 }, lines)).toEqual({
+      kind: 'frees',
+      line: lines[2],
+      at: minutes(9),
+    });
+  });
+
+  it('only says the slots are taken when the lines do not add up to the count (Halifax, a patrol, a hidden column)', () => {
+    expect(slotsRefusalOf({ total: 2, used: 2 }, [held('a', 5)])).toEqual({ kind: 'engaged' });
+    expect(slotsRefusalOf({ total: 2, used: 2 }, [])).toEqual({ kind: 'engaged' });
+  });
+});
+
+describe('the whole length a gauge is drawn against', () => {
+  it('runs a movement from its departure to its arrival, a work over the length the server dated it', () => {
+    const work = {
+      id: 'W-1',
+      key: 'mine',
+      name: 'Mine',
+      outpostId: null,
+      regionId: 'FRA-1',
+      point: [3, 50],
+      minutesLeft: 30,
+      minutes: 120,
+    };
+    const lines = underwayOf(board({ construction: work }, [march('M-1', 14)]), []);
+    expect(lines.map((line) => [line.id, line.span])).toEqual([
+      ['movement-M-1', 14 * 60_000],
+      ['construction-W-1', 120 * 60_000],
+    ]);
+  });
+
+  it('leaves a line with no known length without one: its gauge is not drawn', () => {
+    const due: RecruitmentDue = {
+      buildingId: 'B-1',
+      key: 'barracks',
+      regionId: 'FRA-1',
+      regionName: 'Loiret',
+      endsAt: minutes(10),
+    };
+    expect(underwayOf(board(), [due])[0]?.span).toBeUndefined();
+    expect(underwayOf(board(), [{ ...due, span: 60 * 60_000 }])[0]?.span).toBe(3_600_000);
   });
 });

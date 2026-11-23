@@ -1508,12 +1508,32 @@ export const fr = {
     world: 'Le monde',
     world1940: 'Le monde, 1940',
     generalMap: 'carte générale',
+    capital: {
+      france: 'Paris',
+      uk: 'Londres',
+      usa: 'Washington',
+      ussr: 'Moscou',
+      germany: 'Berlin',
+      japan: 'Tokyo',
+      italy: 'Rome',
+      china: 'Chongqing',
+    } satisfies Record<Nation, string>,
+    sheetNeighbours: 'Voisins',
+    sheetNoNeighbour: 'aucun à terre',
+    sheetNearPoints: 'Points proches',
+    sheetNoNearPoint: 'aucun',
+    classicNation: 'Nation classique',
+    classicRule: 'aucune règle brisée, rien à apprendre',
+    heldBy: (nick: string) => `prise par ${nick}`,
+    restHint: 'Survolez un jeton : la nation se teinte, sa fiche s’écrit ici.',
+    sevenLegend: 'Les Sept',
+    sevenRule: 'quatre points tenus 24 h l’emportent',
     worldSheet: 'carte générale',
     theatreSheet: 'théâtre',
     staffSheet: (sheet: string) => `état-major · ${sheet}`,
     worldKm: '0 · 2500 · 5000 km',
     worldSeas: [
-      ['Océan Pacifique', -128, 4, 1],
+      ['Océan Pacifique', -104, 4, 1],
       ['Atlantique', -38, 30, 1],
       ['Océan Indien', 78, -20, 1],
     ] as ReadonlyArray<readonly [string, number, number, number]>,
@@ -1647,6 +1667,18 @@ export const fr = {
     yourFlag: 'votre drapeau',
     yourNation: 'votre nation',
     takenBy: (nickname: string) => `prise par ${nickname}`,
+    /** The phone registry: the button on the row shown, and the status line that goes with it. */
+    take: (nation: Nation) => `Prendre ${theNation(nation)}`,
+    freeSay: (nation: Nation) => `${fr.nations[nation]} : libre, à prendre.`,
+    takenSay: (nation: Nation, nickname: string) =>
+      `${fr.nations[nation]} : déjà prise par ${nickname}. Premier arrivé, premier servi.`,
+    /** The four sheets of the phone map, the nation shown picks one (`phoneSheetOf`). */
+    phoneSheets: {
+      europe: 'Feuille d’Europe',
+      america: 'Feuille d’Amérique',
+      russia: 'Feuille de Russie',
+      asia: 'Feuille d’Asie',
+    },
     restFrom: 'repos dès',
     restLabel: 'début de votre plage de repos, heure locale',
     restUntil: (end: string) => `jusqu’à ${end} · publique`,
@@ -2436,6 +2468,23 @@ export const fr = {
     foundation: (country: string) => `fondation · ${country}`,
     recruitment: (region: string) => `recrutement · ${region}`,
     lot: (ordered: number, resource: string) => `lot · ${num(ordered)} ${resource}`,
+    /** **Le volet « En cours » du bureau**, ouvert par le compteur de slots de la réglette (#615). */
+    drawer: {
+      title: 'En cours',
+      count: (count: number) => `${count} échéance${plural(count, '', 's')}`,
+      close: 'Fermer',
+      empty: 'Rien ne court.',
+      movements: 'mouvements',
+      slots: (used: number, total: number) => `slots ${used} / ${total}`,
+      rest: 'chantiers, recrutements, lots',
+      holdsSlot: 'tient un slot de mouvement',
+      /** « Les deux slots sont engagés » : le nombre suit la vue, deux au départ. */
+      allEngaged: (total: number) =>
+        `${total === 2 ? 'Les deux' : `Les ${num(total)}`} slots sont engagés`,
+      /** Suivie du temps qui reste, que le volet fait battre, puis d'un point. */
+      freesAt: (total: number, label: string) =>
+        `${total === 2 ? 'Les deux' : `Les ${num(total)}`} slots sont engagés : le prochain mouvement part quand « ${label} » arrive, dans `,
+    },
   },
 
   /**
@@ -2735,6 +2784,9 @@ export const fr = {
       routine: 'routine',
     },
     noneFiltered: 'Aucune dépêche de cette sorte.',
+    /** **La liasse** (`groupJournal`) : le décompte de ses dépêches, et l'heure de la plus ancienne. */
+    bundleCount: (count: number) => `× ${count}`,
+    bundleSince: (time: string) => `depuis ${time}`,
     showOnMap: 'voir sur la carte',
     /** Les éditions plus anciennes que la dernière, que le journal ne liste plus (`journalLines`). */
     earlierEditions: (count: number) =>
@@ -3367,6 +3419,8 @@ export const fr = {
   hand: {
     kicker: (place: string) => `en main · ${place}`,
     hint: 'clic gauche sur la carte, ou glisser : poser · sur un transport : embarquer · échap : reposer',
+    /** La même aide sur une ligne, au pied de la fiche bornée du bureau (#619). */
+    hintShort: 'clic ou glisser : poser · transport : embarquer · échap : reposer',
     /** **La visée au téléphone** (#586) : « Envoyer » donne l'ordre, « Annuler » retire la visée et
      *  laisse la pièce en main. */
     send: 'Envoyer',
@@ -3389,6 +3443,9 @@ export const fr = {
     approach: 'approcher',
     aboard: 'à bord',
     disembark: 'débarquer',
+    /** Au bureau, les jauges de la pile en main sont repliées derrière ce bouton (#619). */
+    gauges: 'détails des jauges',
+    pieces: (count: number) => `${count} pièce${plural(count, '', 's')}`,
   },
 
   /**

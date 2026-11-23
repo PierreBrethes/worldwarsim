@@ -11,19 +11,23 @@ import {
   alertMark,
   clearOfColumns,
   cluster,
+  glideToward,
   idleConstruction,
   layerOf,
   sideOf,
+  slideAxisOf,
   strongestMark,
   type IndicatorToggles,
   type IndicatorGroup,
   type RawIndicator,
   type AlertMark,
 } from '@/domain/indicators';
+import type { ScreenBox } from '@/domain/label-groups';
 import { IndicatorGlyph } from '@/shell/IndicatorGlyph';
 import type { LabelProjection } from './engine/labels';
 import type { MapEngine } from './engine';
-import { useBoardInsets } from '@/shell/viewport';
+import { useBoardInsets, useNarrowScreen } from '@/shell/viewport';
+import { useMapMotion } from '@/data/mapMotion';
 import { heldRim } from './frame-need';
 import { useLayerSize } from './layer-size';
 
@@ -66,6 +70,12 @@ export function EdgeIndicators({
   held?: { readonly id: string; readonly covered: number } | null;
 }) {
   const insets = useBoardInsets();
+  const narrow = useRef(useNarrowScreen());
+  narrow.current = useNarrowScreen();
+  const motion = useRef(useMapMotion());
+  motion.current = useMapMotion();
+  /** Où en est le glissé de chaque jeton nommé : l'écart qu'il a pris pour dégager la bulle. */
+  const glides = useRef(new Map<string, { offset: number; at: number }>());
   const heldTag = useRef<HTMLElement | null>(null);
   const heldBottom = Math.max(insets.bottom, held?.covered ?? 0);
   const heldInsets = useMemo(() => ({ ...insets, bottom: heldBottom }), [insets, heldBottom]);
@@ -138,31 +148,19 @@ export function EdgeIndicators({
       const { width, height } = size.current;
       /** Les étiquettes de mes colonnes, lues seulement quand un nom est au bord. */
       const origin = layer.current?.getBoundingClientRect();
+      const nameAtEdge = projections.some(
+        (projection) => projection.atEdge && named.current.has(projection.id),
+      );
+      const parent = layer.current?.parentElement;
       const columns =
-        origin !== undefined &&
-        projections.some((projection) => projection.atEdge && named.current.has(projection.id))
-          ? [
-              ...(layer.current?.parentElement?.querySelectorAll(
-                '.label--my-movement .label-block',
-              ) ?? []),
-            ].flatMap((node) => {
-              const box = node.getBoundingClientRect();
-              // Repliée par `degrade`, l'étiquette ne se lit pas : rien à dégager.
-              const shown = node.checkVisibility({
-                opacityProperty: true,
-                visibilityProperty: true,
-              });
-              return box.width === 0 || !shown
-                ? []
-                : [
-                    {
-                      left: box.left - origin.left,
-                      top: box.top - origin.top,
-                      right: box.right - origin.left,
-                      bottom: box.bottom - origin.top,
-                    },
-                  ];
-            })
+        origin !== undefined && nameAtEdge
+          ? shownBoxes(parent, '.label--my-movement .label-block', origin)
+          : [];
+      /** La bulle de pile ouverte (#623), seulement au téléphone : au bureau la fiche en main la
+       *  remplace. Lue dans le DOM comme les colonnes, car c'est le CSS qui l'ouvre. */
+      const bubbles =
+        origin !== undefined && nameAtEdge && narrow.current
+          ? shownBoxes(parent, '.cargo-tags .cargo-tag-body', origin)
           : [];
       const heldNode = heldTag.current;
       if (heldNode !== null) {
@@ -199,12 +197,24 @@ export function EdgeIndicators({
         const tall = pill?.height ?? 0;
         const left = projection.edgeX - (across === '0' ? 0 : wide);
         const top = projection.edgeY - (down === '0' ? 0 : down === '-100%' ? tall : tall / 2);
-        const clear = clearOfColumns(
-          { left, top, right: left + wide, bottom: top + tall },
-          columns,
-          height,
-        );
-        tag.style.transform = `translate3d(${projection.edgeX}px, ${projection.edgeY + clear - top}px, 0) translate(${across}, ${down})`;
+        const axis = slideAxisOf(sideOf(projection.edgeX, projection.edgeY, width, height));
+        const extent = axis === 'y' ? height : width;
+        const start = (box: ScreenBox) => (axis === 'y' ? box.top : box.left);
+        const place = (box: ScreenBox, avoid: ReadonlyArray<ScreenBox>) =>
+          clearOfColumns(box, avoid, extent, axis) - start(box);
+        const box = { left, top, right: left + wide, bottom: top + tall };
+        const step = place(box, columns);
+        const stepped = shiftedBy(box, axis, step);
+        const aside = place(stepped, bubbles);
+        // Seul ce qui dégage la bulle glisse : l'écart aux colonnes suit la caméra image par image.
+        const now = performance.now();
+        const glide = glides.current.get(projection.id) ?? { offset: 0, at: now };
+        const slid =
+          motion.current === 'full' ? glideToward(glide.offset, aside, now - glide.at) : aside;
+        if (slid === 0 && aside === 0) glides.current.delete(projection.id);
+        else glides.current.set(projection.id, { offset: slid, at: now });
+        const along = step + slid;
+        tag.style.transform = `translate3d(${projection.edgeX + (axis === 'x' ? along : 0)}px, ${projection.edgeY + (axis === 'y' ? along : 0)}px, 0) translate(${across}, ${down})`;
       }
       for (const sum of sums) {
         sum.x = sum.y = sum.count = 0;
@@ -250,6 +260,25 @@ export function EdgeIndicators({
   useEffect(() => {
     engine?.invalidate();
   }, [engine, groups, destinations, held, heldInsets]);
+
+  // La bulle de pile s'ouvre et se ferme par ses classes (CSS) : le jeton qui la dégage a besoin
+  // d'images pour glisser, et la carte au repos n'en rend plus (`engine/frame-demand.ts`).
+  const narrowScreen = narrow.current;
+  useEffect(() => {
+    const root = layer.current?.parentElement;
+    if (!engine || !root || !narrowScreen) return;
+    const watch = new MutationObserver((changes) => {
+      if (
+        changes.some(
+          (change) =>
+            change.target instanceof Element && change.target.matches('.cargo-tag, .label-anchor'),
+        )
+      )
+        engine.invalidate();
+    });
+    watch.observe(root, { subtree: true, attributes: true, attributeFilter: ['class'] });
+    return () => watch.disconnect();
+  }, [engine, narrowScreen]);
 
   // The attention accent falls at the due time, not per frame: a one-second beat suffices and
   // it is the same cadence as the labels' countdowns.
@@ -399,3 +428,31 @@ function sameGroups(
     })
   );
 }
+
+/** Les boîtes lisibles des nœuds que dit le sélecteur, dans le repère de la couche. Repliée par
+ *  `degrade` ou fermée par le CSS, une boîte ne se lit pas : rien à dégager. */
+function shownBoxes(
+  parent: Element | null | undefined,
+  selector: string,
+  origin: DOMRect,
+): ScreenBox[] {
+  return [...(parent?.querySelectorAll(selector) ?? [])].flatMap((node) => {
+    const box = node.getBoundingClientRect();
+    const shown = node.checkVisibility({ opacityProperty: true, visibilityProperty: true });
+    return box.width === 0 || !shown
+      ? []
+      : [
+          {
+            left: box.left - origin.left,
+            top: box.top - origin.top,
+            right: box.right - origin.left,
+            bottom: box.bottom - origin.top,
+          },
+        ];
+  });
+}
+
+const shiftedBy = (box: ScreenBox, axis: 'x' | 'y', by: number): ScreenBox =>
+  axis === 'y'
+    ? { ...box, top: box.top + by, bottom: box.bottom + by }
+    : { ...box, left: box.left + by, right: box.right + by };

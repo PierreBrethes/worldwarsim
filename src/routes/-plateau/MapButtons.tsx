@@ -1,5 +1,5 @@
 import { Link, useSearch } from '@tanstack/react-router';
-import { useEffect, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { fr } from '@/i18n/fr';
 import { isTyping } from '@/map/typing';
 import { Glyph, LayersGlyph, SettingsGlyph } from '@/shell/Glyph';
@@ -21,12 +21,15 @@ export function MapButtons({
   layers,
   onRecenter,
   onCorner,
+  sweep = null,
 }: {
   narrow: boolean;
   /** A Blitz has no deposits: nothing for the layers to switch. */
   layers: boolean;
   onRecenter: () => void;
   onCorner: Dispatch<SetStateAction<Corner | null>>;
+  /** « Sonder » en icône, au téléphone : le moins touché des boutons, il garde le pied de la pile et laisse le pouce aux deux premiers (#621). */
+  sweep?: ReactNode;
 }) {
   const unread = useUnreadPatchnotes();
   const toggle = (card: Corner) => onCorner((open) => (open === card ? null : card));
@@ -51,7 +54,7 @@ export function MapButtons({
   const glyph = narrow ? 22 : 20;
   const search = useSearch({ strict: false }) as BoardSearch;
   return (
-    <div className="hud flex flex-col gap-[calc(var(--table-gap)/var(--hud-scale))]">
+    <div className="hud flex flex-col items-end gap-[calc(var(--table-gap)/var(--hud-scale))]">
       <button
         type="button"
         title={fr.mapUi.recenterTitle}
@@ -109,6 +112,7 @@ export function MapButtons({
           </span>
         </Link>
       )}
+      {sweep}
     </div>
   );
 }

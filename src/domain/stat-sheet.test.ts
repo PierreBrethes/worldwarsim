@@ -16,6 +16,7 @@ import type { TroopView } from './player-view';
 import {
   buildingStats,
   columnsOf,
+  essentialStatsOf,
   PIECES,
   pieceRows,
   pileStats,
@@ -322,5 +323,30 @@ describe('the table of pieces', () => {
     expect(columnsOf(pieceRows(null))).toContain('fuel');
     expect(columnsOf(pieceRows(europe))).not.toContain('fuel');
     expect(columnsOf(pieceRows(europe))).toContain('reload');
+  });
+});
+
+describe('essentialStatsOf', () => {
+  const context = { mode: 'mondiale', theatre: null, armyTroops: 4, lootCarried: 0 } as const;
+  const keys = (troops: TroopView[]) =>
+    essentialStatsOf(pileStats(troops, context)).map((row) => row.key);
+
+  it('keeps the five figures that decide an order, in the order a player reads them', () => {
+    expect(keys([troop('t', 'landTransport'), troop('i', 'infantry', { carriedBy: 't' })])).toEqual(
+      ['pace', 'fuel', 'rounds', 'seats', 'load'],
+    );
+  });
+
+  it('fills a pile with no transport from the next figures it has, still five', () => {
+    const rows = keys([troop('a', 'infantry'), troop('b', 'infantry')]);
+    expect(rows).toHaveLength(5);
+    expect(rows.slice(0, 3)).toEqual(['pace', 'fuel', 'rounds']);
+    expect(rows).not.toContain('seats');
+  });
+
+  it('serves an air pile its own five, never more', () => {
+    const rows = keys([troop('f', 'fighter'), troop('g', 'bomber')]);
+    expect(rows.length).toBeLessThanOrEqual(5);
+    expect(rows.slice(0, 3)).toEqual(['pace', 'fuel', 'rounds']);
   });
 });

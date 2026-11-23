@@ -394,6 +394,27 @@ export function pileStats(
   return rows;
 }
 
+/** Ce qui décide d'un ordre, par ordre de lecture : allure, plein, coups, places, charge, puis ce
+ *  qui prend la place d'un chiffre qu'une pile n'a pas. */
+const ESSENTIAL_ORDER: ReadonlyArray<PileStatKey> = [
+  'pace',
+  'fuel',
+  'rounds',
+  'seats',
+  'load',
+  'loot',
+  'reach',
+  'detection',
+];
+const ESSENTIAL_COUNT = 5;
+
+/** **Les cinq chiffres que la fiche de la pile en main montre jauges repliées** : les premiers de
+ *  `ESSENTIAL_ORDER` que la pile a, rendus dans cet ordre. */
+export const essentialStatsOf = (
+  rows: ReadonlyArray<StatRow<PileStatKey>>,
+): ReadonlyArray<StatRow<PileStatKey>> =>
+  ESSENTIAL_ORDER.flatMap((key) => rows.filter((row) => row.key === key)).slice(0, ESSENTIAL_COUNT);
+
 /** **La pile telle que la vue la sert** : ce qu'elle porte vient de ses troupes et de leur
  *  cargaison, le rang de son entretien de l'armée entière. */
 export const pileStatsOf = (view: PlayerView, troops: ReadonlyArray<TroopView>) => {

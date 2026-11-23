@@ -4,9 +4,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_TOGGLES } from '@/domain/indicators';
 import { fr } from '@/i18n/fr';
 import { BoardInsetsContext } from '@/shell/viewport';
+import { setMapMotionSetting } from '@/data/mapMotion';
 import { EdgeIndicators } from './EdgeIndicators';
 
+let narrow = true;
+
 beforeEach(() => {
+  narrow = true;
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query.includes('reduced') ? false : narrow,
+    addEventListener() {},
+    removeEventListener() {},
+  }));
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -124,5 +133,112 @@ describe('EdgeIndicators, the « hors champ » layer (#604)', () => {
 
   it('parks the forces at the edge once « hors champ » is on', () => {
     expect(tokens(true)).toBe(1);
+  });
+});
+
+/** **Le jeton hors champ glisse le long du bord** pour dégager la bulle de pile en main (#623) :
+ *  au téléphone seulement, interpolé en « actives », d'un saut sinon. */
+describe('EdgeIndicators, a name sliding clear of the bubble (#623)', () => {
+  const BUBBLE = { left: 100, top: 280, right: 340, bottom: 400 };
+  const PILL = { left: 0, top: 0, right: 80, bottom: 44 };
+  const frame = { id: 'paris', atEdge: true, edgeX: 390, edgeY: 300, distance: 900 };
+
+  function boxOf(box: typeof BUBBLE): DOMRect {
+    return { ...box, width: box.right - box.left, height: box.bottom - box.top } as DOMRect;
+  }
+
+  function scene() {
+    vi.stubGlobal('performance', { now: () => clock });
+    (Element.prototype as unknown as { checkVisibility: () => boolean }).checkVisibility = () =>
+      true;
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: Element,
+    ) {
+      if (this.classList.contains('cargo-tag-body')) return boxOf(BUBBLE);
+      if (this.classList.contains('destination-edge')) return boxOf(PILL);
+      return boxOf({ left: 0, top: 0, right: 390, bottom: 844 });
+    });
+    const engine = {
+      boardPointOfAnchor: vi.fn(() => null),
+      journeyTo: vi.fn(),
+      subscribeRest: () => () => {},
+      invalidate: vi.fn(),
+      onEdges: (() => {}) as (projections: unknown[]) => void,
+    };
+    const view = render(
+      <div>
+        <div className="cargo-tags">
+          <div className="cargo-tag">
+            <div className="cargo-tag-body" />
+          </div>
+        </div>
+        <EdgeIndicators
+          labels={[]}
+          engine={engine as never}
+          toggles={DEFAULT_TOGGLES}
+          destinations={new Map([['paris', 'Paris']])}
+        />
+      </div>,
+    );
+    const anchor = view.container.querySelector<HTMLElement>('.destination-anchor')!;
+    const draw = () => act(() => engine.onEdges([frame]));
+    return { engine, anchor, draw, view };
+  }
+
+  let clock = 0;
+  beforeEach(() => {
+    clock = 0;
+    setMapMotionSetting('full');
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('stays on the point where its target leaves the screen while nothing covers it', () => {
+    const { anchor, draw, view } = scene();
+    view.container.querySelector('.cargo-tag-body')!.className = 'gone';
+    draw();
+    clock = 2000;
+    draw();
+    expect(anchor.style.transform).toContain('translate3d(390px, 300px, 0)');
+  });
+
+  it('jumps clear of the bubble when motion is reduced or off, along its own edge', () => {
+    for (const setting of ['reduced', 'off'] as const) {
+      setMapMotionSetting(setting);
+      const { anchor, draw, view } = scene();
+      draw();
+      expect(anchor.style.transform).toContain('translate3d(390px, 426px, 0)');
+      view.unmount();
+    }
+  });
+
+  it('glides there when motion is on, and lands on it', () => {
+    const { anchor, draw } = scene();
+    draw();
+    expect(anchor.style.transform).toContain('translate3d(390px, 300px, 0)');
+    clock = 40;
+    draw();
+    const mid = Number(/390px, ([\d.]+)px/.exec(anchor.style.transform)![1]);
+    expect(mid).toBeGreaterThan(300);
+    expect(mid).toBeLessThan(426);
+    clock = 2000;
+    draw();
+    expect(anchor.style.transform).toContain('translate3d(390px, 426px, 0)');
+  });
+
+  it('leaves the desk alone: no bubble to clear off a wide screen', () => {
+    narrow = false;
+    const { anchor, draw } = scene();
+    draw();
+    clock = 2000;
+    draw();
+    expect(anchor.style.transform).toContain('translate3d(390px, 300px, 0)');
+  });
+
+  it('asks for frames when the bubble opens or closes, since the map no longer renders at rest', async () => {
+    const { engine, view } = scene();
+    engine.invalidate.mockClear();
+    view.container.querySelector('.cargo-tag')!.classList.add('cargo-tag--selected');
+    await act(async () => {});
+    expect(engine.invalidate).toHaveBeenCalled();
   });
 });

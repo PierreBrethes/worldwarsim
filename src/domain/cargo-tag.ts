@@ -57,6 +57,18 @@ export type CargoTag = {
   readonly tour: TagTour | null;
 };
 
+/** **La tournée d'un transport, telle que sa bulle et la fiche de la main la disent**. */
+export function tagTourOf(carrier: Pick<Aboard, 'tour'>): TagTour | null {
+  const { tour } = carrier;
+  if (tour === undefined) return null;
+  return {
+    state: tour.recalled ? 'recalled' : tour.waiting !== null ? 'waiting' : 'running',
+    stops: tour.stops.length,
+    waiting: tour.waiting,
+    ...(tour.veiled === true ? { veiled: true as const } : {}),
+  };
+}
+
 /** A tag per transport of the pile, in the pile's order — an empty one too: the hand reads its free
  *  seats on it (POC, `avail`). When it shows is the map's business. */
 export function cargoTagsOf<T extends Aboard>(
@@ -88,19 +100,7 @@ export function cargoTagsOf<T extends Aboard>(
         load: carrier.load ?? emptyLoad(),
         harvest: carrier.harvest ?? emptyStocks(),
         loadCapacity: loadCapacityOf(carrier.role),
-        tour:
-          carrier.tour === undefined
-            ? null
-            : {
-                state: carrier.tour.recalled
-                  ? ('recalled' as const)
-                  : carrier.tour.waiting !== null
-                    ? ('waiting' as const)
-                    : ('running' as const),
-                stops: carrier.tour.stops.length,
-                waiting: carrier.tour.waiting,
-                ...(carrier.tour.veiled === true ? { veiled: true as const } : {}),
-              },
+        tour: tagTourOf(carrier),
       },
     ];
   });

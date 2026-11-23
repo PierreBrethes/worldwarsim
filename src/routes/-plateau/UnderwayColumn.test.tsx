@@ -20,6 +20,7 @@ const line = (id: string, label: string, minutes: number): Underway => ({
   face: { kind: 'outpost' },
   place: { kind: 'outpost', outpostId: id },
   moving: false,
+  holdsSlot: false,
 });
 
 const LINES = [line('a', 'marche → Somme', 14), line('b', 'mine → niveau 4', 89)];

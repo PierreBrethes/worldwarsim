@@ -151,6 +151,7 @@ export function MapLabels({
   cargoAim = null,
   availableLabels = NO_LABELS,
   carriersShown = false,
+  heldLabel = null,
   onTakeDepot,
   onTour,
   onSheetPick,
@@ -172,6 +173,9 @@ export function MapLabels({
   onRecallPatrol?: ((troopId: string) => void) | undefined;
   /** **Des jetons en main** (ADR 0028 §4) : toutes les étiquettes de transport se montrent. */
   carriersShown?: boolean;
+  /** **The label of the pile in hand** (#619): at the desk its sheet speaks, so its own cargo tag
+   *  keeps quiet — the other tags stay drop targets. A phone has no such sheet beside the map. */
+  heldLabel?: string | null;
   /** Prendre des jetons au dépôt d'un avant-poste, depuis son étiquette. */
   onTakeDepot?: TakeDepot | undefined;
   labels: ReadonlyArray<MapLabel>;
@@ -310,7 +314,8 @@ export function MapLabels({
   /** Sous le seuil, la barre qui attend sa première pile ne se range pas en haut : le bandeau et la
    *  colonne « en cours » la couvriraient (#588). */
   const narrowBar = useRef(false);
-  narrowBar.current = useNarrowScreen();
+  const narrow = useNarrowScreen();
+  narrowBar.current = narrow;
   const layer = useRef<HTMLDivElement>(null);
   const layerSize = useLayerSize(layer);
   const shellInsets = useBoardInsets();
@@ -1258,6 +1263,7 @@ export function MapLabels({
           takesDepot={onTakeDepot !== undefined}
           cargoAim={cargoAim?.labelId === label.id ? cargoAim : null}
           available={carriersShown || availableLabels.has(label.id)}
+          inHand={!narrow && label.id === heldLabel}
           gestures={gestures}
           nodes={nodes}
           flagFrom={flags.get(label.id)}
@@ -1401,6 +1407,7 @@ type LabelNodeProps = {
   readonly takesDepot: boolean;
   readonly cargoAim: CargoAim | null;
   readonly available: boolean;
+  readonly inHand: boolean;
   readonly gestures: RefObject<LabelGestures>;
   readonly nodes: LabelNodes;
   /** **Le drapeau d'un des Sept change de mains** (#442) : l'encre qui descend, `null` du neutre
@@ -1426,6 +1433,7 @@ const LabelNode = memo(function LabelNode({
   takesDepot,
   cargoAim,
   available,
+  inHand,
   gestures,
   nodes,
   flagFrom,
@@ -1654,6 +1662,7 @@ const LabelNode = memo(function LabelNode({
         {label.cargo !== undefined &&
           label.cargo.length > 0 &&
           onDisembark !== undefined &&
+          !inHand &&
           !muted && (
             <CargoTags
               tags={label.cargo}

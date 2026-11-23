@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { INK_BY_NATION, isNation } from '@/domain/nations';
 
 /**
@@ -69,10 +69,34 @@ const DARK = {
   label: 'rgba(142,124,92,.3)',
 };
 
+/** @a-mesurer the wash of a free nation looked at. */
+const LOOKED_INK = '#a8705c';
+
 /** [ouest, sud, est, nord] en degrés ; l'est peut passer 180 (le Pacifique). */
 export type Box = readonly [number, number, number, number];
 
 export const WORLD_BOX: Box = [-170, -56, 190, 76];
+
+/**
+ * How a nation is inked on a map. `{}` is the plain fill the other maps use; the lobby says more:
+ * `taken` is hatched, `neighbour` is outlined in dashes of its own ink, `shown` thickens the edge.
+ */
+export type NationTint = {
+  readonly kind?: 'chosen' | 'taken' | 'neighbour';
+  readonly mine?: boolean;
+  readonly shown?: boolean;
+  readonly neighbour?: boolean;
+};
+
+/** A ringed point with its name; `dx`, `dy` are in ring radii from its centre. */
+export type PointMark = {
+  readonly name: string;
+  readonly lon: number;
+  readonly lat: number;
+  readonly anchor: 'start' | 'end';
+  readonly dx: number;
+  readonly dy: number;
+};
 
 type Frame = { readonly x0: number; readonly x1: number; readonly y0: number; readonly y1: number };
 
@@ -135,6 +159,7 @@ export function EngravedMap({
   frame,
   veil = 0.5,
   nations = {},
+  marks = [],
   labels = [],
   labelPx = 15,
   children,
@@ -151,12 +176,14 @@ export function EngravedMap({
   gratStep?: number;
   frame?: Box | undefined;
   veil?: number;
-  nations?: Readonly<Record<string, { readonly mine?: boolean }>>;
+  nations?: Readonly<Record<string, NationTint>>;
+  marks?: ReadonlyArray<PointMark>;
   labels?: ReadonlyArray<readonly [string, number, number, number]>;
   labelPx?: number;
   children?: ReactNode;
 }) {
   const palette = dark ? DARK : LIGHT;
+  const hatchId = useId();
   const { frame: view, sy, dx, dy } = frameOf(box, pad, flat);
   const [w, s, e, n] = box;
   const upp = (view.x1 - view.x0) / px;
@@ -183,6 +210,26 @@ export function EngravedMap({
       preserveAspectRatio={`xMidYMid ${fit}`}
       aria-hidden
     >
+      <defs>
+        {Object.entries(nations)
+          .filter(([, tint]) => tint.kind === 'taken')
+          .map(([nation]) => {
+            const ink = isNation(nation) ? INK_BY_NATION[nation] : palette.coast;
+            return (
+              <pattern
+                key={nation}
+                id={`${hatchId}${nation}`}
+                width={5 * upp}
+                height={5 * upp}
+                patternUnits="userSpaceOnUse"
+                patternTransform="rotate(40)"
+              >
+                <rect width={5 * upp} height={5 * upp} fill={ink} fillOpacity={0.28} />
+                <rect width={2 * upp} height={5 * upp} fill={ink} fillOpacity={0.75} />
+              </pattern>
+            );
+          })}
+      </defs>
       <rect
         x={view.x0 - 400}
         y={view.y0 - 400}
@@ -235,19 +282,28 @@ export function EngravedMap({
           stroke: palette.coast,
           strokeWidth: thumb ? 0.8 : 1.15,
         })}
-        {Object.entries(nations).map(([nation, { mine = false }]) =>
-          shifts.map((shift) => (
+        {Object.entries(nations).map(([nation, tint]) => {
+          const { kind = 'chosen', mine = false, shown = false } = tint;
+          const ink = isNation(nation) ? INK_BY_NATION[nation] : palette.coast;
+          const dashed = kind === 'neighbour' || tint.neighbour === true;
+          const hatched = kind === 'taken';
+          /** A free nation under the pointer is a soft rosy-brown wash, not its ink at full. */
+          const looked = shown && !mine && kind === 'chosen';
+          const fillOpacity =
+            kind === 'neighbour' ? 0.1 : mine ? 0.78 : looked ? 0.4 : shown ? 0.62 : 0.55;
+          return shifts.map((shift) => (
             <use
               key={`${nation}${shift}`}
               href={`#os-n-${nation}`}
               x={shift}
-              fill={isNation(nation) ? INK_BY_NATION[nation] : palette.coast}
-              fillOpacity={mine ? 0.78 : 0.55}
-              stroke={palette.coast}
-              strokeWidth={mine ? 1.6 : 1}
+              fill={hatched ? `url(#${hatchId}${nation})` : looked ? LOOKED_INK : ink}
+              fillOpacity={hatched ? 1 : fillOpacity}
+              stroke={dashed && !shown ? ink : palette.coast}
+              strokeWidth={shown ? 2 : dashed ? 1.4 : mine ? 1.6 : 1}
+              strokeDasharray={dashed && !shown ? '4 3' : undefined}
             />
-          )),
-        )}
+          ));
+        })}
         {frameRect !== null && (
           <>
             <path
@@ -282,6 +338,40 @@ export function EngravedMap({
           {text}
         </text>
       ))}
+      {marks.map((mark) => {
+        const x = mark.lon + 180;
+        const y = (90 - mark.lat) * sy;
+        const ring = 7 * upp;
+        return (
+          <g key={mark.name}>
+            <circle
+              cx={x}
+              cy={y}
+              r={ring}
+              fill="rgba(239,230,207,.55)"
+              stroke="#8a2f22"
+              strokeWidth={1.7 * upp}
+            />
+            <circle cx={x} cy={y} r={ring * 0.28} fill="#8a2f22" />
+            <text
+              x={x + mark.dx * ring}
+              y={y + mark.dy * ring}
+              textAnchor={mark.anchor}
+              fontSize={10 * upp}
+              letterSpacing={0.6 * upp}
+              fontFamily="Archivo Narrow, sans-serif"
+              fontWeight={600}
+              fill={palette.coast}
+              stroke={palette.sea}
+              strokeWidth={3 * upp}
+              paintOrder="stroke"
+              strokeLinejoin="round"
+            >
+              {mark.name.toLocaleUpperCase('fr')}
+            </text>
+          </g>
+        );
+      })}
       {children}
     </svg>
   );

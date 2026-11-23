@@ -421,6 +421,7 @@ function dateQueue(
       tier: batch.tier,
       strength: nominalStrength(batch.role, batch.tier),
       started: batch.finishesAt !== null,
+      minutes,
       minutesLeft: Math.max(0, (finishesAt - now) / 60_000),
     };
   });

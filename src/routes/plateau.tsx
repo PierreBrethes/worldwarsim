@@ -571,14 +571,9 @@ function BoardContent({
   );
   const endSweep = useCallback(() => setSweep(null), []);
   const [sweepStatus, setSweepStatus] = useState<string | null>(null);
-  const sweepButton = (thumb: boolean) =>
+  const sweepButton = (icon: boolean) =>
     blitz ? null : (
-      <SweepButton
-        species={sweepSpecies}
-        onSweep={launchSweep}
-        status={sweepStatus}
-        thumb={thumb}
-      />
+      <SweepButton species={sweepSpecies} onSweep={launchSweep} status={sweepStatus} icon={icon} />
     );
   /** Les cases cochées du panneau de garnison ouvert — remontées pour la seule mise en avant :
    *  la composition reste au panneau, qui seul la soumet. */
@@ -3305,23 +3300,45 @@ function BoardContent({
       (workshop?.facilities ?? []).flatMap((facility) => {
         const started = facility.queue.filter((batch) => batch.started);
         if (started.length === 0) return [];
-        const minutesLeft = Math.min(...started.map((batch) => batch.minutesLeft));
+        const head = started.reduce((first, batch) =>
+          batch.minutesLeft < first.minutesLeft ? batch : first,
+        );
         return [
           {
             buildingId: facility.id,
             key: facility.key,
             regionId: facility.regionId,
             regionName: facility.regionName,
-            endsAt: workshop!.loadedAt + minutesLeft * 60_000,
+            endsAt: workshop!.loadedAt + head.minutesLeft * 60_000,
+            span: head.minutes * 60_000,
           },
         ];
       }),
     [workshop],
   );
-  const underway = useMemo(
-    () => (narrow ? underwayOf(view, recruitments) : []),
-    [narrow, view, recruitments],
-  );
+  const underway = useMemo(() => underwayOf(view, recruitments), [view, recruitments]);
+
+  /** **Le volet « En cours » du bureau cède devant** une fiche, une fenêtre ou une pile en main
+   *  (#615, même règle que #619). */
+  const coversUnderway =
+    windows.length > 0 ||
+    country != null ||
+    focused != null ||
+    report != null ||
+    hand.kind !== 'empty' ||
+    garrison !== null ||
+    demolition !== null ||
+    dismantling !== null ||
+    selectedLoot !== null ||
+    selectedCamp !== null ||
+    selectedObjective !== null ||
+    selectedPoint !== null ||
+    selectedRumorId !== null ||
+    selection.length > 0 ||
+    selectionSheet !== null ||
+    heldRose !== null ||
+    resting !== null ||
+    briefing;
 
   /** **Un bâtiment se cadre même calque éteint** : sans le calque, son mât n'existe pas et la
    *  carte n'aurait rien à rejoindre — on vise alors le point de sa région. */
@@ -3407,6 +3424,9 @@ function BoardContent({
       onShowBriefing={showBriefing}
       onResumeSteps={resumeSteps}
       sweep={replay === null ? sweepButton(false) : null}
+      underway={underway}
+      onLocate={locateUnderway}
+      covered={coversUnderway}
     >
       <SelectionSheetReport.Provider value={sheetPorts}>
         <SheetCount.Provider value={countSheet}>
@@ -3712,6 +3732,9 @@ function BoardContent({
                     onCancelAim={cancelAim}
                     onCompose={compose}
                     onOffer={runOffer}
+                    onTour={
+                      view.me.defeated || blitz ? undefined : (id) => tourSheet.onTour(id, 'open')
+                    }
                     onOpenGunnery={() => openWindow('gunnery')}
                     onDrop={dropHand}
                     cycle={handCycle}
@@ -3849,7 +3872,7 @@ function BoardContent({
                 {narrow && sent === null && replay === null && (
                   <div
                     data-poster-floor
-                    className="absolute bottom-(--table-margin) left-(--table-margin) z-[var(--z-indicator)]"
+                    className="absolute bottom-(--table-margin) right-(--table-margin) z-[var(--z-indicator)]"
                     style={{ marginBottom: MAT_LIFT }}
                   >
                     <MapButtons
@@ -3857,16 +3880,8 @@ function BoardContent({
                       layers={view.mode !== 'blitz'}
                       onRecenter={recenterOnHome}
                       onCorner={setCorner}
+                      sweep={sweepButton(true)}
                     />
-                  </div>
-                )}
-                {narrow && sent === null && replay === null && !blitz && (
-                  <div
-                    data-poster-floor
-                    className="absolute right-(--table-margin) bottom-(--table-margin) z-[var(--z-indicator)]"
-                    style={{ marginBottom: MAT_LIFT }}
-                  >
-                    {sweepButton(true)}
                   </div>
                 )}
                 {narrow && corner === 'layers' && <LayersSheet onClose={() => setCorner(null)} />}

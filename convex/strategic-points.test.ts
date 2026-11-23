@@ -131,6 +131,39 @@ describe('the seven points of a Mondiale', () => {
     }
   });
 
+  /** **Le salon montre le vrai tirage** (#610) : les clés que `layOut` posera, dans le même ordre,
+   *  en Mondiale seule, et jamais la graine. */
+  it('serves the lobby the keys the launch will lay out, and never the seed', async () => {
+    const t = boot();
+    const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
+    const lobby = await t.query(api.seasons.lobby, seat);
+    expect(lobby.points).toEqual(drawPoints(TEST_SEASON_SEED));
+    expect(JSON.stringify(lobby)).not.toContain('seed');
+    const guest = await joinSeat(t, code, 'Léa');
+    for (const [who, nation] of [
+      [seat, 'france'],
+      [guest, 'ussr'],
+    ] as const) {
+      await t.mutation(api.players.reserveNation, { ...who, nation });
+      await t.mutation(api.players.declareReady, { ...who, ready: true });
+    }
+    await t.mutation(api.seasons.launch, seat);
+    const laid = await t.run(async (ctx) => {
+      const notice = (await ctx.db.query('notices').collect()).find(
+        (n) => n.kind === 'pointsDrawn',
+      );
+      return notice?.kind === 'pointsDrawn' ? notice.keys : null;
+    });
+    expect((await t.query(api.seasons.lobby, seat)).points).toEqual(laid);
+  });
+
+  it('serves the lobby no points in a Blitz', async () => {
+    const t = boot();
+    const { seat } = await foundSeat(t);
+    await t.run(async (ctx) => ctx.db.patch(seat.seasonId, { mode: 'blitz', theatre: 'europe' }));
+    expect((await t.query(api.seasons.lobby, seat)).points).toBeNull();
+  });
+
   /** **Singapour sur son île** (#224) : la région se lit sur l'atlas, et non sur la cellule de
    *  Johor que la grille de 25 km lui prête. */
   it('lays Singapore in the island state, not on the shore of Johor', async () => {

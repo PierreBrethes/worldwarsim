@@ -128,6 +128,7 @@ describe('HandSheet', () => {
         onApproach={() => {}}
       />,
     );
+    act(() => screen.getByRole('button', { name: new RegExp(fr.hand.gauges, 'i') }).click());
     const stat = (key: string) => container.querySelector(`[data-stat="${key}"]`);
     expect(stat('pace')).not.toBeNull();
     expect(stat('detection')?.textContent).toContain('60 km');
@@ -174,7 +175,9 @@ describe('HandSheet, a lone troop', () => {
       ),
     );
     expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
-    expect(screen.getByRole('button', { name: new RegExp(fr.hand.disembark, 'i') })).toBeTruthy();
+    expect(
+      screen.getAllByRole('button', { name: new RegExp(fr.hand.disembark, 'i') }).length,
+    ).toBeGreaterThan(0);
   });
 
   it('gets its boxes back when a second troop joins', () => {
@@ -300,10 +303,15 @@ describe('HandSheet disembarking, passenger by passenger', () => {
     const onOffer = vi.fn();
     sheet('mondiale', false, onOffer);
     const buttons = screen.getAllByRole('button', { name: new RegExp(fr.hand.disembark, 'i') });
-    expect(buttons).toHaveLength(2);
+    expect(buttons).toHaveLength(3);
     act(() => buttons[1]!.click());
     expect(onOffer).toHaveBeenLastCalledWith(
       expect.objectContaining({ key: 'disembark', troopIds: ['b'] }),
+    );
+    /* Le pied n'en offre qu'un, pour tous les passagers. */
+    act(() => buttons[2]!.click());
+    expect(onOffer).toHaveBeenLastCalledWith(
+      expect.objectContaining({ key: 'disembark', troopIds: ['a', 'b'] }),
     );
   });
 
@@ -679,5 +687,125 @@ describe('HandSheet aiming on a phone', () => {
     sheet(aim());
     const send = screen.getByRole('button', { name: fr.hand.send });
     expect(send.closest('[role="dialog"] > .shrink-0')).not.toBeNull();
+  });
+});
+
+/** **La fiche bornée du bureau** (#619) : cinq chiffres, jauges derrière un bouton, les ordres au
+ *  pied, et une feuille de route par transport chargeable. */
+describe('HandSheet at the desk, bounded', () => {
+  const view = {
+    mode: 'mondiale',
+    me: { nation: 'france', stationedCargo: [], troops: [], upkeep: { troops: 3 } },
+  } as unknown as PlayerView;
+  const held = [troop('t', 'landTransport'), { ...troop('i', 'infantry'), carriedBy: 't' }];
+  const sheet = (props: Partial<Parameters<typeof HandSheet>[0]> = {}) => (
+    <HandSheet
+      view={view}
+      station={station}
+      place="Eure-et-Loir"
+      held={held}
+      troopIds={['t', 'i']}
+      onCompose={() => {}}
+      offers={[]}
+      onOffer={() => {}}
+      onOpenGunnery={() => {}}
+      onDrop={() => {}}
+      onApproach={() => {}}
+      {...props}
+    />
+  );
+
+  it('folds the gauges behind a button: five figures, then the whole block on demand', () => {
+    const { container } = render(sheet());
+    expect(container.querySelectorAll('[data-essential]')).toHaveLength(5);
+    expect(container.querySelector('[data-testid="stat-lines"]')).toBeNull();
+    const more = screen.getByRole('button', { name: new RegExp(fr.hand.gauges, 'i') });
+    act(() => more.click());
+    expect(container.querySelector('[data-testid="stat-lines"]')).not.toBeNull();
+    act(() => more.click());
+    expect(container.querySelector('[data-testid="stat-lines"]')).toBeNull();
+  });
+
+  it('keeps the orders in a foot that does not scroll with the body', () => {
+    const offer: Offer = {
+      key: 'disembark',
+      rank: 'thumb',
+      refusal: null,
+      loses: null,
+      troopIds: ['i'],
+    };
+    render(sheet({ offers: [offer], onTour: () => {} }));
+    const order = screen.getByRole('button', { name: new RegExp(fr.tourSheet.open, 'i') });
+    const body = document.querySelector('.overflow-y-auto')!;
+    expect(body.contains(order)).toBe(false);
+    expect(body.contains(document.querySelector('[data-essential]'))).toBe(true);
+  });
+
+  it('opens the route sheet of each loadable transport, and of nothing else', () => {
+    const onTour = vi.fn();
+    render(sheet({ onTour }));
+    const open = screen.getAllByRole('button', { name: new RegExp(fr.tourSheet.open, 'i') });
+    expect(open).toHaveLength(1);
+    act(() => open[0]!.click());
+    expect(onTour).toHaveBeenCalledWith('t');
+    cleanup();
+    render(sheet({ onTour, held: [troop('i', 'infantry')], troopIds: ['i'] }));
+    expect(screen.queryByRole('button', { name: new RegExp(fr.tourSheet.open, 'i') })).toBeNull();
+  });
+
+  it('offers no route sheet where the hand has none to open', () => {
+    render(sheet());
+    expect(screen.queryByRole('button', { name: new RegExp(fr.tourSheet.open, 'i') })).toBeNull();
+  });
+
+  it('says the help on one line in the foot, gauges open or not', () => {
+    render(sheet());
+    const help = screen.getByText(fr.hand.hintShort);
+    expect(document.querySelector('.overflow-y-auto')!.contains(help)).toBe(false);
+    act(() => screen.getByRole('button', { name: new RegExp(fr.hand.gauges, 'i') }).click());
+    expect(screen.getByText(fr.hand.hintShort).className).toContain('truncate');
+  });
+
+  it('lets one rider step down from its own line, where the pile’s tag used to', () => {
+    const onOffer = vi.fn();
+    const offer: Offer = {
+      key: 'disembark',
+      rank: 'thumb',
+      refusal: null,
+      loses: null,
+      troopIds: ['i', 'j'],
+    };
+    render(
+      sheet({
+        onOffer,
+        offers: [offer],
+        held: [
+          troop('t', 'landTransport'),
+          { ...troop('i', 'infantry'), carriedBy: 't' },
+          { ...troop('j', 'infantry'), carriedBy: 't' },
+        ],
+        troopIds: ['t', 'i', 'j'],
+      }),
+    );
+    const rows = document.querySelector('.overflow-y-auto')!.querySelectorAll('button');
+    const step = [...rows].filter((one) => one.textContent === fr.hand.disembark);
+    expect(step).toHaveLength(2);
+    act(() => step[0]!.click());
+    expect(onOffer).toHaveBeenCalledWith({ ...offer, troopIds: ['i'] });
+  });
+
+  it('reads the tour a transport waits on, under its route sheet button', () => {
+    const waiting = {
+      ...troop('t', 'landTransport'),
+      tour: {
+        baseId: 'b',
+        stops: [{ kind: 'depot' as const, id: 'd' }],
+        waiting: { why: 'full' as const },
+        recalled: false,
+        skipped: [],
+      },
+    } as unknown as TroopView;
+    render(sheet({ onTour: () => {}, held: [waiting], troopIds: ['t'] }));
+    expect(screen.getByText(/tournée · attend : dépôts pleins/)).toBeTruthy();
   });
 });
