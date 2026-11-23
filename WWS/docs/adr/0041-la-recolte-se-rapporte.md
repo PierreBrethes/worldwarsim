@@ -88,6 +88,8 @@ le niveau sans plafond (`EXTRACTION_PER_HOUR` × niveau).
 
 ### 4. Les règles de bord
 
+- **Slot** : une tournée qui reste sur le sol national n'en prend pas (amendement du 23/11 de
+  l'[ADR 0028](0028-l-economie-de-la-mondiale.md) §4, #618).
 - **Blitz** : exemptée. La production verse au stock comme aujourd'hui ; les tournées y restent
   refusées.
 - **Pillage** : le raid sur une exploitation emporte son tas, sans plancher épargné, dans la
