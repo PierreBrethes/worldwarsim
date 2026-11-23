@@ -1,19 +1,10 @@
 import { expect, it } from 'vitest';
+import { FIRST_SEVEN } from '@/domain/strategic-points';
 import { WORLD_BOX } from '@/emblems/EngravedMap';
 import { phoneBoxOf, phoneSheetOf, salonBoxOf, sheetOf, tintsOf } from './nation-sheet';
 
-const SEVEN = [
-  'tangier',
-  'istanbul',
-  'rangoon',
-  'hongKong',
-  'halifax',
-  'narvik',
-  'lisbon',
-] as const;
-
 it('writes a nation sheet from its capital, asset, neighbours and near points', () => {
-  const sheet = sheetOf('germany', SEVEN, 'mondiale');
+  const sheet = sheetOf('germany', FIRST_SEVEN, 'mondiale');
   expect(sheet.capital).toBe('Berlin');
   expect(sheet.asset).toBe('blitzkrieg');
   expect(sheet.neighbours).toContain('france');
@@ -21,8 +12,8 @@ it('writes a nation sheet from its capital, asset, neighbours and near points', 
 });
 
 it('gives a classic nation no asset, and a Blitz none at all', () => {
-  expect(sheetOf('france', SEVEN, 'mondiale').asset).toBeNull();
-  expect(sheetOf('germany', SEVEN, 'blitz').asset).toBeNull();
+  expect(sheetOf('france', FIRST_SEVEN, 'mondiale').asset).toBeNull();
+  expect(sheetOf('germany', FIRST_SEVEN, 'blitz').asset).toBeNull();
 });
 
 it("tints the nation shown, the taken ones, mine, and the shown one's neighbours", () => {

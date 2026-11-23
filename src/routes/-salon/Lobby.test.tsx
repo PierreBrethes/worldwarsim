@@ -15,6 +15,9 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { fr } from '@/i18n/fr';
 import { invitationUrl } from '@/domain/off-season';
 import type { Seat } from '@/data/session';
+import { FIRST_SEVEN } from '@/domain/strategic-points';
+import { THEATRE_DRAW } from '@/domain/operation-order';
+import { WORLD_BOX } from '@/emblems/EngravedMap';
 import { PHONE } from '@/shell/viewport';
 import { ConnectedLobby } from './Lobby';
 
@@ -56,7 +59,7 @@ const player = (
 });
 
 /** Un salon de Mondiale tel que `seasons.lobby` le sert, vu du siège `mine`. */
-const lobbyOf = (players: ReturnType<typeof player>[]) => {
+const lobbyOf = (players: ReturnType<typeof player>[], over: object = {}) => {
   const me = players.find((entry) => entry.mine)!;
   return {
     code: 'K7Q2PX',
@@ -68,7 +71,7 @@ const lobbyOf = (players: ReturnType<typeof player>[]) => {
     durationHours: 168,
     orders: { scheduledAt: null, remind: null, hqCaptureHours: 12, seatCap: null },
     playableRegion: 'europe',
-    points: ['tangier', 'istanbul', 'rangoon', 'hongKong', 'halifax', 'narvik', 'lisbon'],
+    points: FIRST_SEVEN,
     me: {
       nickname: me.nickname,
       creator: me.creator,
@@ -77,6 +80,7 @@ const lobbyOf = (players: ReturnType<typeof player>[]) => {
       restWindow: REST,
     },
     players,
+    ...over,
   };
 };
 
@@ -87,9 +91,10 @@ function mount(
     name: string,
     serve: (lobby: ReturnType<typeof lobbyOf>) => void,
   ) => Promise<unknown> = () => Promise.resolve(null),
+  over: object = {},
 ) {
   const answers: Record<string, unknown> = {
-    'seasons:lobby': lobbyOf(players),
+    'seasons:lobby': lobbyOf(players, over),
     'messages:recent': { messages: [], readAt: 0, direct: [] },
   };
   const listeners = new Set<() => void>();
@@ -414,4 +419,29 @@ it('on a phone, a nation already mine offers no « Prendre »', async () => {
   await screen.findByRole('radiogroup');
   fireEvent.click(row('japan'));
   expect(screen.queryByRole('button', { name: fr.table.take('japan') })).toBeNull();
+});
+
+/** **Un Blitz au théâtre tiré** n'a pas de théâtre : la carte garde le monde entier, sans teinte. */
+it('keeps the whole world and no tint on a Blitz whose theatre is still to be drawn', async () => {
+  const tinted = () => document.querySelectorAll('use[href^="#os-n-"]').length;
+  mount([player('Pierre', { creator: true, nation: 'france' }), player('Léa', { mine: true })]);
+  await screen.findByRole('radiogroup');
+  expect(tinted()).toBeGreaterThan(0);
+  cleanup();
+
+  mount(
+    [player('Pierre', { creator: true, nation: 'france' }), player('Léa', { mine: true })],
+    undefined,
+    { mode: 'blitz', theatre: THEATRE_DRAW },
+  );
+  await screen.findByRole('radiogroup');
+  expect(tinted()).toBe(0);
+  const [x0, , width] = document
+    .querySelector('.sl-map svg[viewBox]')!
+    .getAttribute('viewBox')!
+    .split(' ')
+    .map(Number);
+  const [west, , east] = WORLD_BOX;
+  expect(x0).toBeLessThanOrEqual(west + 180);
+  expect(x0! + width!).toBeGreaterThanOrEqual(east + 180);
 });

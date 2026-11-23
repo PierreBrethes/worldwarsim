@@ -458,11 +458,11 @@
   letter-spacing: 0.2em;
 }
 
-.os .sl-map.desk .cartouche.rest h4 {
+.os .sl-map.desk .cartouche.idle h4 {
   margin: 0;
 }
 
-.os .sl-map.desk .cartouche.rest p {
+.os .sl-map.desk .cartouche.idle p {
   margin-top: 5px;
   font: italic 13px/1.4 var(--text);
   color: var(--ink-soft);
@@ -949,7 +949,7 @@
   .os .sl-bar {
     position: sticky;
     z-index: 5;
-    top: 6px;
+    top: 0;
     flex-wrap: wrap;
     gap: 6px 10px;
     padding: 7px 10px;
@@ -1225,8 +1225,8 @@
   .os .sl[data-registry] .sl-map {
     position: sticky;
     z-index: 4;
-    /* @a-mesurer la hauteur de la manchette collée (73 px), plus son décalage de 6 px. */
-    top: 79px;
+    /* @a-mesurer la hauteur de la manchette collée. */
+    top: 73px;
     order: 2;
     height: 190px;
   }

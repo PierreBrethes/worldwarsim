@@ -790,8 +790,16 @@ function TableMap({
   const shown = !desk ? null : (look ?? (isNation(meNation) ? meNation : null));
   /** A phone map follows the sheet of the nation shown instead of the whole desk. */
   const box = useMemo(
-    () => theatreBox ?? (phone ? phoneBoxOf(shown) : size === null ? WORLD_BOX : salonBoxOf(size)),
-    [theatreBox, size, phone, shown],
+    () =>
+      theatreBox ??
+      (!desk
+        ? WORLD_BOX
+        : phone
+          ? phoneBoxOf(shown)
+          : size === null
+            ? WORLD_BOX
+            : salonBoxOf(size)),
+    [theatreBox, desk, size, phone, shown],
   );
   const sheetKey = phoneSheetOf(shown);
   const sheet0 = shown === null ? null : sheetOf(shown, lobby.points ?? [], lobby.mode);
@@ -834,7 +842,7 @@ function TableMap({
           gratStep={blitz ? 5 : 15}
           rings={narrow ? [5, 2.4] : blitz ? [16, 11.5, 7.5, 4.2, 1.9] : [9, 5.5, 2.6]}
           nations={
-            blitz
+            !desk
               ? {}
               : tintsOf({
                   shown,
@@ -846,7 +854,7 @@ function TableMap({
                 })
           }
           marks={!desk ? [] : marksOf(lobby.points ?? [])}
-          labels={narrow ? [] : (sheet?.seas ?? fr.table.worldSeas)}
+          labels={narrow || desk ? [] : (sheet?.seas ?? fr.table.worldSeas)}
           labelPx={blitz ? 19 : 15}
         />
       </div>
@@ -873,7 +881,7 @@ function TableMap({
         </div>
       )}
       {!desk || shown === null || sheet0 === null ? (
-        <div className={`cartouche ${desk ? 'rest' : ''}`} ref={cartouche}>
+        <div className={`cartouche ${desk ? 'idle' : ''}`} ref={cartouche}>
           <div className="eyebrow">
             {sheet === null ? fr.table.generalMap : fr.table.staffSheet(sheet.sheet)}
           </div>
@@ -913,7 +921,7 @@ function TableMap({
         </div>
       )}
       <CompassRoseMark />
-      {!blitz && size !== null && (
+      {desk && size !== null && (
         <div
           style={{
             position: 'absolute',

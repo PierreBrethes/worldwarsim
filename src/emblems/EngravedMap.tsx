@@ -69,6 +69,9 @@ const DARK = {
   label: 'rgba(142,124,92,.3)',
 };
 
+/** @a-mesurer the wash of a free nation looked at. */
+const LOOKED_INK = '#a8705c';
+
 /** [ouest, sud, est, nord] en degrés ; l'est peut passer 180 (le Pacifique). */
 export type Box = readonly [number, number, number, number];
 
@@ -284,13 +287,16 @@ export function EngravedMap({
           const ink = isNation(nation) ? INK_BY_NATION[nation] : palette.coast;
           const dashed = kind === 'neighbour' || tint.neighbour === true;
           const hatched = kind === 'taken';
-          const fillOpacity = kind === 'neighbour' ? 0.1 : mine ? 0.78 : shown ? 0.62 : 0.55;
+          /** A free nation under the pointer is a soft rosy-brown wash, not its ink at full. */
+          const looked = shown && !mine && kind === 'chosen';
+          const fillOpacity =
+            kind === 'neighbour' ? 0.1 : mine ? 0.78 : looked ? 0.4 : shown ? 0.62 : 0.55;
           return shifts.map((shift) => (
             <use
               key={`${nation}${shift}`}
               href={`#os-n-${nation}`}
               x={shift}
-              fill={hatched ? `url(#${hatchId}${nation})` : ink}
+              fill={hatched ? `url(#${hatchId}${nation})` : looked ? LOOKED_INK : ink}
               fillOpacity={hatched ? 1 : fillOpacity}
               stroke={dashed && !shown ? ink : palette.coast}
               strokeWidth={shown ? 2 : dashed ? 1.4 : mine ? 1.6 : 1}
@@ -351,7 +357,8 @@ export function EngravedMap({
               x={x + mark.dx * ring}
               y={y + mark.dy * ring}
               textAnchor={mark.anchor}
-              fontSize={10.5 * upp}
+              fontSize={10 * upp}
+              letterSpacing={0.6 * upp}
               fontFamily="Archivo Narrow, sans-serif"
               fontWeight={600}
               fill={palette.coast}
@@ -360,7 +367,7 @@ export function EngravedMap({
               paintOrder="stroke"
               strokeLinejoin="round"
             >
-              {mark.name}
+              {mark.name.toLocaleUpperCase('fr')}
             </text>
           </g>
         );
