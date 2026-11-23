@@ -554,7 +554,7 @@ export default defineSchema({
      * (`base`), quatre dépôts au plus, et la **consigne** qu'elle recharge à chaque tour. `next`
      * est l'arrêt que le tour en cours visite après celui-ci, `skipped` les dépôts pleins qu'il
      * saute ; `waiting` dit qu'elle attend au chargement, depuis quand, pourquoi et combien de fois sa route a été refusée d'affilée, `recalled`
-     * qu'on l'a rappelée et qu'elle finit au chargement. Elle garde son slot tant qu'elle tourne.
+     * qu'on l'a rappelée et qu'elle finit au chargement. Elle garde son slot tant qu'elle tourne, sauf au pays (#618).
      */
     tour: v.optional(
       v.object({

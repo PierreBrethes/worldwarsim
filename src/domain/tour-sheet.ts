@@ -23,6 +23,7 @@ import { costMinutes, crawledMinutes, paceCostOf } from './pace';
 import { KM_PER_UNIT, projectedDistance, type RouteGrid } from './routing';
 import { fullSupplies, refuelAtHeap } from './supplies';
 import { DOMAIN_BY_ROLE } from './troops';
+import { tourHoldsSlot } from './tour-slot';
 
 /**
  * **La feuille de route qui raisonne** (ADR 0041, décisions du 12/11 sur #548) : tout ce que la
@@ -46,6 +47,8 @@ export type SheetDepot = {
   readonly capacity: number;
   readonly level: number;
   readonly standing: boolean;
+  /** Le pays où il se tient (`hostCountry`), `null` s'il ne se lit pas. */
+  readonly country: string | null;
 };
 
 /** Une exploitation candidate : son tas, son plafond, son débit au tas, et depuis combien
@@ -66,6 +69,8 @@ export type SheetSite = {
   readonly working: boolean;
   readonly stoppedForHours: number | null;
   readonly facts: PickupFacts;
+  /** Le pays de sa région : le sol national ou non, non le quai où va un cargo. */
+  readonly country: string | null;
 };
 
 export type SheetStop = SheetDepot | SheetSite;
@@ -75,6 +80,9 @@ export type TourSheet = {
   readonly world: SheetWorld;
   readonly role: UnitRole;
   readonly base: LonLat;
+  /** Le pays du point de chargement, et celui du joueur : de quoi dire si la tournée prend un slot. */
+  readonly baseCountry: string | null;
+  readonly homeCountry: string | null;
   /** Ce que la tournée charge au départ de chaque boucle. */
   readonly consigne: SupplyLoad;
   /** La place libre de chaque bac du plateau personnel, où la récolte se verse au retour. */
@@ -359,6 +367,11 @@ function refusalOf(
   if (refused !== null || stop.kind === 'site') return refused;
   return deliverRefusalFor(sheet, stop);
 }
+
+/** **Cette feuille prend-elle un slot de mouvement ?** La règle du serveur (`tourHoldsSlot`, #618),
+ *  lue avant « lancer » : non si le chargement et chaque arrêt sont sur le sol national. */
+export const holdsSlot = (sheet: TourSheet, stops: ReadonlyArray<SheetStop>): boolean =>
+  tourHoldsSlot([sheet.baseCountry, ...stops.map((stop) => stop.country)], sheet.homeCountry);
 
 /** **La feuille telle qu'elle est, partirait-elle ?** Ce que `tours.start` lui dirait : la tournée,
  *  puis chaque dépôt. `null` : elle part. */

@@ -507,6 +507,46 @@ describe('the supply tour', () => {
     expect(await flying(t)).toMatchObject([{ tourLeg: 'stop', delivery: { outpostId: hungry } }]);
   });
 
+  /** Un camion chargé au QG, lancé sur ces avant-postes. */
+  async function touringOver(t: Bench, seat: Seat, stops: Id<'outposts'>[]) {
+    const truck = await form(t, seat, 'landTransport', await hqOf(t, seat));
+    await t.run(async (ctx) => ctx.db.patch(truck, { load: { ammunition: 60, oil: 0, coal: 0 } }));
+    await t.mutation(api.tours.start, { ...seat, troopId: truck, stops });
+    return truck;
+  }
+
+  it('takes no slot while the loading point and every stop stand on national soil (#618)', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await setStock(t, seat, 'ammunition', 500);
+    const home = await plant(t, seat, [4.1, 48.9], 1, { hostCountry: 'FRA', regionId: MARNE });
+    const truck = await touringOver(t, seat, [home]);
+
+    expect(await flying(t)).toMatchObject([{ tourLeg: 'stop' }]);
+    expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(0);
+    await arriveNext(t);
+    expect(await flying(t)).toMatchObject([{ tourLeg: 'base' }]);
+    expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(0);
+    await arriveNext(t);
+    expect((await get(t, truck))!.tour).toBeDefined();
+    expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(0);
+  });
+
+  it('keeps its slot with one stop abroad, and a full board refuses it but not a national tour (#618)', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await setStock(t, seat, 'ammunition', 500);
+    const home = await plant(t, seat, [4.1, 48.9], 1, { hostCountry: 'FRA', regionId: MARNE });
+    const abroad = await plant(t, seat, ESSEN, 1, GERMANY);
+    await touringOver(t, seat, [home, abroad]);
+    await touringOver(t, seat, [abroad]);
+    expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(2);
+
+    await expect(touringOver(t, seat, [home, abroad])).rejects.toThrow('MOVEMENT_IN_FLIGHT');
+    await expect(touringOver(t, seat, [home])).resolves.toBeDefined();
+    expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(2);
+  });
+
   it('waits at its loading point while the board lacks, keeping its slot, and says so once', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);

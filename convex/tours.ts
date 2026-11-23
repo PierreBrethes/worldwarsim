@@ -52,6 +52,7 @@ import { cancelJob } from './scheduledJobs';
 import { playerOf, requirePlayable, seasonStillPlays } from './seats';
 import { resupply, takeFromDepot } from './supplies';
 import { pointOfBuilding } from './regions';
+import { tourHoldsSlotFor } from './tourSlot';
 import type { LonLat } from '../src/domain/geo';
 
 /**
@@ -59,8 +60,8 @@ import type { LonLat } from '../src/domain/geo';
  * depuis son point de chargement par quatre dépôts au plus. À chaque tour il recharge sa
  * consigne, dépose à chaque dépôt ce qui y tient, saute un dépôt plein, revient, recommence. Si
  * le plateau personnel manque, il attend au chargement, et une dépêche le dit. Il garde son slot
- * tant qu'il tourne : chaque pas est une marche qui ne le reprend pas (`keepsSlot`), et à l'arrêt
- * la tournée le tient encore (`slotsTaken`). On le rappelle quand on veut.
+ * tant qu'il tourne, sauf au pays (#618, `tourHoldsSlotFor`) : chaque pas est une marche qui ne le
+ * reprend pas (`keepsSlot`), et à l'arrêt la tournée le tient encore (`slotsTaken`). On le rappelle quand on veut.
  */
 
 type Tour = NonNullable<Doc<'troops'>['tour']>;
@@ -152,7 +153,9 @@ export const start = mutation({
         fail(code, details);
       }
     }
-    await claimSlot(ctx, player._id, [troopId]);
+    /** **Au pays, pas de slot** (#618) ; Halifax et le plafond restent ceux de `claimSlot`. */
+    if (await tourHoldsSlotFor(ctx, player, troop.stationedAt, stored))
+      await claimSlot(ctx, player._id, [troopId]);
     await ctx.db.patch(troopId, {
       tour: {
         base: troop.stationedAt as Tour['base'],

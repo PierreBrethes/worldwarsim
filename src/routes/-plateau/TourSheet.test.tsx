@@ -3,7 +3,14 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RESOURCES } from '@/domain/ids';
 import type { PlayerView } from '@/domain/player-view';
-import { launchRefusalOf, loopOf, orderBest, rankStops, type SheetStop } from '@/domain/tour-sheet';
+import {
+  holdsSlot,
+  launchRefusalOf,
+  loopOf,
+  orderBest,
+  rankStops,
+  type SheetStop,
+} from '@/domain/tour-sheet';
 import { cardsOf, readSheet } from '@/domain/tour-sheet-view';
 import type { Projection } from '@/domain/world';
 import { fr } from '@/i18n/fr';
@@ -71,9 +78,10 @@ function stateOf(
   over: Partial<TourSheetState> = {},
   picking = false,
   routed = true,
+  seen: PlayerView = view,
 ): TourSheetState {
   const reading = readSheet(
-    view,
+    seen,
     'T',
     [{ buildingId: 'a', routed, hasQuay: false, stopPoint: null }],
     projectionAsset as unknown as Projection,
@@ -98,6 +106,7 @@ function stateOf(
       ranked: picking ? rankStops(reading.sheet, stops, reading.candidates) : null,
       order: stops.length > 1 ? orderBest(reading.sheet, stops) : null,
       refusal: launchRefusalOf(reading.sheet, stops),
+      slot: holdsSlot(reading.sheet, stops),
     },
     pick: vi.fn(),
     open: vi.fn(),
@@ -116,6 +125,45 @@ function stateOf(
     ...over,
   };
 }
+
+/** Le même plateau, vu d'une France dont la région R est du sol national (`site` sans avant-poste). */
+const atHome = {
+  ...view,
+  me: {
+    ...view.me,
+    nation: 'france',
+    regions: [{ id: 'R', name: 'Lorraine', site: { outpostId: null } }],
+    buildings: view.me.buildings.map((building) => ({ ...building, regionId: 'R' })),
+  },
+} as unknown as PlayerView;
+
+describe('the slot line of the route sheet (#618)', () => {
+  const slotOf = (container: HTMLElement) =>
+    container.querySelector('[data-slot]')?.getAttribute('data-slot');
+
+  it('says before launching that a tour on national soil takes no slot', () => {
+    const { container } = render(
+      <TourSheet sheet={stateOf(['O', 'a'], {}, false, true, atHome)} />,
+    );
+    expect(slotOf(container)).toBe('free');
+    expect(screen.getByText(fr.tourSheet.slotFree)).toBeTruthy();
+  });
+
+  it('says it takes one as soon as a stop stands abroad', () => {
+    const abroad = {
+      ...atHome,
+      me: {
+        ...atHome.me,
+        outposts: atHome.me.outposts.map((outpost) => ({ ...outpost, hostCountry: 'DEU' })),
+      },
+    } as unknown as PlayerView;
+    const { container } = render(
+      <TourSheet sheet={stateOf(['O', 'a'], {}, false, true, abroad)} />,
+    );
+    expect(slotOf(container)).toBe('held');
+    expect(screen.getByText(fr.tourSheet.slotHeld)).toBeTruthy();
+  });
+});
 
 /** **La feuille de route** (#551) : ce qu'elle montre d'une tournée, et ce que chaque geste appelle. */
 describe('the transport route sheet', () => {

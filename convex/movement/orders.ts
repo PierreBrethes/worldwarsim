@@ -71,6 +71,7 @@ import {
 } from '../../src/domain/supplies';
 import { kmOf } from '../../src/domain/routing';
 import { resupply, storesCrossed } from '../supplies';
+import { tourHoldsSlotFor } from '../tourSlot';
 
 /** ADR 0019 §1: a building, the outpost a column garrisons, or the plain point it was left
  *  standing on. Exactly one of the three, never two, never none. */
@@ -652,9 +653,10 @@ function boardingInto(column: Column, aim: MovementAim, boardsOn: unknown): Colu
 /**
  * **Les colonnes qui tiennent un slot** : chaque mouvement, sauf un retour, plus chaque **tournée
  * à l'arrêt** au chargement et chaque **ronde en halte** : elles gardent leur slot tant qu'elles
- * tournent (ADR 0028, ADR 0037 §10). Ce que chacune
- * demande, Halifax compris, est dit par `slotsAskedBy` : une règle, une fonction, pour la porte
- * (`claimSlot`) et pour la bannière de la vue.
+ * tournent (ADR 0028, ADR 0037 §10). **Sauf une tournée qui reste au pays** (`tourHoldsSlotFor`,
+ * #618) : son pas en vol et sa troupe à l'arrêt vont dans `national`, hors du compte mais encore
+ * là pour la règle d'Halifax (`maritimeCount`). Ce que chacune demande est dit par `slotsAskedBy` :
+ * une règle, une fonction, pour la porte (`claimSlot`) et pour la bannière de la vue.
  */
 async function columnsHeld(
   ctx: QueryCtx,
@@ -665,26 +667,43 @@ async function columnsHeld(
 ) {
   const flying = movements.filter((movement) => movement.type !== 'return');
   const marching = new Set(movements.flatMap((movement) => movement.troopIds));
-  const resting = (
+  const own =
     troops ??
     (await ctx.db
       .query('troops')
       .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
-      .collect())
-  ).filter(
+      .collect());
+  const resting = own.filter(
     (troop) => (troop.tour !== undefined || troop.patrol !== undefined) && !marching.has(troop._id),
   );
-  const holders = [
+  const byId = new Map(own.map((troop) => [troop._id, troop]));
+  const staysHome = new Map<Id<'troops'>, boolean>();
+  const staysHomeOn = async (troopId: Id<'troops'>) => {
+    const known = staysHome.get(troopId);
+    if (known !== undefined) return known;
+    const tour = (byId.get(troopId) ?? (await ctx.db.get(troopId)))?.tour;
+    const answer =
+      tour !== undefined && !(await tourHoldsSlotFor(ctx, player, tour.base, tour.stops));
+    staysHome.set(troopId, answer);
+    return answer;
+  };
+  const paying: Array<Awaited<ReturnType<typeof crewOf>>> = [];
+  const national: Array<Awaited<ReturnType<typeof crewOf>>> = [];
+  for (const troopIds of [
     ...flying.map((movement) => movement.troopIds),
     ...resting.map((troop) => [troop._id]),
-  ];
-  const crews = [];
-  for (const troopIds of holders) crews.push(await crewOf(ctx, troopIds));
-  return crews;
+  ]) {
+    const crew = await crewOf(ctx, troopIds);
+    let home = troopIds.length > 0;
+    for (const troopId of troopIds) home = home && (await staysHomeOn(troopId));
+    (home ? national : paying).push(crew);
+  }
+  return { paying, national };
 }
 
 /** **Les slots tenus** : ce que les colonnes en vol demandent (`slotsAskedBy`), et combien sont
- *  maritimes — la bannière et la rose de groupe en ont besoin pour Halifax. */
+ *  maritimes — la bannière et la rose de groupe en ont besoin pour Halifax. Une tournée au pays
+ *  ne demande rien mais compte parmi les maritimes. */
 export async function slotsTaken(
   ctx: QueryCtx,
   player: Doc<'players'>,
@@ -692,10 +711,10 @@ export async function slotsTaken(
   /** Ses troupes, que la vue a déjà lues ; la porte les lit ici. */
   troops?: ReadonlyArray<Doc<'troops'>>,
 ): Promise<{ readonly used: number; readonly maritime: number }> {
-  const crews = await columnsHeld(ctx, player, movements, troops);
+  const { paying, national } = await columnsHeld(ctx, player, movements, troops);
   return {
-    used: slotsAskedBy(crews, await holdsPoint(ctx, player, 'halifax')),
-    maritime: maritimeCount(crews),
+    used: slotsAskedBy(paying, await holdsPoint(ctx, player, 'halifax'), maritimeCount(national)),
+    maritime: maritimeCount(paying) + maritimeCount(national),
   };
 }
 
@@ -722,12 +741,14 @@ export async function claimSlot(
   if ((await blitzTheatreOf(ctx, playerId)) !== null) return;
   const player = await ctx.db.get(playerId);
   if (player === null) return;
-  const held = await columnsHeld(ctx, player, await movementsOf(ctx, playerId));
+  const { paying, national } = await columnsHeld(ctx, player, await movementsOf(ctx, playerId));
   const halifax = await holdsPoint(ctx, player, 'halifax');
-  const asked = slotsAskedBy([await crewOf(ctx, troopIds)], halifax, maritimeCount(held));
+  const maritimeHeld = maritimeCount(paying) + maritimeCount(national);
+  const asked = slotsAskedBy([await crewOf(ctx, troopIds)], halifax, maritimeHeld);
   if (asked === 0) return;
   const maximum = movementSlots(player.researched ?? []);
-  if (slotsAskedBy(held, halifax) + asked > maximum) fail('MOVEMENT_IN_FLIGHT', { maximum });
+  if (slotsAskedBy(paying, halifax, maritimeCount(national)) + asked > maximum)
+    fail('MOVEMENT_IN_FLIGHT', { maximum });
 }
 
 /**

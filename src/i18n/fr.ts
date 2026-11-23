@@ -3220,6 +3220,9 @@ export const fr = {
     peakLabel: 'Au plus fort',
     peak: (peak: number, capacity: number) => `${peak} / ${capacity} à bord`,
     bankedLabel: 'Au stock, par boucle',
+    slotLabel: 'Slot de mouvement',
+    slotFree: 'aucun : elle reste au pays',
+    slotHeld: 'un : un point hors du sol national',
     orderSame: (km: number) => `Ordre déjà au mieux : ${km} km, rien de perdu.`,
     orderMoves: (after: number, before: number) =>
       `Un autre ordre rapporte plus : ${after} déplacés au lieu de ${before}.`,
