@@ -20,8 +20,8 @@ import { playerOf, requirePlayable, seasonStillPlays } from './seats';
 /**
  * **La ronde** (ADR 0037 §10, #376) : une troupe terrestre de combat tourne sur une liaison
  * tracée entre deux de mes avant-postes, avec une halte en garnison à chaque bout. La mécanique
- * est celle de la tournée (`convex/tours.ts`) — slot gardé, étapes en `march` avec `keepsSlot`,
- * réessai sur une route refusée, rappel —, pas son contrat. Ce qui la fait finir (bout perdu,
+ * est celle de la tournée (`convex/tours.ts`) — slot gardé (sauf au pays pour la tournée, #618 : la
+ * ronde le garde toujours), étapes en `march` avec `keepsSlot`, réessai sur une route refusée, rappel —, pas son contrat. Ce qui la fait finir (bout perdu,
  * liaison retirée du tracé) se lit à l'échéance, à l'arrivée d'une étape ou à la fin d'une halte,
  * jamais par crochets dans les mutations qui changent la carte.
  */

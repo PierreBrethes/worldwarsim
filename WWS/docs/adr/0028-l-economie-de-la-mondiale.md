@@ -44,6 +44,8 @@ fiche 03. **Mondiale seule** : la Blitz garde ses fonds et tire sans compter. Ri
 >   d'avant-poste) et elle garde son slot, comme avant. La règle est `tourHoldsSlot`
 >   (`src/domain/tour-slot.ts`), lue par le serveur et par la feuille de route, qui le dit avant
 >   « lancer » ;
+> - **un chargement sur un point nu** (la troupe ne se tient ni dans un bâtiment ni dans un
+>   avant-poste) n'a pas de pays lu : la tournée garde son slot ;
 > - **le compte se relit à chaque décompte, rien n'est stocké** : si une tournée change de
 >   catégorie en route, `used` peut dépasser `total`. C'est accepté, l'ordre déjà donné ne se
 >   reprend pas ;

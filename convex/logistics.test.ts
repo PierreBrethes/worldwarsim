@@ -14,6 +14,7 @@ import {
   attacking,
   foundSeat,
   joinSeat,
+  holdPoint,
   placeHq,
   seatIn,
   unclocked,
@@ -545,6 +546,37 @@ describe('the supply tour', () => {
     await expect(touringOver(t, seat, [home, abroad])).rejects.toThrow('MOVEMENT_IN_FLIGHT');
     await expect(touringOver(t, seat, [home])).resolves.toBeDefined();
     expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(2);
+  });
+
+  it('counts a national cargo tour among the maritime movements: Halifax spares no second fleet (#618)', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await holdPoint(t, seat, 'halifax');
+    const coast = { hostCountry: 'FRA', regionId: MARNE };
+    const marseille = await plant(t, seat, [5.37, 43.3], 1, coast);
+    const agde = await plant(t, seat, [3, 43.3], 1, coast);
+    await t.run(async (ctx) =>
+      ctx.db.patch(marseille, { depot: { ammunition: 400, oil: 0, coal: 0 } }),
+    );
+    const touring = await form(t, seat, 'cargo', marseille);
+    await t.run(async (ctx) =>
+      ctx.db.patch(touring, { load: { ammunition: 60, oil: 0, coal: 0 } }),
+    );
+    await t.mutation(api.tours.start, { ...seat, troopId: touring, stops: [agde] });
+    expect((await t.query(api.view.playerView, seat)).me.slots).toMatchObject({
+      used: 0,
+      maritime: 1,
+    });
+
+    const second = await form(t, seat, 'cargo', marseille);
+    await t.run(async (ctx) => ctx.db.patch(second, { load: { ammunition: 60, oil: 0, coal: 0 } }));
+    await t.mutation(api.logistics.deliver, {
+      ...seat,
+      origin: { kind: 'outpost', outpostId: marseille },
+      troopIds: [second],
+      outpostId: agde,
+    });
+    expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(1);
   });
 
   it('waits at its loading point while the board lacks, keeping its slot, and says so once', async () => {
