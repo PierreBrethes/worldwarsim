@@ -140,8 +140,11 @@ export const isAtWar = (player: Doc<'players'>, season: Doc<'seasons'>): boolean
 export const seatsOf = async (
   ctx: QueryCtx,
   seasonId: Id<'seasons'>,
-): Promise<Array<Doc<'players'>>> =>
-  (await everySeatOf(ctx, seasonId)).filter((seat) => seat.irregular !== true);
+): Promise<Array<Doc<'players'>>> => regularSeats(await everySeatOf(ctx, seasonId));
+
+/** The one exclusion of the irregular seat, for a caller that already holds `everySeatOf`. */
+export const regularSeats = (every: ReadonlyArray<Doc<'players'>>): Array<Doc<'players'>> =>
+  every.filter((seat) => seat.irregular !== true);
 
 /** Toutes les places, le siège irrégulier compris — la lecture d'un balayage, jamais d'une règle. */
 export const everySeatOf = (

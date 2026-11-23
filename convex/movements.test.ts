@@ -29,6 +29,8 @@ import { foundationMinutes } from '../src/domain/level-speed';
 import { nearestRegion, regionFacts } from './regions';
 import { regionAtRoutePoint } from './regionGeometry';
 import { asPoint, pointOf } from './movement/forces';
+import { slotsTaken } from './movement/orders';
+import { restHold } from './movement/rest';
 import { coastAtPoint, hostAtPoint, landAtPoint, routeBetween } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
@@ -816,6 +818,36 @@ describe('the rest window holds an arrival at the border', () => {
 
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     expect(await movementsOf(t, seat)).toHaveLength(0);
+  });
+
+  /** The view hands `restHold` and `slotsTaken` what it already read; a mutation reads fresh.
+   *  Both paths answer the same, so the board never disagrees with the door. */
+  it('serves the hold and the slots the fresh readings give', async () => {
+    vi.setSystemTime(new Date(Date.UTC(2026, 7, 17, 16, 30, 0)));
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const troop = await form(t, seat, 'infantry', barracks);
+    await attacking(t, {
+      ...seat,
+      origin: { kind: 'building', buildingId: barracks },
+      troopIds: [troop],
+      target: { kind: 'region', regionId: PSKOV },
+    });
+
+    const view = await t.query(api.view.playerView, seat);
+    const [arc] = view.movements!;
+    const [row] = await movementsOf(t, seat);
+    const fresh = await t.run(async (ctx) => {
+      const player = (await ctx.db.get(row!.playerId))!;
+      return {
+        hold: await restHold(ctx, row!.playerId, row!.hostCountry, row!.arrivesAt),
+        slots: await slotsTaken(ctx, player, [row!]),
+      };
+    });
+    expect(arc!.holdUntil).not.toBeNull();
+    expect(arc!.holdUntil).toBe(fresh.hold);
+    expect(view.me.slots.used).toBe(fresh.slots.used);
   });
 
   it('lets a column reach neutral ground while its neighbour sleeps', async () => {

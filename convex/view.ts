@@ -80,7 +80,7 @@ import { movementsOf, outpostsOf, pointOf, outpostsServed } from './movement/for
 import { marchingForce } from './movement/detection';
 import { groundOf, linkedOn } from './holding';
 import { regionNameAt } from './placeNames';
-import { restHold } from './movements';
+import { restHoldOf } from './movement/rest';
 import {
   capitalRegionOf,
   foundationOwedBy,
@@ -94,7 +94,7 @@ import { bakuGainOf, suppliesOf } from '../src/domain/supplies';
 import { coastAtPoint, GRID_STEP_KM, groundAtPoint, hostAtPoint, landAtPoint } from './routes';
 import { OUTLOOK_HOURS, economyOf, maxOrderOf, snapshotAll, type Economy } from './resources';
 import { concludeOpensAt, concludeRefusal, founderOf, lastSeenOf } from './seasons';
-import { belligerentOf, isAtWar, seatsOf } from './seats';
+import { belligerentOf, everySeatOf, isAtWar, regularSeats } from './seats';
 import { modeOf } from '../src/domain/season-mode';
 import { buildingLockOf, lineLockOf } from '../src/domain/research';
 import { theatreById, theatreCenter } from '../src/domain/theatres';
@@ -205,13 +205,15 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
    *  record cannot answer; the economy below reads the very same map. */
   const carrying = groundOf(player, blitz, buildings, outposts, now);
   const held = await linkedOn(ctx, player, carrying, now);
-  const narvik = await holdsPoint(ctx, player, 'narvik');
+  const points = await seasonPoints(ctx, season._id);
+  const narvik = await holdsPoint(ctx, player, 'narvik', points);
   const economy = await economyOf(ctx, player._id, now, {
     troops,
     outposts,
     held,
     holdsNarvik: narvik,
     mode: modeOf(season.mode),
+    buildings,
   });
   const hqLevel = levelOf(buildings, 'hq');
   /** **Ce qu'un chantier durera, au niveau du QG** (ADR 0031) : la durée que `runHead` datera. */
@@ -219,7 +221,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     worksMinutes(key, level, hqLevel);
   /** Every site of his and what is left on it, read by the one function both doors of the
    *  placement rule read (`convex/sites.ts`). */
-  const sites = await sitesOf(ctx, player);
+  const sites = await sitesOf(ctx, player, { buildings });
   const queue = await queueOf(ctx, player._id);
   /** The first dated entry is the one the banner counts down; the others wait in
    *  `constructionQueue`. */
@@ -231,11 +233,10 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   /** Le refus de démantèlement sous capture, servi comme `serving` : la même lecture que la
    *  mutation (`siegeTargetsOf`, `besieged`). */
   const sieges = await siegesOf(ctx, player._id);
-  const ownBuildings = await playerBuildings(ctx, player._id);
   const outpostRows = outposts.map((outpost) => ({
     outpost,
     serving: served.has(outpost._id),
-    underSiege: besieged(sieges, siegeTargetsOf(outpost, ownBuildings)),
+    underSiege: besieged(sieges, siegeTargetsOf(outpost, buildings)),
   }));
   const movements = await movementsOf(ctx, player._id);
   const surveys = await surveysWithInstallations(ctx, player._id);
@@ -293,9 +294,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   const unsupplied = new Set<string>(economy.upkeep.unsuppliedTroopIds);
   /** **Bakou** : ses moteurs à l'arrêt, hors ancre, reprennent un cran de plein toutes les 12 h
    *  (`toppedUp`, qui règle le même gain avant tout ordre). */
-  const bakuSince = blitz ? null : await heldSinceOf(ctx, player, 'baku');
-  const halifax = !blitz && (await holdsPoint(ctx, player, 'halifax'));
-  const slots = await slotsTaken(ctx, player, movements, troops);
+  const bakuSince = blitz ? null : await heldSinceOf(ctx, player, 'baku', points);
+  const halifax = !blitz && (await holdsPoint(ctx, player, 'halifax', points));
+  const slots = await slotsTaken(ctx, player, movements, troops, points);
   const marching = new Set<string>(movements.flatMap((movement) => movement.troopIds));
   const bakuGain = (troop: Doc<'troops'>) =>
     bakuGainOf(
@@ -308,7 +309,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       now,
     );
   /** **Rangoun** : ses tournées ne se relèvent qu'à mi-portée (`detectionBoard`). */
-  const rangoon = !blitz && (await holdsPoint(ctx, player, 'rangoon'));
+  const rangoon = !blitz && (await holdsPoint(ctx, player, 'rangoon', points));
   const depotOf = (troopId: Id<'troops'>): Id<'outposts'> | null => {
     const store = economy.upkeep.storeOf[troopId];
     return store === undefined || store === 'board' ? null : store;
@@ -407,7 +408,8 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
     ]),
   ) as Record<BuildingKey, { cost: Costs; minutes: number; lockedBy: ResearchCard | null }>;
 
-  const seats = await seatsOf(ctx, season._id);
+  const everySeat = await everySeatOf(ctx, season._id);
+  const seats = regularSeats(everySeat);
   /** The belligerents, never the seats: somebody who joined a running season and is still
    *  choosing his flag is nobody's opponent yet, and would show up as a nation-less one. */
   const others = seats.filter((entry) => entry._id !== player._id && isAtWar(entry, season));
@@ -438,7 +440,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   const nationOf = new Map(belligerents.map((seat) => [seat._id, seat.nation ?? seat.nickname]));
   /** **Le teneur de Lisbonne lit la nation de ce qu'il relève** (P11) — la seule brèche du
    *  brouillard que les Sept ouvrent, et à lui seul. */
-  const readsNations = (await seasonPoints(ctx, season._id)).some(
+  const readsNations = points.some(
     (point) => point.key === 'lisbon' && point.holderId === player._id,
   )
     ? (ownerId: Id<'players'> | undefined) =>
@@ -1075,7 +1077,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           holdUntil:
             movement.heldAt !== undefined
               ? movement.arrivesAt
-              : await restHold(ctx, player._id, movement.hostCountry, movement.arrivesAt),
+              : restHoldOf(player, season, everySeat, movement.hostCountry, movement.arrivesAt),
         };
       }),
     ),
@@ -1179,7 +1181,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         .map((capture) => captureView(capture, 'defender')),
     ],
     /** **Les Sept** (P2) : publics, teneur compris ; qui conteste ne sort pas. */
-    strategicPoints: await pointsView(ctx, season, player._id),
+    strategicPoints: await pointsView(ctx, season, player._id, { points, every: everySeat }),
     objectives: (await seasonObjectives(ctx, season._id)).map((objective) => ({
       id: objective._id,
       key: objective.key,
