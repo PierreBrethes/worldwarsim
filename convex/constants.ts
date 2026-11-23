@@ -1357,6 +1357,20 @@ export const OBJECTIVE_HARD_MAX = 4;
 export const OBJECTIVE_AMMUNITION_PER_TROOP = 200;
 
 /**
+ * **La garnison locale d'un point stratégique neutre** (ADR 0043) : la même pour les sept, trois
+ * infanteries de palier 1 — l'archétype moyen des objectifs. Sans elle une infanterie seule prenait
+ * un point en six heures, et quatre points tenus un jour gagnaient la saison avant toute recherche.
+ * Elle ne se pose qu'au lancement et ne se renforce jamais : une fois réduite, le point se prend.
+ *
+ * @a-mesurer à combien de colonnes un point tient avant la première recherche, au banc
+ */
+export const POINT_GARRISON: ObjectiveArchetype['garrison'] = [
+  { role: 'infantry', tier: 1 },
+  { role: 'infantry', tier: 1 },
+  { role: 'infantry', tier: 1 },
+];
+
+/**
  * **L'économie de la Blitz, en une table** (lot 4 des deux modes, 14/10). Une seule ressource,
  * les fonds, versée par minute par les villes et le QG tenus ; caserne, port et aérodrome
  * forment, ils ne rapportent rien. La carte de départ se tire au lancement dans le théâtre

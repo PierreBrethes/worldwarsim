@@ -30,6 +30,7 @@ import {
   DEFAULT_REST_WINDOW,
   nominalStrength,
   OBJECTIVE_AMMUNITION_PER_TROOP,
+  POINT_GARRISON,
   OBJECTIVE_ARCHETYPES,
   OBJECTIVE_HARD_FAIRNESS,
   OBJECTIVE_HARD_MAX,
@@ -42,6 +43,7 @@ import {
 import { allRegions, capitalRegionOf, pointOfBuilding, regionFacts } from './regions';
 import { routeBetween, routeKmFrom } from './routes';
 import { everySeatOf, seatsOf } from './seats';
+import { seasonPoints } from './strategicPoints';
 import { reassessDetection } from './movement/detection';
 
 export const seasonObjectives = (
@@ -160,7 +162,7 @@ export const place = internalAction({
       },
     });
 
-    if (plan.placed.length === 0 && plan.pairsWithoutObjective.length === 0) return;
+    /** Même sans objectif à poser : `commit` garnit aussi les sept points. */
     await ctx.runMutation(internal.objectives.commit, {
       seasonId,
       placements: plan.placed.map((entry) => ({ key: entry.key, regionId: entry.regionId })),
@@ -187,29 +189,36 @@ export const commit = internalMutation({
   handler: async (ctx, { seasonId, placements, gaps }) => {
     const season = await ctx.db.get(seasonId);
     if (season === null || season.status !== 'launched') return;
-    if ((await seasonObjectives(ctx, seasonId)).length > 0) return;
-
     const seats = (await seatsOf(ctx, seasonId)).filter((seat) => isNation(seat.nation));
     if (seats.length === 0) return;
 
     const now = Date.now();
+    /** **Les sept points sont gardés hors des gardes des objectifs** : une saison sans objectif
+     *  posé garde ses points, et une saison dont les objectifs sont posés ne les repose pas. */
+    const pointsGuardedBy = await garrisonPoints(ctx, seasonId);
+    const laid = (await seasonObjectives(ctx, seasonId)).length > 0;
     const written: Array<Doc<'objectives'>> = [];
-    if (placements.length > 0) {
-      /** **Le siège irrégulier naît avec la première garnison**, jamais avant : un théâtre où la
-       *  carte n'a rien placé n'a personne à faire tenir, et une place vide de plus serait une
-       *  ligne que tout comptage devrait apprendre à ignorer pour rien. */
-      const irregularId = await irregularSeat(ctx, seasonId);
+    let irregularId = pointsGuardedBy;
+    if (!laid && placements.length > 0) {
+      /** **Le siège irrégulier naît avec sa première garnison**, jamais avant : un théâtre où la
+       *  carte n'a rien placé ni point à garder n'a personne à faire tenir, et une place vide de
+       *  plus serait une ligne que tout comptage devrait apprendre à ignorer pour rien. */
+      irregularId ??= await irregularSeat(ctx, seasonId);
       for (const entry of placements) {
         const archetype = objectiveArchetype(entry.key);
         const region = regionFacts(entry.regionId);
         if (archetype === null || region === null) continue;
         written.push(await raise(ctx, seasonId, irregularId, archetype, region));
       }
+    }
+    if (irregularId !== null) {
+      /** Un seul appel après toutes les poses : la dotation compte les troupes des points et
+       *  des objectifs. Les garnisons sont des détecteurs et des camps que chacun relève (#145) :
+       *  rien d'autre n'a changé, le siège irrégulier suffit à la portée. */
       await endowIrregular(ctx, irregularId, now);
-      /** Les garnisons sont des détecteurs et des camps que chacun relève (#145) : rien d'autre
-       *  n'a changé, le siège irrégulier suffit à la portée. */
       await reassessDetection(ctx, seasonId, now, irregularId);
     }
+    if (laid) return;
 
     /**
      * **Public, et à tout le monde en même temps** — c'est le garde-fou de la proposition du
@@ -276,6 +285,53 @@ async function headquartersOf(ctx: QueryCtx, seat: Doc<'players'>): Promise<LonL
   return regionFacts(capitalRegionOf(seat.nation))?.point ?? null;
 }
 
+/**
+ * **Des troupes ordinaires du siège irrégulier, posées sur un point** : une adresse de campagne,
+ * celle qui se relève et se bat (ADR 0024 §1) — jamais un bâtiment ni un avant-poste, qui
+ * n'existent pas ici. Un objectif et un point stratégique neutre se gardent de la même façon.
+ */
+async function postGarrison(
+  ctx: MutationCtx,
+  seasonId: Id<'seasons'>,
+  irregularId: Id<'players'>,
+  garrison: ObjectiveArchetype['garrison'],
+  point: { readonly lon: number; readonly lat: number },
+): Promise<void> {
+  for (const unit of garrison) {
+    const strength = nominalStrength(unit.role, unit.tier);
+    await ctx.db.insert('troops', {
+      seasonId,
+      playerId: irregularId,
+      role: unit.role,
+      tier: unit.tier,
+      nominalStrength: strength,
+      currentStrength: strength,
+      stationedAt: { lon: point.lon, lat: point.lat },
+    });
+  }
+}
+
+/**
+ * **Les sept points sont gardés une fois, à la naissance du siège irrégulier** : tant qu'aucun
+ * siège irrégulier n'existe, aucune garnison n'a jamais été posée, et la même base arbitre un
+ * travail repris — y compris quand les garnisons ont été réduites entre-temps, qu'on ne
+ * regarnit pas. Rend le siège irrégulier s'il vient de naître avec les garnisons, `null` sinon
+ * (une saison déjà servie : pas de rattrapage).
+ */
+async function garrisonPoints(
+  ctx: MutationCtx,
+  seasonId: Id<'seasons'>,
+): Promise<Id<'players'> | null> {
+  if ((await everySeatOf(ctx, seasonId)).some((seat) => seat.irregular === true)) return null;
+  const points = await seasonPoints(ctx, seasonId);
+  if (points.length === 0) return null;
+  const irregularId = await irregularSeat(ctx, seasonId);
+  for (const point of points) {
+    await postGarrison(ctx, seasonId, irregularId, POINT_GARRISON, point.point);
+  }
+  return irregularId;
+}
+
 /** L'objectif et sa garnison, écrits ensemble : l'un sans l'autre serait un dépôt sans serrure. */
 async function raise(
   ctx: MutationCtx,
@@ -296,20 +352,7 @@ async function raise(
     status: 'standing',
     takenAt: null,
   });
-  for (const unit of archetype.garrison) {
-    const strength = nominalStrength(unit.role, unit.tier);
-    await ctx.db.insert('troops', {
-      seasonId,
-      playerId: irregularId,
-      role: unit.role,
-      tier: unit.tier,
-      nominalStrength: strength,
-      currentStrength: strength,
-      /** Posée sur le point de l'objectif : une adresse de campagne, celle qui se relève et se
-       *  bat (ADR 0024 §1) — jamais un bâtiment ni un avant-poste, qui n'existent pas ici. */
-      stationedAt: point,
-    });
-  }
+  await postGarrison(ctx, seasonId, irregularId, archetype.garrison, point);
   return (await ctx.db.get(objectiveId))!;
 }
 

@@ -8,7 +8,7 @@ import { distanceKm, type LonLat } from '../src/domain/geo';
 import { COST_BY_MEDIUM } from '../src/domain/routing';
 import { reassessDetection } from './movement/detection';
 import { hostAtPoint } from './routes';
-import { BAKU_REFUEL_MS } from './constants';
+import { BAKU_REFUEL_MS, OBJECTIVE_AMMUNITION_PER_TROOP, POINT_GARRISON } from './constants';
 import { regionFacts } from './regions';
 import { handOver } from './strategicPoints';
 import { drawPoints } from '../src/domain/strategic-points';
@@ -259,6 +259,165 @@ describe('taking a strategic point', () => {
  * d'affilée prennent la saison ; à l'horloge, le cumul d'heures de points tenus, puis le
  * territoire.
  */
+/**
+ * **Un point neutre est gardé** (#616, ADR 0043) : la garnison naît dans le travail des objectifs,
+ * jamais dans `layPoint`, que les scènes de démo et les suites de règles appellent pour poser un
+ * point nu.
+ */
+describe('the garrison of a neutral point', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const commitNothing = async (t: Bench, seat: Seat) => {
+    const { seasonId } = await playerOf(t, seat);
+    await t.mutation(internal.objectives.commit, { seasonId, placements: [], gaps: [] });
+  };
+  const irregularOf = async (t: Bench) =>
+    (await t.run((ctx) => ctx.db.query('players').collect())).find(
+      (player) => player.irregular === true,
+    );
+  const garrisonOf = (t: Bench, point: Doc<'strategicPoints'>) =>
+    t.run(async (ctx) =>
+      (await ctx.db.query('troops').collect()).filter(
+        (troop) =>
+          typeof troop.stationedAt === 'object' &&
+          troop.stationedAt !== null &&
+          'lon' in troop.stationedAt &&
+          troop.stationedAt.lon === point.point.lon &&
+          troop.stationedAt.lat === point.point.lat,
+      ),
+    );
+  const ammunitionOf = async (t: Bench) => {
+    const irregular = await irregularOf(t);
+    return (await t.run((ctx) => ctx.db.query('resources').collect()))
+      .filter((row) => row.playerId === irregular!._id && row.key === 'ammunition')
+      .map((row) => row.stock);
+  };
+
+  it('is posted on all seven by the objectives job, even when it places no objective', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    await commitNothing(t, seat);
+
+    const irregular = await irregularOf(t);
+    for (const point of await pointsOf(t)) {
+      const garrison = await garrisonOf(t, point);
+      expect(garrison.map((troop) => [troop.role, troop.tier, troop.playerId])).toEqual(
+        POINT_GARRISON.map((unit) => [unit.role, unit.tier, irregular!._id]),
+      );
+    }
+    /** Une seule dotation, sur toutes les troupes posées : sans elle la garnison tire à sec. */
+    expect(await ammunitionOf(t)).toEqual([
+      7 * POINT_GARRISON.length * OBJECTIVE_AMMUNITION_PER_TROOP,
+    ]);
+  });
+
+  it('is posted once, however many times the job commits', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    await commitNothing(t, seat);
+    await commitNothing(t, seat);
+    const irregular = await irregularOf(t);
+    const posted = (await t.run((ctx) => ctx.db.query('troops').collect())).filter(
+      (troop) => troop.playerId === irregular!._id,
+    );
+    expect(posted).toHaveLength(7 * POINT_GARRISON.length);
+  });
+
+  it('comes with the objectives, and shares their one dotation', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    await t.action(internal.objectives.place, { seasonId: (await playerOf(t, seat)).seasonId });
+    const irregular = await irregularOf(t);
+    const posted = (await t.run((ctx) => ctx.db.query('troops').collect())).filter(
+      (troop) => troop.playerId === irregular!._id,
+    );
+    expect(posted.length).toBeGreaterThan(7 * POINT_GARRISON.length);
+    expect(await ammunitionOf(t)).toEqual([posted.length * OBJECTIVE_AMMUNITION_PER_TROOP]);
+  }, 60_000);
+
+  it('is not posted by layPoint, which scenes and rule suites call for a bare point', async () => {
+    const t = boot();
+    await launched(t);
+    expect(await garrisonOf(t, await pointCalled(t, 'lisbon'))).toEqual([]);
+  });
+
+  it('beats a column too small for it, which walks home and takes nothing', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    await commitNothing(t, seat);
+    const lisbon = await pointCalled(t, 'lisbon');
+    await capture(t, seat, await postedAt(t, seat, lisbon), lisbon);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    expect(await t.run((ctx) => ctx.db.query('captures').collect())).toEqual([]);
+    expect((await pointCalled(t, 'lisbon')).holderId).toBeNull();
+    expect((await garrisonOf(t, lisbon)).length).toBeGreaterThan(0);
+  });
+
+  it('falls to a column that keeps infantry standing, which then takes the point', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    await commitNothing(t, seat);
+    const lisbon = await pointCalled(t, 'lisbon');
+    const column: Array<Id<'troops'>> = [];
+    for (let rank = 0; rank < 20; rank += 1) column.push(await postedAt(t, seat, lisbon));
+    const sent = await t.mutation(api.movements.capture, {
+      ...seat,
+      origin: { kind: 'point', point: { lon: lisbon.point.lon + 0.3, lat: lisbon.point.lat } },
+      troopIds: column,
+      target: { kind: 'point', pointId: lisbon._id },
+    });
+    vi.advanceTimersByTime(sent.minutes * 60_000);
+    await t.finishInProgressScheduledFunctions();
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect((await pointCalled(t, 'lisbon')).holderId).toBe((await playerOf(t, seat))._id);
+    const irregular = await irregularOf(t);
+    expect(
+      (await garrisonOf(t, lisbon)).filter((troop) => troop.playerId === irregular!._id),
+    ).toEqual([]);
+  });
+
+  it('lets a column win and still take nothing when its infantry did not stay standing', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    await commitNothing(t, seat);
+    const lisbon = await pointCalled(t, 'lisbon');
+    const column: Array<Id<'troops'>> = [await postedAt(t, seat, lisbon)];
+    await t.run((ctx) => ctx.db.patch(column[0]!, { currentStrength: 1 }));
+    for (let rank = 0; rank < 12; rank += 1) column.push(await postedAt(t, seat, lisbon, 'armor'));
+    const sent = await t.mutation(api.movements.capture, {
+      ...seat,
+      origin: { kind: 'point', point: { lon: lisbon.point.lon + 0.3, lat: lisbon.point.lat } },
+      troopIds: column,
+      target: { kind: 'point', pointId: lisbon._id },
+    });
+    vi.advanceTimersByTime(sent.minutes * 60_000);
+    await t.finishInProgressScheduledFunctions();
+
+    const [fought] = await t.run((ctx) => ctx.db.query('engagements').collect());
+    expect(fought!.winner).toBe('attacker');
+    expect(fought!.troops.find((one) => one.troopId === column[0])!.state).not.toBe('standing');
+    expect(await t.run((ctx) => ctx.db.query('captures').collect())).toEqual([]);
+  });
+
+  it('is served to nobody: a point says who holds it and whether it is contested, no more', async () => {
+    const t = boot();
+    const { seat, guest } = await launched(t);
+    await commitNothing(t, seat);
+    for (const who of [seat, guest]) {
+      const served = await t.query(api.view.playerView, who);
+      expect(JSON.stringify(served.strategicPoints)).not.toMatch(/garrison|guard|troop/i);
+      expect(
+        JSON.stringify(served.notices.filter((notice) => notice.kind === 'pointsDrawn')),
+      ).not.toMatch(/garrison|infantry/i);
+    }
+  });
+});
+
 describe('winning the race', () => {
   beforeEach(() => {
     vi.useFakeTimers();
