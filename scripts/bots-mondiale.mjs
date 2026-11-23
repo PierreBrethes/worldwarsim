@@ -153,6 +153,13 @@ for (const [k, key] of KEYS.slice(0, bots).entries()) {
 }
 
 const first = (error) => String(error).split('\n')[0];
+/** Le backend écrit « [Request ID] Server Error » puis la cause à la ligne suivante : une lecture refusée dit tout, sur une ligne. */
+const whole = (error) =>
+  String(error)
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(' — ');
 const lobbyOf = async () => {
   try {
     return await client.query(api.seasons.lobby, { token: tokens[0], seasonId });
@@ -321,7 +328,7 @@ while (!stopped) {
       workshop = await client.query(api.troops.workshop, seat);
     } catch (error) {
       if (String(error).includes('SEASON_CONCLUDED')) stopped = true;
-      console.log(`${name} : lecture refusée (${first(error)})`);
+      console.log(`${name} : lecture refusée (${whole(error)})`);
       continue;
     }
     let orders;
