@@ -123,6 +123,7 @@ const WIPE_BATCH = 200;
 
 /** Jobs per transaction: each cancel is a system operation, and 200 overran the cap on a loaded base. */
 const JOBS_PAGE = 50;
+const SEASONS_PAGE = 200;
 
 /** One batch of one game table; `more` says whether the table still holds documents. */
 export const wipeBatch = internalMutation({
@@ -350,19 +351,26 @@ export const backfillListeningSilent = internalMutation({
  * jusqu'à l'arrivée de celle-ci. Planifie une saison par mutation (`backfillOutpostServingOf`),
  * qui relit ses mouvements en route comme le faisait la vue. Idempotente.
  *
+ * Une page de saisons par appel, la suivante planifiée par lui : une mutation ne planifie pas plus
+ * de 1000 fonctions, et une base de démo dépasse les 1000 saisons.
+ *
  * `npx convex run dev:backfillOutpostServing`
  */
 export const backfillOutpostServing = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    let seasons = 0;
-    for (const season of await ctx.db.query('seasons').collect()) {
+  args: { cursor: v.optional(v.string()) },
+  handler: async (ctx, { cursor }) => {
+    const page = await ctx.db
+      .query('seasons')
+      .paginate({ cursor: cursor ?? null, numItems: SEASONS_PAGE });
+    for (const season of page.page)
       await ctx.scheduler.runAfter(0, internal.dev.backfillOutpostServingOf, {
         seasonId: season._id,
       });
-      seasons += 1;
-    }
-    return { seasons };
+    if (!page.isDone)
+      await ctx.scheduler.runAfter(0, internal.dev.backfillOutpostServing, {
+        cursor: page.continueCursor,
+      });
+    return { seasons: page.page.length, more: !page.isDone };
   },
 });
 

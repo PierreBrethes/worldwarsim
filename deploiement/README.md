@@ -91,7 +91,8 @@ jusqu'à son arrivée. Une fois, juste après la poussée, sur chaque déploieme
 npx convex run dev:backfillOutpostServing
 ```
 
-Elle rend `{ "seasons": N }` et planifie une relecture des mouvements en route par saison.
+Elle rend `{ "seasons": N, "more": … }` et planifie une relecture des mouvements en route par
+saison, puis la page de saisons suivante tant que `more` vaut `true`.
 **Idempotente**.
 
 ### Comptes — récupération administrateur
