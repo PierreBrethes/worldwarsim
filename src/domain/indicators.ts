@@ -249,21 +249,38 @@ function dueOf(label: MapLabel): number | null {
   return countdown?.dueAt ?? null;
 }
 
+/** The axis a token slides on along its edge: up and down on the sides, across on top and bottom. */
+export const slideAxisOf = (side: EdgeSide): 'x' | 'y' =>
+  side === 'left' || side === 'right' ? 'y' : 'x';
+
 /**
  * **Un nom au bord ne couvre pas ma colonne** (#376) : posé au-dessus des étiquettes, il cacherait
- * celle de ma colonne en route et son « rappeler ». Le haut où le poser : le sien s'il ne couvre
- * rien, sinon juste sous ce qu'il couvrait — ou juste dessus quand le pied de l'écran manque.
+ * celle de ma colonne en route et son « rappeler ». Le début où le poser, sur l'axe du bord
+ * (`slideAxisOf`) : le sien s'il ne couvre rien, sinon juste après ce qu'il couvrait — ou juste
+ * avant quand la fin de l'écran manque, sans jamais sortir par le début. Le jeton garde son bord
+ * et sa flèche : la bulle de pile en main (#623) se dégage de la même façon.
  */
 export function clearOfColumns(
   box: ScreenBox,
   columns: ReadonlyArray<ScreenBox>,
-  height: number,
+  extent: number,
+  axis: 'x' | 'y' = 'y',
 ): number {
+  const [start, end] = axis === 'y' ? (['top', 'bottom'] as const) : (['left', 'right'] as const);
   const covered = columns.filter((column) => boxesOverlap(column, box, 0));
-  if (covered.length === 0) return box.top;
-  const tall = box.bottom - box.top;
-  const below = Math.max(...covered.map((column) => column.bottom)) + 4;
-  return below + tall <= height
-    ? below
-    : Math.min(...covered.map((column) => column.top)) - 4 - tall;
+  if (covered.length === 0) return box[start];
+  const length = box[end] - box[start];
+  const after = Math.max(...covered.map((column) => column[end])) + 4;
+  return after + length <= extent
+    ? after
+    : Math.max(0, Math.min(...covered.map((column) => column[start])) - 4 - length);
+}
+
+/** @a-mesurer How long a token takes to close most of the way to its place (ms). */
+const GLIDE_MS = 80;
+
+/** One step of the glide, exponential so that a frame of any length lands it on its place. */
+export function glideToward(current: number, target: number, elapsed: number): number {
+  const next = target + (current - target) * Math.exp(-elapsed / GLIDE_MS);
+  return Math.abs(next - target) < 0.5 ? target : next;
 }
