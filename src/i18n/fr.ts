@@ -1650,6 +1650,18 @@ export const fr = {
     yourFlag: 'votre drapeau',
     yourNation: 'votre nation',
     takenBy: (nickname: string) => `prise par ${nickname}`,
+    /** The phone registry: the button on the row shown, and the status line that goes with it. */
+    take: (nation: Nation) => `Prendre ${theNation(nation)}`,
+    freeSay: (nation: Nation) => `${fr.nations[nation]} : libre, à prendre.`,
+    takenSay: (nation: Nation, nickname: string) =>
+      `${fr.nations[nation]} : déjà prise par ${nickname}. Premier arrivé, premier servi.`,
+    /** The four sheets of the phone map, the nation shown picks one (`phoneSheetOf`). */
+    phoneSheets: {
+      europe: 'Feuille d’Europe',
+      america: 'Feuille d’Amérique',
+      russia: 'Feuille de Russie',
+      asia: 'Feuille d’Asie',
+    },
     restFrom: 'repos dès',
     restLabel: 'début de votre plage de repos, heure locale',
     restUntil: (end: string) => `jusqu’à ${end} · publique`,

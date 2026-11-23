@@ -1102,3 +1102,157 @@
     flex-wrap: wrap;
   }
 }
+
+/* ---------- le registre des huit (téléphone, Mondiale) : une ligne par nation, sa fiche écrite ---------- */
+
+.os .sheet-name {
+  display: none;
+}
+
+.os .registry {
+  border-top: 2px solid var(--ink);
+}
+
+.os .registry .row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
+}
+
+.os .registry .row.look {
+  background: var(--paper-3);
+  box-shadow: inset 3px 0 0 var(--ink);
+}
+
+.os .registry .row.mine {
+  background: #f4e8cf;
+  box-shadow: inset 4px 0 0 var(--notable);
+}
+
+.os .registry .main {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: start;
+  min-height: 60px;
+  padding: 9px 4px;
+  border: 0;
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.os .registry .main .flag {
+  margin-top: 2px;
+}
+
+.os .registry .l1,
+.os .registry .l2 {
+  display: block;
+  font: 13px/1.35 var(--ui);
+}
+
+.os .registry .l2 {
+  margin-top: 3px;
+  color: var(--ink-soft);
+}
+
+.os .registry i {
+  margin: 0 6px;
+  font-style: normal;
+  color: var(--ink-note);
+}
+
+.os .registry .nm {
+  margin-right: 8px;
+  font: 800 15px var(--display);
+}
+
+.os .registry .cap,
+.os .registry .classic {
+  font: 700 14px var(--display);
+}
+
+.os .registry .atout {
+  font: 700 14px var(--display);
+  color: var(--critical-paper);
+}
+
+.os .registry em:not(.stamp-s) {
+  font: italic 13px var(--text);
+}
+
+.os .registry .k {
+  margin-right: 3px;
+  font: 600 9.5px var(--ui);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-note);
+}
+
+.os .registry .taken .flag {
+  opacity: 0.45;
+}
+
+.os .registry .taken .nm {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.os .registry .stamp-s {
+  grid-column: 2;
+  justify-self: start;
+  margin-top: 5px;
+  padding: 2px 5px;
+  border: 1.5px solid var(--critical-paper);
+  color: var(--critical-paper);
+  font: 700 9px/1 var(--ui);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transform: rotate(-3deg);
+}
+
+.os .registry .take {
+  margin: 0 4px 9px;
+  min-height: 46px;
+}
+
+@media (max-width: 760px) {
+  /* Registre : la carte passe avant lui et reste collée sous la manchette pendant qu'il défile. */
+  .os .sl[data-registry] .sl-map {
+    position: sticky;
+    z-index: 4;
+    /* @a-mesurer la hauteur de la manchette collée (73 px), plus son décalage de 6 px. */
+    top: 79px;
+    order: 2;
+    height: 190px;
+  }
+
+  .os .sl[data-registry] .sl-dock {
+    order: 3;
+  }
+
+  .os .sl[data-registry] .sl-side {
+    order: 4;
+  }
+
+  /* Le nom de la feuille remplace la fiche : la ligne du registre la dit déjà. */
+  .os .sl[data-registry] .sl-map.desk .cartouche {
+    display: none;
+  }
+
+  .os .sl-map .sheet-name {
+    position: absolute;
+    z-index: 2;
+    bottom: 8px;
+    left: 8px;
+    display: block;
+    padding: 3px 7px;
+    border: 1px solid var(--ink);
+    background: var(--paper-3);
+    font: italic 500 13px var(--display);
+  }
+}

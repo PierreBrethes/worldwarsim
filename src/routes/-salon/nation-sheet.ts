@@ -81,6 +81,40 @@ export function salonBoxOf(size: { readonly width: number; readonly height: numb
   ];
 }
 
+export type PhoneSheet = 'europe' | 'america' | 'russia' | 'asia';
+
+const PHONE_SHEET_OF: Record<Nation, PhoneSheet> = {
+  france: 'europe',
+  uk: 'europe',
+  germany: 'europe',
+  italy: 'europe',
+  usa: 'america',
+  ussr: 'russia',
+  japan: 'asia',
+  china: 'asia',
+};
+
+/** @a-mesurer the four sheets of the phone map, west south east north, in degrees. */
+const PHONE_BOX: Record<PhoneSheet, Box> = {
+  europe: [-16, 33, 46, 72],
+  america: [-128, 22, -48, 62],
+  russia: [8, 30, 150, 76],
+  asia: [66, 0, 150, 56],
+};
+
+/** The whole world 1940, when no nation is shown (the maquette's, the southern ocean dropped). */
+const PHONE_WORLD_BOX: Box = [-125, -8, 165, 76];
+
+/** The sheet a phone map falls back on for a nation; none for none. */
+export const phoneSheetOf = (nation: Nation | null): PhoneSheet | null =>
+  nation === null ? null : PHONE_SHEET_OF[nation];
+
+/** The phone map's box: the sheet of the nation shown, the world 1940 otherwise. */
+export function phoneBoxOf(nation: Nation | null): Box {
+  const sheet = phoneSheetOf(nation);
+  return sheet === null ? PHONE_WORLD_BOX : PHONE_BOX[sheet];
+}
+
 /** Where each point's name sits against its ring: anchor, then dx, dy in ring radii. */
 const LABEL_AT: Record<StrategicPointKey, readonly ['start' | 'end', number, number]> = {
   tangier: ['end', -1.5, 1.6],

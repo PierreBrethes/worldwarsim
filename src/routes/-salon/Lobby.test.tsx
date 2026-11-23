@@ -15,6 +15,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { fr } from '@/i18n/fr';
 import { invitationUrl } from '@/domain/off-season';
 import type { Seat } from '@/data/session';
+import { PHONE } from '@/shell/viewport';
 import { ConnectedLobby } from './Lobby';
 
 /** jsdom n'évalue aucune requête média et ne mesure rien. */
@@ -349,4 +350,68 @@ it('writes the chosen nation’s sheet when nothing is hovered, and keeps the Bl
   await screen.findByRole('radiogroup');
   expect(cartouche().textContent).toContain('Tokyo');
   expect(cartouche().textContent).toContain(fr.nationAssets.carrierDoctrine.name);
+});
+
+/** **Au téléphone** (sous 760 px) : le registre des huit remplace les jetons, un toucher regarde. */
+const onPhone = () =>
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query === PHONE || query === '(pointer: coarse)',
+    media: query,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+  }));
+const row = (nation: keyof typeof fr.table.shortNation) =>
+  screen.getByRole('radio', { name: new RegExp(`^${fr.nations[nation]}`) });
+
+it('on a phone, a touch reads a nation and only « Prendre » reserves it', async () => {
+  onPhone();
+  const { sent } = mount([
+    player('Pierre', { creator: true, nation: 'france' }),
+    player('Léa', { mine: true, nation: null }),
+  ]);
+
+  await screen.findByRole('radiogroup');
+  expect(screen.getAllByRole('radio')).toHaveLength(8);
+  expect(document.querySelector('.token')).toBeNull();
+  fireEvent.click(row('germany'));
+  expect(sent()).toEqual([]);
+  expect(document.querySelector('.sheet-name')?.textContent).toBe(fr.table.phoneSheets.europe);
+  expect(screen.getByText(fr.table.freeSay('germany'))).toBeTruthy();
+
+  fireEvent.click(screen.getByRole('button', { name: fr.table.take('germany') }));
+  await waitFor(() =>
+    expect(sent()).toEqual([['players:reserveNation', { ...SEAT, nation: 'germany' }]]),
+  );
+});
+
+it('on a phone, a second touch lets the nation go, and a taken one offers nothing', async () => {
+  onPhone();
+  const { sent } = mount([
+    player('Pierre', { creator: true, nation: 'france' }),
+    player('Léa', { mine: true, nation: null }),
+  ]);
+
+  await screen.findByRole('radiogroup');
+  fireEvent.click(row('japan'));
+  expect(screen.getByRole('button', { name: fr.table.take('japan') })).toBeTruthy();
+  fireEvent.click(row('japan'));
+  expect(screen.queryByRole('button', { name: fr.table.take('japan') })).toBeNull();
+  expect(document.querySelector('.sheet-name')?.textContent).toBe(fr.table.world1940);
+
+  fireEvent.click(row('france'));
+  expect(screen.queryByRole('button', { name: fr.table.take('france') })).toBeNull();
+  expect(screen.getByText(fr.table.takenSay('france', 'Pierre'))).toBeTruthy();
+  expect(sent()).toEqual([]);
+});
+
+it('on a phone, a nation already mine offers no « Prendre »', async () => {
+  onPhone();
+  mount([
+    player('Pierre', { creator: true, nation: 'france' }),
+    player('Léa', { mine: true, nation: 'japan' }),
+  ]);
+
+  await screen.findByRole('radiogroup');
+  fireEvent.click(row('japan'));
+  expect(screen.queryByRole('button', { name: fr.table.take('japan') })).toBeNull();
 });

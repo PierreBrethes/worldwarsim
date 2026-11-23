@@ -52,9 +52,9 @@ import { DestroyButton } from '@/shell/DestroyButton';
 import { LaunchSequence } from '@/shell/LaunchSequence';
 import { Wordmark } from '@/shell/Masthead';
 import { notify } from '@/shell/notifications';
-import { NARROW, useCoarsePointer } from '@/shell/viewport';
+import { NARROW, useCoarsePointer, usePhoneScreen } from '@/shell/viewport';
 import { CompassRoseMark, EngravedMap, WORLD_BOX, projectOn } from '@/emblems/EngravedMap';
-import { marksOf, salonBoxOf, sheetOf, tintsOf } from './nation-sheet';
+import { marksOf, phoneBoxOf, phoneSheetOf, salonBoxOf, sheetOf, tintsOf } from './nation-sheet';
 import { FlagChip, OffSeasonPage, boxOf, localInput } from '@/shell/OffSeason';
 import { TelegraphPanel, useReadOnUnmount, useTelegraphTabs } from '@/shell/TelegraphPanel';
 import './lobby.css';
@@ -139,6 +139,7 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
   const { run, pending } = useSingleFlight();
   const now = useClock(15_000);
   const finger = useCoarsePointer();
+  const phone = usePhoneScreen();
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   /** The token under the pointer or the focus: the desk map writes its sheet. */
@@ -224,7 +225,20 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
         launchRefusal: plan.refusal,
       })
     : null;
-  const status = step === null ? '' : statusOf({ lobby, step, plan, now, founderNick });
+  /** A Mondiale on a phone reads its eight nations in a registry; a touch only looks. */
+  const registry = phone && !blitz;
+  const looked =
+    !registry || look === null
+      ? undefined
+      : lobby.players.find((p) => p.nation === look && !p.mine);
+  const status =
+    step === null
+      ? ''
+      : registry && look !== null && looked !== undefined
+        ? fr.table.takenSay(look, looked.nickname)
+        : registry && look !== null && step === 'nation'
+          ? fr.table.freeSay(look)
+          : statusOf({ lobby, step, plan, now, founderNick });
 
   /**
    * **Inviter tient en un geste** : au doigt, la feuille de partage du téléphone ; à la souris,
@@ -266,7 +280,7 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
   };
 
   return (
-    <div className="sl" data-step={step ?? undefined}>
+    <div className="sl" data-step={step ?? undefined} data-registry={registry || undefined}>
       <header className="sl-bar">
         <Wordmark size={19} />
         <div className="sl-title">
@@ -341,6 +355,7 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
         theatreBox={theatre === null ? null : boxOf(theatre.box)}
         meNation={lobby.me.nation}
         look={look}
+        phone={registry}
       />
 
       <section className="sl-dock" aria-labelledby="t-me">
@@ -348,39 +363,53 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
           <span className="eyebrow" id="t-me">
             {blitz ? fr.table.yourFlag : fr.table.yourNation}
           </span>
-          <div className="tokens" role="radiogroup" aria-labelledby="t-me">
-            {NATIONS.map((nation) => {
-              const holder = lobby.players.find(
-                (player) => player.nation === nation && player !== meRow,
-              );
-              const mine = lobby.me.nation === nation;
-              return (
-                <button
-                  key={nation}
-                  type="button"
-                  className={`token ${holder ? 'taken' : ''}`}
-                  role="radio"
-                  aria-checked={mine}
-                  aria-disabled={holder ? true : undefined}
-                  title={holder ? fr.table.takenBy(holder.nickname) : fr.nations[nation]}
-                  onMouseEnter={() => setLook(nation)}
-                  onMouseLeave={() => setLook(null)}
-                  onFocus={() => setLook(nation)}
-                  onBlur={() => setLook(null)}
-                  onPointerDown={() => setLook(nation)}
-                  onClick={() =>
-                    holder
-                      ? notify(fr.table.takenBy(holder.nickname), 'info')
-                      : act(() => reserve({ ...seat, nation: mine ? null : nation }))
-                  }
-                >
-                  <FlagChip nation={nation} width={36} />
-                  <span>{fr.table.shortNation[nation]}</span>
-                  {holder && <em>{holder.nickname}</em>}
-                </button>
-              );
-            })}
-          </div>
+          {registry ? (
+            <Registry
+              lobby={lobby}
+              look={look}
+              onLook={(nation) => setLook(look === nation ? null : nation)}
+              onTake={(nation) =>
+                act(async () => {
+                  await reserve({ ...seat, nation });
+                  setLook(null);
+                })
+              }
+            />
+          ) : (
+            <div className="tokens" role="radiogroup" aria-labelledby="t-me">
+              {NATIONS.map((nation) => {
+                const holder = lobby.players.find(
+                  (player) => player.nation === nation && player !== meRow,
+                );
+                const mine = lobby.me.nation === nation;
+                return (
+                  <button
+                    key={nation}
+                    type="button"
+                    className={`token ${holder ? 'taken' : ''}`}
+                    role="radio"
+                    aria-checked={mine}
+                    aria-disabled={holder ? true : undefined}
+                    title={holder ? fr.table.takenBy(holder.nickname) : fr.nations[nation]}
+                    onMouseEnter={() => setLook(nation)}
+                    onMouseLeave={() => setLook(null)}
+                    onFocus={() => setLook(nation)}
+                    onBlur={() => setLook(null)}
+                    onPointerDown={() => setLook(nation)}
+                    onClick={() =>
+                      holder
+                        ? notify(fr.table.takenBy(holder.nickname), 'info')
+                        : act(() => reserve({ ...seat, nation: mine ? null : nation }))
+                    }
+                  >
+                    <FlagChip nation={nation} width={36} />
+                    <span>{fr.table.shortNation[nation]}</span>
+                    {holder && <em>{holder.nickname}</em>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           {!blitz && isNation(lobby.me.nation) && (
             <div className="nfiche">
               <RestField seat={seat} declared={lobby.me.restWindow} onError={setError} />
@@ -625,6 +654,102 @@ function SeatCard({
   );
 }
 
+type Sheet = ReturnType<typeof sheetOf>;
+
+/** The two lines of a nation sheet, in the desk cartouche (`p`) and in a phone registry row (`span`). */
+function SheetLines({
+  sheet,
+  as: Tag = 'p',
+  name,
+}: {
+  sheet: Sheet;
+  as?: 'p' | 'span';
+  name?: string;
+}) {
+  return (
+    <>
+      <Tag className="l1">
+        {name !== undefined && <b className="nm">{name}</b>}
+        <b className="cap">{sheet.capital}</b>
+        <i>·</i>
+        {sheet.asset === null ? (
+          <>
+            <b className="classic">{fr.table.classicNation}</b> <em>{fr.table.classicRule}.</em>
+          </>
+        ) : (
+          <>
+            <b className="atout">{fr.nationAssets[sheet.asset].name}</b>{' '}
+            <em>{fr.nationAssets[sheet.asset].rule}.</em>
+          </>
+        )}
+      </Tag>
+      <Tag className="l2">
+        <span className="k">{fr.table.sheetNeighbours}</span>{' '}
+        {sheet.neighbours.length === 0
+          ? fr.table.sheetNoNeighbour
+          : sheet.neighbours.map((nation) => fr.table.shortNation[nation]).join(', ')}
+        <i>·</i>
+        <span className="k">{fr.table.sheetNearPoints}</span>{' '}
+        {sheet.nearPoints.length === 0
+          ? fr.table.sheetNoNearPoint
+          : sheet.nearPoints.map((key) => fr.points.names[key]).join(', ')}
+      </Tag>
+    </>
+  );
+}
+
+/**
+ * **The registry of the eight** (a Mondiale on a phone): a row a nation, its sheet written out.
+ * A touch looks (the map follows, a second touch lets go); only the button on the row shown
+ * reserves, and a taken nation or my own has none.
+ */
+function Registry({
+  lobby,
+  look,
+  onLook,
+  onTake,
+}: {
+  lobby: LobbyView;
+  look: Nation | null;
+  onLook: (nation: Nation) => void;
+  onTake: (nation: Nation) => void;
+}) {
+  return (
+    <div className="registry" role="radiogroup" aria-labelledby="t-me">
+      {NATIONS.map((nation) => {
+        const holder = lobby.players.find((player) => player.nation === nation && !player.mine);
+        const mine = lobby.me.nation === nation;
+        const sheet = sheetOf(nation, lobby.points ?? [], lobby.mode);
+        return (
+          <div
+            key={nation}
+            className={`row ${holder ? 'taken' : ''} ${look === nation ? 'look' : ''} ${mine ? 'mine' : ''}`}
+          >
+            <button
+              type="button"
+              className="main"
+              role="radio"
+              aria-checked={mine}
+              onClick={() => onLook(nation)}
+            >
+              <FlagChip nation={nation} width={36} />
+              <span>
+                <SheetLines sheet={sheet} as="span" name={fr.nations[nation]} />
+              </span>
+              {holder && <em className="stamp-s">{holder.nickname}</em>}
+            </button>
+            {look === nation && !holder && !mine && (
+              <button type="button" className="btn primary take" onClick={() => onTake(nation)}>
+                {fr.table.take(nation)}
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function TableMap({
   lobby,
   editing,
@@ -633,6 +758,7 @@ function TableMap({
   theatreBox,
   meNation,
   look,
+  phone,
 }: {
   lobby: LobbyView;
   editing: boolean;
@@ -641,6 +767,7 @@ function TableMap({
   theatreBox: readonly [number, number, number, number] | null;
   meNation: string | null;
   look: Nation | null;
+  phone: boolean;
 }) {
   const blitz = lobby.mode === 'blitz' && theatreBox !== null;
   const box2 = useRef<HTMLDivElement>(null);
@@ -658,13 +785,15 @@ function TableMap({
   const held = lobby.players.filter((player) => isNation(player.nation));
   const [lead, setLead] = useState<readonly [number, number, number, number] | null>(null);
   /** The desk map drops the southern ocean; the Blitz keeps its theatre. */
-  const box = useMemo(
-    () => theatreBox ?? (size === null ? WORLD_BOX : salonBoxOf(size)),
-    [theatreBox, size],
-  );
   /** Only a Mondiale writes the sheet of a nation; a Blitz keeps its cartouche. */
   const desk = lobby.mode !== 'blitz';
   const shown = !desk ? null : (look ?? (isNation(meNation) ? meNation : null));
+  /** A phone map follows the sheet of the nation shown instead of the whole desk. */
+  const box = useMemo(
+    () => theatreBox ?? (phone ? phoneBoxOf(shown) : size === null ? WORLD_BOX : salonBoxOf(size)),
+    [theatreBox, size, phone, shown],
+  );
+  const sheetKey = phoneSheetOf(shown);
   const sheet0 = shown === null ? null : sheetOf(shown, lobby.points ?? [], lobby.mode);
   const leadFrom = shown !== null && size !== null ? CAPITAL_BY_NATION[shown] : null;
   useLayoutEffect(() => {
@@ -721,6 +850,11 @@ function TableMap({
           labelPx={blitz ? 19 : 15}
         />
       </div>
+      {phone && (
+        <span className="sheet-name">
+          {sheetKey === null ? fr.table.world1940 : fr.table.phoneSheets[sheetKey]}
+        </span>
+      )}
       {editing && (
         <div className="thswitch" role="radiogroup" aria-label={fr.found.theatreTitle}>
           {[...THEATRES.map((theatre) => theatre.id as string), THEATRE_DRAW]
@@ -767,31 +901,7 @@ function TableMap({
               <em className="stamp-s">{fr.table.heldBy(holder.nickname)}</em>
             )}
           </h4>
-          <p className="l1">
-            <b className="cap">{sheet0.capital}</b>
-            <i>·</i>
-            {sheet0.asset === null ? (
-              <>
-                <b className="classic">{fr.table.classicNation}</b> <em>{fr.table.classicRule}.</em>
-              </>
-            ) : (
-              <>
-                <b className="atout">{fr.nationAssets[sheet0.asset].name}</b>{' '}
-                <em>{fr.nationAssets[sheet0.asset].rule}.</em>
-              </>
-            )}
-          </p>
-          <p className="l2">
-            <span className="k">{fr.table.sheetNeighbours}</span>{' '}
-            {sheet0.neighbours.length === 0
-              ? fr.table.sheetNoNeighbour
-              : sheet0.neighbours.map((nation) => fr.table.shortNation[nation]).join(', ')}
-            <i>·</i>
-            <span className="k">{fr.table.sheetNearPoints}</span>{' '}
-            {sheet0.nearPoints.length === 0
-              ? fr.table.sheetNoNearPoint
-              : sheet0.nearPoints.map((key) => fr.points.names[key]).join(', ')}
-          </p>
+          <SheetLines sheet={sheet0} />
         </div>
       )}
       {desk && (

@@ -19,6 +19,11 @@ export const NARROW = `(max-width: ${NARROW_MAX_WIDTH}px)`;
  */
 export const COARSE = '(pointer: coarse)';
 
+/** The lobby's phone column (`lobby.css`, `max-width: 760px`): the registry replaces the tokens. */
+export const PHONE = '(max-width: 760px)';
+
+export const usePhoneScreen = (): boolean => useMedia(PHONE);
+
 export const useNarrowScreen = (): boolean => useMedia(NARROW);
 
 export const useCoarsePointer = (): boolean => useMedia(COARSE);

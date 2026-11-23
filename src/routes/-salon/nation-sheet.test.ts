@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { WORLD_BOX } from '@/emblems/EngravedMap';
-import { salonBoxOf, sheetOf, tintsOf } from './nation-sheet';
+import { phoneBoxOf, phoneSheetOf, salonBoxOf, sheetOf, tintsOf } from './nation-sheet';
 
 const SEVEN = [
   'tangier',
@@ -54,4 +54,17 @@ it('narrows the world box to the north and follows the frame height', () => {
   expect(box[3]).toBe(WORLD_BOX[3]);
   expect(salonBoxOf({ width: 1000, height: 300 })[1]).toBeGreaterThan(box[1]);
   expect(salonBoxOf({ width: 1000, height: 2000 })[1]).toBe(WORLD_BOX[1]);
+});
+
+it('gives each nation the sheet of its world, and the whole world to none', () => {
+  expect(phoneSheetOf('france')).toBe('europe');
+  expect(phoneSheetOf('uk')).toBe('europe');
+  expect(phoneSheetOf('germany')).toBe('europe');
+  expect(phoneSheetOf('italy')).toBe('europe');
+  expect(phoneSheetOf('usa')).toBe('america');
+  expect(phoneSheetOf('ussr')).toBe('russia');
+  expect(phoneSheetOf('china')).toBe('asia');
+  expect(phoneSheetOf('japan')).toBe('asia');
+  expect(phoneSheetOf(null)).toBeNull();
+  expect(phoneBoxOf(null)).not.toEqual(phoneBoxOf('france'));
 });
