@@ -23,7 +23,7 @@ describe('swayOf', () => {
 
   it('rolls a hull wherever it floats', () => {
     expect(swayOf('hull', 1, false).roll).not.toBe(0);
-    expect(Math.abs(swayOf('hull', 1, true).roll)).toBeLessThanOrEqual(0.04);
+    expect(Math.abs(swayOf('hull', 1, true).roll)).toBeLessThanOrEqual(0.08);
   });
 
   it('banks a wing into its turn, never past the widest bank, and flies a line level', () => {

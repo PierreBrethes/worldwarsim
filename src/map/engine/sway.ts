@@ -3,8 +3,9 @@ import type { UnitRole } from '@/domain/ids';
 /**
  * **How a piece of mine rides its road** (proposition `table-etat-major`, lot « vie des
  * pièces »): a vehicle on tracks or wheels pitches and jolts, a hull rolls and heaves, a wing
- * banks into its turns. Infantry walks without either. Amplitudes and frequencies are the
- * prototype's (`table-etat-major.html`, `step`), in radians and in model units.
+ * banks into its turns. Infantry walks without either. Frequencies are the prototype's
+ * (`table-etat-major.html`, `step`); the jolt and the roll are twice its amplitudes (#538), which
+ * moved a tank's nose by half a pixel at the closest zoom. Radians and model units.
  */
 export type Gait = 'rolling' | 'hull' | 'wing';
 
@@ -42,13 +43,13 @@ export function swayOf(gait: Gait | null, time: number, moving: boolean, turn = 
     case 'rolling':
       return moving
         ? {
-            pitch: Math.sin(time * 15) * 0.025,
+            pitch: Math.sin(time * 15) * 0.05,
             roll: 0,
-            lift: Math.abs(Math.sin(time * 15)) * 0.03,
+            lift: Math.abs(Math.sin(time * 15)) * 0.06,
           }
         : STILL;
     case 'hull':
-      return { pitch: 0, roll: Math.sin(time * 1.3) * 0.04, lift: Math.sin(time * 1.7) * 0.05 };
+      return { pitch: 0, roll: Math.sin(time * 1.3) * 0.08, lift: Math.sin(time * 1.7) * 0.1 };
     case 'wing':
       return {
         pitch: 0,
