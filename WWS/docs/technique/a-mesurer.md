@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : c80c934 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 90ec7b3 -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ règle existe et se lise, jamais pour équilibrer quoi que ce soit. Ni une dette
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-164 valeurs marquées dans `convex/` et `src/domain/`.
+165 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `FACTORY_LINES` et leurs voisines : l'en-tête de `convex/constants.ts` les
@@ -124,6 +124,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `QUEUE_MAX` | `6` | `src/domain/front-sound.ts:148` | six en file, trois au retour, six secondes entre deux phrases (maquette D) |
 | `HEARD_ON_RETURN` | `3` | `src/domain/front-sound.ts:149` | six en file, trois au retour, six secondes entre deux phrases (maquette D) |
 | `PHRASE_GAP_MS` | `6_000` | `src/domain/front-sound.ts:150` | six en file, trois au retour, six secondes entre deux phrases (maquette D) |
+| `GLIDE_MS` | `80` | `src/domain/indicators.ts:280` | How long a token takes to close most of the way to its place (ms). |
 | `FLAG_SWAP_MS` | `1600` | `src/domain/ink-bursts.ts:72` | `storyboard-moments/commun/scenes.js`, un des Sept — le drapeau descend puis |
 | `SEAL_HOLD_MS` | `3400` | `src/domain/ink-bursts.ts:73` | `storyboard-moments/commun/scenes.js`, un des Sept — le drapeau descend puis |
 | `TWIN_DEGREES` | `0.5` | `src/domain/ink-bursts.ts:76` | la capture que la prise d'un point ou la chute d'un QG dit déjà, au même instant |
