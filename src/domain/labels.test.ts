@@ -182,6 +182,25 @@ describe('buildLabels', () => {
     expect(label?.lines.at(-1)).toMatchObject({ role: 'capture', side: 'capturer' });
   });
 
+  /** **Gelée faute de vivres** (ADR 0044, #622) : la ligne le porte, et seulement alors. */
+  it('marks the gauge of a suspended capture, and no other', () => {
+    const capture = {
+      id: 'c-4',
+      side: 'capturer' as const,
+      target: { kind: 'building' as const, id: 'b-9' },
+      site: { kind: 'building' as const, building: 'mine' as const, regionId: 'RUS-2335' },
+      regionName: 'Pskov',
+      point: [28, 57] as const,
+      clock: { progress: 1, at: LOADED_AT, rate: 1, durationMs: 3_600_000, rest: null },
+      completesAt: LOADED_AT - 1,
+      stoppedAt: null,
+    };
+    const lineOf = (c: typeof capture & { suspended?: boolean }) =>
+      buildLabels(viewWith([], [c]), [])[0]?.lines.at(-1);
+    expect(lineOf({ ...capture, suspended: true })).toMatchObject({ suspended: true });
+    expect(lineOf(capture)).not.toHaveProperty('suspended');
+  });
+
   it('prints neither type nor composition of an unidentified enemy movement', () => {
     const [label] = buildLabels(viewWith([detectedArc({})]), []);
     expect(label?.type).toBe('intel');

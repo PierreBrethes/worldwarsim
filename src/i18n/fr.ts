@@ -554,6 +554,10 @@ export const fr = {
     endsAt: (percent: number, hour: string) => `${percent} % · fin vers ${hour}`,
     lostAt: (percent: number, hour: string, hq = false) =>
       `${percent} % · ${hq ? 'QG perdu' : 'perdu'} vers ${hour}`,
+    /** **Gelée à 100 % faute de vivres** (ADR 0044) : lue du seul capteur. */
+    suspended: 'suspendue : l’armée a faim',
+    /** **Due, pas encore conclue** : ce que lit le défenseur, qui ne sait rien de la famine. */
+    concluding: (percent: number) => `${percent} % · en cours de conclusion`,
     underCapture: 'en cours de capture',
     underCaptureWhy: (hour: string) =>
       `Une infanterie adverse tient le site : il change de main vers ${hour} si personne ne l’en chasse. Le combat ne remet rien à zéro — il faut tuer ou chasser toute l’infanterie qui capture.`,
@@ -3792,6 +3796,8 @@ export const fr = {
      *  la part de mer quand le trajet en a une. */
     distance: (km: number, span: string) => `≈ ${km} km · ${span}`,
     distanceSea: (km: number) => `dont ${km} km de mer`,
+    /** **Pourquoi la durée est doublée** (ADR 0044) : une armée affamée marche au pas. */
+    starvingPace: 'au pas : l’armée a faim',
     pursuit: 'poursuite',
     /**
      * **Ce que les liaisons ont pris sur le trajet** (ADR 0037 §8). Une route plus courte que

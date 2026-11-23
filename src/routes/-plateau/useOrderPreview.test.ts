@@ -89,6 +89,16 @@ describe('the length of the road, said under the hand (#302)', () => {
     expect(said(dry as NonNullable<Previewed>)[1]).toBe('vos Magasins en route : 1 cran de plein');
   });
 
+  /** **La faim se dit à la visée** (ADR 0044, #622) : la durée affichée est déjà doublée, et la
+   *  ligne dit pourquoi. */
+  it('says a hungry army marches at half pace, and nothing for a fed one', () => {
+    const hungry = { ...road(5.77, 0, 400, 640), slow: true } as NonNullable<Previewed>;
+    expect(said(hungry)).toEqual(['≈ 640 km · 6 h 40', 'au pas : l’armée a faim']);
+    expect(said({ ...hungry, slow: false } as NonNullable<Previewed>)).toEqual([
+      '≈ 640 km · 6 h 40',
+    ]);
+  });
+
   it('says nothing for a grouped order: the line would hold for the pile in hand only', () => {
     expect(said(road(5.77, 0, 200), { grouped: true, blitz: false })).toEqual([]);
   });

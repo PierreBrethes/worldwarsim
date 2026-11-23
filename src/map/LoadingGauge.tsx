@@ -82,18 +82,28 @@ export function CaptureGauge({
   hq = false,
   clock,
   completesAt,
+  suspended = false,
 }: {
   side: 'capturer' | 'defender';
   /** Un QG de Blitz : sa chute élimine, et le défenseur le lit « QG perdu vers ». */
   hq?: boolean;
   clock: CaptureClock;
   completesAt: number;
+  /** **Gelée faute de vivres** (ADR 0044) : dite en toutes lettres, sans survol. */
+  suspended?: boolean;
 }) {
-  const share = progressAt(clock, useClock());
+  const now = useClock();
+  const share = suspended ? 1 : progressAt(clock, now);
   const percent = Math.floor(share * 100);
   const hour = asClockTime(completesAt);
-  const said =
-    side === 'capturer' ? fr.capture.endsAt(percent, hour) : fr.capture.lostAt(percent, hour, hq);
+  /** **Une échéance dépassée n'est pas un retard** : le défenseur ne sait pas pourquoi elle l'est. */
+  const said = suspended
+    ? fr.capture.suspended
+    : completesAt <= now
+      ? fr.capture.concluding(percent)
+      : side === 'capturer'
+        ? fr.capture.endsAt(percent, hour)
+        : fr.capture.lostAt(percent, hour, hq);
   /** No hover on a phone: the poster never opens, so the label keeps its words there. */
   const narrow = useNarrowScreen();
   return (
@@ -115,7 +125,7 @@ export function CaptureGauge({
         />
       </svg>
       <span className="capture-stamp">{fr.capture.stamp}</span>
-      {narrow && <span>{said}</span>}
+      {(narrow || suspended) && <span>{said}</span>}
     </div>
   );
 }

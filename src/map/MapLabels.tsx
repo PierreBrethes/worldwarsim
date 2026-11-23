@@ -1638,6 +1638,7 @@ const LabelNode = memo(function LabelNode({
                   hq={isHqSite(line.site)}
                   clock={line.clock}
                   completesAt={line.completesAt}
+                  suspended={line.suspended === true}
                 />
               ) : (
                 <div

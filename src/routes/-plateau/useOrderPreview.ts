@@ -68,6 +68,7 @@ export function distanceNotesOf(
   return [
     { text: fr.aim.distance(total, asSpan(minutes)), alarm: false },
     ...(sea > 0 && sea < total ? [{ text: fr.aim.distanceSea(sea), alarm: false }] : []),
+    ...('slow' in preview && preview.slow ? [{ text: fr.aim.starvingPace, alarm: false }] : []),
     /** **Pourquoi la durée est courte** (ADR 0037 §8) : servi par chaque aperçu. */
     ...(preview.relayed > 0
       ? [{ text: fr.aim.relayed(RELAY_SPEED_MULTIPLIER, asSpan(preview.relayed)), alarm: false }]

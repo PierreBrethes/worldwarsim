@@ -50,8 +50,52 @@ describe('CaptureGauge', () => {
   beforeEach(() => phone(false));
   afterEach(() => vi.useRealTimers());
 
+  /** **Gelée à 100 % faute de vivres** (ADR 0044, #622) : le mot reste lisible sans survol. */
+  it('says a suspended capture waits for food, and fills the ring', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.UTC(2026, 9, 14, 14));
+    const clock = {
+      progress: 0.5,
+      at: Date.UTC(2026, 9, 14, 12),
+      rate: 1,
+      durationMs: 3_600_000,
+      rest: null,
+    };
+    const markup = renderToStaticMarkup(
+      <CaptureGauge
+        side="capturer"
+        suspended
+        clock={clock}
+        completesAt={Date.UTC(2026, 9, 14, 12, 30)}
+      />,
+    );
+    expect(markup).toContain('suspendue : l’armée a faim');
+    expect(markup).toContain('stroke-dasharray="1 1"');
+    expect(markup).not.toContain('fin vers');
+  });
+
+  /** **Le défenseur ne lit jamais la famine** : une capture due se lit « en cours de conclusion ». */
+  it('reads a capture past its hour as concluding, not as a late loss', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.UTC(2026, 9, 14, 14));
+    const clock = {
+      progress: 0.5,
+      at: Date.UTC(2026, 9, 14, 12),
+      rate: 1,
+      durationMs: 3_600_000,
+      rest: null,
+    };
+    const markup = renderToStaticMarkup(
+      <CaptureGauge side="defender" clock={clock} completesAt={Date.UTC(2026, 9, 14, 12, 30)} />,
+    );
+    expect(markup).toContain('aria-label="100 % · en cours de conclusion"');
+    expect(markup).not.toContain('perdu vers');
+  });
+
   it('keeps its words on a phone, which has no poster', () => {
     phone(true);
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000);
     const clock = { progress: 0.5, at: 0, rate: 1, durationMs: 3_600_000, rest: null };
     expect(
       renderToStaticMarkup(<CaptureGauge side="capturer" clock={clock} completesAt={3_600_000} />),

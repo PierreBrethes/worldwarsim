@@ -767,3 +767,24 @@ describe('the dispatches of the harvest brought back (#548)', () => {
     );
   });
 });
+
+/** **Une dépêche par motif, et la famine reste au capteur** (ADR 0044 §5, #622). */
+describe('a lifted capture', () => {
+  const lifted = (side: 'capturer' | 'defender', reason?: 'left' | 'gone' | 'starving') =>
+    journalDispatches([], null, [
+      {
+        kind: 'captureCancelled',
+        at: NOON,
+        side,
+        site: { kind: 'building', building: 'mine', regionId: 'RUS-2335' },
+        regionName: 'Pskov',
+        ...(reason === undefined ? {} : { reason }),
+      } as unknown as Notice,
+    ])[0]!.text;
+
+  it('tells the capturer his army came home hungry, and the defender only that it is lifted', () => {
+    expect(lifted('capturer', 'starving')).toContain('l’armée a faim');
+    expect(lifted('defender', 'starving')).not.toContain('faim');
+    expect(lifted('defender', 'starving')).toContain('est levée');
+  });
+});
