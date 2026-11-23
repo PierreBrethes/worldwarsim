@@ -33,13 +33,13 @@ import { useLayerSize } from './layer-size';
 export function ContactMarks({
   contacts,
   engine,
-  intel,
+  offscreen,
   ink,
 }: {
   contacts: ReadonlyArray<Contact>;
   engine: MapEngine | null;
   /** The « hors champ » layer: what folds a contact to the edge. */
-  intel: boolean;
+  offscreen: boolean;
   /** My nation's ink, for the cartouche's dot of mine. */
   ink: string | null;
 }) {
@@ -121,7 +121,7 @@ export function ContactMarks({
       held.push(rect);
     }
     engine.reserveNames(held);
-    const away = intel
+    const away = offscreen
       ? spots.flatMap((spot) => {
           if (!spot.away) return [];
           const edge = edgeOf(spot, width, height, edgeInsets.current);
@@ -139,7 +139,7 @@ export function ContactMarks({
       : [];
     const composed = cluster(away, width, height);
     setEdges((previous) => (edgeKey(previous) === edgeKey(composed) ? previous : composed));
-  }, [engine, size, intel, cardRect, insets]);
+  }, [engine, size, offscreen, cardRect, insets]);
 
   useEffect(() => {
     if (engine === null) return;

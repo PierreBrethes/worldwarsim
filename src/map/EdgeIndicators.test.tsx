@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { DEFAULT_TOGGLES } from '@/domain/indicators';
 import { fr } from '@/i18n/fr';
 import { BoardInsetsContext } from '@/shell/viewport';
 import { EdgeIndicators } from './EdgeIndicators';
@@ -86,5 +87,42 @@ describe('EdgeIndicators, the held object (#591)', () => {
   it('asks for a frame when it is born', () => {
     const { engine } = setup({ x: 200, y: 700 });
     expect(engine.invalidate).toHaveBeenCalled();
+  });
+});
+
+/** Les jetons d'une catégorie qui ne change rien sur la carte suivent la seule bascule
+ *  « hors champ » (#604) : éteinte, aucun jeton ; allumée, le jeton des forces revient. */
+describe('EdgeIndicators, the « hors champ » layer (#604)', () => {
+  const forces = { id: 'stack-1', type: 'stack', priority: 3, lines: [] } as never;
+
+  function tokens(offscreen: boolean) {
+    const engine = {
+      boardPointOfAnchor: vi.fn(() => null),
+      journeyTo: vi.fn(),
+      subscribeRest: () => () => {},
+      invalidate: vi.fn(),
+      onEdges: (() => {}) as (projections: unknown[]) => void,
+    };
+    const props = {
+      labels: [forces],
+      engine: engine as never,
+      destinations: new Map<string, string>(),
+    };
+    const view = render(
+      <EdgeIndicators {...props} toggles={{ ...DEFAULT_TOGGLES, offscreen: !offscreen }} />,
+    );
+    act(() =>
+      engine.onEdges([{ id: 'stack-1', atEdge: true, edgeX: 380, edgeY: 300, distance: 900 }]),
+    );
+    view.rerender(<EdgeIndicators {...props} toggles={{ ...DEFAULT_TOGGLES, offscreen }} />);
+    return view.container.querySelectorAll('.indicator--forces').length;
+  }
+
+  it('folds the forces off the edge while « hors champ » is off', () => {
+    expect(tokens(false)).toBe(0);
+  });
+
+  it('parks the forces at the edge once « hors champ » is on', () => {
+    expect(tokens(true)).toBe(1);
   });
 });

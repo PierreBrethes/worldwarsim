@@ -2294,7 +2294,7 @@ export function WorldMap({
       <ContactMarks
         contacts={contacts}
         engine={readyEngine}
-        intel={indicators.offscreen}
+        offscreen={indicators.offscreen}
         ink={playerNation === null ? null : nationInk(playerNation)}
       />
       <EdgeIndicators

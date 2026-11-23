@@ -36,7 +36,7 @@ function bannerAt(distance: number): boolean {
     onContacts: (() => {}) as (spots: unknown) => void,
   };
   const { queryByText } = render(
-    <ContactMarks contacts={[]} engine={engine as never} intel={false} ink={null} />,
+    <ContactMarks contacts={[]} engine={engine as never} offscreen={false} ink={null} />,
   );
   act(() => {
     engine.onContacts([]);
