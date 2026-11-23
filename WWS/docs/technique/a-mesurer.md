@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : f153396 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : c80c934 -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ règle existe et se lise, jamais pour équilibrer quoi que ce soit. Ni une dette
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-160 valeurs marquées dans `convex/` et `src/domain/`.
+164 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `FACTORY_LINES` et leurs voisines : l'en-tête de `convex/constants.ts` les
@@ -141,6 +141,10 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `OPEN_AFTER_MS` | `1600` | `src/domain/moments.ts:104` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
 | `STARTING_MOVEMENT_SLOTS` | `2` | `src/domain/movement-orders.ts:358` | deux, d'après la décision du 19/10, jamais joué |
 | `DISBAND_RING_SPANS` | `2.1` | `src/domain/movement-orders.ts:920` | assez pour que les pièces se lisent à part, assez peu pour rester à portée de soutien ; plafonné au camion, une coque y chevauche ses voisines |
+| `NEIGHBOR_REACH_KM` | `3500` | `src/domain/nation-brief.ts:7` | placeholders for the lobby sheet, not game rules. |
+| `NEAR_POINT_REACH_KM` | `3000` | `src/domain/nation-brief.ts:8` | placeholders for the lobby sheet, not game rules. |
+| `MAX_NEIGHBORS` | `3` | `src/domain/nation-brief.ts:9` | placeholders for the lobby sheet, not game rules. |
+| `MAX_NEAR_POINTS` | `2` | `src/domain/nation-brief.ts:10` | placeholders for the lobby sheet, not game rules. |
 | `MONDIALE_DURATION_DAYS` | `[3, 5, 7, 10, 14] as const` | `src/domain/operation-order.ts:37` | posées pour la saison test, aucune saison jouée à une autre durée que sept jours |
 | `REMINDER_MINUTES` | `15` | `src/domain/operation-order.ts:38` | posées pour la saison test, aucune saison jouée à une autre durée que sept jours |
 | `MIN_PIECE_SCALE` | `80` | `src/domain/piece-scale.ts:11` | recommandation du designer (POC de lisibilité, 23/10), Q3 ouverte à Pierre |
