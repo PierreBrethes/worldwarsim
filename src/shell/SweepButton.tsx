@@ -12,8 +12,8 @@ const SPECIES: ReadonlyArray<DepositKey> = ['coal', 'iron', 'food', 'oil'];
  * **« Sonder · espèce »** (#249, maquette `radar-gisements/choisie.html`) : un poussoir de la
  * réglette qui lance l'onde pour la dernière espèce, et son chevron qui ouvre la liste. S relance,
  * 1 à 4 choisissent dans la liste ouverte. Au téléphone (`icon`, #621), il se range au pied des
- * boutons de carte : l'icône de l'espèce seule, 44 × 44 px, son chevron dans l'angle, et sa liste
- * s'ouvre vers la droite et le haut. Pas d'appui long : le chevron est la seule entrée de la liste.
+ * boutons de carte : l'icône de l'espèce seule, 44 × 44 px, son chevron en pastille à sa gauche, et sa liste
+ * s'ouvre vers la gauche et le haut (la pile tient le bord droit). Pas d'appui long : le chevron est la seule entrée de la liste.
  */
 export function SweepButton({
   species,
@@ -64,7 +64,7 @@ export function SweepButton({
     <div
       role="menu"
       className={`hud paper-grain absolute z-[var(--z-band)] min-w-[210px] border border-[var(--ink)] py-[4px] shadow-[0_10px_24px_rgb(0_0_0/40%)] ${
-        icon ? 'bottom-[calc(100%+8px)] left-0' : 'top-[calc(100%+6px)] left-0'
+        icon ? 'right-0 bottom-[calc(100%+8px)]' : 'top-[calc(100%+6px)] left-0'
       }`}
     >
       <p className="mx-[10px] mt-[2px] mb-[4px] text-[9.5px] font-semibold tracking-[.14em] text-[var(--ink-soft)] uppercase">
@@ -97,39 +97,37 @@ export function SweepButton({
   if (icon) {
     return (
       <div ref={root} className="relative flex items-center">
-        <div className="relative h-[44px] w-[44px] shrink-0">
-          <button
-            type="button"
-            title={fr.sweep.launch(species)}
-            aria-label={fr.sweep.launch(species)}
-            onClick={() => {
-              setOpen(false);
-              onSweep(species);
-            }}
-            className="press paper-grain paper-hover float flex h-[44px] w-[44px] cursor-pointer items-center justify-center border border-[var(--ink)]"
-          >
-            <ResourcePlate resource={YIELD_OF[species]} height={24} boxed={false} />
-          </button>
-          <button
-            type="button"
-            title={fr.sweep.choose}
-            aria-label={fr.sweep.choose}
-            aria-expanded={open}
-            aria-haspopup="menu"
-            onClick={() => setOpen((was) => !was)}
-            className={`absolute right-0 bottom-0 h-[20px] w-[20px] cursor-pointer text-[11px] leading-none font-semibold ${open ? 'bg-[var(--ink)] text-[var(--paper)]' : ''}`}
-          >
-            ▾
-          </button>
-        </div>
         {status !== null && (
           <span
             role="status"
-            className="ml-[8px] border border-(color:--ink)/40 bg-[rgb(233_222_196/94%)] px-[7px] py-[3px] text-[12px] font-medium whitespace-nowrap text-[var(--ink-soft)]"
+            className="mr-[8px] border border-(color:--ink)/40 bg-[rgb(233_222_196/94%)] px-[7px] py-[3px] text-[12px] font-medium whitespace-nowrap text-[var(--ink-soft)]"
           >
             {status}
           </span>
         )}
+        <button
+          type="button"
+          title={fr.sweep.choose}
+          aria-label={fr.sweep.choose}
+          aria-expanded={open}
+          aria-haspopup="menu"
+          onClick={() => setOpen((was) => !was)}
+          className={`press float h-[44px] w-[32px] cursor-pointer border border-r-0 border-[var(--ink)] text-[12px] leading-none font-semibold ${open ? 'bg-[var(--ink)] text-[var(--paper)]' : 'paper-grain'}`}
+        >
+          ▾
+        </button>
+        <button
+          type="button"
+          title={fr.sweep.launch(species)}
+          aria-label={fr.sweep.launch(species)}
+          onClick={() => {
+            setOpen(false);
+            onSweep(species);
+          }}
+          className="press paper-grain paper-hover float flex h-[44px] w-[44px] cursor-pointer items-center justify-center border border-[var(--ink)]"
+        >
+          <ResourcePlate resource={YIELD_OF[species]} height={24} boxed={false} />
+        </button>
         {open && menu}
       </div>
     );

@@ -3872,7 +3872,7 @@ function BoardContent({
                 {narrow && sent === null && replay === null && (
                   <div
                     data-poster-floor
-                    className="absolute bottom-(--table-margin) left-(--table-margin) z-[var(--z-indicator)]"
+                    className="absolute bottom-(--table-margin) right-(--table-margin) z-[var(--z-indicator)]"
                     style={{ marginBottom: MAT_LIFT }}
                   >
                     <MapButtons
