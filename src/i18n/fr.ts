@@ -54,7 +54,6 @@ import type {
   Medium,
   MovementType,
   Nation,
-  PlayableRegion,
   RegionType,
   ResearchCard,
   ResourceKey,
@@ -458,12 +457,6 @@ export const fr = {
     depot: 'relève le plafond des cinq ressources — se pille',
     city: 'verse des fonds chaque minute à qui la tient — Blitz seulement',
   } satisfies Record<BuildingKey, string>,
-
-  playableRegions: {
-    europe: 'Europe',
-    'europe-med': 'Europe + Méditerranée + Moyen-Orient',
-    world: 'Monde',
-  } satisfies Record<PlayableRegion, string>,
 
   /** L'économie de la Blitz (lot 4) : une ressource, les fonds — jamais « argent ». */
   blitz: {
