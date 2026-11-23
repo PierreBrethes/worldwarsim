@@ -50,6 +50,7 @@ import {
   type Ground,
 } from './routing';
 import { fuelRefusalOf } from './supplies';
+import { tourHoldsSlot } from './tour-slot';
 import {
   marchingTroopIds,
   recruitRefusalOf,
@@ -341,8 +342,11 @@ const buildBarracks = ({ view, world, now }: BotContext): Desire[] => {
 
 const recruit = ({ view, workshop, now }: BotContext): Desire[] => {
   const site = workshop.facilities.find((facility) => facility.key === 'barracks');
-  const army = workshop.troopsInService + workshop.troopsQueued;
-  if (site === undefined || army >= BOT_ARMY_TARGET || army >= MONDIALE_TROOP_BOUND) return [];
+  const total = workshop.troopsInService + workshop.troopsQueued;
+  // La garnison d'un avant-poste ne repartira jamais : seule l'armée libre se compte contre la cible.
+  const holding = view.me.troops.filter((troop) => troop.stationedAt.kind === 'outpost').length;
+  const army = total - holding;
+  if (site === undefined || army >= BOT_ARMY_TARGET || total >= MONDIALE_TROOP_BOUND) return [];
   const trucks =
     workshop.roster.some((line) => line.role === 'landTransport') ||
     workshop.facilities.some((facility) =>
@@ -418,7 +422,9 @@ const hqOf = (view: PlayerView) => view.me.buildings.find((building) => building
 
 /**
  * Les camps relevés à moins de `BOT_HQ_ALERT_KM` du QG que la défense peut frapper (camp à terre,
- * route à pied), le plus proche d'abord : un camp naval ou coupé du QG ne retient ni l'avance ni la garnison.
+ * route à pied), le plus proche d'abord : un camp naval ou coupé du QG ne retient ni l'avance ni la
+ * garnison. Un camp perdu de vue n'est qu'une dernière position, gardée `LAST_KNOWN_HOURS` : il
+ * ne retient plus rien (#625).
  */
 function threatsOf(view: PlayerView, world: BotWorld) {
   const hq = hqOf(view);
@@ -426,7 +432,9 @@ function threatsOf(view: PlayerView, world: BotWorld) {
   return view.camps
     .filter(
       (camp) =>
-        camp.medium === 'land' && world.landRoute(hq.point, camp.point, ['infantry']) !== null,
+        !camp.lastKnown &&
+        camp.medium === 'land' &&
+        world.landRoute(hq.point, camp.point, ['infantry']) !== null,
     )
     .map((camp) => ({ camp, km: distanceKm(camp.point, hq.point) }))
     .filter(({ km }) => km <= BOT_HQ_ALERT_KM)
@@ -713,13 +721,33 @@ const RULES: ReadonlyArray<(context: BotContext) => Desire[]> = [
 const troopsOf = ({ args }: BotOrder): ReadonlyArray<string> =>
   'troopIds' in args ? args.troopIds : 'troopId' in args ? [args.troopId] : [];
 
-/** Les ordres qui prennent un slot de mouvement : `claimSlot` les refuse tous une fois le plafond atteint. */
+/** Les ordres qui prennent toujours un slot de mouvement (la tournée, selon son pays : `claimsSlot`). */
 const CLAIMS_A_SLOT: ReadonlySet<BotOrder['fn']> = new Set([
   'movements.attack',
   'movements.marchTo',
   'movements.enterGarrison',
-  'tours.start',
 ]);
+
+/**
+ * Cet ordre prend-il un slot ? Une tournée qui reste au pays n'en prend pas (`tourHoldsSlot`, #618) :
+ * le chargement est au QG et l'arrêt dans un dépôt dont le pays est celui de la nation ; un pays
+ * qu'on ne sait pas lire en prend un, comme le serveur.
+ */
+function claimsSlot({ view, world }: BotContext, order: BotOrder): boolean {
+  if (order.fn !== 'tours.start') return CLAIMS_A_SLOT.has(order.fn);
+  const hq = hqOf(view);
+  const depots = order.args.stops.map((id) =>
+    view.me.outposts.find((outpost) => outpost.id === id),
+  );
+  const home = isNation(view.me.nation) ? ADM0_BY_NATION[view.me.nation] : null;
+  return tourHoldsSlot(
+    [
+      hq === undefined ? null : (world.regionAt(hq.point)?.country ?? null),
+      ...depots.map((depot) => depot?.hostCountry ?? null),
+    ],
+    home,
+  );
+}
 
 /**
  * Les ordres du passage : les envies les plus fortes d'abord, `BOT_ORDERS_PER_TURN` au plus, sans
@@ -735,7 +763,7 @@ export function decideTurn(context: BotContext): BotOrder[] {
     if (chosen.length === BOT_ORDERS_PER_TURN) break;
     const troops = troopsOf(order);
     if (troops.some((id) => engaged.has(id))) continue;
-    if (CLAIMS_A_SLOT.has(order.fn)) {
+    if (claimsSlot(context, order)) {
       if (slots <= 0) continue;
       slots -= 1;
     }

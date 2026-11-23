@@ -109,7 +109,12 @@ const fullArmy: BotWorkshop = {
 const turn = (view: PlayerView, geography = world()) =>
   decideTurn({ view, workshop: fullArmy, world: geography, now: NOW } satisfies BotContext);
 
-const camp = (point: readonly [number, number]) => ({ id: 'camp-1', point, medium: 'land' });
+const camp = (point: readonly [number, number], lastKnown = false) => ({
+  id: 'camp-1',
+  point,
+  medium: 'land',
+  lastKnown,
+});
 
 describe('le bot facile défend son QG', () => {
   const near = [2.6, 49.2] as const;
@@ -252,6 +257,13 @@ describe('le bot facile avance', () => {
     expect(turn(inland, cut).map((order) => order.fn)).toEqual(['movements.marchTo']);
   });
 
+  it("n'attend pas un camp perdu de vue : sa dernière position périme, la défense n'y court pas", () => {
+    const near = [2.6, 49.2] as const;
+    const squad = [troop('t1', inBuilding('b-1')), troop('t2', inBuilding('b-1'))];
+    const gone = viewOf({ troops: squad }, { camps: [camp(near, true)] });
+    expect(turn(gone).map((order) => order.fn)).toEqual(['movements.marchTo']);
+  });
+
   it("ne garde qu'une marche par slot libre", () => {
     const near = [2.6, 49.2] as const;
     const view = viewOf(
@@ -266,6 +278,35 @@ describe('le bot facile avance', () => {
     expect(
       turn(viewOf({ ...view.me, slots: { total: 2, used: 0 } }, { camps: [camp(near)] })),
     ).toHaveLength(2);
+  });
+});
+
+describe('le bot facile recrute', () => {
+  const workshop = (facilities: BotWorkshop['facilities'], inService: number): BotWorkshop => ({
+    troopsInService: inService,
+    troopsQueued: 0,
+    facilities,
+    roster: [{ role: 'landTransport', count: 1 }],
+    grid: [{ role: 'infantry', unit: { costs: { steel: 5 } } }],
+  });
+  const site = [{ id: 'b-1', key: 'barracks' as const, queue: [] }];
+  const garrison = (id: string, outpostId: string) => troop(id, { kind: 'outpost', outpostId });
+
+  it("ne compte pas la garnison de ses avant-postes dans l'armée qui avance", () => {
+    const view = viewOf({
+      troops: [
+        troop('t1', inBuilding('b-1')),
+        garrison('g1', 'o-1'),
+        garrison('g2', 'o-1'),
+        garrison('g3', 'o-2'),
+        garrison('g4', 'o-2'),
+        troop('c1', inBuilding('b-1'), 'landTransport'),
+      ],
+    });
+    // Six troupes en service, mais quatre tiennent des points : l'armée libre est à deux.
+    expect(
+      decideTurn({ view, workshop: workshop(site, 6), world: world(), now: NOW }),
+    ).toMatchObject([{ fn: 'troops.recruit', args: { role: 'infantry' } }]);
   });
 });
 
@@ -401,6 +442,46 @@ describe('le bot facile ravitaille', () => {
     const free = troop('c2', inBuilding('hq-1'), 'landTransport');
     const orders = turn(viewOf({ troops: [stuffed, free], outposts: [outpost(10)] }));
     expect(orders).toMatchObject([{ fn: 'logistics.load', args: { troopId: 'c2' } }]);
+  });
+
+  describe('la tournée et le slot (#618)', () => {
+    const full = { total: 2, used: 2 };
+    const loaded = { ammunition: 20, oil: 0, coal: 0 };
+    const atHome = world({
+      regionAt: (point) =>
+        point === HQ_POINT
+          ? { id: 'FRA-0', country: 'FRA' }
+          : (regions.find((r) => r.point === point) ?? null),
+    });
+    const tour = (hostCountry: string) =>
+      turn(
+        viewOf({
+          troops: [lorry(inBuilding('hq-1'), loaded)],
+          outposts: [{ ...outpost(10), hostCountry }],
+          slots: full,
+        }),
+        atHome,
+      );
+
+    it("lance la tournée d'un dépôt au pays sans slot libre : elle n'en prend pas", () => {
+      expect(tour('FRA')).toEqual([{ fn: 'tours.start', args: { troopId: 'c1', stops: ['o-1'] } }]);
+    });
+
+    it("n'en lance pas vers un dépôt étranger sans slot libre : elle en tiendrait un", () => {
+      expect(tour('BEL')).toEqual([]);
+    });
+
+    it('lit un pays inconnu comme un slot pris', () => {
+      expect(
+        turn(
+          viewOf({
+            troops: [lorry(inBuilding('hq-1'), loaded)],
+            outposts: [outpost(10)],
+            slots: full,
+          }),
+        ),
+      ).toEqual([]);
+    });
   });
 
   it('ne bouge pas un camion en tournée', () => {
