@@ -130,6 +130,10 @@ section « Voir une partie Mondiale en local ».
    La capture ou le banc d'avant se prend dans un clone du scratchpad (`git clone --shared`,
    `node_modules` en lien symbolique, `.env.local` copié), jamais dans un worktree. Le checkout garde
    ton code, sans ancienne version d'un fichier remise le temps d'une capture.
+6. Un geste neuf de `scripts/gestes.mjs` passe dans la suite entière, pas seul : il cadre
+   lui-même son point de départ et trouve ses cibles à l'écran (`elementFromPoint`), sans
+   dépendre de la caméra laissée par le geste d'avant (19/11 : #586 et #593 passaient seuls et
+   cassaient la suite). Rien ne reste à la racine du dépôt : `git status` le dit avant le rapport.
 
 Fini quand chaque puce de **Ce que le joueur voit** apparaît sur une capture, aux deux tailles,
 au même cadrage que sa référence. Un état que la démo ne sait pas montrer devient une scène de
