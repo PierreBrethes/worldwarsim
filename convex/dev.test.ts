@@ -520,6 +520,63 @@ describe('dev.backfillListeningSilent', () => {
   });
 });
 
+describe('dev.backfillOutpostServing', () => {
+  /** Une base d'avant le champ : une colonne en route près d'un point qui ne la porte pas. */
+  it('writes on each outpost the columns on the road that serve it, and only those', async () => {
+    vi.useFakeTimers();
+    const { t, playerId } = await twoNations();
+    const { near, far, served } = await t.run(async (ctx) => {
+      const player = (await ctx.db.get(playerId))!;
+      const outpost = (lon: number) =>
+        ctx.db.insert('outposts', {
+          seasonId: player.seasonId,
+          playerId,
+          point: { lon, lat: 45 },
+          hostCountry: 'ROU',
+          level: 1,
+          foundedAt: Date.now() - 2,
+          disabledUntil: null,
+          immuneUntil: null,
+        });
+      const served = await ctx.db.insert('movements', {
+        seasonId: player.seasonId,
+        playerId,
+        type: 'march',
+        fromBuildingId: null,
+        target: { kind: 'point', point: { lon: 27, lat: 45 } },
+        from: { lon: 26, lat: 45 },
+        to: { lon: 27, lat: 45 },
+        hostCountry: 'ROU',
+        points: [
+          { lon: 26, lat: 45 },
+          { lon: 27, lat: 45 },
+        ],
+        legs: [{ medium: 'land', distanceUnits: 1 }],
+        distanceUnits: 1,
+        costUnits: 1,
+        troopIds: [],
+        departedAt: Date.now() - 1,
+        arrivesAt: Date.now() + 3_600_000,
+      });
+      return { near: await outpost(26), far: await outpost(40), served };
+    });
+
+    expect(await t.mutation(internal.dev.backfillOutpostServing, {})).toEqual({
+      seasons: 1,
+      more: false,
+    });
+    vi.runOnlyPendingTimers();
+    await t.finishInProgressScheduledFunctions();
+
+    const [nearRow, farRow] = await t.run((ctx) =>
+      Promise.all([ctx.db.get(near), ctx.db.get(far)]),
+    );
+    expect(nearRow!.servedBy).toEqual([served]);
+    expect(farRow!.servedBy).toEqual([]);
+    vi.useRealTimers();
+  });
+});
+
 describe('dev.takingScene', () => {
   /** La scène de #279 : deux raids tenus au site, qui s'achèvent à leur heure. */
   it('holds a plunder and a sabotage at their sites, and lets each complete on time', async () => {

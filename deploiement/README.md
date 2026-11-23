@@ -81,6 +81,20 @@ npx convex run dev:commissionHeapFull
 Elle rend `{ "players": N }` et planifie un `heapFull.commission` par belligérant : un tas déjà
 plein est marqué dit, **sans dépêche rétroactive** ; les autres planifient leur plein. **Idempotente**.
 
+### Avant-postes desservis — après le déploiement de #633
+
+Un avant-poste porte les colonnes en route qui le desservent (`outposts.servedBy`), lu « aucune »
+quand il manque : sans la migration, un point sous une colonne déjà partie se démantèlerait
+jusqu'à son arrivée. Une fois, juste après la poussée, sur chaque déploiement qui a des saisons :
+
+```bash
+npx convex run dev:backfillOutpostServing
+```
+
+Elle rend `{ "seasons": N, "more": … }` et planifie une relecture des mouvements en route par
+saison, puis la page de saisons suivante tant que `more` vaut `true`.
+**Idempotente**.
+
 ### Comptes — récupération administrateur
 
 Après un déploiement autorisé, un administrateur du backend peut exécuter la fonction

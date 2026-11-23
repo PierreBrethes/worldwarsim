@@ -16,10 +16,11 @@ import {
   carriesBuilding,
   groundOf,
   isLandingShore,
+  nearestCoast,
   regionOf,
   type CoastAsset,
 } from './coast';
-import { distanceKm, type LonLat } from './geo';
+import { destinationPoint, distanceKm, type LonLat } from './geo';
 import { RESOURCES, type BuildingKey, type ResourceKey, type UnitRole, type UnitTier } from './ids';
 import {
   deliverRefusalOf,
@@ -31,7 +32,9 @@ import {
   tourRefusalOf,
 } from './logistics';
 import {
+  boardingRefusalOf,
   captureOrderRefusalOf,
+  disembarkRefusalOf,
   foundingRefusal,
   freeSlotsOf,
   landCostOf,
@@ -55,6 +58,7 @@ import { tourHoldsSlot } from './tour-slot';
 import {
   marchingTroopIds,
   recruitRefusalOf,
+  seatsLeft,
   stationKeyOf,
   stationPointOf,
   type MarchStation,
@@ -111,6 +115,17 @@ export type BotOrder =
         readonly regionId: string | null;
         readonly troopIds: ReadonlyArray<string>;
       };
+    }
+  | {
+      readonly fn: 'movements.board';
+      readonly args: {
+        readonly troopIds: ReadonlyArray<string>;
+        readonly carrierId: string;
+      };
+    }
+  | {
+      readonly fn: 'movements.disembark';
+      readonly args: { readonly troopIds: ReadonlyArray<string> };
     }
   | {
       readonly fn: 'logistics.load';
@@ -171,7 +186,12 @@ export type BotWorld = {
   }>;
   /** La région au pôle le plus proche : le sol que le serveur tient sous un avant-poste fondé. */
   readonly nearestRegionId: (point: LonLat) => string | null;
+  /** Le point de la côte de mer ouverte de cette région le plus proche d'un point, à `withinKm` près. */
+  readonly coastNear: (point: LonLat, withinKm: number, regionId: string) => LonLat | null;
 };
+
+/** Un plafond de mémoire, pas une règle de jeu : les routes gardées par monde ; au-delà, la mémoire repart de zéro. */
+const ROUTE_MEMO = 5000;
 
 /** Le contenu des fichiers cuits (`public/*.json`) : le pilote les lit, `worldFrom` n'ouvre rien. */
 export type BotWorldFiles = {
@@ -190,6 +210,7 @@ export function worldFrom(files: BotWorldFiles): BotWorld {
   const coast = decodeCoast(files.coast, files.projection);
   const raster = decodeRegionRaster(files.regionGrid, files.projection);
   const { country, point: pole } = files.regionIndex;
+  const routes = new Map<string, { readonly km: number } | null>();
   const regions = Object.keys(pole).flatMap((id) =>
     country[id] === undefined ? [] : [{ id, country: country[id]!, point: pole[id]! }],
   );
@@ -200,10 +221,19 @@ export function worldFrom(files: BotWorldFiles): BotWorld {
     coastalAt: (point) => isLandingShore(grid, coast, point),
     walkableAt: (point) => isWalkableCell(grid, point),
     landRoute: (from, to, roles) => {
+      // La grille ne change pas : une route déjà cherchée se relit (un échec explore toute la grille, une traversée coûte des dizaines de ms).
+      const key = `${from.join(',')}>${to.join(',')}|${routeModeOf(roles)}|${landCostOf(roles)}`;
+      const known = routes.get(key);
+      if (known !== undefined) return known;
       const route = computeRoute(grid, from, to, routeModeOf(roles), landCostOf(roles));
-      return route === null ? null : { km: kmOf(route.distanceUnits) };
+      const found = route === null ? null : { km: kmOf(route.distanceUnits) };
+      if (routes.size >= ROUTE_MEMO) routes.clear();
+      routes.set(key, found);
+      return found;
     },
     regions,
+    coastNear: (point, withinKm, regionId) =>
+      nearestCoast(coast, point, withinKm, regionId)?.lonLat ?? null,
     nearestRegionId: (point) =>
       regions.reduce<{ id: string; km: number } | null>((best, region) => {
         const km = distanceKm(point, region.point);
@@ -247,12 +277,29 @@ const BOT_ADVANCE_CANDIDATES = 5;
 /** @a-mesurer : ce qu'un camion charge d'un coup, sous sa capacité et le stock. */
 const BOT_CONVOY_LOAD = 100;
 
+/** @a-mesurer : le port se cherche dans les régions nationales à ce rayon du QG, et sur leur côte à ce rayon de leur pôle. */
+const BOT_PORT_KM = 300;
+/** @a-mesurer : jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. */
+const BOT_LANDING_KM = 200;
+const BOT_LANDING_STEP_KM = 12.5;
+const BOT_LANDING_BEARINGS = 16;
+/** @a-mesurer : les plages essayées par point neutre, de la plus proche : la plus proche est souvent hors de portée du plein du cargo. */
+const BOT_LANDING_CANDIDATES = 80;
+/** @a-mesurer : les routes à pied cherchées par point neutre ; un échec explore toute la grille. */
+const BOT_LANDING_FOOT_TRIES = 6;
+
 const WANT_HQ = 1000;
 const WANT_DEFEND = 500;
 const WANT_FOUNDATION = 200;
 const WANT_FOUND = 150;
 const WANT_SUPPLY = 130;
 const WANT_POINT = 120;
+const WANT_BOARD = 125;
+const WANT_SAIL = 125;
+const WANT_DISEMBARK = 125;
+const WANT_GATHER = 110;
+const WANT_PORT = 95;
+const WANT_CARGO = 85;
 const WANT_BARRACKS = 100;
 const WANT_ADVANCE = 90;
 const WANT_RECRUIT = 80;
@@ -363,9 +410,42 @@ const buildBarracks = ({ view, world, now }: BotContext): Desire[] => {
 const freeArmyOf = (view: PlayerView, workshop: BotWorkshop): number =>
   workshop.troopsInService +
   workshop.troopsQueued -
-  view.me.troops.filter((troop) => troop.stationedAt.kind === 'outpost').length;
+  view.me.troops.filter((troop) => troop.stationedAt.kind === 'outpost').length -
+  cargoCount(view, workshop);
 
-const recruit = ({ view, workshop, now }: BotContext): Desire[] => {
+/** Les coques de transport, debout et en file : elles portent l'armée, elles n'en sont pas, et un cargo ne retient pas le recrutement des fusiliers qu'il emporte. */
+const cargoCount = (view: PlayerView, workshop: BotWorkshop): number =>
+  view.me.troops.filter((troop) => troop.role === 'cargo').length +
+  workshop.facilities.reduce(
+    (sum, facility) => sum + facility.queue.filter((batch) => batch.role === 'cargo').length,
+    0,
+  );
+
+/** Former une pièce à ce site : l'envie, ou le refus que le domaine dit. */
+function recruitCall(
+  { view, workshop, now }: BotContext,
+  site: BotWorkshop['facilities'][number],
+  role: UnitRole,
+  want: number,
+): Desire | { readonly refused: string } | null {
+  const unit = workshop.grid.find((line) => line.role === role)?.unit;
+  if (unit === undefined) return null;
+  const stocks = Object.fromEntries(
+    RESOURCES.map((key) => [key, currentStock(view.me.resources[key], view.loadedAt, now)]),
+  ) as Record<ResourceKey, number>;
+  const refusal = recruitRefusalOf(role, 1, site, {
+    researched: view.me.research.researched,
+    army: freeArmyOf(view, workshop),
+    siteQueue: site.queue.length,
+    costs: unit.costs,
+    stocks,
+  });
+  if (refusal !== null) return { refused: refusal.code };
+  return { want, order: { fn: 'troops.recruit', args: { buildingId: site.id, role, tier: 1 } } };
+}
+
+const recruit = (context: BotContext): Desire[] => {
+  const { view, workshop } = context;
   const site = workshop.facilities.find((facility) => facility.key === 'barracks');
   const total = workshop.troopsInService + workshop.troopsQueued;
   // Seule l'armée libre se compte contre la cible ; la borne du serveur compte tout.
@@ -377,25 +457,8 @@ const recruit = ({ view, workshop, now }: BotContext): Desire[] => {
       facility.queue.some((batch) => batch.role === 'landTransport'),
     );
   const role: UnitRole = trucks || army === 0 ? 'infantry' : 'landTransport';
-  const unit = workshop.grid.find((line) => line.role === role)?.unit;
-  if (unit === undefined) return [];
-  const stocks = Object.fromEntries(
-    RESOURCES.map((key) => [key, currentStock(view.me.resources[key], view.loadedAt, now)]),
-  ) as Record<ResourceKey, number>;
-  const refusal = recruitRefusalOf(role, 1, site, {
-    researched: view.me.research.researched,
-    army,
-    siteQueue: site.queue.length,
-    costs: unit.costs,
-    stocks,
-  });
-  if (refusal !== null) return [];
-  return [
-    {
-      want: WANT_RECRUIT,
-      order: { fn: 'troops.recruit', args: { buildingId: site.id, role, tier: 1 } },
-    },
-  ];
+  const call = recruitCall(context, site, role, WANT_RECRUIT);
+  return call === null || 'refused' in call ? [] : [call];
 };
 
 /** Des troupes libres d'un même rôle, posées à une même adresse que le bot sait quitter. */
@@ -596,6 +659,13 @@ function foundingCall(
 
 const foundOutpost = (context: BotContext): Desire[] =>
   squadsOf(context.view, 'infantry').flatMap((squad) => {
+    // La colonne qu'un insulaire vient de débarquer (#631) va sur son point plutôt que de se faire garnison ; un bot continental garde sa règle.
+    if (
+      squad.troops.length >= BOT_POINT_COLUMN &&
+      wantsSea(context) &&
+      reachablePoint(context, squad) !== undefined
+    )
+      return [];
     const call = foundingCall(context, squad);
     return call === 'refused' || call === 'short' ? [] : [call];
   });
@@ -794,6 +864,316 @@ const supply = (context: BotContext): Desire[] => {
   );
 };
 
+/**
+ * **Pourquoi un bot insulaire attend** (#631), en codes que le pilote traduit : ce qui manque à la
+ * traversée, le premier maillon de la chaîne port, cargo, colonne, plage.
+ */
+export type SeaWait =
+  | 'NO_BARRACKS'
+  | 'PORT_PENDING'
+  | 'PORT_BUSY'
+  | 'PORT_BILL'
+  | 'PORT_SITE'
+  | 'CARGO_PENDING'
+  | 'CARGO_REFUSED'
+  | 'SHORT_COLUMN'
+  | 'NO_PORT_ROUTE'
+  | 'NO_LANDING';
+
+const neutralPoints = (view: PlayerView) =>
+  view.strategicPoints.filter((point) => point.holder === null && !point.mine && !point.contested);
+
+const insularCache = new WeakMap<BotWorld, Map<string, boolean>>();
+
+/**
+ * Une nation insulaire : de son QG, aucune des `BOT_ADVANCE_CANDIDATES` régions étrangères les plus
+ * proches ne se joint à pied. La géographie ne bouge pas : la réponse se garde par monde et par QG.
+ */
+function isInsular({ view, world }: BotContext): boolean {
+  const hq = hqOf(view);
+  const home = homeOf(view);
+  if (hq === undefined || home === null) return false;
+  const key = `${home}@${hq.point.join(',')}`;
+  const known = insularCache.get(world) ?? new Map<string, boolean>();
+  insularCache.set(world, known);
+  const cached = known.get(key);
+  if (cached !== undefined) return cached;
+  const targets = world.regions
+    .filter((region) => region.country !== home)
+    .sort((a, b) => distanceKm(a.point, hq.point) - distanceKm(b.point, hq.point))
+    .slice(0, BOT_ADVANCE_CANDIDATES);
+  const insular =
+    targets.length > 0 &&
+    targets.every((region) => world.landRoute(hq.point, region.point, ['infantry']) === null);
+  known.set(key, insular);
+  return insular;
+}
+
+/** Le bot prend la mer : une île, et un point neutre que nul chemin à pied n'atteint. */
+const wantsSea = (context: BotContext): boolean =>
+  neutralPoints(context.view).length > 0 && isInsular(context);
+
+/** Les plages d'une côte près d'un point, de la plus proche : une cellule de côte où l'on marche. */
+function landingsNear(world: BotWorld, center: LonLat): LonLat[] {
+  const spots: LonLat[] = [];
+  for (let km = 0; km <= BOT_LANDING_KM; km += BOT_LANDING_STEP_KM)
+    for (let k = 0; k < (km === 0 ? 1 : BOT_LANDING_BEARINGS); k += 1) {
+      const at = km === 0 ? center : destinationPoint(center, km, (360 * k) / BOT_LANDING_BEARINGS);
+      if (
+        world.coastalAt(at) &&
+        world.groundAt(at) === 'land' &&
+        world.walkableAt(at) &&
+        world.regionAt(at) !== null
+      )
+        spots.push(at);
+    }
+  return spots;
+}
+
+/**
+ * Le port : parmi les côtes nationales à portée du QG que la pose accepte (par la même visée que le
+ * joueur), celle qui rapproche le plus d'un point neutre. Le plein d'un cargo borne la traversée
+ * (`FUEL_STEP_KM`) : un quai du mauvais côté de l'île la rend impossible.
+ */
+function portSite({ view, world }: BotContext): { regionId: string; point: LonLat } | null {
+  const hq = hqOf(view);
+  const home = homeOf(view);
+  if (hq === undefined || home === null) return null;
+  const reaches = reachesOf(view, () => 0);
+  const goals = neutralPoints(view);
+  // La mer n'est pas la ligne droite : une île a sa bonne côte, que la route de mer du cargo dit.
+  const gap = (point: LonLat) =>
+    goals.length === 0
+      ? distanceKm(point, hq.point)
+      : Math.min(
+          ...goals.map(
+            (goal) =>
+              world.landRoute(point, goal.point, ['cargo', 'infantry'])?.km ??
+              distanceKm(point, goal.point) * 2,
+          ),
+        );
+  let best: { regionId: string; point: LonLat; km: number } | null = null;
+  for (const region of world.regions.filter(
+    (candidate) =>
+      candidate.country === home && distanceKm(candidate.point, hq.point) <= BOT_PORT_KM,
+  )) {
+    const shore = world.coastNear(region.point, BOT_PORT_KM, region.id);
+    // Un quai où l'infanterie ne marche pas ne serait jamais chargé : la garnison doit pouvoir y venir à pied.
+    if (shore === null || !world.walkableAt(shore) || !world.carriesBuilding(shore)) continue;
+    const km = gap(shore);
+    if (best !== null && km >= best.km) continue;
+    const aim: Aim = {
+      lonLat: shore,
+      region: { id: region.id, name: '', country: region.country },
+      coastal: true,
+      onLand: true,
+    };
+    if (
+      aimVerdict(view, 'port', aim, reaches).refusal === null &&
+      world.landRoute(hq.point, shore, ['infantry']) !== null
+    )
+      best = { regionId: region.id, point: shore, km };
+  }
+  return best === null ? null : { regionId: best.regionId, point: best.point };
+}
+
+function portDesire(context: BotContext): Desire | SeaWait {
+  const { view, now } = context;
+  const { me } = view;
+  if (me.hqLevel === 0 || !me.buildings.some((building) => building.key === 'barracks'))
+    return 'NO_BARRACKS';
+  if (pledgedWork(view).some((work) => work.key === 'port')) return 'PORT_PENDING';
+  if (me.foundation.length > 0 || me.construction !== null || me.constructionQueue.length > 0)
+    return 'PORT_BUSY';
+  const bill = tileBillOf(
+    view.buildCatalog.port.cost,
+    (resource) => me.resources[resource],
+    view.loadedAt,
+    now,
+  );
+  if (bill.some((line) => line.missing > 0)) return 'PORT_BILL';
+  const site = portSite(context);
+  if (site === null) return 'PORT_SITE';
+  return {
+    want: WANT_PORT,
+    order: {
+      fn: 'constructions.start',
+      args: { building: 'port', regionId: site.regionId, point: pointArg(site.point) },
+    },
+  };
+}
+
+/**
+ * **La traversée, aller simple** (#631) : un port, un cargo, une colonne qui y monte, une plage
+ * près d'un point neutre, puis le débarquement (`disembarkLanded`) et la prise comme les autres
+ * bots. Chaque maillon passe par les refus du joueur ; le premier qui manque se dit (`waiting`).
+ */
+function seaTurn(context: BotContext): { desires: Desire[]; waiting: SeaWait | null } {
+  const { view, workshop } = context;
+  const none = (waiting: SeaWait) => ({ desires: [], waiting });
+  if (!wantsSea(context)) return { desires: [], waiting: null };
+  const port = view.me.buildings.find((b) => b.key === 'port' && b.captured !== true);
+  if (port === undefined) {
+    const step = portDesire(context);
+    return typeof step === 'string' ? none(step) : { desires: [step], waiting: null };
+  }
+  const marching = marchingTroopIds(view.arcs);
+  const stationKey = stationKeyOf({ kind: 'building', buildingId: port.id });
+  const atPort = (troop: TroopView) => stationKeyOf(troop.stationedAt) === stationKey;
+  const cargo = view.me.troops.find(
+    (troop) => troop.role === 'cargo' && isFree(troop, marching) && atPort(troop),
+  );
+  if (cargo === undefined) {
+    // Un cargo ne se forme que pour une colonne prête, et pas tant qu'un autre est en mer.
+    const columnReady = squadsOf(view, 'infantry').some(
+      (squad) => squad.troops.length >= BOT_POINT_COLUMN,
+    );
+    const sailing = view.me.troops.some(
+      (troop) => troop.role === 'cargo' && marching.has(troop.id),
+    );
+    if (!columnReady || sailing) return none('SHORT_COLUMN');
+    const site = workshop.facilities.find((facility) => facility.key === 'port');
+    if (
+      site === undefined ||
+      workshop.facilities.some((f) => f.queue.some((b) => b.role === 'cargo'))
+    )
+      return none('CARGO_PENDING');
+    const call = recruitCall(context, site, 'cargo', WANT_CARGO);
+    if (call === null || 'refused' in call) return none('CARGO_REFUSED');
+    return { desires: [call], waiting: null };
+  }
+  const aboard = view.me.troops.filter(
+    (troop) => troop.carriedBy === cargo.id && !marching.has(troop.id),
+  );
+  const station = { kind: 'building', buildingId: port.id } as const;
+  if (aboard.length >= BOT_POINT_COLUMN) {
+    const squad: Squad = { station, at: port.point, troops: [cargo, ...aboard] };
+    const landing = landingFor(context, squad);
+    return landing === null
+      ? none('NO_LANDING')
+      : {
+          desires: [
+            {
+              want: WANT_SAIL,
+              order: {
+                fn: 'movements.marchTo',
+                args: {
+                  origin: originOf(station),
+                  troopIds: [cargo.id],
+                  point: pointArg(landing),
+                },
+              },
+            },
+          ],
+          waiting: null,
+        };
+  }
+  const infantry = squadsOf(view, 'infantry');
+  const waiting = infantry
+    .filter((squad) => stationKeyOf(squad.station) === stationKey)
+    .flatMap((squad) => squad.troops);
+  const pile = view.me.troops.filter(atPort);
+  const riders = waiting.slice(0, Math.max(0, seatsLeft(cargo, pile)));
+  if (aboard.length + riders.length >= BOT_POINT_COLUMN) {
+    return boardingRefusalOf({ riders, carrier: cargo, pile, atAirfield: false }) === null
+      ? {
+          desires: [
+            {
+              want: WANT_BOARD,
+              order: {
+                fn: 'movements.board',
+                args: { troopIds: idsOf(riders), carrierId: cargo.id },
+              },
+            },
+          ],
+          waiting: null,
+        }
+      : none('SHORT_COLUMN');
+  }
+  const home: MovementAim = { kind: 'building', buildingId: port.id, key: 'port' };
+  const columns = infantry.filter(
+    (squad) =>
+      stationKeyOf(squad.station) !== stationKey && squad.troops.length >= BOT_POINT_COLUMN,
+  );
+  if (columns.length === 0) return none('SHORT_COLUMN');
+  const gather = columns.filter(
+    (squad) => !marchRefused(context, squad, squad.troops, 'march', home, port.point),
+  );
+  if (gather.length === 0) return none('NO_PORT_ROUTE');
+  return {
+    desires: gather.map((squad) => ({
+      want: WANT_GATHER,
+      order: {
+        fn: 'movements.enterGarrison' as const,
+        args: {
+          origin: originOf(squad.station),
+          troopIds: idsOf(squad.troops),
+          buildingId: port.id,
+        },
+      },
+    })),
+    waiting: null,
+  };
+}
+
+/**
+ * La plage où le cargo débarque : près du point neutre le plus proche du port, de la plus proche
+ * du point ; elle se joint à pied jusqu'à lui, et la traversée que le serveur facture (route de mer,
+ * plein du cargo) ne lui est pas refusée.
+ */
+function landingFor(context: BotContext, squad: Squad): LonLat | null {
+  const { world } = context;
+  for (const target of neutralPoints(context.view)
+    .sort((a, b) => distanceKm(a.point, squad.at) - distanceKm(b.point, squad.at))
+    .slice(0, BOT_POINT_CANDIDATES)) {
+    // Un point où nulle botte ne se pose (une île que la grille noie) se prend d'une plage voisine, sans route à pied à lui demander.
+    const onFoot = world.walkableAt(target.point);
+    let tried = 0;
+    let footTried = 0;
+    for (const beach of landingsNear(world, target.point)) {
+      if (tried >= BOT_LANDING_CANDIDATES) break;
+      if (onFoot) {
+        if (footTried >= BOT_LANDING_FOOT_TRIES) break;
+        footTried += 1;
+        if (!world.landRoute(beach, target.point, ['infantry'])) continue;
+      }
+      tried += 1;
+      if (!marchRefused(context, squad, squad.troops, 'march', pointAim(world, beach), beach))
+        return beach;
+    }
+  }
+  return null;
+}
+
+/** Le pilote dit ce que la traversée attend : `null` quand elle avance ou que le bot n'a pas à la faire. */
+export const seaWaiting = (context: BotContext): SeaWait | null => seaTurn(context).waiting;
+
+/** Un cargo posé à terre, hors de l'eau, y met ses fusiliers à pied : ils prennent ensuite le point comme les autres colonnes. */
+const disembarkLanded = ({ view }: BotContext): Desire[] => {
+  const marching = marchingTroopIds(view.arcs);
+  return view.me.troops.flatMap((cargo) => {
+    if (cargo.role !== 'cargo' || marching.has(cargo.id) || cargo.stationedAt.kind !== 'point')
+      return [];
+    const riders = view.me.troops.filter(
+      (troop) => troop.carriedBy === cargo.id && !marching.has(troop.id),
+    );
+    const ashore =
+      disembarkRefusalOf({
+        carrier: cargo.role,
+        afloat: cargo.stationedAt.afloat === true,
+        atAirfield: false,
+      }) === null;
+    return riders.length === 0 || !ashore
+      ? []
+      : [
+          {
+            want: WANT_DISEMBARK,
+            order: { fn: 'movements.disembark' as const, args: { troopIds: idsOf(riders) } },
+          },
+        ];
+  });
+};
+
 /** Une règle : des envies et leurs ordres, du plus pressé au plus calme. */
 const RULES: ReadonlyArray<(context: BotContext) => Desire[]> = [
   placeHq,
@@ -805,6 +1185,8 @@ const RULES: ReadonlyArray<(context: BotContext) => Desire[]> = [
   takePoint,
   advance,
   supply,
+  (context) => seaTurn(context).desires,
+  disembarkLanded,
 ];
 
 /** Les troupes qu'un ordre met en mouvement ; un second ordre du passage ne les reprend pas. */

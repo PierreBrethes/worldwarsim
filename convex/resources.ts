@@ -296,10 +296,11 @@ export async function economyOf(
     held?: ReadonlyMap<string, string>;
     holdsNarvik?: boolean;
     mode?: SeasonMode;
+    buildings?: Array<Doc<'buildings'>>;
   },
 ): Promise<Economy> {
   const rows = await resourceRows(ctx, playerId);
-  const buildings = await playerBuildings(ctx, playerId);
+  const buildings = read?.buildings ?? (await playerBuildings(ctx, playerId));
   const active = activeBuildings(buildings, now);
   const player = await ctx.db.get(playerId);
   const held = read?.held ?? (await heldFor(ctx, player, active, now));
@@ -334,7 +335,9 @@ export async function economyOf(
     ctx,
     playerId,
     now,
-    read?.troops && read.outposts ? { troops: read.troops, outposts: read.outposts } : undefined,
+    read?.troops && read.outposts
+      ? { troops: read.troops, outposts: read.outposts, buildings }
+      : undefined,
   );
   const extraction = extractionSites(active, held, playerId, holdsNarvik, mode);
   const ratePerHour = nationalRatesOf(extraction);

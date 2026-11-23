@@ -135,7 +135,11 @@ export async function upkeepOf(
   playerId: Id<'players'>,
   now: number,
   /** What the caller already read for this player (`viewOf`): the same rows, not a second read. */
-  read?: { troops: Array<Doc<'troops'>>; outposts: Array<Doc<'outposts'>> },
+  read?: {
+    troops: Array<Doc<'troops'>>;
+    outposts: Array<Doc<'outposts'>>;
+    buildings?: Array<Doc<'buildings'>>;
+  },
 ): Promise<Upkeep> {
   const player = await ctx.db.get(playerId);
   /**
@@ -216,7 +220,7 @@ export async function upkeepOf(
    *  lookout, priced by its level (ADR 0037 §2). */
   const listeningCoalPerHour =
     LISTENING_COAL_PER_HOUR *
-      activeBuildings(await playerBuildings(ctx, playerId), now).filter(
+      activeBuildings(read?.buildings ?? (await playerBuildings(ctx, playerId)), now).filter(
         (building) => building.key === 'listening',
       ).length +
     standing

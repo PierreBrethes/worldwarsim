@@ -142,8 +142,13 @@ export type Sites = {
  * rule go through it and so does the view: a second reading of the same sites is a screen that
  * offers what the server refuses.
  */
-export async function sitesOf(ctx: QueryCtx, player: Doc<'players'>): Promise<Sites> {
-  const buildings = await playerBuildings(ctx, player._id);
+export async function sitesOf(
+  ctx: QueryCtx,
+  player: Doc<'players'>,
+  /** His buildings, when the caller already read them (`viewOf`). */
+  read?: { buildings: Array<Doc<'buildings'>> },
+): Promise<Sites> {
+  const buildings = read?.buildings ?? (await playerBuildings(ctx, player._id));
   const outposts = await standingOutpostsOf(ctx, player._id);
   const homeCountry = homeCountryOf(player.nation);
   const hqLevel = levelOf(buildings, 'hq');

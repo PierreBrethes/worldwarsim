@@ -28,13 +28,17 @@ import { COST_BY_MEDIUM } from '../src/domain/routing';
 import { foundationMinutes } from '../src/domain/level-speed';
 import { nearestRegion, regionFacts } from './regions';
 import { regionAtRoutePoint } from './regionGeometry';
-import { asPoint, pointOf } from './movement/forces';
+import { asPoint, pointOf, servedOver } from './movement/forces';
+import { slotsTaken } from './movement/orders';
+import { irregularSeat } from './objectives';
+import { restHold } from './movement/rest';
 import { coastAtPoint, hostAtPoint, landAtPoint, routeBetween } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
 import {
   attacking,
   foundSeat,
+  holdPoint,
   joinSeat,
   placeHq,
   raiding,
@@ -816,6 +820,61 @@ describe('the rest window holds an arrival at the border', () => {
 
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     expect(await movementsOf(t, seat)).toHaveLength(0);
+  });
+
+  /** The view hands `restHold` and `slotsTaken` what it already read; a mutation reads fresh.
+   *  Both paths answer the same, so the board never disagrees with the door. The season is
+   *  peopled so that they would diverge if the view filtered what it holds differently: the
+   *  irregular seat is the only host of the sleeping country, Halifax is held, a building is
+   *  razed, and two columns aim at two host countries. */
+  it('serves the hold and the slots the fresh readings give', async () => {
+    vi.setSystemTime(new Date(Date.UTC(2026, 7, 17, 16, 30, 0)));
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const razed = await raise(t, seat, 'barracks', MARNE);
+    const first = await form(t, seat, 'infantry', barracks);
+    const second = await form(t, seat, 'infantry', barracks);
+    await t.run(async (ctx) => ctx.db.delete(razed));
+    await holdPoint(t, seat, 'halifax');
+    for (const [troop, regionId] of [
+      [first, PSKOV],
+      [second, RIYADH],
+    ] as const)
+      await attacking(t, {
+        ...seat,
+        origin: { kind: 'building', buildingId: barracks },
+        troopIds: [troop],
+        target: { kind: 'region', regionId },
+      });
+    /** The Soviet nation passes to the irregular seat: only `everySeatOf` still finds its host. */
+    await t.run(async (ctx) => {
+      const guestRow = await seatIn(ctx, guest);
+      const neutral = await ctx.db.get(await irregularSeat(ctx, seat.seasonId));
+      await ctx.db.patch(neutral!._id, {
+        nation: guestRow.nation,
+        restWindow: guestRow.restWindow,
+      });
+      await ctx.db.patch(guestRow._id, { nation: 'italy' });
+    });
+
+    const view = await t.query(api.view.playerView, seat);
+    const rows = await movementsOf(t, seat);
+    expect(view.movements).toHaveLength(2);
+    const fresh = await t.run(async (ctx) => {
+      const player = (await ctx.db.get(rows[0]!.playerId))!;
+      return {
+        holds: await Promise.all(
+          rows.map((row) => restHold(ctx, row.playerId, row.hostCountry, row.arrivesAt)),
+        ),
+        slots: await slotsTaken(ctx, player, rows),
+      };
+    });
+    expect(fresh.holds.filter((hold) => hold !== null)).toHaveLength(1);
+    for (const [index, row] of rows.entries())
+      expect(view.movements!.find((arc) => arc.id === row._id)!.holdUntil).toBe(fresh.holds[index]);
+    expect(view.me.slots.used).toBe(fresh.slots.used);
+    expect(view.me.slots.halifax).toBe(true);
   });
 
   it('lets a column reach neutral ground while its neighbour sleeps', async () => {
@@ -4013,7 +4072,7 @@ describe('a manifest names each troop once', () => {
 });
 
 /**
- * **Un point a servi dès qu'un départ passe à portée** (`outpostServed`) : c'est ce que
+ * **Un point sert dès qu'un départ passe à portée** (`isServed`) : c'est ce que
  * le refus de démantèlement lit (`OUTPOST_SERVING`). Il n'y a plus de métier à sceller (ADR 0037
  * §7) : tout point d'avant se lit généraliste.
  */
@@ -4054,6 +4113,125 @@ describe('an outpost serves once a departure passes within its reach', () => {
     expect((await t.query(api.view.playerView, seat)).me.outposts[0]).toMatchObject({
       serving: true,
     });
+  });
+
+  /**
+   * **La lecture sur le point rend ce que rendait la table des mouvements** (#633) : à chaque pas
+   * d'une saison où des colonnes partent, arrivent et sont effacées, où un point est fondé sous
+   * une colonne déjà en route et un autre élevé sous elle, ce que la vue sert vaut
+   * `servedOver` relu sur `seasonMovements`.
+   */
+  it('serves what the season’s movements served, step by step', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    /** La plaine polonaise : une route droite, qui ne contourne pas de montagne. */
+    const near: LonLat = [19.45, 51.75];
+    const seasonId = seat.seasonId;
+    const plenty = async (who: Seat) => {
+      const playerId = await playerOf(t, who);
+      await t.run(async (ctx) => {
+        for (const row of await ctx.db
+          .query('resources')
+          .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+          .collect())
+          await ctx.db.patch(row._id, { stock: 10_000, updatedAt: Date.now() });
+      });
+    };
+    /** Ce que le joueur voit, contre l'ancienne lecture, pour chacun de ses points. */
+    const servedNow = async () => {
+      const view = await t.query(api.view.playerView, seat);
+      const expected = await t.run(async (ctx) => {
+        const movements = await ctx.db
+          .query('movements')
+          .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+          .collect();
+        const outposts = await ctx.db
+          .query('outposts')
+          .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+          .collect();
+        return Object.fromEntries(outposts.map((one) => [one._id, servedOver(one, movements)]));
+      });
+      const shown = Object.fromEntries(view.me.outposts.map((one) => [one.id, one.serving]));
+      expect(shown).toEqual(expected);
+      return shown;
+    };
+    const step = async (minutes: number) => {
+      vi.advanceTimersByTime(minutes * 60_000);
+      await t.finishInProgressScheduledFunctions();
+    };
+
+    // Le point qu'on élèvera : planté avant tout départ, à 150 km du départ qui va passer.
+    const raised = await plant(t, seat, near, 'POL');
+    const north: LonLat = [near[0], near[1] + 150 / 111.32];
+    /** La route ne compte que ses sommets : le départ est celui qui passe à 150 km, et elle dure
+     *  plus longtemps que l'élévation. */
+    const from = north;
+    const to = eastOf(north, -800);
+    await step(1);
+    const column = await post(t, seat, from);
+    await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'point', point: asPoint(from) },
+      troopIds: [column],
+      point: asPoint(to),
+    });
+    const [marching] = await movementsOf(t, seat);
+    const gap = Math.min(...marching!.points.map((p) => distanceKm([p.lon, p.lat], near)));
+    expect(gap).toBeGreaterThan(outpostReachKm(1));
+    expect(gap).toBeLessThanOrEqual(outpostReachKm(2));
+    expect(await servedNow()).toEqual({ [raised]: false });
+
+    // Fondé sur la route d'une colonne déjà partie : elle ne le dessert pas.
+    await step(1);
+    const onRoute = marching!.points[Math.floor(marching!.points.length / 2)]!;
+    const founder = await post(t, seat, [onRoute.lon, onRoute.lat]);
+    await fundFoundation(t, seat);
+    await t.mutation(api.movements.foundOutpostHere, {
+      ...seat,
+      regionId: null,
+      point: onRoute,
+      troopIds: [founder],
+    });
+    const founded = (await outpostsOf(t, seat)).find((one) => one._id !== raised)!._id;
+    expect(await servedNow()).toEqual({ [raised]: false, [founded]: false });
+
+    // Élevé sous la colonne en route : le rayon du niveau 2 l'atteint.
+    await plenty(seat);
+    await t.mutation(api.constructions.raiseOutpost, {
+      ...seat,
+      outpostId: raised,
+      specialty: 'store',
+    });
+    const raise = await t.run(async (ctx) =>
+      (await ctx.db.query('constructions').collect()).find((one) => one.outpostId === raised),
+    );
+    vi.advanceTimersByTime(raise!.finishesAt! - Date.now() + 1);
+    await t.finishInProgressScheduledFunctions();
+    expect((await t.run((ctx) => ctx.db.get(raised)))!.level).toBe(2);
+    expect(await movementsOf(t, seat)).toHaveLength(1);
+    expect(await servedNow()).toMatchObject({ [raised]: true, [founded]: false });
+
+    // Le départ d'un autre joueur, par le point fondé.
+    const other = await post(t, guest, [onRoute.lon, onRoute.lat - 0.3]);
+    await t.mutation(api.movements.marchTo, {
+      ...guest,
+      origin: { kind: 'point', point: { lon: onRoute.lon, lat: onRoute.lat - 0.3 } },
+      troopIds: [other],
+      point: { lon: onRoute.lon, lat: onRoute.lat - 1.5 },
+    });
+    expect(await servedNow()).toEqual({ [raised]: true, [founded]: true });
+
+    // Arrivées, effacées : plus rien ne dessert.
+    const last = Math.max(
+      ...[...(await movementsOf(t, seat)), ...(await movementsOf(t, guest))].map(
+        (one) => one.arrivesAt,
+      ),
+    );
+    vi.advanceTimersByTime(last - Date.now() + 1);
+    await t.finishInProgressScheduledFunctions();
+    expect(await movementsOf(t, seat)).toHaveLength(0);
+    expect(await movementsOf(t, guest)).toHaveLength(0);
+    expect(await servedNow()).toEqual({ [raised]: false, [founded]: false });
   });
 
   /** Un départ à l'autre bout du monde n'a rien lu de ce point-là. */

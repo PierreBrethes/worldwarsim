@@ -201,6 +201,21 @@ couvre, quelle que soit sa spécialisation (ADR 0019 §4).
 - **Le démantèlement garde sa garde** : `OUTPOST_SERVING` reste, sur le critère d'aujourd'hui
   (un mouvement est passé dans le rayon depuis la fondation). (Q13)
 
+> **Précisé le 23/11/2026 (#633)** : « desservi » se lit **tant qu'un mouvement est en route**, pas
+> pour la saison. Un mouvement arrivé, rentré, détourné ou détruit est effacé de `movements`
+> (`forgetMovement`, `convex/movement/arrival.ts`), et le point cesse d'être desservi avec lui :
+> c'est ce que le code fait depuis #371 et ce que dit le refus (« une colonne marche dans la
+> portée de ce point »). Le critère exact : un mouvement en route, parti à la fondation ou après,
+> dont un sommet de la route est dans le rayon du niveau d'aujourd'hui. On garde cette règle
+> parce que la garde protège une colonne qui a chiffré son allure sous le point ; arrivée, rien
+> ne dépend plus de lui. Une règle « pour la saison » scellerait tout point près d'un passage, et
+> changerait ce que le joueur voit. La réponse s'écrit sur le point (`outposts.servedBy`, les
+> mouvements qui le desservent), au départ (`insertMovement`), à la réécriture d'une route (le
+> pillage sur place), à l'effacement et à l'élévation (`restampServed`, `restampOutpost`,
+> `convex/movement/forces.ts`) ; la fondation n'a rien à relire, une colonne déjà en route est
+> partie avant elle. La vue la lit là, sans relire la table des mouvements, dont chaque départ
+> relançait la vue de toute la table.
+
 ### 8. Les liaisons : des rayons qui se touchent se relient d'eux-mêmes
 
 - **Deux avant-postes d'un même joueur dont les rayons de contrôle se touchent** (distance ≤ somme

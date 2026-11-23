@@ -89,8 +89,10 @@ export async function holdsPoint(
   ctx: QueryCtx,
   player: Pick<Doc<'players'>, '_id' | 'seasonId'>,
   key: StrategicPointKey,
+  /** The season's points when the caller already read them (`viewOf`). */
+  points?: ReadonlyArray<Doc<'strategicPoints'>>,
 ): Promise<boolean> {
-  return (await seasonPoints(ctx, player.seasonId)).some(
+  return (points ?? (await seasonPoints(ctx, player.seasonId))).some(
     (point) => point.key === key && point.holderId === player._id,
   );
 }
@@ -100,8 +102,9 @@ export async function heldSinceOf(
   ctx: QueryCtx,
   player: Pick<Doc<'players'>, '_id' | 'seasonId'>,
   key: StrategicPointKey,
+  points?: ReadonlyArray<Doc<'strategicPoints'>>,
 ): Promise<number | null> {
-  const point = (await seasonPoints(ctx, player.seasonId)).find(
+  const point = (points ?? (await seasonPoints(ctx, player.seasonId))).find(
     (one) => one.key === key && one.holderId === player._id,
   );
   return point === undefined ? null : (point.heldSince ?? 0);
@@ -121,7 +124,16 @@ export const seasonPoints = (
  * et s'il est contesté — jamais par qui. La saison conclue, qui l'a tenu le plus longtemps : le
  * palmarès de l'édition finale. La table est publique : la lire ne perce aucun brouillard.
  */
-export async function pointsView(ctx: QueryCtx, season: Doc<'seasons'>, viewerId: Id<'players'>) {
+export async function pointsView(
+  ctx: QueryCtx,
+  season: Doc<'seasons'>,
+  viewerId: Id<'players'>,
+  /** What `viewOf` already read: the season's points and `everySeatOf`. */
+  read?: {
+    points: ReadonlyArray<Doc<'strategicPoints'>>;
+    every: ReadonlyArray<Doc<'players'>>;
+  },
+) {
   const contested = new Set(
     (
       await ctx.db
@@ -134,13 +146,15 @@ export async function pointsView(ctx: QueryCtx, season: Doc<'seasons'>, viewerId
         : [],
     ),
   );
-  const seats = new Map((await everySeatOf(ctx, season._id)).map((seat) => [seat._id, seat]));
+  const seats = new Map(
+    (read?.every ?? (await everySeatOf(ctx, season._id))).map((seat) => [seat._id, seat]),
+  );
   const nationOf = (id: Id<'players'>) => {
     const seat = seats.get(id);
     return seat === undefined ? null : (seat.nation ?? seat.nickname);
   };
   const end = season.concludedAt ?? null;
-  return (await seasonPoints(ctx, season._id)).map((point) => {
+  return (read?.points ?? (await seasonPoints(ctx, season._id))).map((point) => {
     const holder = point.holderId === null ? null : nationOf(point.holderId);
     const longest = end === null ? undefined : longestOn(point, end);
     const longestNation = longest === undefined ? null : nationOf(longest.id);

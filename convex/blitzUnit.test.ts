@@ -411,6 +411,55 @@ describe('a Blitz unit and its orders (lot 5)', () => {
     expect(await t.run((ctx) => ctx.db.query('engagements').collect())).toHaveLength(1);
   });
 
+  /** **Le fil qui se recourbe réécrit son départ** : un point fondé entre l'ancien départ et le
+   *  nouveau dessert la colonne recourbée, pas avant (#633). Posé à la main : la Blitz refuse la
+   *  fondation. */
+  it('restamps the outposts a bent pursuit now serves', async () => {
+    const t = boot();
+    const { seat, guest } = await blitz(t);
+    const hunter = await troop(t, seat, PARIS);
+    const quarry = await troop(t, guest, LYON);
+    const short = { lon: 4.85, lat: 46.15 };
+    const { chase, outpostId } = await t.run(async (ctx) => {
+      const player = await seatIn(ctx, seat);
+      const chase = await ctx.db.insert('movements', {
+        seasonId: player.seasonId,
+        playerId: player._id,
+        type: 'attack',
+        fromBuildingId: null,
+        target: { kind: 'point', point: LYON },
+        from: PARIS,
+        to: LYON,
+        hostCountry: 'FRA',
+        points: [PARIS, short],
+        legs: [{ medium: 'land', distanceUnits: 1 }],
+        distanceUnits: 1,
+        costUnits: 1,
+        troopIds: [hunter],
+        departedAt: MIDDAY - 60_000,
+        arrivesAt: MIDDAY,
+        pursuit: { troopId: quarry, checkAt: MIDDAY },
+      });
+      const outpostId = await ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId: player._id,
+        point: LYON,
+        hostCountry: '',
+        level: 2,
+        specialty: 'lookout',
+        foundedAt: MIDDAY - 30_000,
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+      return { chase, outpostId };
+    });
+    await surveyCamp(t, seat, LYON);
+    vi.setSystemTime(MIDDAY);
+    await t.mutation(internal.movements.pursue, { movementId: chase, expectedAt: MIDDAY });
+    expect((await t.run((ctx) => ctx.db.get(chase)))!.departedAt).toBe(MIDDAY);
+    expect((await t.run((ctx) => ctx.db.get(outpostId)))!.servedBy).toEqual([chase]);
+  });
+
   it('chases a column it sees on the board, and two chases that cross meet in a shock', async () => {
     const t = boot();
     const { seat, guest } = await blitz(t);

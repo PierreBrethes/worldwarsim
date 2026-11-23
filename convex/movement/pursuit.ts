@@ -19,7 +19,7 @@ import { fail } from '../errors';
 import { hostAtPoint, routeBetween } from '../routes';
 import { forgetMovement, standAt, walkHome } from './arrival';
 import { marchingForce, reassessDetection } from './detection';
-import { asPoint, movementsOf, pointOf, stanceOf, troopsCarriedBy } from './forces';
+import { asPoint, movementsOf, pointOf, restampServed, stanceOf, troopsCarriedBy } from './forces';
 import { pacedMinutes } from './pace';
 import { blitzTheatreOf } from './theatre';
 
@@ -231,6 +231,7 @@ async function bendTowards(
     departedAt: now,
     arrivesAt: now + minutes * 60_000,
   });
+  await restampServed(ctx, movement.seasonId, movement._id);
   return true;
 }
 

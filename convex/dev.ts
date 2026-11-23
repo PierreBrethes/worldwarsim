@@ -20,6 +20,13 @@ import { researchMs } from '../src/domain/research';
 import { modeOf } from '../src/domain/season-mode';
 import { LON_LAT, STRATEGIC_POINT_KEY, UNIT_ROLE, UNIT_TIER, RESEARCH_CARD } from './validators';
 import { aimOf, march } from './movement/orders';
+import {
+  insertMovement,
+  restampServed,
+  seasonMovements,
+  seasonOutposts,
+  servedOver,
+} from './movement/forces';
 import { planCargoReturn } from './movement/cargoReturn';
 import { chainSecondTarget } from './movement/blitzkrieg';
 import { nominalStrength, outpostReachKm, PLUNDER_DISABLED_HOURS } from './constants';
@@ -52,6 +59,14 @@ import { RACE_HOLD_HOURS } from '../src/domain/strategic-points';
  * partition test can hold it together with `IDENTITY_TABLES` against `schema.tables`: a game
  * table left out survives the wipe as an orphan nobody can reach.
  */
+
+/** Un scénario qui recule le départ d'une colonne : les points qu'elle dessert se relisent, comme
+ *  le jeu le ferait. */
+async function restampMoved(ctx: MutationCtx, movementId: Id<'movements'>): Promise<void> {
+  const movement = await ctx.db.get(movementId);
+  if (movement !== null) await restampServed(ctx, movement.seasonId, movementId);
+}
+
 export const GAME_TABLES = [
   'editions',
   'constructions',
@@ -108,6 +123,7 @@ const WIPE_BATCH = 200;
 
 /** Jobs per transaction: each cancel is a system operation, and 200 overran the cap on a loaded base. */
 const JOBS_PAGE = 50;
+const SEASONS_PAGE = 200;
 
 /** One batch of one game table; `more` says whether the table still holds documents. */
 export const wipeBatch = internalMutation({
@@ -326,6 +342,48 @@ export const backfillListeningSilent = internalMutation({
       }
     }
     return { players };
+  },
+});
+
+/**
+ * **Les avant-postes desservis, écrits sur ceux d'avant le champ** (#633) : `outposts.servedBy`
+ * est lu « aucun » quand il manque, et un point sous une colonne déjà en route se démantèlerait
+ * jusqu'à l'arrivée de celle-ci. Planifie une saison par mutation (`backfillOutpostServingOf`),
+ * qui relit ses mouvements en route comme le faisait la vue. Idempotente.
+ *
+ * Une page de saisons par appel, la suivante planifiée par lui : une mutation ne planifie pas plus
+ * de 1000 fonctions, et une base de démo dépasse les 1000 saisons.
+ *
+ * `npx convex run dev:backfillOutpostServing`
+ */
+export const backfillOutpostServing = internalMutation({
+  args: { cursor: v.optional(v.string()) },
+  handler: async (ctx, { cursor }) => {
+    const page = await ctx.db
+      .query('seasons')
+      .paginate({ cursor: cursor ?? null, numItems: SEASONS_PAGE });
+    for (const season of page.page)
+      await ctx.scheduler.runAfter(0, internal.dev.backfillOutpostServingOf, {
+        seasonId: season._id,
+      });
+    if (!page.isDone)
+      await ctx.scheduler.runAfter(0, internal.dev.backfillOutpostServing, {
+        cursor: page.continueCursor,
+      });
+    return { seasons: page.page.length, more: !page.isDone };
+  },
+});
+
+export const backfillOutpostServingOf = internalMutation({
+  args: { seasonId: v.id('seasons') },
+  handler: async (ctx, { seasonId }) => {
+    const movements = await seasonMovements(ctx, seasonId);
+    for (const outpost of await seasonOutposts(ctx, seasonId)) {
+      const servedBy = movements
+        .filter((movement) => servedOver(outpost, [movement]))
+        .map((movement) => movement._id);
+      await ctx.db.patch(outpost._id, { servedBy });
+    }
   },
 });
 
@@ -867,6 +925,7 @@ export const arriveNow = internalMutation({
             ? { ...movement.resumed, at: movement.resumed.at + shift }
             : undefined,
       });
+      await restampMoved(ctx, movement._id);
       await ctx.scheduler.runAfter(afterMs ?? 0, internal.movements.arrive, {
         movementId: movement._id,
       });
@@ -1290,6 +1349,7 @@ export const carrierDoctrineScene = internalMutation({
     const length = held.arrivesAt - now;
     const arrivesAt = now + length * 0.4;
     await ctx.db.patch(held.movementId, { departedAt: now - length * 0.6, arrivesAt });
+    await restampMoved(ctx, held.movementId);
     await ctx.scheduler.runAt(arrivesAt, internal.movements.arrive, {
       movementId: held.movementId,
     });
@@ -1394,6 +1454,7 @@ async function stageBlitzkrieg(
   if (arrivedNow) {
     const length = filed.arrivesAt - now;
     await ctx.db.patch(filed.movementId, { departedAt: now - length, arrivesAt: now });
+    await restampMoved(ctx, filed.movementId);
     await ctx.scheduler.runAt(now, internal.movements.arrive, { movementId: filed.movementId });
   }
   return { movementId: filed.movementId, troopIds, outposts };
@@ -1550,6 +1611,7 @@ export const benchBlitzkrieg = internalMutation({
         departedAt: movement.departedAt - (movement.arrivesAt - due),
         arrivesAt: due,
       });
+      await restampMoved(ctx, staged.movementId);
       ids.push(staged.movementId);
     }
     await reassessDetection(ctx, attacker.seasonId, Date.now(), attackerId);
@@ -1581,6 +1643,7 @@ export const pastPresence = internalMutation({
         arrivesAt: until,
         plunder: { ...movement.plunder, until },
       });
+      await restampMoved(ctx, movement._id);
       await ctx.scheduler.runAt(until, internal.movements.completePlunderPresence, {
         movementId: movement._id,
         expectedAt: until,
@@ -2370,6 +2433,7 @@ export const watchLineScene = internalMutation({
       departedAt: movement.departedAt - shift,
       arrivesAt: movement.arrivesAt - shift,
     });
+    await restampMoved(ctx, movementId);
     await ctx.scheduler.runAt(movement.arrivesAt - shift, internal.movements.arrive, {
       movementId,
     });
@@ -2444,6 +2508,7 @@ export const twoSentriesScene = internalMutation({
       departedAt: movement.departedAt - shift,
       arrivesAt: movement.arrivesAt - shift,
     });
+    await restampMoved(ctx, movementId);
     await ctx.scheduler.runAt(movement.arrivesAt - shift, internal.movements.arrive, {
       movementId,
     });
@@ -2595,6 +2660,7 @@ export const storesScene = internalMutation({
        *  capture. Le rendez-vous d'origine trouvera la colonne déjà arrivée. */
       const soon = now + 20_000;
       await ctx.db.patch(movementId, { departedAt: soon - (arrivesAt - now), arrivesAt: soon });
+      await restampMoved(ctx, movementId);
       await ctx.scheduler.runAt(soon, internal.movements.arrive, { movementId });
     }
     await recordLinkage(ctx, player.seasonId);
@@ -2677,6 +2743,7 @@ export const fortScene = internalMutation({
       departedAt: movement.departedAt - shift,
       arrivesAt: movement.arrivesAt - shift,
     });
+    await restampMoved(ctx, held);
     await ctx.scheduler.runAt(movement.arrivesAt - shift, internal.movements.arrive, {
       movementId: held,
     });
@@ -3579,7 +3646,7 @@ export const takingScene = internalMutation({
       });
       const { _id, _creationTime, lootCollection, ...column } = (await ctx.db.get(template))!;
       void [_id, _creationTime, lootCollection];
-      const movementId = await ctx.db.insert('movements', {
+      const movementId = await insertMovement(ctx, {
         ...column,
         troopIds,
         from: target.point,

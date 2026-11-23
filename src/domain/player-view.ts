@@ -418,8 +418,8 @@ export type OutpostView = {
   readonly disabledMinutesLeft: number | null;
   readonly isMine: boolean;
   /**
-   * **Un mouvement est-il passé dans son rayon depuis la fondation ?** (`outpostServed`,
-   * `convex/movement/forces.ts`). Servi plutôt que redérivé : le démantèlement que l'écran refuse
+   * **Une colonne en route s'appuie-t-elle sur lui ?** (`isServed`,
+   * `convex/movement/forces.ts`, ADR 0037 §7 précisé le 23/11). Servi plutôt que redérivé : le démantèlement que l'écran refuse
    * et celui que le serveur refuse lisent la même réponse (`OUTPOST_SERVING`).
    */
   readonly serving: boolean;

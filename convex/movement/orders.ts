@@ -59,6 +59,7 @@ import {
   sameStation,
   seatedOf,
   standingPile,
+  insertMovement,
   type TroopAddress,
 } from './forces';
 import { carrierIn, cargoOf, PROJECTION_BY_DOMAIN, seatLoose } from '../../src/domain/troops';
@@ -697,7 +698,7 @@ async function columnsHeld(
     ...flying.map((movement) => movement.troopIds),
     ...resting.map((troop) => [troop._id]),
   ]) {
-    const crew = await crewOf(ctx, troopIds);
+    const crew = await crewOf(ctx, troopIds, byId);
     let home = troopIds.length > 0;
     for (const troopId of troopIds) home = home && (await staysHomeOn(troopId));
     (home ? national : paying).push(crew);
@@ -714,18 +715,29 @@ export async function slotsTaken(
   movements: ReadonlyArray<Doc<'movements'>>,
   /** Ses troupes, que la vue a déjà lues ; la porte les lit ici. */
   troops?: ReadonlyArray<Doc<'troops'>>,
+  /** The season's points, which the view has already read. */
+  points?: ReadonlyArray<Doc<'strategicPoints'>>,
 ): Promise<{ readonly used: number; readonly maritime: number }> {
   const { paying, national } = await columnsHeld(ctx, player, movements, troops);
   return {
-    used: slotsAskedBy(paying, await holdsPoint(ctx, player, 'halifax'), maritimeCount(national)),
+    used: slotsAskedBy(
+      paying,
+      await holdsPoint(ctx, player, 'halifax', points),
+      maritimeCount(national),
+    ),
     maritime: maritimeCount(paying) + maritimeCount(national),
   };
 }
 
-async function crewOf(ctx: QueryCtx, troopIds: ReadonlyArray<Id<'troops'>>) {
+async function crewOf(
+  ctx: QueryCtx,
+  troopIds: ReadonlyArray<Id<'troops'>>,
+  /** The troops already in hand (`columnsHeld`): read only the ones it does not hold. */
+  known?: ReadonlyMap<Id<'troops'>, Doc<'troops'>>,
+) {
   const crew = [];
   for (const troopId of troopIds) {
-    const troop = await ctx.db.get(troopId);
+    const troop = known?.get(troopId) ?? (await ctx.db.get(troopId));
     if (troop !== null) crew.push({ role: troop.role, carried: troop.carriedBy !== undefined });
   }
   return crew;
@@ -994,7 +1006,7 @@ export async function march(
     stationedAt: departure.stationId,
     troops,
   });
-  const movementId = await ctx.db.insert('movements', {
+  const movementId = await insertMovement(ctx, {
     seasonId: season._id,
     playerId,
     type,

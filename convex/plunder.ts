@@ -15,7 +15,7 @@ import { CARRY_CAPACITY_BY_ROLE, PLUNDER_DISABLED_HOURS, PLUNDER_HOURS_PRESENT }
 import { resolveContact } from './combat';
 import { heldOver } from './holding';
 import { plunderTargetAt } from './movement/orders';
-import { defenceOf, pointOf, troopsCarriedBy } from './movement/forces';
+import { defenceOf, pointOf, restampServed, troopsCarriedBy } from './movement/forces';
 import { forgetMovement, walkHome } from './movement/arrival';
 import { clipToStorage, creditToStorage, debit, economyOf } from './resources';
 import { scheduleRestore, settleBeforeChange } from './production';
@@ -125,6 +125,7 @@ async function startPresence(
       returnPlan,
     },
   });
+  await restampServed(ctx, movement.seasonId, movement._id);
   await ctx.scheduler.runAt(until, internal.movements.completePlunderPresence, {
     movementId: movement._id,
     expectedAt: until,

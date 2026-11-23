@@ -8,7 +8,7 @@ import { heldOver } from '../holding';
 import { allRegions, regionFacts } from '../regions';
 import { routeToRegions } from '../routes';
 import { storesCrossed } from '../supplies';
-import { asPoint } from './forces';
+import { asPoint, insertMovement } from './forces';
 import { pacedMinutes } from './pace';
 
 export type CargoReturnPlan =
@@ -108,7 +108,7 @@ export async function startCargoReturn(
   },
 ): Promise<Id<'movements'>> {
   const arrivesAt = now + plan.minutes * 60_000;
-  const movementId = await ctx.db.insert('movements', {
+  const movementId = await insertMovement(ctx, {
     seasonId,
     playerId,
     type: 'return',
