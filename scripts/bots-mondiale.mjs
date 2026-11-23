@@ -32,11 +32,16 @@ const humans = Number(optionOf('humains', 0));
 /** @a-mesurer : secondes entre deux passages d'un bot. */
 const cadence = Number(optionOf('cadence', 30));
 const joinCode = optionOf('code', null);
+const fresh = process.argv.includes('--nouvelle');
 if (!(bots >= 1) || !(humans >= 0) || !(cadence > 0))
   throw new Error('--bots, --humains, --cadence');
 if (bots + humans > MAX_PLAYERS) throw new Error(`Au plus ${MAX_PLAYERS} places.`);
+if (joinCode !== null && joinCode.trim() === '')
+  throw new Error('--code veut le code de la saison.');
 if (joinCode === null && bots + humans < 2)
-  throw new Error('Une Mondiale veut deux places : --bots 2 au moins.');
+  throw new Error(
+    'Une Mondiale veut deux places : --bots 2 au moins, ou --humains 1 avec --bots 1.',
+  );
 
 // Seule la clé `VITE_CONVEX_URL` est lue de `.env.local` : jamais la clé admin.
 const envFile = `${root}.env.local`;
@@ -98,7 +103,12 @@ async function signIn({ nickname, password }) {
       }
       if (!String(error).includes('BAD_CREDENTIALS')) throw error;
       await pause(REGISTER_MIN_INTERVAL_MS);
-      return (await client.action(api.auth.register, { nickname, password })).token;
+      try {
+        return (await client.action(api.auth.register, { nickname, password })).token;
+      } catch (registerError) {
+        if (!String(registerError).includes('REGISTER_TOO_FAST')) throw registerError;
+        await pause(REGISTER_MIN_INTERVAL_MS);
+      }
     }
   }
 }
@@ -119,8 +129,11 @@ async function signInOrRename(key, k) {
 }
 
 let stopped = false;
+let playing = false;
 let wake = () => {};
+/** Avant la boucle de jeu, Ctrl-C sort tout de suite ; dans la boucle, il la termine proprement. */
 process.on('SIGINT', () => {
+  if (!playing) process.exit(130);
   stopped = true;
   wake();
 });
@@ -139,55 +152,110 @@ for (const [k, key] of KEYS.slice(0, bots).entries()) {
   tokens.push(await signInOrRename(key, k));
 }
 
+const first = (error) => String(error).split('\n')[0];
+const lobbyOf = async () => {
+  try {
+    return await client.query(api.seasons.lobby, { token: tokens[0], seasonId });
+  } catch (error) {
+    console.log(`salon illisible (${first(error)})`);
+    return null;
+  }
+};
+const fail = (message) => {
+  console.log(message);
+  process.exit(1);
+};
+
 let seasonId;
 let code;
-if (joinCode === null) {
+/** Une relance sans `--code` ni `--nouvelle` reprend la saison du fichier des comptes, tant qu'elle n'est pas conclue. */
+if (joinCode === null && !fresh && saved.seasonId && saved.code) {
+  try {
+    const lobby = await client.query(api.seasons.lobby, {
+      token: tokens[0],
+      seasonId: saved.seasonId,
+    });
+    if (lobby.status !== 'concluded') ({ seasonId, code } = saved);
+  } catch {
+    // saison disparue ou compte hors d'elle : on en fonde une neuve
+  }
+  if (seasonId) console.log(`Saison ${code} reprise (--nouvelle pour en fonder une autre).`);
+}
+/** Entrer par le code ; un bot déjà assis (`SEAT_TAKEN`) garde sa place, le fichier des comptes dit sa saison. */
+async function enter(token) {
+  try {
+    return (await client.mutation(api.seasons.join, { token, code })).seasonId;
+  } catch (error) {
+    if (String(error).includes('REGISTRATION_CLOSED'))
+      fail(`Saison ${code} déjà lancée : rien à rejoindre.`);
+    if (!String(error).includes('SEAT_TAKEN')) throw error;
+    if (saved.code !== code || !saved.seasonId)
+      fail(`Un bot est déjà assis dans ${code}, mais le fichier des comptes ne la connaît pas.`);
+    return saved.seasonId;
+  }
+}
+if (!seasonId && joinCode === null) {
   ({ code, seasonId } = await client.mutation(api.seasons.create, {
     token: tokens[0],
     compensation: 0,
     mode: 'mondiale',
   }));
-  for (const token of tokens.slice(1)) await client.mutation(api.seasons.join, { token, code });
-} else {
-  code = joinCode.toUpperCase();
-  for (const token of tokens)
-    ({ seasonId } = await client.mutation(api.seasons.join, { token, code }));
+  for (const token of tokens.slice(1)) await enter(token);
+} else if (!seasonId) {
+  code = joinCode.trim().toUpperCase();
+  for (const token of tokens) seasonId = await enter(token);
 }
 save({ seasonId, code });
 console.log(`Saison ${code} : http://localhost:5173/rejoindre/${code}`);
 
 /** Chaque bot prend la première nation libre (`NATION_TAKEN` → la suivante), puis se déclare prêt. */
-for (const token of tokens) {
-  for (const nation of NATIONS) {
-    try {
-      await client.mutation(api.players.reserveNation, { token, seasonId, nation });
-      break;
-    } catch (error) {
-      if (!String(error).includes('NATION_TAKEN')) throw error;
-    }
-  }
-  await client.mutation(api.players.declareReady, { token, seasonId, ready: true });
-}
-
-const lobbyOf = () => client.query(api.seasons.lobby, { token: tokens[0], seasonId });
-if (joinCode === null) {
-  console.log(`J'attends ${bots + humans} places prêtes (${bots} bots, ${humans} humains)…`);
-  while (!stopped) {
-    const lobby = await lobbyOf();
-    if (lobby.players.length >= bots + humans && lobby.players.every((p) => p.ready)) {
+if ((await lobbyOf())?.status === 'lobby') {
+  for (const token of tokens) {
+    let seated = false;
+    for (const nation of NATIONS) {
       try {
-        await client.mutation(api.seasons.launch, { token: tokens[0], seasonId });
+        await client.mutation(api.players.reserveNation, { token, seasonId, nation });
+        seated = true;
         break;
       } catch (error) {
-        console.log(`Lancement refusé : ${String(error).split('\n')[0]}`);
+        if (!String(error).includes('NATION_TAKEN')) throw error;
       }
     }
-    await nap(2_000);
+    if (!seated) fail('Plus de nation libre : les huit sont prises.');
+    await client.mutation(api.players.declareReady, { token, seasonId, ready: true });
   }
-} else {
-  console.log("J'attends que l'humain lance la saison…");
-  while (!stopped && (await lobbyOf()).status === 'lobby') await nap(2_000);
 }
+
+if ((await lobbyOf())?.status === 'lobby') {
+  if (joinCode === null) {
+    console.log(`J'attends ${bots + humans} places prêtes (${bots} bots, ${humans} humains)…`);
+    while (!stopped) {
+      const lobby = await lobbyOf();
+      if (lobby !== null && lobby.status !== 'lobby') break;
+      if (
+        lobby !== null &&
+        lobby.players.length >= bots + humans &&
+        lobby.players.every((p) => p.ready)
+      ) {
+        try {
+          await client.mutation(api.seasons.launch, { token: tokens[0], seasonId });
+          break;
+        } catch (error) {
+          console.log(`Lancement refusé : ${first(error)}`);
+        }
+      }
+      await nap(2_000);
+    }
+  } else {
+    console.log("J'attends que l'humain lance la saison…");
+    for (;;) {
+      const lobby = await lobbyOf();
+      if (lobby !== null && lobby.status !== 'lobby') break;
+      await nap(2_000);
+    }
+  }
+}
+playing = true;
 if (!stopped) console.log('Saison lancée : les bots jouent.');
 
 /** Un ordre du décideur → sa mutation publique. Les ids de la vue sont des `string` : le serveur les valide. */
@@ -232,7 +300,6 @@ function submit(seat, order) {
   }
 }
 
-const first = (error) => String(error).split('\n')[0];
 let passNumber = 0;
 while (!stopped) {
   passNumber += 1;
@@ -240,14 +307,21 @@ while (!stopped) {
     if (stopped) break;
     const name = accounts[KEYS[k]].nickname;
     const seat = { token, seasonId };
-    let orders;
+    let view;
+    let workshop;
     try {
-      const view = adaptServerView(await client.query(api.view.playerView, seat));
-      const workshop = await client.query(api.troops.workshop, seat);
-      orders = decideTurn({ view, workshop, world, now: Date.now() });
+      view = adaptServerView(await client.query(api.view.playerView, seat));
+      workshop = await client.query(api.troops.workshop, seat);
     } catch (error) {
       if (String(error).includes('SEASON_CONCLUDED')) stopped = true;
       console.log(`${name} : lecture refusée (${first(error)})`);
+      continue;
+    }
+    let orders;
+    try {
+      orders = decideTurn({ view, workshop, world, now: Date.now() });
+    } catch (error) {
+      console.log(`${name} : décision en échec (${first(error)})`);
       continue;
     }
     for (const order of orders) {
@@ -261,11 +335,7 @@ while (!stopped) {
     }
   }
   if (stopped) break;
-  try {
-    if ((await lobbyOf()).status === 'concluded') stopped = true;
-  } catch (error) {
-    console.log(`salon illisible (${first(error)})`);
-  }
+  if ((await lobbyOf())?.status === 'concluded') stopped = true;
   if (!stopped) await nap(cadence * 1_000);
 }
 console.log('Fin de la boucle.');

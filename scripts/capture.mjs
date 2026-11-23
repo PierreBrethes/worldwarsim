@@ -102,6 +102,8 @@ const accountsFile = option('comptes')
 if (!existsSync(accountsFile))
   throw new Error('Pas de comptes de démo : lance `npm run demo:mondiale`.');
 const accounts = JSON.parse(readFileSync(accountsFile, 'utf8'));
+/** Le fichier des bots n'a pas de `places` : un lieu nommé y échoue par son nom, pas par un TypeError. */
+accounts.places ??= {};
 const account = accounts[option('compte', 'a')];
 if (!account?.nickname) {
   const keys = Object.keys(accounts).filter((key) => accounts[key]?.nickname);

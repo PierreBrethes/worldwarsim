@@ -177,6 +177,7 @@ npm run bots:mondiale -- --bots 3 --code ABC123 # rejoint la saison d'un humain,
 - **Avec ton compte** : sans `--code`, ouvre le lien `/rejoindre/CODE` imprimé, prends une nation
   libre, déclare-toi prêt ; le script lance dès que les `--bots` plus `--humains` places sont
   prêtes. Avec `--code`, fonde ta saison dans le jeu, donne son code, puis lance-la toi-même.
+- **Relance** : sans `--code`, le script reprend la saison de `scripts/bots-mondiale.accounts.json` tant qu'elle n'est pas conclue ; `--nouvelle` en fonde une autre. Avec `--code`, une saison déjà lancée est refusée (« rien à rejoindre »).
 - `--cadence` : secondes entre deux passages (30 par défaut). Un refus du serveur s'écrit sur une
   ligne (bot, ordre, code) et la boucle continue.
 - Comptes `Bot1`…`BotN` (clés `a`…) et saison dans `scripts/bots-mondiale.accounts.json`, ignoré
