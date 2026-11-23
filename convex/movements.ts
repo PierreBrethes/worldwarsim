@@ -119,7 +119,6 @@ import {
   weighSecondLeg,
 } from './movement/blitzkrieg';
 
-export { restHold } from './movement/rest';
 import {
   ATTACK_TARGET,
   CAPTURE_TARGET,

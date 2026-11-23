@@ -30,6 +30,7 @@ import { nearestRegion, regionFacts } from './regions';
 import { regionAtRoutePoint } from './regionGeometry';
 import { asPoint, pointOf } from './movement/forces';
 import { slotsTaken } from './movement/orders';
+import { irregularSeat } from './objectives';
 import { restHold } from './movement/rest';
 import { coastAtPoint, hostAtPoint, landAtPoint, routeBetween } from './routes';
 import schema from './schema';
@@ -37,6 +38,7 @@ import { modules } from './test.setup';
 import {
   attacking,
   foundSeat,
+  holdPoint,
   joinSeat,
   placeHq,
   raiding,
@@ -821,33 +823,58 @@ describe('the rest window holds an arrival at the border', () => {
   });
 
   /** The view hands `restHold` and `slotsTaken` what it already read; a mutation reads fresh.
-   *  Both paths answer the same, so the board never disagrees with the door. */
+   *  Both paths answer the same, so the board never disagrees with the door. The season is
+   *  peopled so that they would diverge if the view filtered what it holds differently: the
+   *  irregular seat is the only host of the sleeping country, Halifax is held, a building is
+   *  razed, and two columns aim at two host countries. */
   it('serves the hold and the slots the fresh readings give', async () => {
     vi.setSystemTime(new Date(Date.UTC(2026, 7, 17, 16, 30, 0)));
     const t = boot();
-    const { seat } = await launchedSeason(t);
+    const { seat, guest } = await launchedSeason(t);
     const barracks = await raise(t, seat, 'barracks', MARNE);
-    const troop = await form(t, seat, 'infantry', barracks);
-    await attacking(t, {
-      ...seat,
-      origin: { kind: 'building', buildingId: barracks },
-      troopIds: [troop],
-      target: { kind: 'region', regionId: PSKOV },
+    const razed = await raise(t, seat, 'barracks', MARNE);
+    const first = await form(t, seat, 'infantry', barracks);
+    const second = await form(t, seat, 'infantry', barracks);
+    await t.run(async (ctx) => ctx.db.delete(razed));
+    await holdPoint(t, seat, 'halifax');
+    for (const [troop, regionId] of [
+      [first, PSKOV],
+      [second, RIYADH],
+    ] as const)
+      await attacking(t, {
+        ...seat,
+        origin: { kind: 'building', buildingId: barracks },
+        troopIds: [troop],
+        target: { kind: 'region', regionId },
+      });
+    /** The Soviet nation passes to the irregular seat: only `everySeatOf` still finds its host. */
+    await t.run(async (ctx) => {
+      const guestRow = await seatIn(ctx, guest);
+      const neutral = await ctx.db.get(await irregularSeat(ctx, seat.seasonId));
+      await ctx.db.patch(neutral!._id, {
+        nation: guestRow.nation,
+        restWindow: guestRow.restWindow,
+      });
+      await ctx.db.patch(guestRow._id, { nation: 'italy' });
     });
 
     const view = await t.query(api.view.playerView, seat);
-    const [arc] = view.movements!;
-    const [row] = await movementsOf(t, seat);
+    const rows = await movementsOf(t, seat);
+    expect(view.movements).toHaveLength(2);
     const fresh = await t.run(async (ctx) => {
-      const player = (await ctx.db.get(row!.playerId))!;
+      const player = (await ctx.db.get(rows[0]!.playerId))!;
       return {
-        hold: await restHold(ctx, row!.playerId, row!.hostCountry, row!.arrivesAt),
-        slots: await slotsTaken(ctx, player, [row!]),
+        holds: await Promise.all(
+          rows.map((row) => restHold(ctx, row.playerId, row.hostCountry, row.arrivesAt)),
+        ),
+        slots: await slotsTaken(ctx, player, rows),
       };
     });
-    expect(arc!.holdUntil).not.toBeNull();
-    expect(arc!.holdUntil).toBe(fresh.hold);
+    expect(fresh.holds.filter((hold) => hold !== null)).toHaveLength(1);
+    for (const [index, row] of rows.entries())
+      expect(view.movements!.find((arc) => arc.id === row._id)!.holdUntil).toBe(fresh.holds[index]);
     expect(view.me.slots.used).toBe(fresh.slots.used);
+    expect(view.me.slots.halifax).toBe(true);
   });
 
   it('lets a column reach neutral ground while its neighbour sleeps', async () => {
