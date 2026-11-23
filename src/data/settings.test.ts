@@ -56,6 +56,11 @@ describe('les bascules gardées par le navigateur', () => {
     keepIndicatorToggles({ ...DEFAULT_TOGGLES, deposits: false });
     expect(readIndicatorToggles().deposits).toBe(false);
   });
+
+  it('éteint « hors champ » sous un réglage d’avant la fusion des calques', () => {
+    kept.set('wws-edge-indicators', JSON.stringify({ outposts: true, forces: true, intel: true }));
+    expect(readIndicatorToggles().offscreen).toBe(false);
+  });
 });
 
 describe('les bulletins lus par le navigateur', () => {

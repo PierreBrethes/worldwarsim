@@ -1,4 +1,4 @@
-import { CATEGORIES, DEFAULT_TOGGLES, type IndicatorToggles } from '@/domain/indicators';
+import { LAYERS, DEFAULT_TOGGLES, type IndicatorToggles } from '@/domain/indicators';
 import { DEFAULT_DAY_CYCLE, isDayCycle, type DayCycle } from '@/domain/daylight';
 import { DEFAULT_CONTOUR_WEIGHT, isContourWeight, type ContourWeight } from '@/domain/contours';
 import {
@@ -152,16 +152,16 @@ const INDICATORS_KEY = 'wws-edge-indicators';
 
 /**
  * The screen-edge toggles are read back category by category rather than as a block: a
- * category added later must take its default, not resurrect a stale object.
+ * layer added later must take its default, not resurrect a stale object.
  */
 export function readIndicatorToggles(): IndicatorToggles {
   const kept = readObject(INDICATORS_KEY);
   return Object.fromEntries(
-    CATEGORIES.map((category) => [
-      category,
-      typeof kept[category] === 'boolean' && (category !== 'deposits' || kept[DEPOSITS_EVERYWHERE])
-        ? kept[category]
-        : DEFAULT_TOGGLES[category],
+    LAYERS.map((layer) => [
+      layer,
+      typeof kept[layer] === 'boolean' && (layer !== 'deposits' || kept[DEPOSITS_EVERYWHERE])
+        ? kept[layer]
+        : DEFAULT_TOGGLES[layer],
     ]),
   ) as IndicatorToggles;
 }

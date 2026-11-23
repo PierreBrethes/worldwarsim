@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import type { IndicatorCategory, IndicatorToggles } from '@/domain/indicators';
+import type { IndicatorToggles, Layer } from '@/domain/indicators';
 import { keepIndicatorToggles, readIndicatorToggles } from './settings';
 
 /**
@@ -15,9 +15,9 @@ const snapshot = (): IndicatorToggles => (state ??= readIndicatorToggles());
 export const useIndicatorToggles = (): IndicatorToggles =>
   useSyncExternalStore(subscribe, snapshot);
 
-export function toggleIndicator(category: IndicatorCategory): void {
+export function toggleIndicator(layer: Layer): void {
   const current = snapshot();
-  state = { ...current, [category]: !current[category] };
+  state = { ...current, [layer]: !current[layer] };
   keepIndicatorToggles(state);
   for (const subscriber of subscribers) subscriber();
 }

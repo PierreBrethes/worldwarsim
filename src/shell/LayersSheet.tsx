@@ -1,13 +1,13 @@
 import { fr } from '@/i18n/fr';
-import { CATEGORIES } from '@/domain/indicators';
+import { LAYERS } from '@/domain/indicators';
 import { toggleIndicator, useIndicatorToggles } from '@/data/indicatorToggles';
 import { BottomSheet } from './BottomSheet';
 
 /**
- * **Les neuf bascules des calques, en cases de 44 px sur deux colonnes** (A4). Deux portes l'ouvrent
+ * **Les six bascules des calques, en cases de 44 px sur deux colonnes** (A4). Deux portes l'ouvrent
  * — le dossier de la nation et le bouton posé sur la carte. Le bureau lit la même grille dans une
- * carte du coin (`useIndicatorToggles`, une seule mémoire) : allumer les chantiers au téléphone
- * les allume aussi au bureau du même navigateur.
+ * carte du coin (`useIndicatorToggles`, une seule mémoire) : allumer « hors champ » au téléphone
+ * l'allume aussi au bureau du même navigateur.
  */
 export function LayersSheet({ onClose }: { onClose: () => void }) {
   return (
@@ -22,14 +22,14 @@ export function LayersGrid() {
   const toggles = useIndicatorToggles();
   return (
     <ul className="grid grid-cols-2 gap-[8px] p-4">
-      {CATEGORIES.map((category) => {
-        const on = toggles[category];
+      {LAYERS.map((layer) => {
+        const on = toggles[layer];
         return (
-          <li key={category} className="flex">
+          <li key={layer} className="flex">
             <button
               type="button"
               aria-pressed={on}
-              onClick={() => toggleIndicator(category)}
+              onClick={() => toggleIndicator(layer)}
               className={`flex w-full cursor-pointer items-center gap-[10px] border px-[10px] text-left ${
                 on ? 'border-[var(--ink)]' : 'border-(color:--ink)/35'
               }`}
@@ -40,9 +40,7 @@ export function LayersGrid() {
               >
                 {on && <span className="h-[8px] w-[8px] bg-[var(--ink)]" />}
               </span>
-              <span className="block text-[13px] first-letter:uppercase">
-                {fr.indicatorCategories[category]}
-              </span>
+              <span className="block text-[13px] first-letter:uppercase">{fr.layers[layer]}</span>
             </button>
           </li>
         );
