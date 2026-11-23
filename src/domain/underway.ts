@@ -38,6 +38,9 @@ export type Underway = {
   readonly place: UnderwayPlace;
   /** Un mouvement se lit à l'ambre de son fil ; le reste à l'encre. */
   readonly moving: boolean;
+  /** **Un mouvement tient un slot, sauf un retour** (`claimSlot`) : seul lui compte dans « tient un
+   *  slot » et dans la phrase du refus. */
+  readonly holdsSlot: boolean;
   /** **Une ronde qu'on peut rappeler** (#376) : sa troupe. */
   readonly recall?: string;
 };
@@ -86,6 +89,7 @@ export function underwayOf(
       face: { kind: 'unit', role: representativeRole(arc.stack) },
       place: { kind: 'movement', arcId: arc.id },
       moving: true,
+      holdsSlot: arc.type !== 'return',
       ...(patrol === undefined || patrol.recalled ? {} : { recall: patroller!.id }),
     });
   }
@@ -106,6 +110,7 @@ export function underwayOf(
           face: { kind: 'outpost' },
           place: { kind: 'outpost', outpostId: outpost.id },
           moving: false,
+          holdsSlot: false,
         });
     } else {
       /** La tête de file ne porte pas son niveau : il se lit sur le bâtiment qu'elle monte, et un
@@ -132,6 +137,7 @@ export function underwayOf(
         face: { kind: 'building', key: work.key },
         place: { kind: 'building', regionId: work.regionId, key: work.key, point: work.point },
         moving: false,
+        holdsSlot: false,
       });
     }
   }
@@ -151,6 +157,7 @@ export function underwayOf(
       face: { kind: 'unit', role: troop.role },
       place: { kind: 'outpost', outpostId: station.outpostId },
       moving: false,
+      holdsSlot: false,
       recall: troop.id,
     });
   }
@@ -164,6 +171,7 @@ export function underwayOf(
       face: { kind: 'outpost' },
       place: { kind: 'outpost', outpostId: outpost.id },
       moving: false,
+      holdsSlot: false,
     });
   }
 
@@ -182,6 +190,7 @@ export function underwayOf(
           null,
       },
       moving: false,
+      holdsSlot: false,
     });
   }
 
@@ -204,6 +213,7 @@ export function underwayOf(
         point: center.point,
       },
       moving: false,
+      holdsSlot: false,
     });
 
   for (const chain of view.me.chains) {
@@ -217,8 +227,26 @@ export function underwayOf(
       face: { kind: 'building', key: chain.by },
       place: { kind: 'building', regionId: site.regionId, key: site.key, point: site.point },
       moving: false,
+      holdsSlot: false,
     });
   }
 
   return lines.sort((first, second) => first.endsAt - second.endsAt);
+}
+
+/**
+ * **Le refus que le volet dit sous les mouvements** (ADR 0015) quand tous les slots sont pris : à
+ * quelle échéance le prochain se libère. Les lignes qui tiennent un slot doivent égaler `used` ;
+ * sinon (Halifax épargne un mouvement maritime, une colonne qu'on ne lit pas) on ne nomme rien
+ * qu'on ne sache, et on dit seulement que les slots sont engagés. `lines` est déjà trié.
+ */
+export function slotsRefusalOf(
+  slots: { readonly total: number; readonly used: number },
+  lines: ReadonlyArray<Underway>,
+): { readonly kind: 'frees'; readonly line: Underway } | { readonly kind: 'engaged' } | null {
+  if (slots.used < slots.total) return null;
+  const holders = lines.filter((line) => line.holdsSlot);
+  return holders.length === slots.used && holders[0] !== undefined
+    ? { kind: 'frees', line: holders[0] }
+    : { kind: 'engaged' };
 }

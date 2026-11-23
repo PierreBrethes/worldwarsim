@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { underwayOf, type RecruitmentDue } from './underway';
+import { slotsRefusalOf, underwayOf, type RecruitmentDue, type Underway } from './underway';
 import type { ArcView, ChainView, PlayerView } from './player-view';
 
 const LOADED = 1_000_000;
@@ -84,6 +84,7 @@ describe('what runs, nearest first', () => {
       face: { kind: 'unit', role: 'infantry' },
       place: { kind: 'movement', arcId: 'M-1' },
       moving: true,
+      holdsSlot: true,
     });
   });
 
@@ -266,5 +267,54 @@ describe('a patrol under way', () => {
       place: { kind: 'outpost', outpostId: 'P-2' },
     });
     expect(line!.label).toMatch(/^halte à Hesse jusqu’à \d\d:\d\d$/);
+  });
+});
+
+describe('which lines hold a movement slot', () => {
+  it('holds one for a march and none for a return, a work or a lot', () => {
+    const work = {
+      id: 'W-1',
+      key: 'mine',
+      name: 'Mine',
+      outpostId: null,
+      regionId: 'FRA-1',
+      point: [3, 50],
+      minutesLeft: 89,
+    };
+    const lines = underwayOf(
+      board({ construction: work }, [march('M-1', 14), march('M-2', 20, { type: 'return' })]),
+      [],
+    );
+    expect(lines.map((line) => [line.id, line.holdsSlot])).toEqual([
+      ['movement-M-1', true],
+      ['movement-M-2', false],
+      ['construction-W-1', false],
+    ]);
+  });
+});
+
+describe('the refusal said under the movements when every slot is taken (ADR 0015)', () => {
+  const held = (id: string, minutesLeft: number, holdsSlot = true): Underway => ({
+    id,
+    endsAt: minutes(minutesLeft),
+    label: id,
+    face: { kind: 'outpost' },
+    place: { kind: 'outpost', outpostId: id },
+    moving: holdsSlot,
+    holdsSlot,
+  });
+
+  it('says nothing while a slot is free', () => {
+    expect(slotsRefusalOf({ total: 2, used: 1 }, [held('a', 5)])).toBeNull();
+  });
+
+  it('names the nearest holder when the lines holding a slot are the ones counted', () => {
+    const lines = [held('a', 5), held('r', 7, false), held('b', 9)];
+    expect(slotsRefusalOf({ total: 2, used: 2 }, lines)).toEqual({ kind: 'frees', line: lines[0] });
+  });
+
+  it('only says the slots are taken when the lines do not add up to the count (Halifax, a hidden column)', () => {
+    expect(slotsRefusalOf({ total: 2, used: 2 }, [held('a', 5)])).toEqual({ kind: 'engaged' });
+    expect(slotsRefusalOf({ total: 2, used: 2 }, [])).toEqual({ kind: 'engaged' });
   });
 });
