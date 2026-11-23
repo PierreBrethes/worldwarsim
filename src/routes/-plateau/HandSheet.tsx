@@ -482,17 +482,31 @@ function HandOffers({
             );
           }
           case 'disembark': {
-            const riders = held.filter((troop) => offer.troopIds.includes(troop.id));
+            /* Au bureau, chaque passager descend de sa ligne et le pied offre un seul « débarquer »
+               pour tous (#619) : l'offre qui en porte la liste, posée à la première. */
+            const all = narrow
+              ? offer
+              : {
+                  ...offer,
+                  troopIds: offers.flatMap((one) =>
+                    one.key === 'disembark' && one.refusal === null ? one.troopIds : [],
+                  ),
+                };
+            if (
+              !narrow &&
+              offer.refusal === null &&
+              offers.find((one) => one.key === 'disembark' && one.refusal === null) !== offer
+            )
+              return null;
+            const riders = held.filter((troop) => all.troopIds.includes(troop.id));
             const aboard = riders.map((troop) => roleLabel(troop.role, 1)).join(', ');
-            /* Au bureau, chaque passager descend de sa ligne (#619) : le pied ne garde que le refus. */
-            if (!narrow && offer.refusal === null) return null;
             return offer.refusal !== null ? (
               <div key={`disembark-${offer.troopIds.join()}`}>{said(offer.refusal)}</div>
             ) : (
               <button
                 key={`disembark-${offer.troopIds.join()}`}
                 type="button"
-                onClick={() => onOffer(offer)}
+                onClick={() => onOffer(all)}
                 className={`mt-[8px] ${button}`}
               >
                 {fr.hand.disembark}

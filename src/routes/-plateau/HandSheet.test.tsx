@@ -303,10 +303,15 @@ describe('HandSheet disembarking, passenger by passenger', () => {
     const onOffer = vi.fn();
     sheet('mondiale', false, onOffer);
     const buttons = screen.getAllByRole('button', { name: new RegExp(fr.hand.disembark, 'i') });
-    expect(buttons).toHaveLength(2);
+    expect(buttons).toHaveLength(3);
     act(() => buttons[1]!.click());
     expect(onOffer).toHaveBeenLastCalledWith(
       expect.objectContaining({ key: 'disembark', troopIds: ['b'] }),
+    );
+    /* Le pied n'en offre qu'un, pour tous les passagers. */
+    act(() => buttons[2]!.click());
+    expect(onOffer).toHaveBeenLastCalledWith(
+      expect.objectContaining({ key: 'disembark', troopIds: ['a', 'b'] }),
     );
   });
 
