@@ -172,13 +172,18 @@ async function notifyBoth(
     ...(defended ? [[capture.defenderId, 'defender'] as const] : []),
   ];
   for (const [playerId, side] of sides) {
+    /** **L'adversaire ne lit pas la famine** (ADR 0044) : le défenseur n'a pas de motif. */
+    const said =
+      side === 'defender' && notice.kind === 'captureCancelled' && notice.reason === 'starving'
+        ? { kind: notice.kind }
+        : notice;
     await ctx.db.insert('notices', {
       playerId,
       at,
       side,
       site: capture.site,
       point: capture.point,
-      ...notice,
+      ...said,
     });
   }
   /** **L'alarme quitte l'écran en Mondiale** : on ne joue pas devant la carte, et c'est la seule
@@ -460,7 +465,7 @@ async function stop(
     });
     return;
   }
-  await ctx.db.patch(capture._id, { stoppedAt: now });
+  await ctx.db.patch(capture._id, { stoppedAt: now, suspended: undefined });
   await notifyBoth(ctx, capture, now, { kind: 'captureCancelled', reason });
 }
 
@@ -558,9 +563,22 @@ export async function resumeCaptures(
     .collect()) {
     if (capture.suspended !== true || capture.stoppedAt !== undefined) continue;
     const site = await targetOf(ctx, capture.target, capture.playerId, capture.seasonId);
-    if (site === null || !stillHeldBy(site, capture.defenderId))
+    if (site === null || !stillHeldBy(site, capture.defenderId)) {
       await stop(ctx, capture, now, 'gone');
-    else await conclude(ctx, capture, site, now);
+      continue;
+    }
+    /** **La plage de repos du défenseur tient encore** : à 100 %, elle attend sa fin comme une
+     *  capture ordinaire, et son échéance est reprise. */
+    const due = completesAt({ ...clockOf(capture), progress: 1, at: now });
+    if (due > now) {
+      await ctx.db.patch(capture._id, {
+        progress: 1,
+        progressAt: now,
+        completesAt: due,
+        suspended: undefined,
+      });
+      await schedule(ctx, capture._id, due);
+    } else await conclude(ctx, capture, site, now);
   }
 }
 

@@ -783,8 +783,13 @@ export const preview = query({
     roundTrip: v.optional(v.boolean()),
     /** **La seconde cible d'une Guerre éclair** (ADR 0039 §6) : sa jambe, ou son refus. */
     then: v.optional(ATTACK_TARGET),
+    /** **Une livraison** (ADR 0044) : le serveur ne la ralentit pas, l'aperçu non plus. */
+    delivery: v.optional(v.boolean()),
   },
-  handler: async (ctx, { token, seasonId, origin, troopIds, target, type, roundTrip, then }) => {
+  handler: async (
+    ctx,
+    { token, seasonId, origin, troopIds, target, type, roundTrip, then, delivery },
+  ) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     if (namesATroopTwice(troopIds)) return null;
     const departure = await departureOf(ctx, player._id, origin);
@@ -812,8 +817,10 @@ export const preview = query({
     );
     if (route === null) return null;
 
-    /** **Au pas** (ADR 0044) : la même lecture que le départ, hors largage et Guerre éclair. */
-    const slow = column.starving === true && roundTrip !== true && then === undefined;
+    /** **Au pas** (ADR 0044) : la même lecture que le départ, hors largage, livraison et Guerre
+     *  éclair. */
+    const slow =
+      column.starving === true && roundTrip !== true && then === undefined && delivery !== true;
     const minutes = await pacedMinutes(ctx, player._id, route, now, false, slow);
     const arrivesAt = now + minutes * 60_000;
     const chained = chainRefusalOf(

@@ -169,6 +169,7 @@ export function useOrderPreview(
             target: wireTarget(aimed.aim),
             type: aimed.type,
             ...(mission.roundTrip === true ? { roundTrip: true } : {}),
+            ...(mission.delivery === true ? { delivery: true } : {}),
           },
   );
   /** La seconde jambe telle que le serveur la pèse : son refus en valeur, ou sa route. */

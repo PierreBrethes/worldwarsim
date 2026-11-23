@@ -1742,9 +1742,10 @@ describe('a hungry nation', () => {
     expect(await noticesOf(t, seat, 'captureCancelled')).toMatchObject([
       { side: 'capturer', reason: 'starving' },
     ]);
-    expect(await noticesOf(t, guest, 'captureCancelled')).toMatchObject([
-      { side: 'defender', reason: 'starving' },
-    ]);
+    const [seen] = await noticesOf(t, guest, 'captureCancelled');
+    expect(seen).toMatchObject({ side: 'defender' });
+    /** L'adversaire ne lit pas la famine (ADR 0044). */
+    expect(seen).not.toHaveProperty('reason');
     expect(await t.run((ctx) => ctx.db.query('movements').collect())).not.toEqual([]);
   });
 
@@ -1797,7 +1798,9 @@ describe('a hungry nation', () => {
 
     await reassess(t, seat.seasonId);
 
-    expect(await capturesOf(t)).toMatchObject([{ suspended: true, stoppedAt: expect.any(Number) }]);
+    const [lifted] = await capturesOf(t);
+    expect(lifted).toMatchObject({ stoppedAt: expect.any(Number) });
+    expect(lifted!.suspended).toBeUndefined();
     expect(await noticesOf(t, guest, 'captureCancelled')).toMatchObject([{ reason: 'left' }]);
   });
 
@@ -1813,5 +1816,90 @@ describe('a hungry nation', () => {
       roundTrip: true,
     });
     expect(preview!.slow).toBe(false);
+  });
+
+  it('keeps a delivery, like an airdrop, at its own pace in the preview', async () => {
+    const { t, seat, origin, infantry } = await setup();
+    await starve(t, seat);
+    const preview = await t.query(api.movements.preview, {
+      ...seat,
+      origin,
+      troopIds: [infantry],
+      target: { kind: 'point', point: pointOfRegion(PSKOV) },
+      type: 'march',
+      delivery: true,
+    });
+    expect(preview!.slow).toBe(false);
+  });
+
+  /** Le repos du défenseur tient encore quand les vivres reviennent : elle attend sa fin. */
+  it('waits out the defender’s rest window when the food returns inside it', async () => {
+    const { t, seat, guest, infantry, target } = await setup();
+    await captureArrival(
+      t,
+      seat,
+      { kind: 'building', buildingId: target },
+      pointOfRegion(PSKOV),
+      'RUS',
+      [infantry],
+    );
+    await starve(t, seat);
+    await finish(t);
+    const [held] = await capturesOf(t);
+    const rest = { startMinutes: 17 * 60, endMinutes: 23 * 60 };
+    await t.run((ctx) => ctx.db.patch(held!._id, { rest }));
+    await setFood(t, seat, 50_000);
+
+    await t.mutation(internal.troops.resumeQueues, { playerId: (await playerOf(t, seat))._id });
+
+    const [waiting] = await capturesOf(t);
+    expect(waiting!.suspended).toBeUndefined();
+    expect(waiting!.completesAt).toBe(Date.UTC(2026, 8, 9, 23));
+    expect((await t.run((ctx) => ctx.db.get(target)))!.playerId).toBe(
+      (await playerOf(t, guest))._id,
+    );
+    await finish(t);
+    expect((await t.run((ctx) => ctx.db.get(target)))!.playerId).toBe(
+      (await playerOf(t, seat))._id,
+    );
+  });
+
+  /** L'adversaire ne lit pas la famine : ni le champ, ni le motif de sa dépêche. */
+  it('tells the defender neither the suspension nor the reason of a lifted capture', async () => {
+    const { t, seat, guest, infantry, target } = await setup();
+    await captureArrival(
+      t,
+      seat,
+      { kind: 'building', buildingId: target },
+      pointOfRegion(PSKOV),
+      'RUS',
+      [infantry],
+    );
+    await starve(t, seat);
+    await finish(t);
+    expect((await t.query(api.view.playerView, guest)).captures).toMatchObject([
+      { side: 'defender', suspended: false },
+    ]);
+
+    await t.run((ctx) => ctx.db.patch(infantry, { stationedAt: pointOfRegion(PRAHOVA) }));
+    await reassess(t, seat.seasonId);
+    expect(await noticesOf(t, guest, 'captureCancelled')).toMatchObject([{ reason: 'left' }]);
+  });
+
+  it('takes no hunger into a blitz: its capture opens as usual', async () => {
+    const { t, seat, infantry, target } = await setup();
+    await starve(t, seat);
+    await t.run((ctx) => ctx.db.patch(seat.seasonId, { mode: 'blitz' }));
+
+    await captureArrival(
+      t,
+      seat,
+      { kind: 'building', buildingId: target },
+      pointOfRegion(PSKOV),
+      'RUS',
+      [infantry],
+    );
+
+    expect(await capturesOf(t)).toHaveLength(1);
   });
 });

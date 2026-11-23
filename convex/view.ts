@@ -1406,7 +1406,8 @@ const captureView = (capture: Doc<'captures'>, side: 'capturer' | 'defender') =>
   },
   completesAt: capture.completesAt,
   stoppedAt: capture.stoppedAt ?? null,
-  suspended: capture.suspended === true,
+  /** **Servi au seul capteur** (ADR 0044) : le défenseur ne lit pas la famine de l'autre. */
+  suspended: side === 'capturer' && capture.suspended === true,
 });
 
 /** Where a dispatch happened, for the journal's locate button: the point the row stored, else the
