@@ -1,9 +1,15 @@
 import { useMutation } from 'convex/react';
-import { useCallback, useState } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import { api } from '../../../convex/_generated/api';
 import { fr } from '@/i18n/fr';
 import { isAlarm } from '@/domain/journal';
-import { journalLines, passesFilter, type JournalFilter } from '@/domain/journal-lines';
+import {
+  groupJournal,
+  journalLines,
+  passesFilter,
+  type JournalBundle,
+  type JournalFilter,
+} from '@/domain/journal-lines';
 import { asDayAndTime } from '@/domain/duration';
 import { Stamp } from '@/shell/Stamp';
 import {
@@ -104,7 +110,19 @@ export function JournalWindow({
         : lines.find((line) => line.dispatch.combat?.id === leadReport);
     return lead === undefined ? null : keyOf(lead.dispatch);
   });
-  const shown = lines.filter((line) => passesFilter(line.dispatch, filter));
+  /** Les liasses se forment sur l'ordre entier, puis le filtre les retient ou non ; ‹ › lit leurs
+   *  dépêches aplaties, dans l'ordre du journal. */
+  const bundles = groupJournal(lines).filter((bundle) =>
+    bundle.lines.some((line) => passesFilter(line.dispatch, filter)),
+  );
+  const shown = bundles.flatMap((bundle) => bundle.lines);
+  const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
+  const toggle = (key: string) =>
+    setOpen((was) => {
+      const next = new Set(was);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
   const at = shown.findIndex((line) => keyOf(line.dispatch) === picked);
   const sheet = at < 0 ? null : shown[at];
   const unread = lines.filter((line) => line.dispatch.unread).length;
@@ -184,14 +202,27 @@ export function JournalWindow({
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-[var(--ink)]">
           {view.mode !== 'blitz' && <Waking view={view} stalled={stalled} />}
-          {shown.map(({ dispatch }, rank) => (
-            <TelexLine
-              key={`${keyOf(dispatch)}-${rank}`}
-              dispatch={dispatch}
-              picked={keyOf(dispatch) === picked}
-              onOpen={() => setPicked(keyOf(dispatch))}
-            />
-          ))}
+          {bundles.map((bundle, rank) => {
+            const head = bundle.head.dispatch;
+            const key = keyOf(head);
+            return bundle.lines.length === 1 ? (
+              <TelexLine
+                key={`${key}-${rank}`}
+                dispatch={head}
+                picked={key === picked}
+                onOpen={() => setPicked(key)}
+              />
+            ) : (
+              <Bundle
+                key={`${key}-${rank}`}
+                bundle={bundle}
+                expanded={open.has(key)}
+                picked={picked}
+                onToggle={() => toggle(key)}
+                onOpen={(dispatch) => setPicked(keyOf(dispatch))}
+              />
+            );
+          })}
           {shown.length === 0 && (
             <p className="px-4 py-6 text-center font-(family-name:--font-text) text-[14px] text-[var(--ink-soft)] italic">
               {lines.length === 0 ? fr.journal.none : fr.journal.noneFiltered}
@@ -259,15 +290,26 @@ function Waking({ view, stalled }: { view: PlayerView; stalled: ReadonlyArray<Jo
 }
 
 /** **Une ligne, une dépêche** : l'heure, la barre de gravité — pleine quand elle est neuve, en
- *  pointillé quand elle est lue —, la sorte, le titre coupé. Le non lu se lit au gras. */
+ *  pointillé quand elle est lue —, la sorte, le titre. Le non lu se lit au gras. Sur deux lignes
+ *  quand la fenêtre est étroite (l'heure et la sorte, puis la phrase), sur une au bureau : c'est la
+ *  largeur de la fenêtre (`@[420px]`, entre un téléphone et le dock) qui décide, jamais celle de l'écran. `end` est la queue d'une
+ *  liasse (« depuis », « × N », ▾) ; `tint` la distingue d'une dépêche seule. */
 function TelexLine({
   dispatch,
   picked,
   onOpen,
+  unread = dispatch.unread,
+  end,
+  expanded,
+  tint = false,
 }: {
   dispatch: JournalDispatch;
   picked: boolean;
   onOpen: () => void;
+  unread?: boolean;
+  end?: ReactNode;
+  expanded?: boolean;
+  tint?: boolean;
 }) {
   const ink = SEVERITY_INK[dispatch.severity];
   return (
@@ -275,40 +317,129 @@ function TelexLine({
       type="button"
       onClick={onOpen}
       aria-current={picked}
-      className={`grid h-[30px] min-h-[30px]! w-full cursor-pointer grid-cols-[36px_3px_64px_minmax(0,1fr)] items-center gap-x-[6px] border-b border-(color:--ink)/16 pr-[10px] pl-3 text-left @md:grid-cols-[36px_3px_96px_minmax(0,1fr)] ${
-        picked ? 'bg-(--paper-pile)/70' : ''
+      aria-expanded={expanded}
+      className={`grid min-h-[56px]! w-full cursor-pointer grid-cols-[3px_44px_minmax(0,1fr)_auto] items-center gap-x-[6px] gap-y-[2px] border-b border-(color:--ink)/16 py-[7px] pr-[10px] pl-3 text-left @[420px]:h-[30px] @[420px]:min-h-[30px]! @[420px]:grid-cols-[36px_3px_96px_minmax(0,1fr)_auto] @[420px]:py-0 ${
+        picked
+          ? 'bg-(--paper-pile)/70'
+          : tint
+            ? 'bg-(--paper-pile)/35 hover:bg-(--paper-pile)/60'
+            : ''
       }`}
     >
       <span
-        className="font-(family-name:--font-mono) text-[11px]"
+        aria-hidden
+        className="col-start-1 row-span-2 row-start-1 my-[2px] self-stretch @[420px]:col-start-2 @[420px]:row-span-1 @[420px]:my-[7px]"
+        style={unread ? { background: ink } : { borderLeft: `2px dotted ${ink}` }}
+      />
+      <span
+        className="col-start-2 row-start-1 font-(family-name:--font-mono) text-[11px] @[420px]:col-start-1"
         style={{
-          color: dispatch.unread ? 'var(--ink)' : 'var(--ink-soft)',
-          fontWeight: dispatch.unread ? 600 : 400,
+          color: unread ? 'var(--ink)' : 'var(--ink-soft)',
+          fontWeight: unread ? 600 : 400,
         }}
       >
         {dispatch.t.slice(0, 5)}
       </span>
       <span
-        aria-hidden
-        className="my-[7px] self-stretch"
-        style={dispatch.unread ? { background: ink } : { borderLeft: `2px dotted ${ink}` }}
-      />
-      <span
-        className="line-clamp-2 text-[9px] leading-[1.25] font-semibold tracking-[.08em] uppercase"
+        className="col-start-3 row-start-1 line-clamp-2 text-[9px] leading-[1.25] font-semibold tracking-[.08em] uppercase"
         style={{ color: isAlarm(dispatch.kind) ? 'var(--critical)' : 'var(--ink-soft)' }}
       >
         {fr.stamps.dispatches[dispatch.kind]}
       </span>
       <span
-        className="truncate font-(family-name:--font-text) text-[13.5px]"
+        className="col-span-3 col-start-2 row-start-2 line-clamp-2 font-(family-name:--font-text) text-[14px] leading-[1.3] @[420px]:col-span-1 @[420px]:col-start-4 @[420px]:row-start-1 @[420px]:line-clamp-1 @[420px]:text-[13.5px]"
         style={{
-          color: dispatch.unread ? 'var(--ink)' : 'var(--ink-soft)',
-          fontWeight: dispatch.unread ? 600 : 400,
+          color: unread ? 'var(--ink)' : 'var(--ink-soft)',
+          fontWeight: unread ? 600 : 400,
         }}
       >
         {dispatch.text}
       </span>
+      {end !== undefined && (
+        <span className="col-start-4 row-start-1 flex items-center gap-[6px] font-(family-name:--font-mono) text-[11px] text-[var(--ink-soft)] @[420px]:col-start-5">
+          {end}
+        </span>
+      )}
     </button>
+  );
+}
+
+/** **Une liasse** (`groupJournal`) : la ligne de sa dépêche la plus récente, « × N » et ▾ ; non lue
+ *  si l'une des siennes l'est. Dépliée, ses dépêches suivent en lignes serrées sous un filet, et
+ *  chacune s'ouvre dans la feuille. */
+function Bundle({
+  bundle,
+  expanded,
+  picked,
+  onToggle,
+  onOpen,
+}: {
+  bundle: JournalBundle;
+  expanded: boolean;
+  picked: string | null;
+  onToggle: () => void;
+  onOpen: (dispatch: JournalDispatch) => void;
+}) {
+  const head = bundle.head.dispatch;
+  const oldest = bundle.oldest.dispatch;
+  return (
+    <>
+      <TelexLine
+        dispatch={head}
+        picked={false}
+        tint
+        expanded={expanded}
+        unread={bundle.lines.some((line) => line.dispatch.unread)}
+        onOpen={onToggle}
+        end={
+          <>
+            {oldest.t.slice(0, 5) !== head.t.slice(0, 5) && (
+              <span className="@[420px]:hidden">
+                {fr.journal.bundleSince(oldest.t.slice(0, 5))}
+              </span>
+            )}
+            <b className="font-semibold text-[var(--ink)]">
+              {fr.journal.bundleCount(bundle.lines.length)}
+            </b>
+            <span aria-hidden>{expanded ? '▴' : '▾'}</span>
+          </>
+        }
+      />
+      {expanded && (
+        <div className="ml-3 border-b border-[var(--ink)] border-l-[3px] bg-(--paper-pile)/20">
+          {bundle.lines.map(({ dispatch }) => (
+            <button
+              key={`${keyOf(dispatch)}-${dispatch.t}`}
+              type="button"
+              onClick={() => onOpen(dispatch)}
+              aria-current={keyOf(dispatch) === picked}
+              className={`grid min-h-[44px]! w-full cursor-pointer grid-cols-[44px_minmax(0,1fr)] items-center gap-x-[6px] border-b border-(color:--ink)/16 py-1 pr-[10px] pl-[9px] text-left last:border-b-0 @[420px]:min-h-[28px]! @[420px]:grid-cols-[40px_minmax(0,1fr)] ${
+                keyOf(dispatch) === picked ? 'bg-(--paper-pile)/70' : ''
+              }`}
+            >
+              <span
+                className="font-(family-name:--font-mono) text-[11px]"
+                style={{
+                  color: dispatch.unread ? 'var(--ink)' : 'var(--ink-soft)',
+                  fontWeight: dispatch.unread ? 600 : 400,
+                }}
+              >
+                {dispatch.t.slice(0, 5)}
+              </span>
+              <span
+                className="line-clamp-2 font-(family-name:--font-text) text-[13.5px] leading-[1.3] @[420px]:line-clamp-1"
+                style={{
+                  color: dispatch.unread ? 'var(--ink)' : 'var(--ink-soft)',
+                  fontWeight: dispatch.unread ? 600 : 400,
+                }}
+              >
+                {dispatch.text}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 

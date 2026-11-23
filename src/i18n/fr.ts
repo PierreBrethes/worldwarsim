@@ -2768,6 +2768,9 @@ export const fr = {
       routine: 'routine',
     },
     noneFiltered: 'Aucune dépêche de cette sorte.',
+    /** **La liasse** (`groupJournal`) : le décompte de ses dépêches, et l'heure de la plus ancienne. */
+    bundleCount: (count: number) => `× ${count}`,
+    bundleSince: (time: string) => `depuis ${time}`,
     showOnMap: 'voir sur la carte',
     /** Les éditions plus anciennes que la dernière, que le journal ne liste plus (`journalLines`). */
     earlierEditions: (count: number) =>
