@@ -835,12 +835,16 @@
 
 /* « suspendue : l'armée a faim » est longue : elle passe à la ligne sous l'anneau et le tampon
    plutôt que de déborder l'étiquette, au téléphone comme au bureau. */
+/* `.label-block` pose `nowrap` : sans le rendre ici ni borner la largeur, la phrase élargirait
+   l'étiquette au lieu de passer à la ligne. */
 .capture-gauge {
   flex-wrap: wrap;
+  max-width: 160px;
 }
 
 .capture-words {
   min-width: 0;
+  white-space: normal;
   overflow-wrap: anywhere;
 }
 
