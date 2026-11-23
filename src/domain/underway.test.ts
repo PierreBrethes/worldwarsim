@@ -86,6 +86,7 @@ describe('what runs, nearest first', () => {
       moving: true,
       holdsSlot: true,
       span: 14 * 60_000,
+      slotFreedAt: minutes(14),
     });
   });
 
@@ -292,10 +293,48 @@ describe('which lines hold a movement slot', () => {
       ['construction-W-1', false],
     ]);
   });
+
+  it('keeps the slot of a patrol or a tour past its arrival: its march frees nothing', () => {
+    const lines = underwayOf(
+      board(
+        {
+          troops: [
+            { id: 'T-1', patrol: { ends: ['a', 'b'], to: 'b', haltUntil: null } },
+            { id: 'T-2', tour: { baseId: 'B-1' } },
+          ],
+        },
+        [
+          march('M-1', 5, { troopIds: ['T-1'] }),
+          march('M-2', 6, { troopIds: ['T-2'] }),
+          march('M-3', 7, { troopIds: ['T-3'] }),
+        ],
+      ),
+      [],
+    );
+    expect(lines.map((line) => [line.id, line.holdsSlot])).toEqual([
+      ['movement-M-1', false],
+      ['movement-M-2', false],
+      ['movement-M-3', true],
+    ]);
+  });
+
+  it('gives the slot back at arrival, not at the end of a walk towards a rest window', () => {
+    const walking = march('M-1', 90, {
+      schedule: {
+        departedAt: LOADED,
+        arrivesAt: minutes(90),
+        heldAt: null,
+        holdUntil: minutes(30),
+      },
+    });
+    const [line] = underwayOf(board({}, [walking]), []);
+    expect(line?.endsAt).toBe(minutes(30));
+    expect(line?.slotFreedAt).toBe(minutes(90));
+  });
 });
 
 describe('the refusal said under the movements when every slot is taken (ADR 0015)', () => {
-  const held = (id: string, minutesLeft: number, holdsSlot = true): Underway => ({
+  const held = (id: string, minutesLeft: number, holdsSlot = true, freed?: number): Underway => ({
     id,
     endsAt: minutes(minutesLeft),
     label: id,
@@ -303,18 +342,23 @@ describe('the refusal said under the movements when every slot is taken (ADR 001
     place: { kind: 'outpost', outpostId: id },
     moving: holdsSlot,
     holdsSlot,
+    ...(freed === undefined ? {} : { slotFreedAt: minutes(freed) }),
   });
 
   it('says nothing while a slot is free', () => {
     expect(slotsRefusalOf({ total: 2, used: 1 }, [held('a', 5)])).toBeNull();
   });
 
-  it('names the nearest holder when the lines holding a slot are the ones counted', () => {
-    const lines = [held('a', 5), held('r', 7, false), held('b', 9)];
-    expect(slotsRefusalOf({ total: 2, used: 2 }, lines)).toEqual({ kind: 'frees', line: lines[0] });
+  it('names the holder that frees first, at the instant its slot is given back', () => {
+    const lines = [held('a', 5, true, 50), held('r', 7, false), held('b', 9)];
+    expect(slotsRefusalOf({ total: 2, used: 2 }, lines)).toEqual({
+      kind: 'frees',
+      line: lines[2],
+      at: minutes(9),
+    });
   });
 
-  it('only says the slots are taken when the lines do not add up to the count (Halifax, a hidden column)', () => {
+  it('only says the slots are taken when the lines do not add up to the count (Halifax, a patrol, a hidden column)', () => {
     expect(slotsRefusalOf({ total: 2, used: 2 }, [held('a', 5)])).toEqual({ kind: 'engaged' });
     expect(slotsRefusalOf({ total: 2, used: 2 }, [])).toEqual({ kind: 'engaged' });
   });

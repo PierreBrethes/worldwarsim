@@ -3333,7 +3333,17 @@ function BoardContent({
     hand.kind !== 'empty' ||
     garrison !== null ||
     demolition !== null ||
-    dismantling !== null;
+    dismantling !== null ||
+    selectedLoot !== null ||
+    selectedCamp !== null ||
+    selectedObjective !== null ||
+    selectedPoint !== null ||
+    selectedRumorId !== null ||
+    selection.length > 0 ||
+    selectionSheet !== null ||
+    heldRose !== null ||
+    resting !== null ||
+    briefing;
 
   /** **Un bâtiment se cadre même calque éteint** : sans le calque, son mât n'existe pas et la
    *  carte n'aurait rien à rejoindre — on vise alors le point de sa région. */

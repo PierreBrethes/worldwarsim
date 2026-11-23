@@ -39,11 +39,16 @@ export type Underway = {
   readonly place: UnderwayPlace;
   /** Un mouvement se lit à l'ambre de son fil ; le reste à l'encre. */
   readonly moving: boolean;
-  /** **Un mouvement tient un slot, sauf un retour** (`claimSlot`) : seul lui compte dans « tient un
-   *  slot » et dans la phrase du refus. */
+  /** **Un mouvement tient un slot, sauf un retour** (`claimSlot`) et la marche d'une ronde ou d'une
+   *  tournée, qui garde le sien à l'arrivée : seul lui compte dans « tient un slot » et dans la
+   *  phrase du refus. */
   readonly holdsSlot: boolean;
+  /** L'instant où ce slot se rend : l'arrivée, non `endsAt`, qui peut être la fin d'une marche vers
+   *  une plage de repos. */
+  readonly slotFreedAt?: number;
   /** **La durée entière dont la jauge se tire**, en ms ; absente quand la vue ne la porte pas :
-   *  la jauge n'est alors pas dessinée plutôt que devinée. */
+   *  la jauge n'est alors pas dessinée plutôt que devinée. Celle d'une fondation est une
+   *  approximation : la durée au niveau du QG d'aujourd'hui, que la vue ne date pas. */
   readonly span?: number;
   /** **Une ronde qu'on peut rappeler** (#376) : sa troupe. */
   readonly recall?: string;
@@ -82,6 +87,12 @@ export function underwayOf(
     if (arc.state !== 'mine') continue;
     const patroller = patrolling.find((troop) => arc.troopIds.includes(troop.id));
     const patrol = patroller?.patrol;
+    /** Une ronde ou une tournée garde son slot à l'arrivée : sa marche n'en rend aucun. */
+    const keepsSlot = view.me.troops.some(
+      (troop) =>
+        (troop.patrol !== undefined || troop.tour !== undefined) && arc.troopIds.includes(troop.id),
+    );
+    const holdsSlot = arc.type !== 'return' && !keepsSlot;
     const endsAt = borderResolution(arc.schedule) ?? arc.schedule.arrivesAt;
     lines.push({
       id: `movement-${arc.id}`,
@@ -97,7 +108,8 @@ export function underwayOf(
       face: { kind: 'unit', role: representativeRole(arc.stack) },
       place: { kind: 'movement', arcId: arc.id },
       moving: true,
-      holdsSlot: arc.type !== 'return',
+      holdsSlot,
+      ...(holdsSlot ? { slotFreedAt: arc.schedule.arrivesAt } : {}),
       ...(patrol === undefined || patrol.recalled ? {} : { recall: patroller!.id }),
     });
   }
@@ -259,10 +271,14 @@ export function underwayOf(
 export function slotsRefusalOf(
   slots: { readonly total: number; readonly used: number },
   lines: ReadonlyArray<Underway>,
-): { readonly kind: 'frees'; readonly line: Underway } | { readonly kind: 'engaged' } | null {
+):
+  | { readonly kind: 'frees'; readonly line: Underway; readonly at: number }
+  | { readonly kind: 'engaged' }
+  | null {
   if (slots.used < slots.total) return null;
   const holders = lines.filter((line) => line.holdsSlot);
-  return holders.length === slots.used && holders[0] !== undefined
-    ? { kind: 'frees', line: holders[0] }
-    : { kind: 'engaged' };
+  if (holders.length === 0 || holders.length !== slots.used) return { kind: 'engaged' };
+  const freedAt = (line: Underway) => line.slotFreedAt ?? line.endsAt;
+  const first = holders.reduce((best, line) => (freedAt(line) < freedAt(best) ? line : best));
+  return { kind: 'frees', line: first, at: freedAt(first) };
 }

@@ -35,6 +35,7 @@ vi.stubGlobal(
   },
 );
 
+const SLOTS = /^mouvements en vol/;
 const NOW = Date.now();
 beforeEach(() => {
   localStorage.clear();
@@ -128,11 +129,11 @@ async function mount(
     history: createMemoryHistory({ initialEntries: ['/plateau'] }),
   });
   const rendered = render(<RouterProvider router={router} />);
-  await screen.findByTitle(fr.underway.drawer.open);
+  await screen.findByTitle(SLOTS);
   return { onLocate, rendered };
 }
 
-const door = () => screen.getByTitle(fr.underway.drawer.open);
+const door = () => screen.getByTitle(SLOTS);
 const drawer = () => screen.queryByRole('region', { name: fr.underway.drawer.title });
 
 describe('the slots counter as the door of the underway drawer', () => {
@@ -229,6 +230,6 @@ describe('the slots counter as the door of the underway drawer', () => {
     });
     render(<RouterProvider router={router} />);
     await screen.findByText(/BLITZ|blitz/i, {}, { timeout: 1000 }).catch(() => {});
-    expect(screen.queryByTitle(fr.underway.drawer.open)).toBeNull();
+    expect(screen.queryByTitle(SLOTS)).toBeNull();
   });
 });

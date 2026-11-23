@@ -2455,7 +2455,6 @@ export const fr = {
     drawer: {
       title: 'En cours',
       count: (count: number) => `${count} échéance${plural(count, '', 's')}`,
-      open: 'ouvrir les échéances en cours',
       close: 'Fermer',
       empty: 'Rien ne court.',
       movements: 'mouvements',

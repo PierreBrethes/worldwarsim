@@ -5,8 +5,8 @@ import { Face } from '@/routes/-plateau/UnderwayColumn';
 import { useClock } from './clock';
 
 /** @a-mesurer : la largeur du volet et la hauteur de son corps (le plafond de 440 px de carte
- *  couverte, moins son en-tête). */
-/** Mesures d'écran : le volet est dans `.hud`, rendu à l'échelle (`--hud-scale`). */
+ *  couverte, moins son en-tête), en pixels d'écran : le volet est dans `.hud`, rendu à l'échelle
+ *  (`--hud-scale`). */
 const DRAWER_WIDTH = 'calc(372px / var(--hud-scale))';
 const BODY_MAX = 'calc(380px / var(--hud-scale))';
 
@@ -85,7 +85,7 @@ export function UnderwayDrawer({
               <>
                 {fr.underway.drawer.freesAt(slots.total, refusal.line.label)}
                 <b className="font-(family-name:--font-mono) font-medium">
-                  {asDuration((refusal.line.endsAt - now) / 60_000)}
+                  {asDuration((refusal.at - now) / 60_000)}
                 </b>
                 .
               </>
@@ -136,7 +136,7 @@ function Row({
       type="button"
       title={fr.underway.locate(line.label)}
       onClick={() => onLocate(line)}
-      className="grid h-[48px] w-full cursor-pointer grid-cols-[36px_1fr_70px] items-center border-t border-[var(--ink)]/20 pr-[14px] pl-[8px] text-left hover:bg-[var(--paper-clair)]"
+      className="grid h-[48px] w-full cursor-pointer grid-cols-[36px_1fr_64px] items-center border-t border-[var(--ink)]/20 pr-[14px] pl-[8px] text-left hover:bg-[var(--paper-clair)]"
     >
       <span className="flex h-[34px] w-[34px] items-center justify-center">
         <Face face={line.face} nation={nation} />
@@ -149,7 +149,9 @@ function Row({
         >
           {asDuration(left / 60_000)}
         </b>
-        <em className="truncate text-[12px] tracking-[.04em] uppercase not-italic">{line.label}</em>
+        <em className="line-clamp-2 text-[12px] tracking-[.04em] uppercase not-italic">
+          {line.label}
+        </em>
       </span>
       <span className="grid justify-items-end gap-[6px]">
         {line.holdsSlot && (
@@ -160,7 +162,7 @@ function Row({
           />
         )}
         {done !== null && (
-          <span className="block h-[3px] w-[70px] bg-[var(--ink)]/16">
+          <span className="block h-[3px] w-[64px] bg-[var(--ink)]/16">
             <span
               className={`block h-full ${line.moving ? 'bg-[var(--arc-mine)]' : 'bg-[var(--ink-soft)]'}`}
               style={{ width: `${Math.round(done * 100)}%` }}

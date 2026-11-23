@@ -135,13 +135,12 @@ export function Reglette({
             type="button"
             aria-expanded={showDrawer}
             aria-controls={showDrawer ? drawerId : undefined}
-            aria-label={fr.banner.slotsTitle(
+            title={fr.banner.slotsTitle(
               me.slots.used,
               me.slots.total,
               slotCardsOf(me.research.researched),
               halifaxNoteOf(me.slots),
             )}
-            title={fr.underway.drawer.open}
             onClick={() => setDrawerOpen(!showDrawer)}
             className={`${CELL} cursor-pointer gap-[9px] whitespace-nowrap hover:bg-[var(--paper-clair)] ${showDrawer ? 'bg-[var(--paper-pile)]' : ''}`}
           >
