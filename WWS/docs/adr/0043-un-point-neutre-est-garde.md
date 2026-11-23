@@ -14,7 +14,7 @@ heures, et quatre points tenus 24 h gagnent. La saison pouvait se jouer avant to
 1. **Les sept sont gardés** par `POINT_GARRISON` : trois infanteries de palier 1, la même pour
    tous, `@a-mesurer` (l'archétype moyen des objectifs). Ce sont des troupes ordinaires du siège
    irrégulier, posées sur le point : le moteur de combat existant les fait défendre, et elles
-   rechargent leurs coups sur la dotation de `endowIrregular`.
+   tirent leur plein de crans de départ et ne rechargent jamais (§6).
 2. **La garnison naît dans le travail planifié des objectifs** (`objectives.commit`), pas dans
    `layPoint` : les scènes de démo et les suites de règles posent un point nu par `layPoint` et
    le gardent nu. La pose passe hors des gardes « aucun objectif à poser » et « objectifs déjà
@@ -28,6 +28,12 @@ heures, et quatre points tenus 24 h gagnent. La saison pouvait se jouer avant to
    d'un point neutre dit une règle vraie en tout temps — « Gardé au lancement par une garnison
    locale. » — et la force ne se lit que par relevé, comme tout camp ; la pile seulement sous un
    Guet (`readsComposition`). La dépêche `pointsDrawn` ne nomme jamais la garnison.
+6. **Une garnison neutre n'est jamais ravitaillée** (#626, mesuré). `upkeepOf` ne rend aucun
+   ancrage au siège irrégulier : `toppedUp` ne le recharge pas, et aucun combat ne débite son stock
+   de munitions. Chaque troupe tire son plein de crans de départ (3 pour une infanterie), puis se
+   bat à sec ; une colonne de 9 infanteries de palier 1 rase la garnison d'un point au premier
+   assaut. Le stock (`endowIrregular`) n'est là que pour le plateau que `economyOf` exige et que
+   pillage et chute lisent. Garde-fou : `convex/irregular-ammunition.test.ts`.
 
 ## Ce qu'on abandonne
 

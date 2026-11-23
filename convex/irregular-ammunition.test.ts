@@ -12,7 +12,7 @@ import { OBJECTIVE_AMMUNITION_PER_TROOP, POINT_GARRISON } from './constants';
  * **Mesure de #626** : combien de munitions du siège irrégulier coûte un assaut sur la garnison
  * d'un point (3 infanteries T1), et combien d'assauts la dotation du lancement tient.
  *
- * Constat (23/11/2026) : **zéro**. `upkeepOf` rend `storeOf: {}` pour le siège irrégulier, donc
+ * Règle (ADR 0043 §6) — constat du 23/11/2026 : **zéro**. `upkeepOf` rend `storeOf: {}` pour le siège irrégulier, donc
  * `toppedUp` ne le ravitaille jamais et la réserve n'est débitée par aucun combat. Ce qui s'use
  * est le plein de chaque troupe (`rounds`, 3 crans pour une infanterie, jamais rechargés) et
  * leur effectif. La colonne des bots (9) gagne dès le premier assaut et rase la garnison.

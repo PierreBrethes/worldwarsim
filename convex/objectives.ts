@@ -387,9 +387,10 @@ export async function irregularSeat(
 }
 
 /**
- * **Des munitions, et rien d'autre.** La garnison est ancrée partout, et avant chaque passe elle
- * recharge ses coups sur cette dotation (`convex/supplies.ts`, ADR 0028 §3) : sans elle, elle
- * finirait à sec. Le reste est à zéro, et c'est la règle — *elle ne se renforce jamais, ne se déroute pas, ne mange pas* : aucune extraction,
+ * **Un plateau lisible, et rien d'autre.** `economyOf` veut une ligne par ressource, et un
+ * pillage ou une chute lit celles du siège. La garnison, elle, n'est jamais ravitaillée
+ * (`upkeepOf` ne lui donne aucun ancrage, ADR 0043 §4) : cette dotation n'est pas débitée au
+ * combat (#626). Le reste est à zéro, et c'est la règle — *elle ne se renforce jamais, ne se déroute pas, ne mange pas* : aucune extraction,
  * aucune chaîne, aucun entretien (`upkeepOf` l'ignore).
  */
 export async function endowIrregular(

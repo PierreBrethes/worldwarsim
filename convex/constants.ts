@@ -1352,15 +1352,12 @@ export const OBJECTIVE_HARD_FAIRNESS = 0.75;
 export const OBJECTIVE_HARD_MAX = 4;
 
 /**
- * **Ce que la garnison locale a dans ses caissons, par troupe.** Elle est ancrée partout
- * (`upkeepOf` ne lui compte aucune troupe hors ancrage), donc avant chaque passe elle reprend ses
- * coups sur cette dotation, dix par cran (ADR 0028 §3) : sans elle, la garnison serait à sec
- * après trois passes, ce qui ferait de l'objectif *facile* une formalité et de l'archétype un mot.
+ * **Le stock de munitions du siège irrégulier, par troupe posée.** Aucun combat ne le débite :
+ * `upkeepOf` ne rend aucun ancrage au siège irrégulier, donc une garnison n'est jamais ravitaillée
+ * (ADR 0043 §4) et tire ses seuls crans de départ (#626). Le stock existe parce que `economyOf`
+ * exige une ligne par ressource, et qu'un pillage ou une chute lit le plateau du siège.
  *
- * Rien ne la remplit jamais — *elle ne se renforce jamais, ne se déroute pas, ne mange pas* —,
- * donc le chiffre est une réserve pour la saison et non un débit par heure.
- *
- * @a-mesurer une réserve tenue au doigt pour qu'une garnison ne tire jamais à sec sur une saison de 48 h
+ * @a-mesurer un stock de plateau que rien ne dépense au combat ; sa valeur ne règle aucune garnison
  */
 export const OBJECTIVE_AMMUNITION_PER_TROOP = 200;
 
