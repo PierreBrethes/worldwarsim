@@ -8,6 +8,7 @@ import { fr } from '../i18n/fr';
 const view = {
   season: { hqCaptureHours: 12 },
   captures: [],
+  objectives: [],
   me: {
     nation: 'france',
     slots: { total: 4, used: 1 },

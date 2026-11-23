@@ -454,8 +454,7 @@ export async function aimOf(
    * public — annoncé à tous au lancement, servi à tous par `playerView.objectives` — donc le lire
    * ne perce aucun brouillard. Ce que le brouillard garde est la garnison, et elle n'est pas ici.
    *
-   * Un objectif déjà vidé reste une cible : sa garnison peut tenir encore, et rien n'oblige une
-   * colonne à venir pour le dépôt.
+   * Un objectif déjà vidé n'est plus une cible : `refusalOf` le refuse (`OBJECTIVE_SPENT`).
    */
   if (target.kind === 'objective') {
     const objective = await ctx.db.get(target.objectiveId);
@@ -471,6 +470,7 @@ export async function aimOf(
         lon: point[0],
         lat: point[1],
         hostCountry: country,
+        spent: objective.status === 'taken',
       },
       target: { kind: 'point', point: objective.point },
       point,

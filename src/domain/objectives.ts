@@ -17,3 +17,9 @@ export const carriesSurveyedInstallation = (
   surveyed: ReadonlyArray<{ readonly regionId: string }>,
 ): boolean =>
   regionId !== null && surveyed.some((installation) => installation.regionId === regionId);
+
+/** Le dépôt de cet objectif est-il emporté ? Lu dans la vue publique, la même des deux côtés. */
+export const objectiveSpentIn = (
+  objectives: ReadonlyArray<{ readonly id: string; readonly status: 'standing' | 'taken' }>,
+  id: string,
+): boolean => objectives.find((objective) => objective.id === id)?.status === 'taken';

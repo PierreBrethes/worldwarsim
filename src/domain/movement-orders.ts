@@ -81,6 +81,8 @@ export type MovementAim =
       readonly lon: number;
       readonly lat: number;
       readonly hostCountry: string;
+      /** Son dépôt est emporté (`status: 'taken'`) : public comme l'objectif, il se lit des deux côtés. */
+      readonly spent: boolean;
     }
   /**
    * **Un point stratégique** (P1-P12) : public comme un objectif — tout le monde sait où il est et
@@ -229,6 +231,7 @@ export type Column = {
 export type OrderRefusal =
   | 'EMPTY_MOVEMENT'
   | 'FRIENDLY_TARGET'
+  | 'OBJECTIVE_SPENT'
   | 'INFANTRY_ONLY'
   | 'NO_PORT_AT_DEPARTURE'
   | 'NO_AIRFIELD_AT_DEPARTURE'
@@ -490,6 +493,7 @@ export function refusalOf(
      * du vide la branche n'existe pas, et le serveur dit le même mot après le clic.
      */
     case 'attack':
+      if (objectiveSpentRefusalOf(aim) !== null) return 'OBJECTIVE_SPENT';
       if (mine(aim, column)) return 'FRIENDLY_TARGET';
       /** **En Blitz, l'attaque vise une unité, pas un point** (B18). */
       if (column.blitz !== undefined) {
@@ -583,6 +587,13 @@ export function refusalDetails(aim: MovementAim, column: Column): Record<string,
  * own" about a coordinate would mean matching it against my regions, which is the resolution the
  * aim declines to perform. One walks at one's own ground by naming the region, deliberately.
  */
+/**
+ * **Un objectif épuisé n'a plus rien à prendre** (#597) : la fiche n'offre plus l'attaque et le
+ * serveur la refuse, de cette seule fonction. Sa garnison est tombée avec son dépôt.
+ */
+export const objectiveSpentRefusalOf = (aim: MovementAim): 'OBJECTIVE_SPENT' | null =>
+  aim.kind === 'objective' && aim.spent ? 'OBJECTIVE_SPENT' : null;
+
 /** Ce qu'un assaut trouverait, tel que le relevé du joueur le donne — jamais l'état du plateau. */
 const nothingToAttack = (aim: MovementAim): OrderRefusal | null => {
   switch (aim.kind) {

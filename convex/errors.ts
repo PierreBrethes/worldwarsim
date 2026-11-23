@@ -215,6 +215,7 @@ export type ErrorCode =
   | 'ON_PATROL'
   | 'UNKNOWN_OUTPOST'
   | 'UNKNOWN_OBJECTIVE'
+  | 'OBJECTIVE_SPENT'
   | 'OUTPOST_DISABLED'
   /** Un chantier de ce point (élévation ou changement de spécialisation) est déjà en file. */
   | 'OUTPOST_WORK_QUEUED'

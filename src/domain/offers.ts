@@ -1,3 +1,4 @@
+import { objectiveSpentIn } from './objectives';
 import { fr, raiseHoldText, specialtyRefusalText, upgradeHoldText } from '@/i18n/fr';
 import { notInBlitz } from './blitz';
 import type { CompassTarget } from './compass-rose';
@@ -19,6 +20,7 @@ import type { UnitRole, UnitTier } from './ids';
 import { armedColumn } from './armed-column';
 import {
   captureOrderRefusalOf,
+  objectiveSpentRefusalOf,
   disbandRefusalOf,
   disbandSpanKm,
   disbandSpotsAt,
@@ -211,6 +213,7 @@ export const noShipFor = (offers: ReadonlyArray<Offer>): boolean => {
 /** La visée que la cible est pour `refusalOf`, la même que celle de la rose. */
 function aimOfTarget(
   target: Extract<OfferTarget, { kind: 'camp' | 'objective' | 'strategic' }>,
+  view: PlayerView,
 ): MovementAim {
   const [lon, lat] = target.point;
   const hostCountry = target.country ?? '';
@@ -227,7 +230,14 @@ function aimOfTarget(
         ...(target.walkable === undefined ? {} : { walkable: target.walkable }),
       };
     case 'objective':
-      return { kind: 'objective', objectiveId: target.id, lon, lat, hostCountry };
+      return {
+        kind: 'objective',
+        objectiveId: target.id,
+        lon,
+        lat,
+        hostCountry,
+        spent: objectiveSpentIn(view.objectives, target.id),
+      };
     case 'strategic':
       return { kind: 'strategic', pointId: target.id, lon, lat, hostCountry };
   }
@@ -270,12 +280,8 @@ function strikeOffers(
     view.strategicPoints.find((point) => point.id === target.id)?.mine === true
   )
     return [];
-  if (
-    target.kind === 'objective' &&
-    view.objectives.find((objective) => objective.id === target.id)?.status === 'taken'
-  )
-    return [];
-  const aim = aimOfTarget(target);
+  const aim = aimOfTarget(target, view);
+  if (objectiveSpentRefusalOf(aim) !== null) return [];
   return (ctx.piles ?? []).flatMap((pile): Offer[] => {
     const column = armedColumn(view, pile.station, pile.troopIds).rule;
     const offer = (key: 'strike' | 'march' | 'capture', code: string | null): Offer => ({

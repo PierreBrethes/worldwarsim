@@ -1080,6 +1080,7 @@ export const fr = {
     NO_CARGO_CAPACITY: () => 'aucune capacité libre pour ramener ce butin',
     UNKNOWN_OUTPOST: () => 'avant-poste inconnu',
     UNKNOWN_OBJECTIVE: () => 'objectif inconnu',
+    OBJECTIVE_SPENT: () => 'cet objectif est épuisé : il n’y a plus rien à y prendre',
     /** Une colonne a chiffré son allure sous ce point : il ne disparaît pas sous elle. */
     OUTPOST_SERVING: () =>
       'une colonne marche dans la portée de ce point — il ne se démantèle pas sous elle',

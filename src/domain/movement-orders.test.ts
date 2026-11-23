@@ -115,6 +115,19 @@ describe('what an attack may be aimed at', () => {
     expect(refusalOf('attack', point, column(['infantry']))).toBeNull();
   });
 
+  it('refuses an objective whose depot is gone, and takes one that still stands', () => {
+    const objective = (spent: boolean): MovementAim => ({
+      kind: 'objective',
+      objectiveId: 'o',
+      lon: 0,
+      lat: 0,
+      hostCountry: 'FRA',
+      spent,
+    });
+    expect(refusalOf('attack', objective(true), column(['infantry']))).toBe('OBJECTIVE_SPENT');
+    expect(refusalOf('attack', objective(false), column(['infantry']))).toBeNull();
+  });
+
   it('refuses a point where the observer has seen nothing', () => {
     expect(refusalOf('attack', blank, column(['infantry']))).toBe('NOTHING_TO_ATTACK');
     expect(legalMovementTypes(blank, column(['infantry']))).toEqual(['march']);
