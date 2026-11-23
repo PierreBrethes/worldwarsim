@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : c9a2c6c -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : ca3185d -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ règle existe et se lise, jamais pour équilibrer quoi que ce soit. Ni une dette
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-154 valeurs marquées dans `convex/` et `src/domain/`.
+160 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `FACTORY_LINES` et leurs voisines : l'en-tête de `convex/constants.ts` les
@@ -100,6 +100,12 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `TOUR_HOLD_MS` | `2200` | `src/domain/absence-tour.ts:29` | le maintien d'un tampon du rejeu, et l'écart du second (« terrain tenu »). |
 | `SECOND_STAMP_MS` | `800` | `src/domain/absence-tour.ts:30` | le maintien d'un tampon du rejeu, et l'écart du second (« terrain tenu »). |
 | `BLITZ_CROSSING_MINUTES` | `14.4` | `src/domain/blitz.ts:152` | the decision says 15 to 20 minutes, sped up by a quarter; nothing has played one yet |
+| `BOT_ORDERS_PER_TURN` | `2` | `src/domain/bot.ts:218` | combien d'ordres un passage garde ; peu, pour qu'un bot reste facile (ADR 0042 §5). |
+| `BOT_ARMY_TARGET` | `6` | `src/domain/bot.ts:220` | les troupes, debout et en file, à partir desquelles le bot cesse de recruter. |
+| `BOT_HQ_ALERT_KM` | `400` | `src/domain/bot.ts:223` | à moins de ce rayon du QG, un camp relevé est une menace (ADR 0042 §2, urgence). |
+| `BOT_SQUAD_SIZE` | `2` | `src/domain/bot.ts:225` | l'escouade qui avance ; le reste de la garnison tient le QG. |
+| `BOT_ADVANCE_CANDIDATES` | `5` | `src/domain/bot.ts:227` | les régions étrangères essayées par passage, de la plus proche ; chaque essai coûte une route. |
+| `BOT_CONVOY_LOAD` | `100` | `src/domain/bot.ts:229` | ce qu'un camion charge d'un coup, sous sa capacité et le stock. |
 | `STALE_MARGIN_MS` | `30_000` | `src/domain/combat-on-map.ts:28` | un |
 | `FINAL_POSE_MS` | `STEP_MS['compte-rendu']` | `src/domain/combat-on-map.ts:32` | le temps du compte-rendu, assez pour lire qui reste debout ? |
 | `REPORT_HOLD_MS` | `STEP_MS['compte-rendu'] + 6000` | `src/domain/combat-on-map.ts:200` | le temps de lire « nos pièces » et de l'ouvrir. |
