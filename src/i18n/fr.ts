@@ -1879,7 +1879,7 @@ export const fr = {
       'Huit nations de 1940 sur la carte du monde réel, des ordres qui partent et ne reviennent pas. Deux éditions, une même table.',
     /** Les deux cartouches de la légende : le temps que dure chaque mode, et son terrain. */
     editions: [
-      { name: 'Blitz', meta: '1 à 2 h · un théâtre' },
+      { name: 'Blitz', meta: '2 h · un théâtre' },
       { name: 'Mondiale', meta: '3 à 14 jours · le monde' },
     ],
     mapLabel:

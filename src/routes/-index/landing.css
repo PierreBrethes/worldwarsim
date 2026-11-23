@@ -106,6 +106,7 @@
 /* Le chapeau : une ligne sous le titre, de hauteur écrite. */
 .lp-chapo {
   flex: none;
+  min-width: 0;
   height: 28px;
   margin: 0;
   overflow: hidden;
@@ -533,6 +534,12 @@
     text-wrap: balance;
   }
 
+  .lp-chapo {
+    height: auto;
+    min-height: 28px;
+    white-space: normal;
+  }
+
   .lp-plate,
   .lp-plate figure {
     flex: none;
@@ -545,8 +552,16 @@
   }
 
   .lp-plate figcaption {
+    flex-wrap: wrap;
     justify-content: space-between;
-    height: 34px;
+    gap: 8px 18px;
+    height: auto;
+    min-height: 34px;
+  }
+
+  .lp-plate figcaption span {
+    min-width: 0;
+    white-space: normal;
   }
 
   .lp-coupon {
