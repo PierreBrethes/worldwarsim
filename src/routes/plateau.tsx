@@ -3323,6 +3323,18 @@ function BoardContent({
   );
   const underway = useMemo(() => underwayOf(view, recruitments), [view, recruitments]);
 
+  /** **Le volet « En cours » du bureau cède devant** une fiche, une fenêtre ou une pile en main
+   *  (#615, même règle que #619). */
+  const coversUnderway =
+    windows.length > 0 ||
+    country != null ||
+    focused != null ||
+    report != null ||
+    hand.kind !== 'empty' ||
+    garrison !== null ||
+    demolition !== null ||
+    dismantling !== null;
+
   /** **Un bâtiment se cadre même calque éteint** : sans le calque, son mât n'existe pas et la
    *  carte n'aurait rien à rejoindre — on vise alors le point de sa région. */
   const focusBuilding = useCallback(
@@ -3407,6 +3419,9 @@ function BoardContent({
       onShowBriefing={showBriefing}
       onResumeSteps={resumeSteps}
       sweep={replay === null ? sweepButton(false) : null}
+      underway={underway}
+      onLocate={locateUnderway}
+      covered={coversUnderway}
     >
       <SelectionSheetReport.Provider value={sheetPorts}>
         <SheetCount.Provider value={countSheet}>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import type { ResourceKey } from '@/domain/ids';
 import type { PlayerView } from '@/domain/player-view';
+import type { Underway } from '@/domain/underway';
 import { ConsumptionTickets, MAX_TICKETS, pinToggled } from './ConsumptionTickets';
 import { FootBar, FootContext, type Foot } from './foot';
 import { NarrowBand } from './NarrowBand';
@@ -23,6 +24,9 @@ export function Shell({
   onShowBriefing,
   onResumeSteps = null,
   sweep = null,
+  underway = [],
+  onLocate = () => {},
+  covered = false,
   children,
 }: {
   view: PlayerView;
@@ -37,6 +41,11 @@ export function Shell({
   /** Le bouton de la sonde, posé dans la réglette au bureau (#249) ; au téléphone, le plateau le
    *  tient sous le pouce. */
   sweep?: ReactNode;
+  /** Les échéances en cours : au bureau, le compteur de slots de la réglette les ouvre en volet. */
+  underway?: ReadonlyArray<Underway>;
+  onLocate?: (line: Underway) => void;
+  /** Une fiche, une fenêtre ou une pile en main est ouverte : le volet se ferme devant elle. */
+  covered?: boolean;
   children: ReactNode;
 }) {
   /** **La table plein écran** (décision de Pierre, 13/10) : la carte prend tout l'écran, et la
@@ -104,7 +113,15 @@ export function Shell({
         <main ref={board} className="relative flex min-h-0 min-w-0 flex-1">
           <PinContext.Provider value={{ pinned, onPin: togglePin }}>
             {children}
-            <Reglette view={view} telegraphUnread={telegraphUnread} sweep={sweep} ref={top} />
+            <Reglette
+              view={view}
+              telegraphUnread={telegraphUnread}
+              sweep={sweep}
+              underway={underway}
+              onLocate={onLocate}
+              covered={covered}
+              ref={top}
+            />
             {tickets}
             <ColumnCardContext.Provider value={setCard}>
               <SurfaceColumn todo={todo} ref={side} />

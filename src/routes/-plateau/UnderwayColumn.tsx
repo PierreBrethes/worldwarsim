@@ -161,7 +161,7 @@ export function UnderwayColumn({
   );
 }
 
-function Face({ face, nation }: { face: UnderwayFace; nation: string }) {
+export function Face({ face, nation }: { face: UnderwayFace; nation: string }) {
   switch (face.kind) {
     case 'unit':
       return face.role === null ? (

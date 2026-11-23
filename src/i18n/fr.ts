@@ -2451,6 +2451,24 @@ export const fr = {
     foundation: (country: string) => `fondation · ${country}`,
     recruitment: (region: string) => `recrutement · ${region}`,
     lot: (ordered: number, resource: string) => `lot · ${num(ordered)} ${resource}`,
+    /** **Le volet « En cours » du bureau**, ouvert par le compteur de slots de la réglette (#615). */
+    drawer: {
+      title: 'En cours',
+      count: (count: number) => `${count} échéance${plural(count, '', 's')}`,
+      open: 'ouvrir les échéances en cours',
+      close: 'Fermer',
+      empty: 'Rien ne court.',
+      movements: 'mouvements',
+      slots: (used: number, total: number) => `slots ${used} / ${total}`,
+      rest: 'chantiers, recrutements, lots',
+      holdsSlot: 'tient un slot de mouvement',
+      /** « Les deux slots sont engagés » : le nombre suit la vue, deux au départ. */
+      allEngaged: (total: number) =>
+        `${total === 2 ? 'Les deux' : `Les ${num(total)}`} slots sont engagés`,
+      /** Suivie du temps qui reste, que le volet fait battre, puis d'un point. */
+      freesAt: (total: number, label: string) =>
+        `${total === 2 ? 'Les deux' : `Les ${num(total)}`} slots sont engagés : le prochain mouvement part quand « ${label} » arrive, dans `,
+    },
   },
 
   /**
