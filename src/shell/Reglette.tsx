@@ -75,7 +75,8 @@ export function Reglette({
   return (
     <header
       ref={ref}
-      className="hud paper-grain float absolute top-[calc(var(--table-margin)/var(--hud-scale))] right-[calc(var(--table-margin)/var(--hud-scale))] left-[calc(var(--table-margin)/var(--hud-scale))] z-[var(--z-band)] flex items-stretch border border-[var(--ink)] text-[var(--ink)]"
+      // Le volet ouvert passe au-dessus de « À faire maintenant », de la même bande et posé après.
+      className={`hud paper-grain float absolute top-[calc(var(--table-margin)/var(--hud-scale))] right-[calc(var(--table-margin)/var(--hud-scale))] left-[calc(var(--table-margin)/var(--hud-scale))] ${showDrawer ? 'z-[var(--z-menu)]' : 'z-[var(--z-band)]'} flex items-stretch border border-[var(--ink)] text-[var(--ink)]`}
       style={{ fontFamily: 'var(--font-body)', height: RULE_HEIGHT }}
     >
       {/* Le drapeau en fondu, comme au bandeau sombre (Pierre, 13/10) : il touche le bord de la
