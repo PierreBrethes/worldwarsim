@@ -1,6 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { decideTurn, seaWaiting, worldFrom, type BotContext, type BotWorkshop } from './bot';
+import {
+  BOT_POINT_COLUMN,
+  decideTurn,
+  seaWaiting,
+  worldFrom,
+  type BotContext,
+  type BotWorkshop,
+} from './bot';
 import { BUILDINGS, RESOURCES, type BuildingKey } from './ids';
 import { CAPITAL_BY_NATION } from './nations';
 import type { BuildSpec, PlayerView } from './player-view';
@@ -135,4 +142,54 @@ describe("le bot d'une île", () => {
     );
     expect(seaWaiting(context(view))).toBeNull();
   }, 60_000);
+
+  describe('ne forme un cargo que pour une colonne prête', () => {
+    const portWorkshop: BotWorkshop = {
+      troopsInService: 10,
+      troopsQueued: 0,
+      facilities: [{ id: 'p-1', key: 'port', queue: [] }],
+      roster: [],
+      grid: [{ role: 'cargo', unit: { costs: { steel: 5 } } }],
+    };
+    const station = { kind: 'building', buildingId: 'b-1' };
+    const troop = (id: string, role: string, stationedAt: unknown) => ({
+      id,
+      role,
+      tier: 1,
+      strength: 50,
+      nominalStrength: 50,
+      stationedAt,
+      supplied: true,
+      serving: false,
+      besieged: false,
+    });
+    const built = [
+      { id: 'b-1', key: 'barracks' as const },
+      { id: 'p-1', key: 'port' as const },
+    ];
+    const infantry = (count: number) =>
+      Array.from({ length: count }, (_, rank) => troop(`i${rank}`, 'infantry', station));
+    const turnFor = (troops: unknown[], arcs: unknown[] = []) => {
+      const view = viewOf('uk', { ...neutral, arcs }, built);
+      (view.me as { troops: unknown }).troops = troops;
+      return decideTurn({ ...context(view), workshop: portWorkshop });
+    };
+    const recruitsCargo = (orders: ReturnType<typeof decideTurn>) =>
+      orders.some((order) => order.fn === 'troops.recruit' && order.args.role === 'cargo');
+
+    it('forme un cargo quand neuf fantassins attendent', () => {
+      expect(recruitsCargo(turnFor(infantry(BOT_POINT_COLUMN)))).toBe(true);
+    }, 60_000);
+
+    it('ne forme pas de cargo sans colonne prête', () => {
+      expect(recruitsCargo(turnFor(infantry(BOT_POINT_COLUMN - 1)))).toBe(false);
+    }, 60_000);
+
+    it('ne forme pas un second cargo tant que le premier est en mer', () => {
+      const sea = { kind: 'point', lonLat: [0, 50], afloat: true };
+      const hull = troop('c-1', 'cargo', sea);
+      const arcs = [{ state: 'mine', troopIds: ['c-1'] }];
+      expect(recruitsCargo(turnFor([...infantry(BOT_POINT_COLUMN), hull], arcs))).toBe(false);
+    }, 60_000);
+  });
 });

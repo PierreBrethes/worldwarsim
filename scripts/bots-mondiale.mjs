@@ -360,7 +360,7 @@ while (!stopped) {
     try {
       orders = decideTurn({ view, workshop, world, now: Date.now() });
     } catch (error) {
-      console.log(`${name} : décision en échec (${first(error)})`);
+      console.log(`${name} : décision en échec (${whole(error)})`);
       continue;
     }
     const waiting = seaWaiting({ view, workshop, world, now: Date.now() });
@@ -374,7 +374,7 @@ while (!stopped) {
         console.log(`#${passNumber} ${name} : ${order.fn}`);
       } catch (error) {
         if (String(error).includes('SEASON_CONCLUDED')) stopped = true;
-        console.log(`#${passNumber} ${name} : ${order.fn} refusé (${first(error)})`);
+        console.log(`#${passNumber} ${name} : ${order.fn} refusé (${whole(error)})`);
       }
     }
   }

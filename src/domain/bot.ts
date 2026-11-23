@@ -190,7 +190,7 @@ export type BotWorld = {
   readonly coastNear: (point: LonLat, withinKm: number, regionId: string) => LonLat | null;
 };
 
-/** @a-mesurer : les routes gardées par monde ; au-delà, la mémoire repart de zéro. */
+/** Un plafond de mémoire, pas une règle de jeu : les routes gardées par monde ; au-delà, la mémoire repart de zéro. */
 const ROUTE_MEMO = 5000;
 
 /** Le contenu des fichiers cuits (`public/*.json`) : le pilote les lit, `worldFrom` n'ouvre rien. */
@@ -980,7 +980,8 @@ function portSite({ view, world }: BotContext): { regionId: string; point: LonLa
 function portDesire(context: BotContext): Desire | SeaWait {
   const { view, now } = context;
   const { me } = view;
-  if (!me.buildings.some((building) => building.key === 'barracks')) return 'NO_BARRACKS';
+  if (me.hqLevel === 0 || !me.buildings.some((building) => building.key === 'barracks'))
+    return 'NO_BARRACKS';
   if (pledgedWork(view).some((work) => work.key === 'port')) return 'PORT_PENDING';
   if (me.foundation.length > 0 || me.construction !== null || me.constructionQueue.length > 0)
     return 'PORT_BUSY';
@@ -1023,6 +1024,14 @@ function seaTurn(context: BotContext): { desires: Desire[]; waiting: SeaWait | n
     (troop) => troop.role === 'cargo' && isFree(troop, marching) && atPort(troop),
   );
   if (cargo === undefined) {
+    // Un cargo ne se forme que pour une colonne prête, et pas tant qu'un autre est en mer.
+    const columnReady = squadsOf(view, 'infantry').some(
+      (squad) => squad.troops.length >= BOT_POINT_COLUMN,
+    );
+    const sailing = view.me.troops.some(
+      (troop) => troop.role === 'cargo' && marching.has(troop.id),
+    );
+    if (!columnReady || sailing) return none('SHORT_COLUMN');
     const site = workshop.facilities.find((facility) => facility.key === 'port');
     if (
       site === undefined ||

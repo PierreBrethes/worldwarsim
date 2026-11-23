@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 02ac4c4 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 96def20 -->
 
 # Les constantes à mesurer
 
@@ -17,6 +17,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 
 | Constante | Valeur | Où | Pourquoi elle attend |
 | --- | --- | --- | --- |
+| `NEAR_KM` | `250` | `convex/bot.fixture.ts:127` | « près » d'un point, c'est une plage que `BOT_LANDING_KM` autour de lui peut offrir. |
 | `HEAP_CAP_HOURS` | `24` | `convex/constants.ts:55` | l'ADR le pose, aucune partie ne l'a joué |
 | `FACTORY_LINES` | `{ ammunition: { output: 'ammunition', inputs: [ ['coal', 1], ['steel', 1], ], perHourPerLevel: 3 }, oil: { output: 'oil', inputs: [['coal', 3]], perHourPerLevel: 3 } }` | `convex/constants.ts:66` | one of each a round, three an hour and a level, and three coal for one oil: set by |
 | `DAKAR_SPARED_PER_RESOURCE` | `600` | `convex/constants.ts:111` | 600 de la décision du 20/10, jamais joué |
@@ -102,7 +103,6 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `TOUR_HOLD_MS` | `2200` | `src/domain/absence-tour.ts:29` | le maintien d'un tampon du rejeu, et l'écart du second (« terrain tenu »). |
 | `SECOND_STAMP_MS` | `800` | `src/domain/absence-tour.ts:30` | le maintien d'un tampon du rejeu, et l'écart du second (« terrain tenu »). |
 | `BLITZ_CROSSING_MINUTES` | `14.4` | `src/domain/blitz.ts:152` | the decision says 15 to 20 minutes, sped up by a quarter; nothing has played one yet |
-| `ROUTE_MEMO` | `5000` | `src/domain/bot.ts:194` | les routes gardées par monde ; au-delà, la mémoire repart de zéro. |
 | `BOT_ORDERS_PER_TURN` | `2` | `src/domain/bot.ts:256` | combien d'ordres un passage garde ; peu, pour qu'un bot reste facile (ADR 0042 §5). |
 | `BOT_POINT_COLUMN` | `9` | `src/domain/bot.ts:262` | les infanteries d'une colonne qui prend un point neutre. Au banc de `convex` (ADR 0043), |
 | `BOT_ARMY_TARGET` | `BOT_POINT_COLUMN + 3` | `src/domain/bot.ts:267` | l'armée libre (sans la garnison des avant-postes), debout et en file, à partir de |
