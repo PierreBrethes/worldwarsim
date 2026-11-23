@@ -35,7 +35,12 @@ export function journalLines(dispatches: ReadonlyArray<JournalDispatch>): Journa
 
 /** **Une liasse** : des dépêches voisines que le journal replie en une ligne, la plus récente en
  *  tête. Une dépêche seule est une liasse d'une ligne. */
-export type JournalBundle = { readonly lines: ReadonlyArray<JournalLine> };
+export type JournalBundle = {
+  readonly head: JournalLine;
+  /** De la plus récente à la plus ancienne, `head` comprise. */
+  readonly lines: ReadonlyArray<JournalLine>;
+  readonly oldest: JournalLine;
+};
 
 /** Ce qui garde sa ligne : une alarme, un combat, un Sept, une Guerre éclair restée sur place, une
  *  heure à venir (« au réveil ») et une édition. */
@@ -70,11 +75,15 @@ const sameBundle = (older: JournalLine, newer: JournalLine): boolean => {
  * rejoignent, et une liasse ne réordonne rien. Le filtre du journal s'applique ensuite aux liasses.
  */
 export function groupJournal(lines: ReadonlyArray<JournalLine>): JournalBundle[] {
-  const bundles: JournalLine[][] = [];
+  const bundles: Array<{ head: JournalLine; lines: JournalLine[]; oldest: JournalLine }> = [];
+  let previous: JournalLine | undefined;
   for (const line of lines) {
     const last = bundles.at(-1);
-    if (last !== undefined && sameBundle(last[last.length - 1], line)) last.push(line);
-    else bundles.push([line]);
+    if (last !== undefined && previous !== undefined && sameBundle(previous, line)) {
+      last.lines.push(line);
+      last.oldest = line;
+    } else bundles.push({ head: line, lines: [line], oldest: line });
+    previous = line;
   }
-  return bundles.map((bundle) => ({ lines: bundle }));
+  return bundles;
 }
