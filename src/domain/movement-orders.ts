@@ -583,16 +583,17 @@ export function refusalDetails(aim: MovementAim, column: Column): Record<string,
 }
 
 /**
- * A point is **never mine**, and that is the same refusal to resolve it: saying "those are your
- * own" about a coordinate would mean matching it against my regions, which is the resolution the
- * aim declines to perform. One walks at one's own ground by naming the region, deliberately.
- */
-/**
  * **Un objectif épuisé n'a plus rien à prendre** (#597) : la fiche n'offre plus l'attaque et le
  * serveur la refuse, de cette seule fonction. Sa garnison est tombée avec son dépôt.
  */
 export const objectiveSpentRefusalOf = (aim: MovementAim): 'OBJECTIVE_SPENT' | null =>
   aim.kind === 'objective' && aim.spent ? 'OBJECTIVE_SPENT' : null;
+
+/**
+ * A point is **never mine**, and that is the same refusal to resolve it: saying "those are your
+ * own" about a coordinate would mean matching it against my regions, which is the resolution the
+ * aim declines to perform. One walks at one's own ground by naming the region, deliberately.
+ */
 
 /** Ce qu'un assaut trouverait, tel que le relevé du joueur le donne — jamais l'état du plateau. */
 const nothingToAttack = (aim: MovementAim): OrderRefusal | null => {

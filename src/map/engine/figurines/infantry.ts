@@ -33,10 +33,10 @@ const STANDING_BODY: Vec3 = [0, 0.95, 0];
 export const POSED = [...JOINTS, 'body'] as const;
 
 /** On the road: arms and legs swinging, the rifle on the shoulder. `phase` keeps three men out of step.
- *  The swing is 1.75 times the prototype's 0.32 (#538): smaller, the stride did not read at the
+ *  The swing is 1.56 times the prototype's 0.32 (#538): smaller, the stride did not read at the
  *  closest zoom; wider, a sculpted mark 2's foot sinks under the plateau (`baked.test.ts`). */
 function marching(phase: number): Rotations {
-  const swing = Math.sin(phase) * 0.56;
+  const swing = Math.sin(phase) * 0.5;
   return {
     leg_left: [-swing, 0, 0],
     leg_right: [swing, 0, 0],

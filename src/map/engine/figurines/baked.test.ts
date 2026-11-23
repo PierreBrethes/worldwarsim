@@ -93,7 +93,9 @@ describe.runIf(files.length > 0)('a sculpted mark 2 marching', () => {
     };
     const resting = bottom();
     // Japan's crew rests on its gun carriage: the file is its own floor.
-    for (const seconds of [0, 0.2, 0.4, 0.7, 1.1]) {
+    // A whole stride (phase + 9 s, a period of 2π/9 s) in fine steps: the extreme of the swing
+    // is where a foot sinks, and coarse samples miss it.
+    for (const seconds of Array.from({ length: 72 }, (_, k) => k / 100)) {
       stride(squad, seconds);
       expect(bottom(), `${seconds}s`).toBeGreaterThanOrEqual(-0.02);
     }

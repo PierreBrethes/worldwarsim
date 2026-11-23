@@ -212,7 +212,7 @@ describe('my column on the road', () => {
     const { pawn, leg, armor } = column();
     await landed();
     go(pawn, 0.01, null, true);
-    expect(leg()).toBeCloseTo(-Math.sin(0.6 + 1.2) * 0.56, 6);
+    expect(leg()).toBeCloseTo(-Math.sin(0.6 + 1.2) * 0.5, 6);
     expect(armor.object.rotation.x).toBe(0);
   });
 
