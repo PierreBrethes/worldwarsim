@@ -1123,7 +1123,7 @@ export const REST_WINDOW = v.object({
   endMinutes: v.number(),
 });
 
-/** Les six genres de notification, ceux des cases des Réglages (`src/domain/push.ts`). */
+/** Les sept genres de notification, ceux des cases des Réglages (`src/domain/push.ts`). */
 export const PUSH_TYPE = v.union(
   v.literal('attack'),
   v.literal('outpost'),
@@ -1131,6 +1131,7 @@ export const PUSH_TYPE = v.union(
   v.literal('dryFire'),
   v.literal('season'),
   v.literal('telegraph'),
+  v.literal('yourMove'),
 );
 
 export const PUSH_PREFERENCES = v.object({
@@ -1140,6 +1141,8 @@ export const PUSH_PREFERENCES = v.object({
   dryFire: v.boolean(),
   season: v.boolean(),
   telegraph: v.boolean(),
+  /** Ajouté après les six autres : absent, il se lit coché (`pushPreferencesOf`). */
+  yourMove: v.optional(v.boolean()),
 });
 
 /** Pourquoi une Blitz lancée est revenue au salon (`blitz.abandon`). */

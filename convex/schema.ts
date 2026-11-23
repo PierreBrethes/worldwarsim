@@ -76,7 +76,7 @@ export default defineSchema({
     salt: v.string(),
     iterations: v.number(),
     createdAt: v.number(),
-    /** Les six interrupteurs du compte, absents tant qu'il n'en a touché aucun : un compte sans
+    /** Les sept interrupteurs du compte, absents tant qu'il n'en a touché aucun : un compte sans
      *  ligne a tout coché (`pushPreferencesOf`, `convex/notifications.ts`). */
     pushPreferences: v.optional(PUSH_PREFERENCES),
     /** Le vidage de la file d'envoi qui attend ce compte — un seul à la fois, et c'est cette
@@ -1293,6 +1293,9 @@ export default defineSchema({
     /** The hour each private channel was last closed, keyed by the other player's id. */
     telegraphDirectReadAt: v.optional(v.record(v.string(), v.number())),
     telegraphPushedAt: v.optional(v.number()),
+    /** **Le dernier « À vous » parti** (ADR 0045) : sa cadence horaire se lit ici, jamais sur
+     *  `players`, que toute vue de la saison lit. */
+    yourMovePushedAt: v.optional(v.number()),
     /** **La dernière ouverture du plateau personnel, et les stocks qu'il montrait alors** : la
      *  récolte de la visite suivante est l'écart entre ces stocks et ceux de l'heure. */
     boardReadAt: v.optional(v.number()),

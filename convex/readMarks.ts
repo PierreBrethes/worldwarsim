@@ -7,6 +7,7 @@ type Marks = {
   readonly absenceTourAt: number | null;
   readonly telegraphReadAt: number | null;
   readonly telegraphPushedAt: number | null;
+  readonly yourMovePushedAt: number | null;
   readonly telegraphDirectReadAt: Readonly<Record<string, number>>;
   readonly boardRead: {
     readonly at: number;
@@ -34,6 +35,7 @@ export async function readMarksOf(ctx: QueryCtx, player: Doc<'players'>): Promis
     absenceTourAt: row?.absenceTourAt ?? null,
     telegraphReadAt: row?.telegraphReadAt ?? player.telegraphReadAt ?? null,
     telegraphPushedAt: row?.telegraphPushedAt ?? player.telegraphPushedAt ?? null,
+    yourMovePushedAt: row?.yourMovePushedAt ?? null,
     telegraphDirectReadAt: row?.telegraphDirectReadAt ?? {},
     boardRead:
       row?.boardReadAt === undefined || row.boardReadStocks === undefined
@@ -51,6 +53,7 @@ export async function stampReadMark(
     | { absenceTourAt: number }
     | { telegraphReadAt: number }
     | { telegraphPushedAt: number }
+    | { yourMovePushedAt: number }
     | { telegraphDirectReadAt: Record<string, number> }
     | { boardReadAt: number; boardReadStocks: Record<string, number> }
     | { firstSteps: NonNullable<Doc<'readMarks'>['firstSteps']> },

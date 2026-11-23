@@ -71,8 +71,8 @@ export function NotificationsSection({ seat, blitz }: { seat: Seat; blitz: boole
             />
             <span>
               {words.types[type]}
-              {type === 'telegraph' && (
-                <span className="text-[var(--ink-soft)]"> — {words.typeNotes.telegraph}</span>
+              {(type === 'telegraph' || type === 'yourMove') && (
+                <span className="text-[var(--ink-soft)]"> — {words.typeNotes[type]}</span>
               )}
             </span>
           </label>

@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 6aab652 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 8552046 -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ règle existe et se lise, jamais pour équilibrer quoi que ce soit. Ni une dette
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-162 valeurs marquées dans `convex/` et `src/domain/`.
+163 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `FACTORY_LINES` et leurs voisines : l'en-tête de `convex/constants.ts` les
@@ -158,6 +158,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `SEA_TIERS` | `[NAMES_GONE_DISTANCE, 45, 0]` | `src/domain/place-names.ts:155` | paliers lus sur la maquette A, aucune capture des mers seules |
 | `SEA_RANKS` | `[2, 4]` | `src/domain/place-names.ts:156` | paliers lus sur la maquette A, aucune capture des mers seules |
 | `SEA_BUDGET` | `{ desk: 6, touch: 3 }` | `src/domain/place-names.ts:170` | lu sur la maquette A, qui en écrit onze sur l'Europe |
+| `YOUR_MOVE_PUSH_INTERVAL_MS` | `60 * 60_000` | `src/domain/push.ts:34` | « À vous » suit la cadence du télégraphe : une heure, faute de mesure. |
 | `STEP_MS` | `{ voyage: 1500, pose: 1200, frappe: 1950, riposte: 1950, deroute: 1400, 'compte-rendu': 2000 }` | `src/domain/replay.ts:9` | a short replay, read through in about ten seconds (grilling of 13/10). |
 | `SINK_HOLD_MS` | `2000` | `src/domain/replay.ts:41` | le tampon se pose 0,4 s après la coulée, soit à la fin du compte-rendu, et tient 2 s |
 | `HEEL` | `(14 * Math.PI) / 180` | `src/domain/replay.ts:214` | la gîte à la chute, 14° sur le bord touché (storyboard) |

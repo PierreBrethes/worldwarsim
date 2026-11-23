@@ -31,7 +31,7 @@ import { emptyLoad } from '../src/domain/logistics';
 import { reportChange, settleBeforeChange } from './production';
 import { passHeap, type Heaps } from './heaps';
 import { seasonStillPlays, seatsOf } from './seats';
-import { notifyPlayer } from './notifications';
+import { notifyPlayer, notifyYourMove } from './notifications';
 import { journalUrl, push } from '../src/domain/push';
 import { surveyFromPoint } from './surveys';
 import { forgetMovement, walkHome } from './movement/arrival';
@@ -252,6 +252,7 @@ export async function arriveForCapture(
     });
     await walkHome(ctx, { winners: troops, beaten: [] }, pointOf(movement.to), now);
     await forgetMovement(ctx, movement._id);
+    await notifyYourMove(ctx, movement.playerId, now);
     return [];
   }
 
@@ -290,6 +291,7 @@ export async function arriveForCapture(
         await walkHome(ctx, { winners: standing, beaten: [] }, pointOf(movement.to), now);
       }
       await forgetMovement(ctx, movement._id);
+      await notifyYourMove(ctx, movement.playerId, now);
       return [defence.playerId];
     }
   }
@@ -298,11 +300,13 @@ export async function arriveForCapture(
   if (await isStarving(ctx, movement.playerId, now)) {
     await refuse(ctx, movement, site, now, 'starving');
     await walkHome(ctx, { winners: standing, beaten: [] }, pointOf(movement.to), now);
+    /** Pas de « À vous » ici (ADR 0045) : rien n'est à jouer, la colonne rentre ; son retour sonnera. */
     await forgetMovement(ctx, movement._id);
     return defence === null ? [] : [defence.playerId];
   }
   for (const troop of standing) await ctx.db.patch(troop._id, { stationedAt: movement.to });
   await forgetMovement(ctx, movement._id);
+  await notifyYourMove(ctx, movement.playerId, now);
   if (await surrenderedInBlitz(ctx, movement.playerId)) {
     await refuse(ctx, movement, site, now, 'left');
     return defence === null ? [] : [defence.playerId];

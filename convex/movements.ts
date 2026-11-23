@@ -110,6 +110,7 @@ import { blitzTheatreOf } from './movement/theatre';
 import { bombard as bombardFrom } from './movement/bombard';
 import { firesIndirect } from '../src/domain/indirect-fire';
 import { arriveForCapture } from './captures';
+import { notifyYourMove } from './notifications';
 import { changeCourse as steer, plotCourse } from './movement/course';
 import {
   chainSecondTarget,
@@ -1367,6 +1368,9 @@ export const arrive = internalMutation({
     }
 
     if (!pressing) await forgetMovement(ctx, movementId);
+    /** **« À vous »** (ADR 0045) : le slot revient. Les étapes de tournée et de ronde, les
+     *  largages et les livraisons sont partis plus haut : ils ne passent pas ici. */
+    if (!pressing) await notifyYourMove(ctx, movement.playerId, now);
     /** **Arrivée à l'ancre, elle se recharge** (ADR 0028 §3) : la pièce dit ses crans pleins dès
      *  qu'elle est posée, et non au prochain ordre. Une colonne repartie chez elle roule encore. */
     const landed = await troopsAmong(ctx, movement.playerId, movement.troopIds);

@@ -4645,8 +4645,12 @@ export const fr = {
         dryFire: 'Tir à sec',
         season: 'La saison (lancement et fin)',
         telegraph: 'Télégraphe',
+        yourMove: 'À vous (colonne arrivée)',
       },
-      typeNotes: { telegraph: 'Une fois par heure au plus.' },
+      typeNotes: {
+        telegraph: 'Une fois par heure au plus.',
+        yourMove: 'Une fois par heure au plus.',
+      },
       test: 'envoyer une dépêche d’essai',
       testNote: 'Une dépêche part vers vos appareils abonnés : c’est la preuve que tout marche.',
     },

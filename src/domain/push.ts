@@ -15,6 +15,7 @@ export const PUSH_TYPES = [
   'dryFire',
   'season',
   'telegraph',
+  'yourMove',
 ] as const;
 
 export type PushType = (typeof PUSH_TYPES)[number];
@@ -29,6 +30,8 @@ export const pushPreferencesOf = (written: Partial<PushPreferences> | undefined)
 export const IN_PLAY_WINDOW_MS = 2 * 60_000;
 export const TELEGRAPH_PUSH_INTERVAL_MS = 60 * 60_000;
 export const FLUSH_DELAY_MS = 60_000;
+/** @a-mesurer — « À vous » suit la cadence du télégraphe : une heure, faute de mesure. */
+export const YOUR_MOVE_PUSH_INTERVAL_MS = 60 * 60_000;
 
 export const push = {
   title: 'La Manchette',
@@ -48,6 +51,8 @@ export const push = {
   seasonDominated: 'La saison est dominée : un belligérant l’emporte.',
   telegraphOne: 'Un message au télégraphe.',
   telegraphMany: (count: number) => `${count} messages au télégraphe.`,
+  /** Une seule phrase pour une arrivée et pour le slot qu'elle rend : ni pays ni nation. */
+  yourMove: 'À vous : une de vos colonnes est arrivée.',
   alarmLabels: {
     attack: (count: number) =>
       count === 1 ? 'une passe de résolution' : `${count} passes de résolution`,
@@ -68,6 +73,7 @@ export const push = {
  *  stockage local, donc l'adresse n'en porte pas. */
 export const journalUrl = '/plateau?windows=journal';
 export const telegraphUrl = '/plateau?windows=telegraph';
+export const yourMoveUrl = '/plateau';
 
 /**
  * **Une attaque seule ouvre sa dépêche, pas le journal** (lot mobile-3, §6) : l'adresse porte
@@ -92,7 +98,11 @@ export type OutgoingPush = {
   readonly tag: string;
 };
 
-const ALARM_ORDER: ReadonlyArray<Exclude<PushType, 'telegraph'>> = [
+/** Ce qui part en lot d'alarmes : le télégraphe et « À vous » ont chacun leur cadence. */
+type AlarmType = Exclude<PushType, 'telegraph' | 'yourMove'>;
+const isAlarm = (row: QueuedPush): boolean => row.type !== 'telegraph' && row.type !== 'yourMove';
+
+const ALARM_ORDER: ReadonlyArray<AlarmType> = [
   'attack',
   'outpost',
   'sighting',
@@ -114,7 +124,7 @@ export function groupAlarms(
   rows: ReadonlyArray<QueuedPush>,
   seasonId: string,
 ): OutgoingPush | null {
-  const alarms = rows.filter((row) => row.type !== 'telegraph').sort((a, b) => a.at - b.at);
+  const alarms = rows.filter(isAlarm).sort((a, b) => a.at - b.at);
   if (alarms.length === 0) return null;
   const tag = `${seasonId}:alarms`;
   const attacks = alarms.filter((row) => row.type === 'attack');
@@ -136,10 +146,17 @@ export function groupTelegraph(count: number, seasonId: string): OutgoingPush | 
   };
 }
 
+/** **Un seul « À vous » au vidage**, quel que soit le nombre d'arrivées retenues. */
+export function groupYourMove(count: number, seasonId: string): OutgoingPush | null {
+  if (count === 0) return null;
+  return { body: push.yourMove, url: yourMoveUrl, tag: `${seasonId}:yourMove` };
+}
+
 export type SeatHolding = {
   readonly presentAt: number | null;
   readonly restWindow: TimeWindow;
   readonly telegraphPushedAt: number | null;
+  readonly yourMovePushedAt: number | null;
 };
 
 export type SeatReading = {
@@ -151,6 +168,8 @@ export type SeatReading = {
   readonly inPlay: boolean;
   readonly telegraphAllowed: boolean;
   readonly telegraphRetryAt: number | null;
+  readonly yourMoveAllowed: boolean;
+  readonly yourMoveRetryAt: number | null;
 };
 
 export function readSeat(seat: SeatHolding, now: number): SeatReading {
@@ -160,11 +179,16 @@ export function readSeat(seat: SeatHolding, now: number): SeatReading {
   const nextTelegraphAt =
     seat.telegraphPushedAt === null ? null : seat.telegraphPushedAt + TELEGRAPH_PUSH_INTERVAL_MS;
   const telegraphAllowed = nextTelegraphAt === null || nextTelegraphAt <= now;
+  const nextYourMoveAt =
+    seat.yourMovePushedAt === null ? null : seat.yourMovePushedAt + YOUR_MOVE_PUSH_INTERVAL_MS;
+  const yourMoveAllowed = nextYourMoveAt === null || nextYourMoveAt <= now;
   return {
     restUntil,
     inPlay,
     telegraphAllowed,
     telegraphRetryAt: telegraphAllowed ? null : nextTelegraphAt,
+    yourMoveAllowed,
+    yourMoveRetryAt: yourMoveAllowed ? null : nextYourMoveAt,
   };
 }
 
