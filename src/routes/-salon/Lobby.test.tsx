@@ -67,6 +67,7 @@ const lobbyOf = (players: ReturnType<typeof player>[]) => {
     durationHours: 168,
     orders: { scheduledAt: null, remind: null, hqCaptureHours: 12, seatCap: null },
     playableRegion: 'europe',
+    points: ['tangier', 'istanbul', 'rangoon', 'hongKong', 'halifax', 'narvik', 'lisbon'],
     me: {
       nickname: me.nickname,
       creator: me.creator,
@@ -302,4 +303,50 @@ it('copies the game code from its cartouche', async () => {
   fireEvent.click(await screen.findByRole('button', { name: fr.table.copyCodeAria('K7Q2PX') }));
 
   expect(writeText).toHaveBeenCalledWith('K7Q2PX');
+});
+
+/** **La fiche s'écrit dans le cartouche** : au survol, au focus, ou à défaut la nation choisie. */
+const cartouche = () => document.querySelector('.cartouche')!;
+
+it('writes the sheet of the token under the pointer in the map cartouche, and the rest state otherwise', async () => {
+  mount([
+    player('Pierre', { creator: true, nation: 'france' }),
+    player('Léa', { mine: true, nation: null }),
+  ]);
+
+  await screen.findByRole('radiogroup');
+  expect(cartouche().textContent).toContain(fr.table.restHint);
+
+  const germany = screen.getByRole('radio', { name: new RegExp(fr.table.shortNation.germany) });
+  fireEvent.mouseEnter(germany);
+  expect(cartouche().textContent).toContain('Berlin');
+  expect(cartouche().textContent).toContain(fr.nationAssets.blitzkrieg.name);
+  expect(cartouche().textContent).toContain(fr.table.sheetNeighbours);
+
+  fireEvent.mouseLeave(germany);
+  expect(cartouche().textContent).toContain(fr.table.restHint);
+});
+
+it('says on a taken nation’s sheet who holds it, and opens the sheet at the focus too', async () => {
+  mount([
+    player('Pierre', { creator: true, nation: 'france' }),
+    player('Léa', { mine: true, nation: null }),
+  ]);
+
+  await screen.findByRole('radiogroup');
+  fireEvent.focus(screen.getByRole('radio', { name: new RegExp(fr.table.shortNation.france) }));
+
+  expect(cartouche().textContent).toContain(fr.table.heldBy('Pierre'));
+  expect(cartouche().textContent).toContain(fr.table.classicNation);
+});
+
+it('writes the chosen nation’s sheet when nothing is hovered, and keeps the Blitz cartouche', async () => {
+  mount([
+    player('Pierre', { creator: true, nation: 'france' }),
+    player('Léa', { mine: true, nation: 'japan' }),
+  ]);
+
+  await screen.findByRole('radiogroup');
+  expect(cartouche().textContent).toContain('Tokyo');
+  expect(cartouche().textContent).toContain(fr.nationAssets.carrierDoctrine.name);
 });

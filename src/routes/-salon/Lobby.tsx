@@ -1,7 +1,15 @@
 import { Navigate, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery } from 'convex/react';
 import type { FunctionReturnType } from 'convex/server';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { api } from '../../../convex/_generated/api';
 import {
   fr,
@@ -13,6 +21,7 @@ import {
 } from '@/i18n/fr';
 import { typo } from '@/i18n/typo';
 import { CAPITAL_BY_NATION, NATIONS, isNation } from '@/domain/nations';
+import type { Nation } from '@/domain/ids';
 import { assetOf } from '@/domain/nation-assets';
 import {
   HQ_CAPTURE_HOURS,
@@ -45,6 +54,7 @@ import { Wordmark } from '@/shell/Masthead';
 import { notify } from '@/shell/notifications';
 import { NARROW, useCoarsePointer } from '@/shell/viewport';
 import { CompassRoseMark, EngravedMap, WORLD_BOX, projectOn } from '@/emblems/EngravedMap';
+import { marksOf, salonBoxOf, sheetOf, tintsOf } from './nation-sheet';
 import { FlagChip, OffSeasonPage, boxOf, localInput } from '@/shell/OffSeason';
 import { TelegraphPanel, useReadOnUnmount, useTelegraphTabs } from '@/shell/TelegraphPanel';
 import './lobby.css';
@@ -131,12 +141,13 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
   const finger = useCoarsePointer();
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  /** The token under the pointer or the focus: the desk map writes its sheet. */
+  const [look, setLook] = useState<Nation | null>(null);
   /** Au téléphone le fil s'ouvre à la demande : déplié, il prendrait l'écran avant la table. */
   const [wireOpen, setWireOpen] = useState(() => !matchMedia(NARROW).matches);
   const [sent, setSent] = useState(false);
 
   const blitz = lobby.mode === 'blitz';
-  const myAsset = assetOf(lobby.me.nation, lobby.mode);
   const founder = lobby.me.creator;
   const open = lobby.status === 'lobby';
   const meRow = lobby.players.find((player) => player.mine);
@@ -329,6 +340,7 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
         offered={(next) => offered({ theatre: next })}
         theatreBox={theatre === null ? null : boxOf(theatre.box)}
         meNation={lobby.me.nation}
+        look={look}
       />
 
       <section className="sl-dock" aria-labelledby="t-me">
@@ -351,6 +363,11 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
                   aria-checked={mine}
                   aria-disabled={holder ? true : undefined}
                   title={holder ? fr.table.takenBy(holder.nickname) : fr.nations[nation]}
+                  onMouseEnter={() => setLook(nation)}
+                  onMouseLeave={() => setLook(null)}
+                  onFocus={() => setLook(nation)}
+                  onBlur={() => setLook(null)}
+                  onPointerDown={() => setLook(nation)}
                   onClick={() =>
                     holder
                       ? notify(fr.table.takenBy(holder.nickname), 'info')
@@ -366,11 +383,6 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
           </div>
           {!blitz && isNation(lobby.me.nation) && (
             <div className="nfiche">
-              {myAsset !== null && (
-                <span className="rule-broken">
-                  <b>{fr.nationAssets[myAsset].name}</b> <em>{fr.nationAssets[myAsset].rule}.</em>
-                </span>
-              )}
               <RestField seat={seat} declared={lobby.me.restWindow} onError={setError} />
               <p className="rest-why">{fr.table.restExplain}</p>
             </div>
@@ -620,6 +632,7 @@ function TableMap({
   offered,
   theatreBox,
   meNation,
+  look,
 }: {
   lobby: LobbyView;
   editing: boolean;
@@ -627,10 +640,11 @@ function TableMap({
   offered: (theatre: string) => boolean;
   theatreBox: readonly [number, number, number, number] | null;
   meNation: string | null;
+  look: Nation | null;
 }) {
   const blitz = lobby.mode === 'blitz' && theatreBox !== null;
-  const box = theatreBox ?? WORLD_BOX;
   const box2 = useRef<HTMLDivElement>(null);
+  const cartouche = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   useLayoutEffect(() => {
     const element = box2.current;
@@ -642,6 +656,36 @@ function TableMap({
     return () => observer.disconnect();
   }, []);
   const held = lobby.players.filter((player) => isNation(player.nation));
+  const [lead, setLead] = useState<readonly [number, number, number, number] | null>(null);
+  /** The desk map drops the southern ocean; the Blitz keeps its theatre. */
+  const box = useMemo(
+    () => theatreBox ?? (size === null ? WORLD_BOX : salonBoxOf(size)),
+    [theatreBox, size],
+  );
+  /** Only a Mondiale writes the sheet of a nation; a Blitz keeps its cartouche. */
+  const desk = lobby.mode !== 'blitz';
+  const shown = !desk ? null : (look ?? (isNation(meNation) ? meNation : null));
+  const sheet0 = shown === null ? null : sheetOf(shown, lobby.points ?? [], lobby.mode);
+  const leadFrom = shown !== null && size !== null ? CAPITAL_BY_NATION[shown] : null;
+  useLayoutEffect(() => {
+    const at = cartouche.current;
+    if (leadFrom === null || size === null || at === null || box2.current === null) {
+      setLead(null);
+      return;
+    }
+    const [x, y] = projectOn(box, size, leadFrom[0], leadFrom[1], { pad: 0.01, flat: true });
+    const frame = box2.current.getBoundingClientRect();
+    const rect = at.getBoundingClientRect();
+    const left = rect.left - frame.left;
+    setLead([
+      x,
+      y,
+      Math.min(Math.max(x, left + 30), left + rect.width - 30),
+      rect.top - frame.top - 4,
+    ]);
+  }, [leadFrom, size, box, shown]);
+  const holder =
+    shown === null ? undefined : held.find((player) => player.nation === shown && !player.mine);
   const width = size?.width ?? 780;
   /** Sur une carte de téléphone, les lignes d'eau s'affinent et les noms de mers se taisent :
    *  à cette taille ils se posaient sur les côtes. */
@@ -649,7 +693,7 @@ function TableMap({
   const sheet =
     blitz && lobby.theatre !== null ? fr.table.sheets[lobby.theatre as TheatreId] : null;
   return (
-    <div className="tablemap sl-map">
+    <div className={`tablemap sl-map ${desk ? 'desk' : ''}`}>
       <div className="mapbox" ref={box2}>
         <EngravedMap
           box={box}
@@ -663,10 +707,16 @@ function TableMap({
           nations={
             blitz
               ? {}
-              : Object.fromEntries(
-                  held.map((player) => [player.nation!, { mine: player.nation === meNation }]),
-                )
+              : tintsOf({
+                  shown,
+                  me: isNation(meNation) ? meNation : null,
+                  taken: held
+                    .filter((player) => !player.mine)
+                    .map((player) => player.nation as Nation),
+                  neighbours: sheet0?.neighbours ?? [],
+                })
           }
+          marks={!desk ? [] : marksOf(lobby.points ?? [])}
           labels={narrow ? [] : (sheet?.seas ?? fr.table.worldSeas)}
           labelPx={blitz ? 19 : 15}
         />
@@ -688,19 +738,70 @@ function TableMap({
             ))}
         </div>
       )}
-      <div className="cartouche">
-        <div className="eyebrow">
-          {sheet === null ? fr.table.generalMap : fr.table.staffSheet(sheet.sheet)}
+      {!desk || shown === null || sheet0 === null ? (
+        <div className={`cartouche ${desk ? 'rest' : ''}`} ref={cartouche}>
+          <div className="eyebrow">
+            {sheet === null ? fr.table.generalMap : fr.table.staffSheet(sheet.sheet)}
+          </div>
+          <h4>{sheet === null ? fr.table.world1940 : sheet.title}</h4>
+          {!desk ? (
+            <>
+              <div className="scale">
+                <i />
+                <i />
+                <i />
+                <i />
+              </div>
+              <div className="scaletxt">{sheet === null ? fr.table.worldKm : sheet.km}</div>
+            </>
+          ) : (
+            <p>{fr.table.restHint}</p>
+          )}
         </div>
-        <h4>{sheet === null ? fr.table.world1940 : sheet.title}</h4>
-        <div className="scale">
-          <i />
-          <i />
-          <i />
-          <i />
+      ) : (
+        <div className="cartouche fiche" ref={cartouche}>
+          <h4>
+            <FlagChip nation={shown} width={30} />
+            <span>{fr.nations[shown]}</span>
+            {holder !== undefined && (
+              <em className="stamp-s">{fr.table.heldBy(holder.nickname)}</em>
+            )}
+          </h4>
+          <p className="l1">
+            <b className="cap">{sheet0.capital}</b>
+            <i>·</i>
+            {sheet0.asset === null ? (
+              <>
+                <b className="classic">{fr.table.classicNation}</b> <em>{fr.table.classicRule}.</em>
+              </>
+            ) : (
+              <>
+                <b className="atout">{fr.nationAssets[sheet0.asset].name}</b>{' '}
+                <em>{fr.nationAssets[sheet0.asset].rule}.</em>
+              </>
+            )}
+          </p>
+          <p className="l2">
+            <span className="k">{fr.table.sheetNeighbours}</span>{' '}
+            {sheet0.neighbours.length === 0
+              ? fr.table.sheetNoNeighbour
+              : sheet0.neighbours.map((nation) => fr.table.shortNation[nation]).join(', ')}
+            <i>·</i>
+            <span className="k">{fr.table.sheetNearPoints}</span>{' '}
+            {sheet0.nearPoints.length === 0
+              ? fr.table.sheetNoNearPoint
+              : sheet0.nearPoints.map((key) => fr.points.names[key]).join(', ')}
+          </p>
         </div>
-        <div className="scaletxt">{sheet === null ? fr.table.worldKm : sheet.km}</div>
-      </div>
+      )}
+      {desk && (
+        <div className="legend">
+          <i />
+          <span>
+            <b>{fr.table.sevenLegend}</b> — {fr.table.sevenRule}
+          </span>
+        </div>
+      )}
       <CompassRoseMark />
       {!blitz && size !== null && (
         <div
@@ -712,10 +813,30 @@ function TableMap({
             pointerEvents: 'none',
           }}
         >
+          {lead !== null && (
+            <svg className="lead" width={size.width} height={size.height} aria-hidden>
+              <path
+                d={`M${lead[0]},${lead[1] + 5}L${lead[2]},${lead[3]}`}
+                stroke="currentColor"
+                strokeWidth={1.2}
+                strokeDasharray="2 4"
+                fill="none"
+              />
+              <circle
+                cx={lead[0]}
+                cy={lead[1]}
+                r={3.2}
+                fill="#efe6cf"
+                stroke="currentColor"
+                strokeWidth={1.6}
+              />
+              <circle cx={lead[0]} cy={lead[1]} r={1.1} fill="currentColor" />
+            </svg>
+          )}
           {held.map((player) => {
             if (!isNation(player.nation)) return null;
             const capital = CAPITAL_BY_NATION[player.nation];
-            const [x, y] = projectOn(WORLD_BOX, size, capital[0], capital[1], {
+            const [x, y] = projectOn(box, size, capital[0], capital[1], {
               pad: 0.01,
               flat: true,
             });
