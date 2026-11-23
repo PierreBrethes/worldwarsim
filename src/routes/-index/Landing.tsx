@@ -80,6 +80,7 @@ export function Landing() {
         </header>
 
         <h2 className="lp-banner">{fr.front.headline}</h2>
+        <p className="lp-chapo">{fr.front.standfirst}</p>
 
         <div className="lp-plate">
           <figure>
@@ -87,6 +88,13 @@ export function Landing() {
               <Situation world={world} />
             </div>
             <figcaption>
+              <ul className="lp-editions">
+                {fr.front.editions.map((edition) => (
+                  <li key={edition.name}>
+                    <b>{edition.name}</b> {edition.meta}
+                  </li>
+                ))}
+              </ul>
               <span>{fr.front.caption}</span>
               <Film />
             </figcaption>
@@ -104,7 +112,7 @@ export function Landing() {
             <CodeField label={fr.front.codeLabel} onOpen={open} />
             <p className="lp-doors">
               <span>{fr.front.noCode}</span>
-              <Link to="/connexion" search={{ ouvrir: true, suite: 'fonder' }}>
+              <Link className="lp-found" to="/connexion" search={{ ouvrir: true, suite: 'fonder' }}>
                 {fr.front.found}
               </Link>
               <span>{fr.front.haveFile}</span>

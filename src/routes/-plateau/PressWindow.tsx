@@ -564,7 +564,12 @@ function Delta({ value, decimals = 0 }: { value: number; decimals?: number }) {
     <span
       className="font-(family-name:--font-mono) text-[10.5px]"
       style={{
-        color: said === '=' ? 'var(--ink-soft)' : value > 0 ? 'var(--valid)' : 'var(--critical)',
+        color:
+          said === fr.press.delta(0)
+            ? 'var(--ink-soft)'
+            : value > 0
+              ? 'var(--valid)'
+              : 'var(--critical)',
       }}
     >
       {said}

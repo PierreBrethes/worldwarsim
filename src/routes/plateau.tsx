@@ -3921,7 +3921,7 @@ function BoardContent({
                     onTakeTokens={(resource, event) => tokens.start('board', resource, event)}
                     cue={
                       stepCue?.kind === 'rack' && stepText !== null
-                        ? { rack: stepCue.rack, text: stepText }
+                        ? { rack: stepCue.rack, text: stepText, tile: stepCue.tile }
                         : null
                     }
                   />

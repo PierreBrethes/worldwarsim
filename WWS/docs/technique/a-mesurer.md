@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 39ffd5e -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : f153396 -->
 
 # Les constantes à mesurer
 
@@ -153,9 +153,9 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `CITY_TIERS` | `[NAMES_GONE_DISTANCE, 55, 34, 0]` | `src/domain/place-names.ts:118` | paliers lus sur les captures de la maquette A, aucune mesure de lisibilité |
 | `MILLION` | `1_000_000` | `src/domain/place-names.ts:119` | paliers lus sur les captures de la maquette A, aucune mesure de lisibilité |
 | `SMALL_CAPITAL` | `300_000` | `src/domain/place-names.ts:120` | paliers lus sur les captures de la maquette A, aucune mesure de lisibilité |
-| `SEA_TIERS` | `[NAMES_GONE_DISTANCE, 45, 0]` | `src/domain/place-names.ts:161` | paliers lus sur la maquette A, aucune capture des mers seules |
-| `SEA_RANKS` | `[2, 4]` | `src/domain/place-names.ts:162` | paliers lus sur la maquette A, aucune capture des mers seules |
-| `SEA_BUDGET` | `{ desk: 6, touch: 3 }` | `src/domain/place-names.ts:176` | lu sur la maquette A, qui en écrit onze sur l'Europe |
+| `SEA_TIERS` | `[NAMES_GONE_DISTANCE, 45, 0]` | `src/domain/place-names.ts:155` | paliers lus sur la maquette A, aucune capture des mers seules |
+| `SEA_RANKS` | `[2, 4]` | `src/domain/place-names.ts:156` | paliers lus sur la maquette A, aucune capture des mers seules |
+| `SEA_BUDGET` | `{ desk: 6, touch: 3 }` | `src/domain/place-names.ts:170` | lu sur la maquette A, qui en écrit onze sur l'Europe |
 | `STEP_MS` | `{ voyage: 1500, pose: 1200, frappe: 1950, riposte: 1950, deroute: 1400, 'compte-rendu': 2000 }` | `src/domain/replay.ts:9` | a short replay, read through in about ten seconds (grilling of 13/10). |
 | `SINK_HOLD_MS` | `2000` | `src/domain/replay.ts:41` | le tampon se pose 0,4 s après la coulée, soit à la fin du compte-rendu, et tient 2 s |
 | `HEEL` | `(14 * Math.PI) / 180` | `src/domain/replay.ts:214` | la gîte à la chute, 14° sur le bord touché (storyboard) |

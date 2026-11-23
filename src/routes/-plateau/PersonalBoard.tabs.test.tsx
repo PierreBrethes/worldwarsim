@@ -100,7 +100,15 @@ const view = {
   },
 } as unknown as PlayerView;
 
-const Table = ({ cue = null }: { cue?: { rack: 'tiles'; text: string } | null }) => (
+const Table = ({
+  cue = null,
+  front = true,
+  placing = null,
+}: {
+  cue?: { rack: 'tiles'; text: string; tile: 'farm' | 'hq' } | null;
+  front?: boolean;
+  placing?: 'farm' | null;
+}) => (
   <ConvexProvider client={client}>
     <SoleSurfaceProvider>
       <PersonalBoard
@@ -110,7 +118,7 @@ const Table = ({ cue = null }: { cue?: { rack: 'tiles'; text: string } | null })
         onOpen={() => {}}
         research={false}
         onResearch={() => {}}
-        front
+        front={front}
         focused={null}
         site={null}
         onDeselectSite={() => {}}
@@ -118,7 +126,7 @@ const Table = ({ cue = null }: { cue?: { rack: 'tiles'; text: string } | null })
         onHoldTile={() => {}}
         onPlaceTile={() => false}
         maquetteAt={null}
-        placing={null}
+        placing={placing}
         cue={cue}
       />
     </SoleSurfaceProvider>
@@ -259,12 +267,55 @@ describe("the tiles' row at the full step", () => {
   });
 
   it('puts the first-step bubble on the row and the half, never over the full step', () => {
-    render(<Table cue={{ rack: 'tiles', text: 'Pose une ferme' }} />);
+    render(<Table cue={{ rack: 'tiles', text: 'Pose une ferme', tile: 'farm' }} />);
     expect(screen.queryByText('Pose une ferme')).toBeTruthy();
     pull(-120);
     expect(screen.queryByText('Pose une ferme')).toBeTruthy();
     pull(-120);
     expect(stage().dataset.height).toBe('full');
+    expect(screen.queryByText('Pose une ferme')).toBeNull();
+  });
+
+  /** #607 : une fenêtre devant la bande masque la bulle, et sa fermeture la rend. */
+  it('hides the first-step bubble under a window, and brings it back after', () => {
+    const cue = { rack: 'tiles', text: 'Pose une ferme', tile: 'farm' } as const;
+    const { rerender } = render(<Table cue={cue} />);
+    expect(screen.queryByText('Pose une ferme')).toBeTruthy();
+    rerender(<Table cue={cue} front={false} />);
+    expect(screen.queryByText('Pose une ferme')).toBeNull();
+    rerender(<Table cue={cue} />);
+    expect(screen.queryByText('Pose une ferme')).toBeTruthy();
+  });
+
+  it('hides the first-step bubble while a tile is armed on the map', () => {
+    const cue = { rack: 'tiles', text: 'Pose une ferme', tile: 'farm' } as const;
+    const { rerender } = render(<Table cue={cue} />);
+    rerender(<Table cue={cue} placing="farm" />);
+    expect(screen.queryByText('Pose une ferme')).toBeNull();
+  });
+
+  it('hides the first-step bubble while a tile is in hand', () => {
+    const cue = { rack: 'tiles', text: 'Pose une ferme', tile: 'hq' } as const;
+    render(<Table cue={cue} />);
+    // jsdom has no pointer capture.
+    Element.prototype.hasPointerCapture = () => false;
+    const tile = document.querySelector<HTMLElement>('[data-tile="hq"]')!;
+    // An upward gesture lifts the tile: it is in the hand for as long as the finger holds it.
+    act(() => {
+      fireEvent.pointerDown(tile, {
+        pointerId: 1,
+        pointerType: 'touch',
+        button: 0,
+        clientX: 40,
+        clientY: 700,
+      });
+      fireEvent.pointerMove(window, {
+        pointerId: 1,
+        pointerType: 'touch',
+        clientX: 40,
+        clientY: 640,
+      });
+    });
     expect(screen.queryByText('Pose une ferme')).toBeNull();
   });
 });

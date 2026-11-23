@@ -419,7 +419,7 @@ async function runProfile(profile) {
             /** Au téléphone la recherche est la feuille basse du Centre, non une fenêtre (#587). */
             const window =
               phone && surface === 'research'
-                ? page.getByRole('dialog', { name: /Centre de recherche/ })
+                ? page.getByRole('dialog', { name: /^(Centre de r|R)echerche/ })
                 : page.locator(`[data-surface="${surface}"]`);
             await open();
             if (
@@ -466,12 +466,16 @@ async function runProfile(profile) {
                 if (at.scrollWidth > at.clientWidth + 4) return at.scrollLeft;
               return null;
             });
+          // La bulle des premiers pas amène sa tuile en vue : on mesure une fois le rang posé.
+          await page.waitForTimeout(700);
           const before = await scrolled();
           assert.notEqual(before, null, 'écran : la rangée des tuiles ne déborde pas');
           if (phone) {
-            const [x, y] = await centreOf(tile);
-            await touch('touchStart', [[x + 150, y]]);
-            await fingers([[x + 150, y]], [[x - 50, y]], 300);
+            // Au milieu de l'écran, vers le début si le rang est déjà défilé, sinon vers la fin.
+            const y = (await centreOf(tile))[1];
+            const [from, to] = before > 0 ? [100, 300] : [300, 100];
+            await touch('touchStart', [[from, y]]);
+            await fingers([[from, y]], [[to, y]], 300);
             await touch('touchEnd', []);
           } else
             await page
@@ -479,7 +483,7 @@ async function runProfile(profile) {
               .first()
               .click();
           await page.waitForTimeout(900);
-          assert.ok((await scrolled()) > before, 'écran : la rangée des tuiles n’a pas défilé');
+          assert.notEqual(await scrolled(), before, 'écran : la rangée des tuiles n’a pas défilé');
           await closeBoard();
         },
       },

@@ -124,12 +124,6 @@ export function namesShown(distance: number, replaying: boolean): boolean {
   return !replaying && distance < NAMES_GONE_DISTANCE;
 }
 
-/** The continent's zoom: the capitals-only tier, where names are shown but no million-city yet
- *  (#466, the « Aucun accrochage » banner stands only here). */
-export function continentZoom(distance: number): boolean {
-  return distance >= CITY_TIERS[1]! && distance < NAMES_GONE_DISTANCE;
-}
-
 /** The tier at this distance among `tiers` (the distances each starts under, from the farthest),
  *  one less on a phone; -1 before the first. */
 function tierOf(distance: number, touch: boolean, tiers: readonly number[]): number {

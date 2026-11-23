@@ -54,7 +54,6 @@ import type {
   Medium,
   MovementType,
   Nation,
-  PlayableRegion,
   RegionType,
   ResearchCard,
   ResourceKey,
@@ -458,12 +457,6 @@ export const fr = {
     depot: 'relève le plafond des cinq ressources — se pille',
     city: 'verse des fonds chaque minute à qui la tient — Blitz seulement',
   } satisfies Record<BuildingKey, string>,
-
-  playableRegions: {
-    europe: 'Europe',
-    'europe-med': 'Europe + Méditerranée + Moyen-Orient',
-    world: 'Monde',
-  } satisfies Record<PlayableRegion, string>,
 
   /** L'économie de la Blitz (lot 4) : une ressource, les fonds — jamais « argent ». */
   blitz: {
@@ -1276,8 +1269,8 @@ export const fr = {
   auth: {
     dateline: 'bureau des engagements',
     tabs: 'accès au dossier',
-    haveFile: 'J’ai un dossier',
-    openFile: 'Ouvrir un dossier',
+    haveFile: 'Se connecter',
+    openFile: 'Créer un compte',
     cardTitle: 'Carte d’accréditation',
     requestTitle: 'Demande d’accréditation',
     newCorrespondent: 'nouveau correspondant',
@@ -1295,7 +1288,11 @@ export const fr = {
     /** **Il n'y a pas d'e-mail** (ADR 0022), donc pas de « mot de passe oublié » : la phrase
      *  le dit avant la perte, pas après. */
     passwordNote:
-      'aucun e-mail : un mot de passe perdu se remet à zéro par le tenancier du serveur',
+      'aucun e-mail : un mot de passe perdu se remet à zéro, demandez à celui qui vous a invité',
+    showPassword: 'voir',
+    hidePassword: 'cacher',
+    /** Venu de « fonder » : la suite que la carte annonce avant le premier champ. */
+    foundNext: 'Un pseudo, un mot de passe, puis vous fondez votre partie.',
     passwordRule: '8 caractères au moins',
     loginSubmit: 'entrer',
     registerSubmit: 'ouvrir le dossier',
@@ -1636,6 +1633,8 @@ export const fr = {
     restFrom: 'repos dès',
     restLabel: 'début de votre plage de repos, heure locale',
     restUntil: (end: string) => `jusqu’à ${end} · publique`,
+    restExplain:
+      'Vos heures de sommeil : pendant ce créneau, votre QG ne peut pas être capturé. Toute la table les voit.',
     readyStamp: 'tamponner « prêt »',
     readyLift: 'lever mon « prêt »',
     /** Ce que la table attend de moi, en une phrase : ma nation, puis mon « prêt ». */
@@ -1875,6 +1874,14 @@ export const fr = {
     amongFriends: 'deux à huit joueurs, entre amis',
     onInvitation: 'sur invitation',
     headline: 'Une soirée ou sept jours pour refaire le monde',
+    /** Le chapeau des maquettes (`WWS/prototypes/landing-v2.html`), tel quel. */
+    standfirst:
+      'Huit nations de 1940 sur la carte du monde réel, des ordres qui partent et ne reviennent pas. Deux éditions, une même table.',
+    /** Les deux cartouches de la légende : le temps que dure chaque mode, et son terrain. */
+    editions: [
+      { name: 'Blitz', meta: '2 h · un théâtre' },
+      { name: 'Mondiale', meta: '3 à 14 jours · le monde' },
+    ],
     mapLabel:
       'Carte du monde en 1940 : huit nations à leur encre, sept points stratégiques cerclés, et un ordre qui part vers chacun.',
     /** La seule règle que la une énonce : c'est elle qui donne leur sens aux cercles. */
@@ -1883,7 +1890,7 @@ export const fr = {
     coupon: 'Coupon-réponse',
     codeLabel: 'Votre code d’invitation',
     noCode: 'Pas de code ?',
-    found: 'fonder une partie',
+    found: 'Fonder une partie',
     haveFile: 'Déjà un dossier ?',
     enter: 'entrer',
     footer: 'La Manchette · fond de carte : Natural Earth',
@@ -1905,8 +1912,9 @@ export const fr = {
   launchSequence: {
     order: 'ORDRE DE MOBILISATION',
     sealed: 'scellé — aucun retour',
-    seed: 'graine distribuée',
-    season: 'SAISON 1',
+    seed: 'les cartes sont distribuées',
+    season: 'EN CAMPAGNE',
+    world: 'le monde',
     summary: (region: string, pace: string, players: number) =>
       `${region} · ${pace} · ${players} joueurs`,
     skip: 'passer',
@@ -2088,12 +2096,13 @@ export const fr = {
        *  progression inventée. */
       noPrevious: 'première édition — rien à comparer',
     },
-    /** **Le signe s'imprime toujours**, et `=` remplace un zéro : une case vide se lirait comme
-     *  une donnée manquante plutôt que comme une immobilité. */
+    /** **Une tendance s'écrit ▲, ▼ ou « stable »** (#607) : le sens se lit sans légende, et un mot
+     *  remplace un zéro — une case vide se lirait comme une donnée manquante plutôt que comme une
+     *  immobilité. */
     delta: (value: number, decimals = 0): string =>
       Math.abs(value) < 10 ** -decimals / 2
-        ? '='
-        : `${value > 0 ? '+' : '−'}${decimal(Math.abs(value), decimals)}`,
+        ? 'stable'
+        : `${value > 0 ? '▲' : '▼'} ${decimal(Math.abs(value), decimals)}`,
     percent: (value: number): string => `${decimal(value, 1)} %`,
     score: (value: number): string => decimal(value, 0),
     /** Le rang de la dernière édition, à la française : « 1ᵉʳ », puis « 2ᵉ ». */
@@ -2105,7 +2114,8 @@ export const fr = {
     nextIn: (time: string, hours: number, minutes: number) =>
       `prochaine ${time} · dans ${hours > 0 ? `${hours} h ${String(minutes).padStart(2, '0')}` : `${minutes} min`}`,
     points: (value: number): string => `${decimal(value, 0)} pts`,
-    deedsCount: (value: number): string => `${decimal(value, 0)} fait${plural(value, '', 's')}`,
+    deedsCount: (value: number): string =>
+      `${decimal(value, 0)} fait${plural(value, '', 's')} d’armes`,
     you: 'vous',
     /** Ce que la page tient de son propre dispositif — la seule phrase d'explication qu'elle
      *  s'autorise, sous la table. */
@@ -3330,7 +3340,6 @@ export const fr = {
     mine: (troops: number) => `${troops} à vous`,
     seen: (count: number) => `${count} relevé${plural(count, '', 's')}`,
     edge: (numbers: string) => `Accrochage ${numbers} hors champ : y aller`,
-    none: 'Aucun accrochage : rien de relevé au contact de vos forces.',
   },
 
   hand: {
@@ -3370,8 +3379,6 @@ export const fr = {
   firstSteps: {
     header: 'premiers pas',
     progress: (done: number, total: number) => `${done} / ${total}`,
-    fold: 'replier',
-    unfold: 'déplier',
     skip: 'passer',
     doneLabel: 'fait :',
     resume: 'Reprendre les premiers pas',
@@ -4222,6 +4229,8 @@ export const fr = {
     /** **La fenêtre de l'arbre** (#123, variante A « l'éventail ») : le Centre, ses postes en
      *  marge, l'arbre de haut en bas. */
     title: 'Centre de recherche',
+    /** Au téléphone, la feuille n'a pas la place du titre entier (#607). */
+    titlePhone: 'Recherche',
     subtitle: (place: string, level: number) =>
       `${place} · niveau ${level} · trois cartes d’avance`,
     noCenter: 'aucun Centre de recherche — sa tuile est sur le plateau personnel',

@@ -328,11 +328,7 @@ function RefusalPage({
               filed={fr.table.telegram.filedAt(now)}
               refusal
               stamp={
-                <span
-                  className="stamp"
-                  style={{ right: 22, bottom: -14, background: 'rgba(233,220,185,.6)' }}
-                  aria-hidden
-                >
+                <span className="stamp" aria-hidden>
                   {told.title}
                 </span>
               }

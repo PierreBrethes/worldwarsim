@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fr } from '@/i18n/fr';
 import { ContactMarks } from './ContactMarks';
 
 beforeEach(() => {
@@ -21,7 +20,7 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-/** « Aucun accrochage » is drawn once the rings are, at the continent's zoom only (#466). */
+/** With no contact, nothing is written on the map (#607): the banner said « rien » for good. */
 function bannerAt(distance: number): boolean {
   let rest = () => {};
   const engine = {
@@ -42,14 +41,14 @@ function bannerAt(distance: number): boolean {
     engine.onContacts([]);
     rest();
   });
-  const shown = queryByText(fr.contacts.none) !== null;
+  const shown = queryByText(/Aucun accrochage/) !== null;
   cleanup();
   return shown;
 }
 
-describe('ContactMarks banner', () => {
-  it('stands at the continent and nowhere else', () => {
-    expect(bannerAt(60)).toBe(true);
+describe('ContactMarks without a contact', () => {
+  it('draws no banner, at the continent or anywhere else', () => {
+    expect(bannerAt(60)).toBe(false);
     expect(bannerAt(30)).toBe(false);
     expect(bannerAt(100)).toBe(false);
   });

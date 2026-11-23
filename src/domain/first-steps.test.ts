@@ -97,7 +97,7 @@ describe('litStepOf and shownStepOf', () => {
 
 describe('cueOf', () => {
   it('sends the headquarters to the tile rack', () => {
-    expect(cueOf('hq', view())).toEqual({ kind: 'rack', rack: 'tiles', say: 'hq' });
+    expect(cueOf('hq', view())).toEqual({ kind: 'rack', rack: 'tiles', say: 'hq', tile: 'hq' });
   });
 
   it('points at a standing piece to lift, never one already marching', () => {
@@ -111,7 +111,12 @@ describe('cueOf', () => {
 
   /** #163 : on forme en sélectionnant le site sur la carte, la bande montre alors ses cartes. */
   it('asks for a projection site, then points at it on the map', () => {
-    expect(cueOf('form', view())).toEqual({ kind: 'rack', rack: 'tiles', say: 'tiles' });
+    expect(cueOf('form', view())).toEqual({
+      kind: 'rack',
+      rack: 'tiles',
+      say: 'tiles',
+      tile: 'barracks',
+    });
     expect(cueOf('form', view({ buildings: [{ id: 'B-1', key: 'port' } as never] }))).toEqual({
       kind: 'map',
       station: { kind: 'building', buildingId: 'B-1' },
@@ -120,13 +125,18 @@ describe('cueOf', () => {
   });
 
   it('asks for a research centre before the tree', () => {
-    expect(cueOf('research', view())).toEqual({ kind: 'rack', rack: 'tiles', say: 'center' });
+    expect(cueOf('research', view())).toEqual({
+      kind: 'rack',
+      rack: 'tiles',
+      say: 'center',
+      tile: 'researchCenter',
+    });
     expect(
       cueOf(
         'research',
         view({ buildings: [{ id: 'C-1', key: 'researchCenter', level: 1 } as never] }),
       ),
-    ).toEqual({ kind: 'rack', rack: 'research', say: 'research' });
+    ).toEqual({ kind: 'rack', rack: 'research', say: 'research', tile: 'researchCenter' });
   });
 
   it('founds an outpost first, then points at a transport or at the barracks that forms one', () => {
@@ -139,6 +149,7 @@ describe('cueOf', () => {
       kind: 'rack',
       rack: 'tiles',
       say: 'tiles',
+      tile: 'barracks',
     });
     expect(
       cueOf(

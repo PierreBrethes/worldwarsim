@@ -58,6 +58,7 @@ export function ConnectedSignIn() {
     <Card>
       <AccountForm
         opening={ouvrir === true}
+        founding={suite === 'fonder'}
         /** La suite prend la place du formulaire : le retour du navigateur ne ramène pas un
          *  joueur connecté devant ses deux champs. Qui venait fonder arrive à la fondation ; les
          *  autres à l'accueil, d'où une partie seule à attendre s'ouvre d'elle-même. */
