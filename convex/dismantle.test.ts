@@ -411,7 +411,7 @@ describe('démanteler un avant-poste', () => {
 
   /**
    * **On ne retire pas la route sous une colonne** : un point dans la portée duquel un mouvement
-   * marche a pu chiffrer son allure. Il n'y a qu'une lecture (`outpostsServed`).
+   * marche a pu chiffrer son allure. Il n'y a qu'une lecture (`isServed`).
    */
   it('refuse tant qu’une colonne s’appuie sur le point', async () => {
     const t = boot();

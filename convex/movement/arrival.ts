@@ -48,6 +48,8 @@ import {
   pointOf,
   seatedOf,
   standingPile,
+  insertMovement,
+  restampServed,
   troopsCarriedBy,
   type TroopAddress,
 } from './forces';
@@ -128,6 +130,7 @@ export async function forgetMovement(
   }
   if (movement !== null) await settleBatteries(ctx, movement.troopIds, now);
   await ctx.db.delete(movementId);
+  if (movement !== null) await restampServed(ctx, movement.seasonId, movementId);
 }
 
 /** **Une pièce se met en batterie à l'arrêt** (B20) : la fin du mouvement qui la portait date
@@ -920,7 +923,7 @@ export async function walkHome(
 
     /** A column walking home is its owner's like any other, and his relays carry it back. */
     const arrivesAt = now + (await pacedMinutes(ctx, group[0]!.playerId, route, now)) * 60_000;
-    const movementId = await ctx.db.insert('movements', {
+    const movementId = await insertMovement(ctx, {
       /** The resolution that files a return holds no season of its own. */
       seasonId: group[0]!.seasonId,
       playerId: group[0]!.playerId,

@@ -16,6 +16,7 @@ import { regionFacts, pointOfRegion } from './regions';
 import { sparedPerResourceOf } from '../src/domain/loot';
 import schema from './schema';
 import { revalidatePlunderTarget, surveyedPlunderTarget } from './movement/orders';
+import { restampServed, servedOver } from './movement/forces';
 import { fileSurvey } from './surveys';
 import { modules } from './test.setup';
 import {
@@ -540,6 +541,78 @@ describe('plunder presence', () => {
     expect(movement?.from).toEqual(movement?.to);
     expect(await t.run((ctx) => ctx.db.query('engagements').collect())).toEqual([]);
     expect((await t.run((ctx) => ctx.db.get(warehouseId)))?.disabledUntil).toBeUndefined();
+  });
+
+  /**
+   * **Sur place, la route n'est plus que le site** (#633) : le pillage réécrit route et départ,
+   * et les points desservis suivent — celui du départ ne l'est plus, celui du site fondé pendant
+   * la marche l'est désormais. Ce que relisait `seasonMovements`.
+   */
+  it('re-reads the outposts it serves once the presence rewrites its route', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await building(t, seat, 'barracks', undefined, MARNE);
+    const infantry = await troop(t, seat, 'infantry', barracks);
+    const warehouseId = await building(t, guest, 'warehouse');
+    const player = await playerOf(t, seat);
+    const plant = (regionId: string, foundedAt: number) =>
+      t.run((ctx) =>
+        ctx.db.insert('outposts', {
+          seasonId: player.seasonId,
+          playerId: player._id,
+          point: pointOfRegion(regionId),
+          hostCountry: regionFacts(regionId)!.country,
+          level: 1,
+          foundedAt,
+          disabledUntil: null,
+          immuneUntil: null,
+        }),
+      );
+    const atStart = await plant(MARNE, MIDDAY - 2 * HOUR);
+    const atSite = await plant(PRAHOVA, MIDDAY - HOUR / 2);
+    const served = async () => {
+      const { me } = await t.query(api.view.playerView, seat);
+      const expected = await t.run(async (ctx) => {
+        const movements = await ctx.db.query('movements').collect();
+        return Object.fromEntries(
+          (await ctx.db.query('outposts').collect()).map((one) => [
+            one._id,
+            servedOver(one, movements),
+          ]),
+        );
+      });
+      const shown = Object.fromEntries(me.outposts.map((one) => [one.id, one.serving]));
+      expect(shown).toEqual(expected);
+      return shown;
+    };
+
+    const movementId = await t.run(async (ctx) => {
+      const id = await ctx.db.insert('movements', {
+        seasonId: player.seasonId,
+        playerId: player._id,
+        type: 'march',
+        fromBuildingId: barracks,
+        target: { kind: 'building', buildingId: warehouseId },
+        from: pointOfRegion(MARNE),
+        to: pointOfRegion(PRAHOVA),
+        hostCountry: 'ROU',
+        points: [pointOfRegion(MARNE), pointOfRegion(PRAHOVA)],
+        legs: [{ medium: 'land', distanceUnits: 1 }],
+        distanceUnits: 1,
+        costUnits: 1,
+        troopIds: [infantry],
+        departedAt: MIDDAY - HOUR,
+        arrivesAt: MIDDAY,
+        plunder: { phase: 'outbound', buildingId: warehouseId },
+      });
+      await restampServed(ctx, player.seasonId, id);
+      return id;
+    });
+    expect(await served()).toEqual({ [atStart]: true, [atSite]: false });
+
+    await t.mutation(internal.movements.arrive, { movementId });
+    expect((await t.run((ctx) => ctx.db.get(movementId)))?.plunder?.phase).toBe('presence');
+    expect(await served()).toEqual({ [atStart]: false, [atSite]: true });
   });
 
   it('keeps the present column unavailable to a second public order', async () => {

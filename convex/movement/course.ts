@@ -18,7 +18,7 @@ import { reassessDetection, marchingForce, watchersOf } from './detection';
 import { forgetMovement } from './arrival';
 import { pacedMinutes } from './pace';
 import { aimOf, columnOf, departureOf, fuelBill, type AimTarget } from './orders';
-import { asPoint } from './forces';
+import { asPoint, insertMovement } from './forces';
 import { assetOf } from '../../src/domain/nation-assets';
 import { modeOf } from '../../src/domain/season-mode';
 import {
@@ -170,7 +170,7 @@ export async function changeCourse(
       fuelAt: arrivesAt,
     });
   await forgetMovement(ctx, movement._id, now);
-  const turnedId = await ctx.db.insert('movements', {
+  const turnedId = await insertMovement(ctx, {
     seasonId: movement.seasonId,
     playerId: player._id,
     type,

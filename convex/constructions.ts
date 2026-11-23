@@ -65,7 +65,7 @@ import { BUILDING_KEY, CHOSEN_SPECIALTY, LON_LAT } from './validators';
 import { reportChange, settleBeforeChange } from './production';
 import { bearHeap, stampHeap } from './heaps';
 import { reassessDetection } from './movement/detection';
-import { pointOf } from './movement/forces';
+import { pointOf, restampOutpost } from './movement/forces';
 import { refuseInBlitz } from './blitz';
 import { followCenter } from './research';
 import { worksMinutes } from '../src/domain/level-speed';
@@ -574,6 +574,7 @@ async function finishRaise(
     level: construction.level,
     ...(construction.specialty === undefined ? {} : { specialty: construction.specialty }),
   });
+  await restampOutpost(ctx, outpost._id);
   await reportChange(ctx, seasonId, before, at);
 
   const ground = regionOfOutpost(outpost);

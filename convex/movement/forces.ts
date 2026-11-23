@@ -6,6 +6,7 @@
  */
 
 import type { Doc, Id } from '../_generated/dataModel';
+import type { WithoutSystemFields } from 'convex/server';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { distanceKm, type LonLat } from '../../src/domain/geo';
 import { homeCountryOf, pointOfBuilding } from '../regions';
@@ -352,37 +353,66 @@ export async function recognises(
 }
 
 /**
- * **Une passe s'est-elle déjà servie de ce point ?** — c'est-à-dire un départ postérieur à la
- * fondation dont la route passe à portée. Tant que la réponse est oui, le point ne se démantèle
- * pas (`OUTPOST_SERVING`) : on ne retire pas la liaison sous une colonne qui l'a chiffrée.
- *
- * La portée est le critère plutôt que le simple fait qu'un mouvement soit parti : un départ à
- * l'autre bout du monde n'a rien lu de ce point-là, et retenir sur lui retiendrait chaque
- * avant-poste dans la minute suivant sa fondation. Les sommets de la polyligne suffisent —
- * contre la portée du point, une maille de grille est un détail.
+ * **Une colonne en route s'appuie-t-elle sur ce point ?** — un mouvement parti à la fondation ou
+ * après, dont la route passe à portée (ADR 0037 §7, précisé le 23/11). Tant que oui, le point ne se
+ * démantèle pas (`OUTPOST_SERVING`) : on ne retire pas la liaison sous une colonne qui l'a
+ * chiffrée. La réponse est écrite sur le point (`servedBy`), lue ici sans relire les mouvements.
  */
-export async function outpostServed(ctx: QueryCtx, outpost: Doc<'outposts'>): Promise<boolean> {
-  return served(outpost, await seasonMovements(ctx, outpost.seasonId));
+export const isServed = (outpost: Doc<'outposts'>): boolean => (outpost.servedBy ?? []).length > 0;
+
+/**
+ * **Un mouvement parti, réécrit ou effacé** : chaque point de la saison qu'il dessert le porte,
+ * les autres non. Appelée après l'insertion, après tout changement de sa route ou de son départ,
+ * et après l'effacement (le mouvement absent ne dessert plus rien).
+ */
+export async function restampServed(
+  ctx: MutationCtx,
+  seasonId: Id<'seasons'>,
+  movementId: Id<'movements'>,
+): Promise<void> {
+  const movement = await ctx.db.get(movementId);
+  for (const outpost of await seasonOutposts(ctx, seasonId)) {
+    const listed = outpost.servedBy ?? [];
+    const serves = movement !== null && servedOver(outpost, [movement]);
+    if (listed.includes(movementId) === serves) continue;
+    await ctx.db.patch(outpost._id, {
+      servedBy: serves ? [...listed, movementId] : listed.filter((id) => id !== movementId),
+    });
+  }
+}
+
+/** **Un mouvement s'insère par ici**, et nulle part ailleurs : les points qu'il dessert le
+ *  portent dès son départ. */
+export async function insertMovement(
+  ctx: MutationCtx,
+  movement: WithoutSystemFields<Doc<'movements'>>,
+): Promise<Id<'movements'>> {
+  const movementId = await ctx.db.insert('movements', movement);
+  await restampServed(ctx, movement.seasonId, movementId);
+  return movementId;
 }
 
 /**
- * La même question posée de plusieurs points **en une lecture** : la vue la pose de chaque
- * avant-poste du joueur, et une par point relisait la saison entière autant de fois qu'il en tient
- * — le prix d'un point fondé était payé sur tous les autres, à chaque chargement du plateau.
+ * **Un point élevé** relit les colonnes déjà en route : le rayon d'un niveau de plus
+ * en atteint qui ne passaient pas à portée (invariant « Échéance »). La fondation n'a rien à
+ * relire : une colonne déjà en route est partie avant elle.
  */
-export async function outpostsServed(
-  ctx: QueryCtx,
-  seasonId: Id<'seasons'>,
-  outposts: ReadonlyArray<Doc<'outposts'>>,
-): Promise<ReadonlySet<Id<'outposts'>>> {
-  if (outposts.length === 0) return new Set();
-  const movements = await seasonMovements(ctx, seasonId);
-  return new Set(
-    outposts.filter((outpost) => served(outpost, movements)).map((outpost) => outpost._id),
-  );
+export async function restampOutpost(ctx: MutationCtx, outpostId: Id<'outposts'>): Promise<void> {
+  const outpost = await ctx.db.get(outpostId);
+  if (outpost === null) return;
+  const servedBy = (await seasonMovements(ctx, outpost.seasonId))
+    .filter((movement) => servedOver(outpost, [movement]))
+    .map((movement) => movement._id);
+  await ctx.db.patch(outpostId, { servedBy });
 }
 
-const served = (outpost: Doc<'outposts'>, movements: ReadonlyArray<Doc<'movements'>>): boolean => {
+/** Le critère, sur une liste de mouvements : l'écriture le pose, la migration et le test
+ *  d'égalité le relisent sur la saison entière. Les sommets de la polyligne suffisent — contre
+ *  la portée du point, une maille de grille est un détail. */
+export const servedOver = (
+  outpost: Doc<'outposts'>,
+  movements: ReadonlyArray<Doc<'movements'>>,
+): boolean => {
   const here = pointOf(outpost.point);
   return movements.some(
     (movement) =>

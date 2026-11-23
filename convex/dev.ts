@@ -20,6 +20,7 @@ import { researchMs } from '../src/domain/research';
 import { modeOf } from '../src/domain/season-mode';
 import { LON_LAT, STRATEGIC_POINT_KEY, UNIT_ROLE, UNIT_TIER, RESEARCH_CARD } from './validators';
 import { aimOf, march } from './movement/orders';
+import { insertMovement, seasonMovements, seasonOutposts, servedOver } from './movement/forces';
 import { planCargoReturn } from './movement/cargoReturn';
 import { chainSecondTarget } from './movement/blitzkrieg';
 import { nominalStrength, outpostReachKm, PLUNDER_DISABLED_HOURS } from './constants';
@@ -326,6 +327,41 @@ export const backfillListeningSilent = internalMutation({
       }
     }
     return { players };
+  },
+});
+
+/**
+ * **Les avant-postes desservis, écrits sur ceux d'avant le champ** (#633) : `outposts.servedBy`
+ * est lu « aucun » quand il manque, et un point sous une colonne déjà en route se démantèlerait
+ * jusqu'à l'arrivée de celle-ci. Planifie une saison par mutation (`backfillOutpostServingOf`),
+ * qui relit ses mouvements en route comme le faisait la vue. Idempotente.
+ *
+ * `npx convex run dev:backfillOutpostServing`
+ */
+export const backfillOutpostServing = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let seasons = 0;
+    for (const season of await ctx.db.query('seasons').collect()) {
+      await ctx.scheduler.runAfter(0, internal.dev.backfillOutpostServingOf, {
+        seasonId: season._id,
+      });
+      seasons += 1;
+    }
+    return { seasons };
+  },
+});
+
+export const backfillOutpostServingOf = internalMutation({
+  args: { seasonId: v.id('seasons') },
+  handler: async (ctx, { seasonId }) => {
+    const movements = await seasonMovements(ctx, seasonId);
+    for (const outpost of await seasonOutposts(ctx, seasonId)) {
+      const servedBy = movements
+        .filter((movement) => servedOver(outpost, [movement]))
+        .map((movement) => movement._id);
+      await ctx.db.patch(outpost._id, { servedBy });
+    }
   },
 });
 
@@ -3579,7 +3615,7 @@ export const takingScene = internalMutation({
       });
       const { _id, _creationTime, lootCollection, ...column } = (await ctx.db.get(template))!;
       void [_id, _creationTime, lootCollection];
-      const movementId = await ctx.db.insert('movements', {
+      const movementId = await insertMovement(ctx, {
         ...column,
         troopIds,
         from: target.point,
