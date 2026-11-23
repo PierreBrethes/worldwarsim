@@ -1150,6 +1150,17 @@ export function WorldMap({
       ),
     [availablePiles, standing],
   );
+  /** The label of the pile in hand: its cargo tag keeps quiet beside the sheet (#619). */
+  const heldPileLabel = useMemo(
+    () =>
+      holding === null
+        ? null
+        : labelOfPile(
+            standing.find((pile) => pile.id === holding.pileId),
+            holding.pileId,
+          ),
+    [holding, standing],
+  );
   // A new hand starts from the first verb, and an empty one has no chip left to show.
   useEffect(() => {
     choice.current = { signature: '', index: 0 };
@@ -2282,6 +2293,7 @@ export function WorldMap({
         cue={cue}
         cargoAim={cargoAim}
         availableLabels={availableLabels}
+        heldLabel={heldPileLabel}
         selectionBar={bar}
       />
       <CombatReports

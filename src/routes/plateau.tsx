@@ -3737,6 +3737,9 @@ function BoardContent({
                     onCancelAim={cancelAim}
                     onCompose={compose}
                     onOffer={runOffer}
+                    onTour={
+                      view.me.defeated || blitz ? undefined : (id) => tourSheet.onTour(id, 'open')
+                    }
                     onOpenGunnery={() => openWindow('gunnery')}
                     onDrop={dropHand}
                     cycle={handCycle}

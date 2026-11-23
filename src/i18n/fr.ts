@@ -3419,6 +3419,9 @@ export const fr = {
     approach: 'approcher',
     aboard: 'à bord',
     disembark: 'débarquer',
+    /** Au bureau, les jauges de la pile en main sont repliées derrière ce bouton (#619). */
+    gauges: 'détails des jauges',
+    pieces: (count: number) => `${count} pièce${plural(count, '', 's')}`,
   },
 
   /**

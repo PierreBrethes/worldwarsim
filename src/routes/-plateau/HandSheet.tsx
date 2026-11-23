@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { pileStatsOf } from '@/domain/stat-sheet';
-import { StatLines } from '@/shell/StatLines';
-import { UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/constants';
+import { essentialStatsOf, pileStatsOf } from '@/domain/stat-sheet';
+import { StatLines, statValue } from '@/shell/StatLines';
+import { LOAD_CAPACITY_BY_ROLE, UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../convex/constants';
 import { fr, roleLabel } from '@/i18n/fr';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { foundingTerms } from '@/domain/compass-works';
@@ -10,7 +10,7 @@ import { outpostNameIn, patrolLineOf } from '@/domain/patrol';
 import { unitsOf, type MarchStation } from '@/domain/troops';
 import type { PlayerView, TroopView } from '@/domain/player-view';
 import type { SheetCycle } from '@/shell/BottomSheet';
-import { useNarrowScreen } from '@/shell/viewport';
+import { useBoardInsets, useNarrowScreen } from '@/shell/viewport';
 import { GarrisonStack } from './GarrisonStack';
 import { GunneryButton } from './GunneryButton';
 import { MapCard } from './MapCard';
@@ -40,6 +40,7 @@ export function HandSheet({
   onCancelAim,
   onCompose,
   onOffer,
+  onTour,
   onOpenGunnery,
   onDrop,
   onApproach,
@@ -64,6 +65,8 @@ export function HandSheet({
   onCompose: (troopIds: ReadonlyArray<string>) => void;
   /** Exécute une offre dont le refus est nul : le plateau la lit comme la rose la lirait. */
   onOffer: (offer: Offer) => void;
+  /** Au bureau, un bouton par transport chargeable ouvre sa feuille de route (#619) ; absent, aucun. */
+  onTour?: ((carrierId: string) => void) | undefined;
   onOpenGunnery: () => void;
   onDrop: () => void;
   /** La caméra descend sur la pile en main : au loin, au doigt, elle n'est qu'une épingle. */
@@ -72,13 +75,20 @@ export function HandSheet({
   cycle?: SheetCycle | undefined;
 }) {
   const narrow = useNarrowScreen();
+  const insets = useBoardInsets();
   const [tab, setTab] = useState<PileTab>('troops');
+  /** Au bureau, les jauges se lisent à la demande : cinq chiffres suffisent à décider d'un ordre. */
+  const [gauges, setGauges] = useState(false);
   const inHand = held.filter((troop) => troopIds.includes(troop.id));
   const supplied = inHand.every((troop) => troop.supplied);
   /** Sous le seuil, l'aide vit dans l'en-tête épinglé (`fr.hand.pickedAim`) : ici elle serait
    *  coupée par l'aperçu. */
   const hint = narrow ? null : (
-    <p className="mt-[6px] text-[11px] leading-[1.35] text-[var(--notable-paper)]">
+    <p
+      className={`mt-[6px] text-[11px] leading-[1.35] text-[var(--notable-paper)] ${
+        view.mode === 'blitz' ? '' : gauges ? 'hidden' : 'hidden [@media(min-height:700px)]:block'
+      }`}
+    >
       {fr.hand.hint}
     </p>
   );
@@ -102,6 +112,7 @@ export function HandSheet({
         offers={offers}
         tab={tab}
         onOffer={onOffer}
+        onTour={onTour}
       />
     </>
   );
@@ -178,6 +189,89 @@ export function HandSheet({
       </MapCard>
     );
   }
+  const unsupplied = !supplied && (
+    <p className="mt-[6px] font-(family-name:--font-mono) text-[10.5px] text-[var(--critical)]">
+      {fr.troops.unsupplied(UPKEEP_UNSUPPLIED_MULTIPLIER)}
+    </p>
+  );
+  if (!narrow) {
+    const rows = inHand.length > 0 ? pileStatsOf(view, inHand) : [];
+    return (
+      <MapCard
+        kicker={fr.hand.kicker(place)}
+        aside={
+          <>
+            <span className="border border-(color:--ink)/45 px-[5px] text-[9px] tracking-[.14em] text-[var(--ink-soft)] uppercase">
+              {fr.hand.pieces(held.length)}
+            </span>
+            <GunneryButton onOpen={onOpenGunnery} />
+          </>
+        }
+        at={edge()}
+        gap={{ x: 0, y: 0 }}
+        width={DESK_WIDTH}
+        maxHeight={deskHeight(insets.bottom)}
+        foot={
+          <>
+            {orders}
+            {hint}
+          </>
+        }
+        onClose={onDrop}
+      >
+        <div className="mt-[7px]">
+          <GarrisonStack
+            view={view}
+            station={station}
+            held={held}
+            preselect={troopIds}
+            canPrepare
+            observing={false}
+            onPickedChange={onCompose}
+            statsBelow
+          />
+        </div>
+        {unsupplied}
+        {rows.length > 0 && (
+          <dl
+            data-testid="hand-essentials"
+            className="mt-[8px] grid grid-cols-5 gap-x-[6px] gap-y-[4px] border-t border-(color:--ink)/32 pt-[6px]"
+          >
+            {essentialStatsOf(rows).map((row) => (
+              <div key={row.key} data-essential={row.key} className="min-w-0">
+                <dt className="text-[9px] tracking-[.14em] text-[var(--ink-soft)] uppercase">
+                  {fr.stats.names[row.key]}
+                </dt>
+                <dd className="font-(family-name:--font-mono) text-[11.5px] font-semibold break-words">
+                  {row.reading.kind === 'scaled' && row.reading.of !== undefined
+                    ? fr.stats.of(row.reading.value, row.reading.of)
+                    : statValue(row.key, row.reading, true)}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        )}
+        {rows.length > 0 && (
+          <>
+            <button
+              type="button"
+              aria-expanded={gauges}
+              onClick={() => setGauges(!gauges)}
+              className="mt-[8px] flex w-full cursor-pointer items-center justify-between border border-(color:--ink)/45 px-[10px] py-[5px] text-[10px] tracking-[.16em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+            >
+              {fr.hand.gauges}
+              <span aria-hidden>{gauges ? '▴' : '▾'}</span>
+            </button>
+            {gauges && (
+              <div className="mt-[6px]">
+                <StatLines rows={rows} />
+              </div>
+            )}
+          </>
+        )}
+      </MapCard>
+    );
+  }
   return (
     <MapCard
       kicker={fr.hand.kicker(place)}
@@ -192,60 +286,28 @@ export function HandSheet({
       cycle={cycle}
       onClose={onDrop}
     >
-      {narrow && (
-        <>
-          {hint}
-          {orders}
-          <button
-            type="button"
-            onClick={onApproach}
-            className="mt-[8px] min-h-[44px] w-full cursor-pointer border border-(color:--ink)/45 px-[12px] text-[10px] tracking-[.18em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
-          >
-            {fr.hand.approach}
-          </button>
-        </>
-      )}
+      {hint}
+      {orders}
+      <button
+        type="button"
+        onClick={onApproach}
+        className="mt-[8px] min-h-[44px] w-full cursor-pointer border border-(color:--ink)/45 px-[12px] text-[10px] tracking-[.18em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+      >
+        {fr.hand.approach}
+      </button>
       <div className="mt-[7px]">
-        {narrow ? (
-          <PileTabs
-            view={view}
-            station={station}
-            held={held}
-            preselect={troopIds}
-            canPrepare
-            observing={false}
-            onPickedChange={onCompose}
-            onTabChange={setTab}
-          />
-        ) : (
-          <GarrisonStack
-            view={view}
-            station={station}
-            held={held}
-            preselect={troopIds}
-            canPrepare
-            observing={false}
-            onPickedChange={onCompose}
-            statsBelow
-          />
-        )}
+        <PileTabs
+          view={view}
+          station={station}
+          held={held}
+          preselect={troopIds}
+          canPrepare
+          observing={false}
+          onPickedChange={onCompose}
+          onTabChange={setTab}
+        />
       </div>
-      {!supplied && (
-        <p className="mt-[6px] font-(family-name:--font-mono) text-[10.5px] text-[var(--critical)]">
-          {fr.troops.unsupplied(UPKEEP_UNSUPPLIED_MULTIPLIER)}
-        </p>
-      )}
-      {!narrow && (
-        <>
-          {inHand.length > 0 && (
-            <div className="mt-[8px]">
-              <StatLines rows={pileStatsOf(view, inHand)} />
-            </div>
-          )}
-          {orders}
-          {hint}
-        </>
-      )}
+      {unsupplied}
     </MapCard>
   );
 }
@@ -332,6 +394,7 @@ function HandOffers({
   offers,
   tab,
   onOffer,
+  onTour,
 }: {
   view: PlayerView;
   station: MarchStation;
@@ -341,6 +404,7 @@ function HandOffers({
   /** L'onglet de la pile : en changer remet la confirmation à zéro. */
   tab: PileTab;
   onOffer: (offer: Offer) => void;
+  onTour: ((carrierId: string) => void) | undefined;
 }) {
   const narrow = useNarrowScreen();
   const round = patrolLineOf(view, troopIds);
@@ -349,8 +413,28 @@ function HandOffers({
   const said = (text: string) => (
     <p className="mt-[6px] text-[10.5px] leading-[1.4] text-[var(--critical)]">{text}</p>
   );
+  /** **Une feuille de route par transport chargeable** (#619) : la bulle de la pile se tait pendant la
+   *  main, son geste vit ici. Au téléphone, la bulle reste l'unique porte. */
+  const carriers =
+    narrow || onTour === undefined
+      ? []
+      : held.filter(
+          (troop) => troopIds.includes(troop.id) && LOAD_CAPACITY_BY_ROLE[troop.role] > 0,
+        );
   return (
     <div className="mt-[2px]">
+      {carriers.map((carrier) => (
+        <button
+          key={`tour-${carrier.id}`}
+          type="button"
+          title={fr.tourSheet.openTitle}
+          onClick={() => onTour?.(carrier.id)}
+          className={`mt-[8px] ${button}`}
+        >
+          {fr.tourSheet.open}
+          <span className={sub}>{roleLabel(carrier.role, 1)}</span>
+        </button>
+      ))}
       {round?.kind === 'patrolling' && (
         <p className="mt-[8px] font-(family-name:--font-mono) text-[10.5px]">
           {fr.patrol.title} · {fr.patrol.state(round)}
@@ -498,3 +582,13 @@ function edge(): { x: number; y: number } {
 }
 
 const EDGE_AIR = 12;
+
+/** La fiche du bureau : 372 px d'écran, quelle que soit l'échelle de l'interface (`.hud`). */
+const DESK_WIDTH = 'calc(372px / var(--hud-scale))';
+
+/** **Entre la réglette et le bas de la coque** : la fiche ne couvre ni l'une ni l'autre. `bottom` est
+ *  ce que la barre basse prend de la carte (`useBoardInsets`) ; `--board-bottom` vaut 0 au bureau. */
+function deskHeight(bottom: number): string {
+  const top = edge().y;
+  return `calc((100dvh - ${top}px - ${bottom}px - ${EDGE_AIR}px) / var(--hud-scale))`;
+}

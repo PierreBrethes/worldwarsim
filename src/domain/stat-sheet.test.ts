@@ -332,9 +332,9 @@ describe('essentialStatsOf', () => {
     essentialStatsOf(pileStats(troops, context)).map((row) => row.key);
 
   it('keeps the five figures that decide an order, in the order a player reads them', () => {
-    expect(
-      keys([troop('t', 'landTransport'), troop('i', 'infantry', { carriedBy: 't' })]),
-    ).toEqual(['pace', 'fuel', 'rounds', 'seats', 'load']);
+    expect(keys([troop('t', 'landTransport'), troop('i', 'infantry', { carriedBy: 't' })])).toEqual(
+      ['pace', 'fuel', 'rounds', 'seats', 'load'],
+    );
   });
 
   it('fills a pile with no transport from the next figures it has, still five', () => {

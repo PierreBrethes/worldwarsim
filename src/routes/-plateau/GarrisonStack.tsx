@@ -162,7 +162,9 @@ export function GarrisonStack({
           />
         </>
       ) : (
-        <div className="flex max-h-[46vh] flex-col gap-[6px] overflow-auto overscroll-contain">
+        <div
+          className={`flex flex-col gap-[6px] ${statsBelow ? '' : 'max-h-[46vh] overflow-auto overscroll-contain'}`}
+        >
           {rows.map(({ troop, carrier }) => {
             const on = picked.has(troop.id);
             /** Un passager suit son transport : il se lit, il ne se coche pas seul. */
@@ -178,7 +180,7 @@ export function GarrisonStack({
                   ticks && (key.key === 'Enter' || key.key === ' ') && toggle(troop.id)
                 }
                 style={{ marginLeft: carrier === null ? undefined : 18 }}
-                className={`flex items-center gap-[9px] border px-[8px] py-[6px] text-left ${
+                className={`flex items-center gap-[9px] border px-[8px] ${statsBelow ? 'py-[3px]' : 'py-[6px]'} text-left ${
                   ticks ? 'cursor-pointer' : composes ? '' : 'opacity-70'
                 } ${on ? 'border-[var(--ink)] bg-(--ink)/7' : 'border-(color:--ink)/32'}`}
               >
@@ -194,23 +196,42 @@ export function GarrisonStack({
                   </span>
                 )}
                 <UnitSprite nation={view.me.nation} role={troop.role} height={28} width={40} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] font-bold text-[var(--ink)]">
-                    {roleLabel(troop.role, 1)}
+                {statsBelow ? (
+                  /* **Une ligne par pièce** (#619) : nom, état, cargaison — l'entretien est dans les
+                     jauges, derrière « détails ». */
+                  <>
+                    <span className="block min-w-0 flex-1 truncate text-[13px] font-bold text-[var(--ink)]">
+                      {roleLabel(troop.role, 1)}
+                      <PatrolLine troop={troop} />
+                    </span>
+                    <span className="font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
+                      {carrier === null
+                        ? fr.stats.of(troop.strength, troop.nominalStrength)
+                        : fr.hand.aboard}
+                    </span>
+                    <span className="text-[10.5px] text-[var(--ink-soft)]">
+                      <SupplyPictos supplies={pileSupplies([troop])} />
+                    </span>
+                  </>
+                ) : (
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] font-bold text-[var(--ink)]">
+                      {roleLabel(troop.role, 1)}
+                    </span>
+                    <span className="block font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
+                      {carrier === null
+                        ? fr.troops.strength(troop.strength, troop.nominalStrength)
+                        : fr.garrison.aboard(roleLabel(carrier.role, 1))}
+                    </span>
+                    {carrier === null && (
+                      <Upkeep troop={troop} blitz={view.mode === 'blitz'} rate={stepRate} />
+                    )}
+                    <PatrolLine troop={troop} />
+                    <span className="block text-[10.5px] text-[var(--ink-soft)]">
+                      <SupplyPictos supplies={pileSupplies([troop])} />
+                    </span>
                   </span>
-                  <span className="block font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
-                    {carrier === null
-                      ? fr.troops.strength(troop.strength, troop.nominalStrength)
-                      : fr.garrison.aboard(roleLabel(carrier.role, 1))}
-                  </span>
-                  {carrier === null && (
-                    <Upkeep troop={troop} blitz={view.mode === 'blitz'} rate={stepRate} />
-                  )}
-                  <PatrolLine troop={troop} />
-                  <span className="block text-[10.5px] text-[var(--ink-soft)]">
-                    <SupplyPictos supplies={pileSupplies([troop])} />
-                  </span>
-                </span>
+                )}
                 {carrier !== null && onDisembark !== undefined && (
                   <button
                     type="button"

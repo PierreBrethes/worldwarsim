@@ -225,9 +225,11 @@ describe('a loaded transport', () => {
     selected = null,
     cargoAim = null,
     carriersShown = false,
+    heldLabel = null,
     label = {},
     openStation = null,
   }: {
+    heldLabel?: string | null;
     label?: Partial<MapLabel>;
     openStation?: string | null;
     cargo?: CargoTag;
@@ -259,6 +261,7 @@ describe('a loaded transport', () => {
       onDisembark={noop}
       cargoAim={cargoAim}
       carriersShown={carriersShown}
+      heldLabel={heldLabel}
       openStation={openStation}
     />
   );
@@ -283,6 +286,27 @@ describe('a loaded transport', () => {
     expect(sign.getAttribute('title')).toBeTruthy();
     expect(shown('.cargo-tag-sign')).toBe(true);
     expect(shown('.cargo-tag-body')).toBe(false);
+  });
+
+  /** **La pile en main parle par sa fiche** (#619) : au bureau, sa bulle se tait, les autres restent
+   *  des cibles de dépôt ; au téléphone, la bulle est la seule porte de la feuille de route. */
+  it('hangs no tag on the pile in hand at the desk, while the others keep theirs', () => {
+    render(draw({ heldLabel: 'truck' }));
+    expect(document.querySelector('.cargo-tag-sign')).toBeNull();
+    cleanup();
+    render(draw({ heldLabel: 'another' }));
+    expect(document.querySelector('.cargo-tag-sign')).not.toBeNull();
+  });
+
+  it('keeps the tag of the pile in hand on a phone', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: true,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    render(draw({ heldLabel: 'truck' }));
+    expect(document.querySelector('.cargo-tag-sign')).not.toBeNull();
   });
 
   it('opens the sheet under the pointer', () => {
