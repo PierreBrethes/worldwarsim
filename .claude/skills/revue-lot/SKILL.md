@@ -46,6 +46,10 @@ Ce sont les défauts que les revues ont réellement trouvés.
   un changement de couleur (`settleBeforeChange`).
 - **Jobs planifiés** : un job par événement, sans doublon quand l'ordre est rejoué, modifié ou
   annulé ; l'ancien job est annulé ou se sait périmé.
+- **Migration** : un backfill tient sur la base la plus chargée, pas sur celle du test. Une
+  mutation planifie 1000 fonctions au plus et lit sous ses plafonds : il pagine sur les saisons ou
+  les lignes, et chaque page planifie la suivante (23/11 : #633 planifiait une relecture par
+  saison et tombait sur une base de démo de plus de 1000 saisons).
 - **Blitz intacte** : ce qui est propre à la Mondiale passe par `modeOf` ; les tests Blitz
   n'ont pas changé de sens.
 - **Carte à la demande** : `invalidate()` en tête des méthodes publiques de `MapEngine` qui
