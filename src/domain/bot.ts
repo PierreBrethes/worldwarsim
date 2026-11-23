@@ -359,12 +359,17 @@ const buildBarracks = ({ view, world, now }: BotContext): Desire[] => {
   return [];
 };
 
+/** L'armée libre : les troupes en service et en file, sans la garnison des avant-postes, qui ne repartira jamais. */
+const freeArmyOf = (view: PlayerView, workshop: BotWorkshop): number =>
+  workshop.troopsInService +
+  workshop.troopsQueued -
+  view.me.troops.filter((troop) => troop.stationedAt.kind === 'outpost').length;
+
 const recruit = ({ view, workshop, now }: BotContext): Desire[] => {
   const site = workshop.facilities.find((facility) => facility.key === 'barracks');
   const total = workshop.troopsInService + workshop.troopsQueued;
-  // La garnison d'un avant-poste ne repartira jamais : seule l'armée libre se compte contre la cible.
-  const holding = view.me.troops.filter((troop) => troop.stationedAt.kind === 'outpost').length;
-  const army = total - holding;
+  // Seule l'armée libre se compte contre la cible ; la borne du serveur compte tout.
+  const army = freeArmyOf(view, workshop);
   if (site === undefined || army >= BOT_ARMY_TARGET || total >= MONDIALE_TROOP_BOUND) return [];
   const trucks =
     workshop.roster.some((line) => line.role === 'landTransport') ||
@@ -436,6 +441,10 @@ const originOf = (station: Squad['station']): BotOrigin =>
     : { kind: 'point', point: pointArg(station.lonLat) };
 
 const idsOf = (troops: ReadonlyArray<TroopView>) => troops.map((troop) => troop.id);
+
+/** Le pays d'origine de la nation, `null` quand on ne sait pas la lire. */
+const homeOf = (view: PlayerView): string | null =>
+  isNation(view.me.nation) ? ADM0_BY_NATION[view.me.nation] : null;
 
 const hqOf = (view: PlayerView) => view.me.buildings.find((building) => building.key === 'hq');
 
@@ -596,7 +605,7 @@ const advance = (context: BotContext): Desire[] => {
   const hq = hqOf(view);
   if (hq === undefined || freeSlotsOf(view.me.slots) <= 0 || threatsOf(view, world).length > 0)
     return [];
-  const home = isNation(view.me.nation) ? ADM0_BY_NATION[view.me.nation] : null;
+  const home = homeOf(view);
   const held = heldRegionIds(view);
   const targets = world.regions
     .filter((region) => region.country !== home && !held.has(region.id))
@@ -611,6 +620,13 @@ const advance = (context: BotContext): Desire[] => {
       (a, b) =>
         b.troops.length - a.troops.length ||
         distanceKm(a.at, hq.point) - distanceKm(b.at, hq.point),
+    )
+    // Une colonne se forme : tant que l'armée libre n'est pas à la cible et qu'un point est joignable, l'escouade attend de pouvoir le prendre.
+    .filter(
+      (squad) =>
+        squad.troops.length >= BOT_POINT_COLUMN ||
+        freeArmyOf(view, context.workshop) >= BOT_ARMY_TARGET ||
+        reachablePoint(context, squad) === undefined,
     );
   for (const target of targets) {
     for (const squad of squads) {
@@ -638,6 +654,25 @@ const advance = (context: BotContext): Desire[] => {
   return [];
 };
 
+/** Le point neutre le plus proche de l'escouade que sa route atteint, parmi `BOT_POINT_CANDIDATES`. */
+function reachablePoint(context: BotContext, squad: Squad) {
+  const { view, world } = context;
+  return view.strategicPoints
+    .filter((point) => point.holder === null && !point.mine && !point.contested)
+    .sort((a, b) => distanceKm(a.point, squad.at) - distanceKm(b.point, squad.at))
+    .slice(0, BOT_POINT_CANDIDATES)
+    .find((point) => {
+      const aim: MovementAim = {
+        kind: 'strategic',
+        pointId: point.id,
+        lon: point.point[0],
+        lat: point.point[1],
+        hostCountry: world.regionAt(point.point)?.country ?? '',
+      };
+      return !marchRefused(context, squad, squad.troops, 'capture', aim, point.point);
+    });
+}
+
 /**
  * Capturer le point neutre le plus proche que la route atteint, avec toute l'escouade quand elle a
  * de quoi vaincre sa garnison (`BOT_POINT_COLUMN`). Les neutres seuls : le bot ne voit pas la garde
@@ -646,25 +681,11 @@ const advance = (context: BotContext): Desire[] => {
  */
 const takePoint = (context: BotContext): Desire[] => {
   const { view, world } = context;
-  const neutral = view.strategicPoints.filter((point) => point.holder === null && !point.mine);
-  if (neutral.length === 0 || freeSlotsOf(view.me.slots) <= 0 || threatsOf(view, world).length > 0)
-    return [];
+  if (freeSlotsOf(view.me.slots) <= 0 || threatsOf(view, world).length > 0) return [];
   return squadsOf(view, 'infantry')
     .filter((squad) => squad.troops.length >= BOT_POINT_COLUMN)
     .flatMap((squad) => {
-      const target = [...neutral]
-        .sort((a, b) => distanceKm(a.point, squad.at) - distanceKm(b.point, squad.at))
-        .slice(0, BOT_POINT_CANDIDATES)
-        .find((point) => {
-          const aim: MovementAim = {
-            kind: 'strategic',
-            pointId: point.id,
-            lon: point.point[0],
-            lat: point.point[1],
-            hostCountry: world.regionAt(point.point)?.country ?? '',
-          };
-          return !marchRefused(context, squad, squad.troops, 'capture', aim, point.point);
-        });
+      const target = reachablePoint(context, squad);
       return target === undefined
         ? []
         : [
@@ -809,7 +830,7 @@ function claimsSlot({ view, world }: BotContext, order: BotOrder): boolean {
   const depots = order.args.stops.map((id) =>
     view.me.outposts.find((outpost) => outpost.id === id),
   );
-  const home = isNation(view.me.nation) ? ADM0_BY_NATION[view.me.nation] : null;
+  const home = homeOf(view);
   return tourHoldsSlot(
     [
       hq === undefined ? null : (world.regionAt(hq.point)?.country ?? null),

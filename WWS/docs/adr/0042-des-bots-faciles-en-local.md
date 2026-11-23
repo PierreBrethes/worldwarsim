@@ -11,7 +11,9 @@ et défendent leur QG ; son go sur le plan du 21/11 (« Vas-y, lance le plan »)
 > garnison de l'ADR 0043), par `movements.capture` et la porte `captureOrderRefusalOf`. Une
 > nation insulaire (Royaume-Uni, Japon) n'a aucune route à pied vers un point ni une région
 > étrangère : le bot ne navigue pas, elle reste immobile. L'armée qui compte contre la cible de
-> recrutement exclut la garnison des avant-postes.
+> recrutement exclut la garnison des avant-postes. Un camp perdu de vue ne retient plus rien : le bot
+> ne réagit pas à ce qu'il ne voit plus. Tant qu'un point neutre est joignable et que l'armée libre
+> n'a pas atteint sa cible, l'avance laisse les escouades de moins de neuf former la colonne.
 
 ## Contexte
 
