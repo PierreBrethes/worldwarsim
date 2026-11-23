@@ -1265,7 +1265,7 @@ export const OBJECTIVE_ARCHETYPES: ReadonlyArray<ObjectiveArchetype> = [
       { role: 'infantry', tier: 1 },
       { role: 'infantry', tier: 1 },
     ],
-    depot: { steel: 60 },
+    depot: { steel: 180, oil: 60 },
   },
   {
     key: 'stalledConvoy',
@@ -1275,7 +1275,7 @@ export const OBJECTIVE_ARCHETYPES: ReadonlyArray<ObjectiveArchetype> = [
       { role: 'infantry', tier: 1 },
       { role: 'infantry', tier: 1 },
     ],
-    depot: { steel: 150, ammunition: 40 },
+    depot: { steel: 450, ammunition: 120, oil: 120 },
   },
   {
     key: 'fuelDump',
@@ -1285,7 +1285,7 @@ export const OBJECTIVE_ARCHETYPES: ReadonlyArray<ObjectiveArchetype> = [
       { role: 'infantry', tier: 1 },
       { role: 'infantry', tier: 1 },
     ],
-    depot: { steel: 150, oil: 60 },
+    depot: { steel: 450, oil: 180 },
   },
   {
     key: 'irregularArsenal',
@@ -1295,7 +1295,7 @@ export const OBJECTIVE_ARCHETYPES: ReadonlyArray<ObjectiveArchetype> = [
       { role: 'infantry', tier: 1 },
       { role: 'armor', tier: 1 },
     ],
-    depot: { steel: 300, ammunition: 80 },
+    depot: { steel: 900, ammunition: 240, oil: 240 },
   },
 ];
 
