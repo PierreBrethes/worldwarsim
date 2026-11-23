@@ -28,6 +28,8 @@ const client = {
 const animated: Element[] = [];
 beforeEach(() => {
   localStorage.clear();
+  // Un appareil neuf arrive replié (#621) : ces cas partent d'un étage relevé au rang.
+  localStorage.setItem('wws-tiles-step', 'peek');
   animated.length = 0;
   Element.prototype.scrollIntoView = () => {};
   Element.prototype.animate = function (this: Element) {

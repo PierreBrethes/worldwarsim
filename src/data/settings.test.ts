@@ -97,16 +97,16 @@ describe('le son, un seul réglage', () => {
 });
 
 describe('le cran de l’étage des tuiles', () => {
-  it('retient replié, retombe sur le rang, et ne lève pas sur un magasin fermé', () => {
-    expect(readTilesStep()).toBe('peek');
-    keepTilesStep('collapsed');
+  it('arrive replié, retient le rang choisi, et ne lève pas sur un magasin fermé', () => {
     expect(readTilesStep()).toBe('collapsed');
+    keepTilesStep('peek');
+    expect(readTilesStep()).toBe('peek');
     const shut = () => {
       throw new Error('SecurityError');
     };
     const get = vi.spyOn(localStorage, 'getItem').mockImplementation(shut);
     const set = vi.spyOn(localStorage, 'setItem').mockImplementation(shut);
-    expect(readTilesStep()).toBe('peek');
+    expect(readTilesStep()).toBe('collapsed');
     expect(() => keepTilesStep('peek')).not.toThrow();
     get.mockRestore();
     set.mockRestore();

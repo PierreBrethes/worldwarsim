@@ -297,9 +297,14 @@ async function runProfile(profile) {
             assert.equal(await read(), wanted, message);
           };
           const kept = () => page.evaluate(() => localStorage.getItem('wws-tiles-step'));
-          // Sorti au premier lancement, au rang, sans rien dans l'adresse ni dans l'historique.
-          assert.equal(await step(), 'peek', 'écran : l’étage n’est pas au rang au lancement');
+          // Au premier lancement l'étage est replié sur sa ligne de titre (#621), sans rien dans
+          // l'adresse ni dans l'historique ; un toucher le relève au rang, et l'appareil s'en souvient.
+          assert.equal(await step(), 'collapsed', 'écran : l’étage n’est pas replié au lancement');
           assert.ok(!new URL(page.url()).searchParams.has('windows'), 'écran : étage dans l’URL');
+          assert.equal(await kept(), null, 'écran : un cran est retenu avant tout choix');
+          await tap(boardHandle());
+          await until(step, 'peek', 'écran : le toucher ne relève pas l’étage replié');
+          assert.equal(await kept(), 'peek', 'écran : le cran rang n’est pas retenu');
           const tile = page.getByRole('button', { name: /^Quartier général — / }).first();
           assert.ok(await tile.isVisible(), 'écran : le rang ne montre pas ses tuiles');
           // Un lancer vers le bas le replie sur sa barre, et l'appareil s'en souvient.
