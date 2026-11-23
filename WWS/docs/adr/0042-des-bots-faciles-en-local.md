@@ -10,10 +10,24 @@ et défendent leur QG ; son go sur le plan du 21/11 (« Vas-y, lance le plan »)
 > `WANT_POINT` envoie toute une escouade d'au moins `BOT_POINT_COLUMN` infanteries (de quoi battre la
 > garnison de l'ADR 0043), par `movements.capture` et la porte `captureOrderRefusalOf`. Une
 > nation insulaire (Royaume-Uni, Japon) n'a aucune route à pied vers un point ni une région
-> étrangère : le bot ne navigue pas, elle reste immobile. L'armée qui compte contre la cible de
+> étrangère : elle restait immobile jusqu'à #631 (ci-dessous). L'armée qui compte contre la cible de
 > recrutement exclut la garnison des avant-postes. Un camp perdu de vue ne retient plus rien : le bot
 > ne réagit pas à ce qu'il ne voit plus. Tant qu'un point neutre est joignable et que l'armée libre
 > n'a pas atteint sa cible, l'avance laisse les escouades de moins de neuf former la colonne.
+
+> **Précisée le 23/11/2026 (#631) : le bot insulaire prend la mer, aller simple.** Une nation est
+> insulaire quand aucune des cinq régions étrangères les plus proches de son QG ne se joint à pied
+> (`isInsular`) ; elle prend la mer tant qu'un point neutre est visible. Chaîne, chaque maillon par
+> les refus du joueur : un port (la côte nationale, jusqu'à 300 km du QG, dont la route de mer
+> vers un point neutre est la plus courte, car le plein du cargo, six crans de 500 km, borne la
+> traversée), un cargo formé au port, la colonne de `BOT_POINT_COLUMN` fantassins qui y monte
+> (`movements.board`), le cargo qui part (`movements.marchTo`) vers la plage la plus proche du point
+> que la route de mer et le plein acceptent, puis `movements.disembark` ; la colonne prend ensuite le
+> point comme les autres, à pied. Sans escorte, retour ni ravitaillement par mer : le cargo reste sur
+> la plage, et le bot en forme un autre pour une seconde traversée. Ce qui manque se dit dans le
+> journal du script (`seaWaiting`) et le bot attend ; il ne construit ni ne recrute que ce que le bot
+> facile fait déjà (port, cargo), jamais de recherche. Un point que la grille noie (Hong Kong) se
+> prend d'une plage voisine, sans route à pied. Rien ne change pour un bot continental.
 
 ## Contexte
 

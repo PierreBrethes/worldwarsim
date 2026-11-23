@@ -65,7 +65,7 @@ const load = async (file) =>
       resolve: { alias: { '@': `${root}src` } },
     })
   ).module;
-const { decideTurn, worldFrom } = await load('domain/bot.ts');
+const { decideTurn, seaWaiting, worldFrom } = await load('domain/bot.ts');
 const { adaptServerView } = await load('data/serverView.ts');
 const read = (name) => JSON.parse(readFileSync(`${root}public/${name}`, 'utf8'));
 const world = worldFrom({
@@ -305,6 +305,14 @@ function submit(seat, order) {
       });
     case 'movements.foundOutpostHere':
       return client.mutation(api.movements.foundOutpostHere, { ...seat, ...args });
+    case 'movements.board':
+      return client.mutation(api.movements.board, {
+        ...seat,
+        troopIds: args.troopIds,
+        carrierId: args.carrierId,
+      });
+    case 'movements.disembark':
+      return client.mutation(api.movements.disembark, { ...seat, troopIds: args.troopIds });
     case 'logistics.load':
       return client.mutation(api.logistics.load, { ...seat, ...args });
     case 'tours.start':
@@ -313,6 +321,23 @@ function submit(seat, order) {
       throw new Error(`ordre inconnu : ${fn}`);
   }
 }
+
+/** Ce qu'un bot insulaire attend avant de prendre la mer (#631) : dit une fois, tant que la raison ne change pas. */
+const SEA_WAITS = {
+  NO_BARRACKS: 'sa caserne avant son port',
+  PORT_PENDING: 'son port en chantier',
+  PORT_BUSY: 'la fin de son chantier en cours pour bâtir son port',
+  PORT_BILL: 'de quoi payer son port',
+  PORT_SITE:
+    "une côte nationale où poser un port (aucune ne se joint à pied depuis son QG) : il reste à l'île",
+  CARGO_PENDING: 'son cargo en formation au port',
+  CARGO_REFUSED: 'de quoi former son cargo (le domaine refuse la formation)',
+  SHORT_COLUMN: "assez de fantassins libres pour l'embarquement",
+  NO_PORT_ROUTE: 'une route à pied de ses fantassins au port',
+  NO_LANDING:
+    "une plage abordable près d'un point neutre (route de mer ou plein du cargo refusés) : il reste à quai",
+};
+const lastWait = new Map();
 
 let passNumber = 0;
 while (!stopped) {
@@ -337,6 +362,11 @@ while (!stopped) {
     } catch (error) {
       console.log(`${name} : décision en échec (${first(error)})`);
       continue;
+    }
+    const waiting = seaWaiting({ view, workshop, world, now: Date.now() });
+    if (waiting !== lastWait.get(name)) {
+      lastWait.set(name, waiting);
+      if (waiting !== null) console.log(`#${passNumber} ${name} : attend ${SEA_WAITS[waiting]}`);
     }
     for (const order of orders) {
       try {

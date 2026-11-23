@@ -34,6 +34,7 @@ const world = (over: Partial<BotWorld> = {}): BotWorld => ({
   landRoute: () => ({ km: 100 }),
   regions,
   nearestRegionId: (point) => regions.find((r) => r.point === point)?.id ?? null,
+  coastNear: () => null,
   ...over,
 });
 
@@ -351,6 +352,17 @@ describe('le bot facile prend un point', () => {
 
   it('envoie toute son escouade prendre le point neutre quand elle a de quoi vaincre la garnison', () => {
     expect(turnWith({ troops: army(BOT_POINT_COLUMN) })).toEqual([capture({})]);
+  });
+
+  it('une colonne de prise posée à terre en pays étranger (un débarquement) prend son point, elle ne fonde pas', () => {
+    const landed = Array.from({ length: BOT_POINT_COLUMN }, (_, rank) =>
+      troop(`t${rank}`, atPoint(BELGIUM)),
+    );
+    // Une île : aucune route à pied depuis le QG, mais une route depuis la plage.
+    const island = world({ landRoute: (from) => (from === HQ_POINT ? null : { km: 100 }) });
+    const fns = turnWith({ troops: landed }, {}, island).map((order) => order.fn);
+    expect(fns).toContain('movements.capture');
+    expect(fns).not.toContain('movements.foundOutpostHere');
   });
 
   it("ne part pas à la capture avec moins d'infanteries que la colonne", () => {

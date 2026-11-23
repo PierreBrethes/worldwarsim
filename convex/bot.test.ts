@@ -17,6 +17,7 @@ import {
   type Seat,
 } from './seats.fixture';
 import { BOT_POINT_COLUMN } from '../src/domain/bot';
+import { distanceKm } from '../src/domain/geo';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
 
@@ -88,6 +89,14 @@ async function submit(t: Bench, seat: Seat, order: BotOrder): Promise<unknown> {
         ...order.args,
         troopId: order.args.troopId as Id<'troops'>,
       });
+    case 'movements.board':
+      return t.mutation(api.movements.board, {
+        ...seat,
+        troopIds: ids(order.args.troopIds),
+        carrierId: order.args.carrierId as Id<'troops'>,
+      });
+    case 'movements.disembark':
+      return t.mutation(api.movements.disembark, { ...seat, troopIds: ids(order.args.troopIds) });
     case 'tours.start':
       return t.mutation(api.tours.start, {
         ...seat,
@@ -226,4 +235,80 @@ describe("un bot prend un point neutre par la porte d'un joueur", () => {
     expect(refused).toEqual([]);
     expect(played).toContain('movements.capture');
   });
+});
+
+/**
+ * **Un bot insulaire prend la mer** (#631) : il bâtit un port, forme un cargo, y embarque une
+ * colonne, la porte sur la plage la plus proche d'un point neutre et l'y débarque, le tout par la
+ * porte d'un joueur et sans qu'un ordre soit refusé.
+ */
+describe("un bot insulaire débarque près d'un point neutre", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  /** @a-mesurer : « près » d'un point, c'est une plage que `BOT_LANDING_KM` autour de lui peut offrir. */
+  const NEAR_KM = 250;
+
+  it.each([
+    ['uk', 'lisbon'],
+    ['japan', 'hongKong'],
+  ] as const)(
+    '%s : un cargo porte sa colonne vers %s',
+    async (nation, key) => {
+      const t = boot();
+      const { seat: bot, code } = await foundSeat(t, 'Bot1', 0.5);
+      const idle = await joinSeat(t, code, 'Bot2');
+      await t.mutation(api.players.reserveNation, { ...bot, nation });
+      await t.mutation(api.players.declareReady, { ...bot, ready: true });
+      await t.mutation(api.players.reserveNation, {
+        ...idle,
+        nation: nation === 'uk' ? 'ussr' : 'usa',
+      });
+      await t.mutation(api.players.declareReady, { ...idle, ready: true });
+      await t.mutation(api.seasons.launch, bot);
+      await unclocked(t);
+      const player = await t.run((ctx) => seatIn(ctx, bot));
+      await t.run(async (ctx) => neutralPoint(ctx, player.seasonId, key));
+
+      const refused: string[] = [];
+      const played: string[] = [];
+      let near = false;
+      // Lisbonne se prend à pied depuis la plage ; Hong Kong, que la grille noie, ne se rejoint pas à pied.
+      const onFoot = key === 'lisbon';
+      for (
+        let i = 0;
+        i < 400 && !(near && (!onFoot || played.includes('movements.capture')));
+        i++
+      ) {
+        await pass(t, bot, refused, played);
+        vi.advanceTimersByTime(HOUR);
+        await t.finishInProgressScheduledFunctions();
+        const view = adaptServerView(await t.query(api.view.playerView, bot));
+        near = view.me.troops.some(
+          ({ role, carriedBy, stationedAt }) =>
+            role === 'infantry' &&
+            carriedBy === undefined &&
+            stationedAt.kind === 'point' &&
+            view.strategicPoints.some(
+              (point) =>
+                point.holder === null && distanceKm(point.point, stationedAt.lonLat) <= NEAR_KM,
+            ),
+        );
+      }
+      expect(refused).toEqual([]);
+      for (const fn of [
+        'constructions.start',
+        'troops.recruit',
+        'movements.board',
+        'movements.marchTo',
+        'movements.disembark',
+      ])
+        expect(played).toContain(fn);
+      expect(near).toBe(true);
+    },
+    600_000,
+  );
 });
