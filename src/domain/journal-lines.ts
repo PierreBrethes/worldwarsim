@@ -1,3 +1,5 @@
+import { samePoint } from './geo';
+import { isAlarm } from './journal';
 import type { DispatchSeverity, JournalDispatch } from './player-view';
 
 export type JournalLine = {
@@ -29,4 +31,50 @@ export function journalLines(dispatches: ReadonlyArray<JournalDispatch>): Journa
         ? [{ dispatch, earlier: editions.length - 1 }]
         : [],
   );
+}
+
+/** **Une liasse** : des dépêches voisines que le journal replie en une ligne, la plus récente en
+ *  tête. Une dépêche seule est une liasse d'une ligne. */
+export type JournalBundle = { readonly lines: ReadonlyArray<JournalLine> };
+
+/** Ce qui garde sa ligne : une alarme, un combat, un Sept, une Guerre éclair restée sur place, une
+ *  heure à venir (« au réveil ») et une édition. */
+const standsAlone = ({ dispatch }: JournalLine): boolean =>
+  isAlarm(dispatch.kind) ||
+  dispatch.kind === 'edition' ||
+  dispatch.combat !== null ||
+  dispatch.point !== undefined ||
+  dispatch.stood !== undefined ||
+  dispatch.resolutionAt !== null ||
+  dispatch.remaining !== null;
+
+const MINUTE_MS = 60_000;
+
+const sameBundle = (older: JournalLine, newer: JournalLine): boolean => {
+  const a = older.dispatch;
+  const b = newer.dispatch;
+  return (
+    !standsAlone(older) &&
+    !standsAlone(newer) &&
+    a.kind === b.kind &&
+    ((a.place !== null &&
+      b.place !== null &&
+      samePoint([a.place.lon, a.place.lat], [b.place.lon, b.place.lat])) ||
+      Math.floor(a.at / MINUTE_MS) === Math.floor(b.at / MINUTE_MS))
+  );
+};
+
+/**
+ * **Les dépêches répétées se replient en liasses, l'ordre du serveur intact** : seules des voisines
+ * de même sorte, au même lieu (`place` connu des deux) ou à la même minute (`at`, jamais `t`), se
+ * rejoignent, et une liasse ne réordonne rien. Le filtre du journal s'applique ensuite aux liasses.
+ */
+export function groupJournal(lines: ReadonlyArray<JournalLine>): JournalBundle[] {
+  const bundles: JournalLine[][] = [];
+  for (const line of lines) {
+    const last = bundles.at(-1);
+    if (last !== undefined && sameBundle(last[last.length - 1], line)) last.push(line);
+    else bundles.push([line]);
+  }
+  return bundles.map((bundle) => ({ lines: bundle }));
 }
