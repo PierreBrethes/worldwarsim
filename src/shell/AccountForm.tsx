@@ -26,12 +26,15 @@ export function AccountForm({
   onSignedIn,
   invited = false,
   opening = false,
+  founding = false,
   portrait = 'france',
 }: {
   readonly onSignedIn: (token: string) => Promise<void> | void;
   readonly invited?: boolean;
   /** Start on the tab that opens a file, for whoever came to found a game and has none. */
   readonly opening?: boolean;
+  /** Came from « fonder une partie »: the card says what follows the account. */
+  readonly founding?: boolean;
   readonly portrait?: string | null;
 }) {
   const register = useAction(api.auth.register);
@@ -45,6 +48,7 @@ export function AccountForm({
   /** Ce que la carte refuse ne se dit qu'une fois demandé : pas de rouge sous un champ vide que
    *  personne n'a encore touché. */
   const [asked, setAsked] = useState(false);
+  const [shown, setShown] = useState(false);
 
   const nickOk = registering ? nicknameRefusal(nickname) === null : nickname.trim().length > 0;
   const passOk = registering ? passwordRefusal(password) === null : password.length > 0;
@@ -94,6 +98,7 @@ export function AccountForm({
           {fr.auth.openFile}
         </button>
       </div>
+      {founding && registering && <p className="auth-next">{fr.auth.foundNext}</p>}
       <form className="pass" id="authform" onSubmit={submit} noValidate>
         <div className="head">
           <b>{registering ? fr.auth.requestTitle : fr.auth.cardTitle}</b>
@@ -136,17 +141,27 @@ export function AccountForm({
           </div>
           <div className="field">
             <label htmlFor="auth-password">{fr.auth.passwordLabel}</label>
-            <input
-              id="auth-password"
-              name="password"
-              type="password"
-              autoComplete={registering ? 'new-password' : 'current-password'}
-              value={password}
-              placeholder={fr.auth.passwordPlaceholder}
-              aria-invalid={error || (asked && !passOk) ? true : undefined}
-              aria-describedby={describedBy(PASS_HINT)}
-              onChange={(event) => setPassword(event.target.value)}
-            />
+            <div className="secret">
+              <input
+                id="auth-password"
+                name="password"
+                type={shown ? 'text' : 'password'}
+                autoComplete={registering ? 'new-password' : 'current-password'}
+                value={password}
+                placeholder={fr.auth.passwordPlaceholder}
+                aria-invalid={error || (asked && !passOk) ? true : undefined}
+                aria-describedby={describedBy(PASS_HINT)}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+              <button
+                type="button"
+                className="link"
+                aria-pressed={shown}
+                onClick={() => setShown(!shown)}
+              >
+                {shown ? fr.auth.hidePassword : fr.auth.showPassword}
+              </button>
+            </div>
             <span id={PASS_HINT} className={`hint ${!passOk && (password || asked) ? 'bad' : ''}`}>
               {registering
                 ? !passOk && (password || asked)

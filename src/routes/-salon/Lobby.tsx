@@ -14,7 +14,6 @@ import {
 import { typo } from '@/i18n/typo';
 import { CAPITAL_BY_NATION, NATIONS, isNation } from '@/domain/nations';
 import { assetOf } from '@/domain/nation-assets';
-import type { PlayableRegion } from '@/domain/ids';
 import {
   HQ_CAPTURE_HOURS,
   LOBBY_BEAT_SECONDS,
@@ -105,7 +104,7 @@ export function ConnectedLobby({ seat }: { seat: Seat }) {
       <Table seat={seat} lobby={lobby} />
       {launching && (
         <LaunchSequence
-          region={placeLabel(lobby.mode, lobby.theatre, regionNameOf(lobby.playableRegion))}
+          region={placeLabel(lobby.mode, lobby.theatre, fr.launchSequence.world)}
           pace={clockLabel(lobby.durationHours)}
           players={lobby.players.length}
           onEnd={toBoard}
@@ -114,9 +113,6 @@ export function ConnectedLobby({ seat }: { seat: Seat }) {
     </OffSeasonPage>
   );
 }
-
-const regionNameOf = (region: string): string =>
-  fr.playableRegions[region as PlayableRegion] ?? region;
 
 const theatreName = (theatre: string | null): string =>
   theatre === null || theatre === THEATRE_DRAW
@@ -376,6 +372,7 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
                 </span>
               )}
               <RestField seat={seat} declared={lobby.me.restWindow} onError={setError} />
+              <p className="rest-why">{fr.table.restExplain}</p>
             </div>
           )}
         </div>

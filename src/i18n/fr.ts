@@ -1276,8 +1276,8 @@ export const fr = {
   auth: {
     dateline: 'bureau des engagements',
     tabs: 'accès au dossier',
-    haveFile: 'J’ai un dossier',
-    openFile: 'Ouvrir un dossier',
+    haveFile: 'Se connecter',
+    openFile: 'Créer un compte',
     cardTitle: 'Carte d’accréditation',
     requestTitle: 'Demande d’accréditation',
     newCorrespondent: 'nouveau correspondant',
@@ -1295,7 +1295,11 @@ export const fr = {
     /** **Il n'y a pas d'e-mail** (ADR 0022), donc pas de « mot de passe oublié » : la phrase
      *  le dit avant la perte, pas après. */
     passwordNote:
-      'aucun e-mail : un mot de passe perdu se remet à zéro par le tenancier du serveur',
+      'aucun e-mail : un mot de passe perdu se remet à zéro, demandez à celui qui vous a invité',
+    showPassword: 'voir',
+    hidePassword: 'cacher',
+    /** Venu de « fonder » : la suite que la carte annonce avant le premier champ. */
+    foundNext: 'Un pseudo, un mot de passe, puis vous fondez votre partie.',
     passwordRule: '8 caractères au moins',
     loginSubmit: 'entrer',
     registerSubmit: 'ouvrir le dossier',
@@ -1636,6 +1640,8 @@ export const fr = {
     restFrom: 'repos dès',
     restLabel: 'début de votre plage de repos, heure locale',
     restUntil: (end: string) => `jusqu’à ${end} · publique`,
+    restExplain:
+      'Vos heures de sommeil : pendant ce créneau, votre QG ne peut pas être capturé. Toute la table les voit.',
     readyStamp: 'tamponner « prêt »',
     readyLift: 'lever mon « prêt »',
     /** Ce que la table attend de moi, en une phrase : ma nation, puis mon « prêt ». */
@@ -1875,6 +1881,14 @@ export const fr = {
     amongFriends: 'deux à huit joueurs, entre amis',
     onInvitation: 'sur invitation',
     headline: 'Une soirée ou sept jours pour refaire le monde',
+    /** Le chapeau des maquettes (`WWS/prototypes/landing-v2.html`), tel quel. */
+    standfirst:
+      'Huit nations de 1940 sur la carte du monde réel, des ordres qui partent et ne reviennent pas. Deux éditions, une même table.',
+    /** Les deux cartouches de la légende : le temps que dure chaque mode, et son terrain. */
+    editions: [
+      { name: 'Blitz', meta: '1 à 2 h · un théâtre' },
+      { name: 'Mondiale', meta: '3 à 14 jours · le monde' },
+    ],
     mapLabel:
       'Carte du monde en 1940 : huit nations à leur encre, sept points stratégiques cerclés, et un ordre qui part vers chacun.',
     /** La seule règle que la une énonce : c'est elle qui donne leur sens aux cercles. */
@@ -1883,7 +1897,7 @@ export const fr = {
     coupon: 'Coupon-réponse',
     codeLabel: 'Votre code d’invitation',
     noCode: 'Pas de code ?',
-    found: 'fonder une partie',
+    found: 'Fonder une partie',
     haveFile: 'Déjà un dossier ?',
     enter: 'entrer',
     footer: 'La Manchette · fond de carte : Natural Earth',
@@ -1905,8 +1919,9 @@ export const fr = {
   launchSequence: {
     order: 'ORDRE DE MOBILISATION',
     sealed: 'scellé — aucun retour',
-    seed: 'graine distribuée',
-    season: 'SAISON 1',
+    seed: 'les cartes sont distribuées',
+    season: 'EN CAMPAGNE',
+    world: 'le monde',
     summary: (region: string, pace: string, players: number) =>
       `${region} · ${pace} · ${players} joueurs`,
     skip: 'passer',

@@ -86,12 +86,15 @@ export function LaunchSequence({
         </div>
         <div
           className="h-px bg-[var(--ink-quiet)]"
-          style={{ transition: 'width .9s var(--ease-out)', width: phase >= 3 ? 460 : 0 }}
+          style={{
+            transition: 'width .9s var(--ease-out)',
+            width: phase >= 3 ? 'min(460px, 80vw)' : 0,
+          }}
         />
-        <div className="font-(family-name:--font-display) text-[52px] font-extrabold tracking-[.06em] text-[var(--paper)]">
+        <div className="font-(family-name:--font-display) text-[min(52px,10vw)] font-extrabold tracking-[.06em] text-[var(--paper)]">
           {fr.launchSequence.season}
         </div>
-        <div className="font-(family-name:--font-mono) text-[11px] tracking-[.28em] text-[var(--paper-dim)] uppercase">
+        <div className="max-w-[90vw] text-center font-(family-name:--font-mono) text-[11px] tracking-[.28em] text-[var(--paper-dim)] uppercase">
           {fr.launchSequence.summary(region, pace, players)}
         </div>
       </div>

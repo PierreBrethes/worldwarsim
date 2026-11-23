@@ -114,6 +114,25 @@ it.each(['/?ouvrir=true', '/?ouvrir'])(
   },
 );
 
+it('says what follows the account when the player came to found a game, and only then', async () => {
+  mount('/?ouvrir&suite=fonder');
+  expect(await screen.findByText(fr.auth.foundNext)).toBeTruthy();
+  cleanup();
+  mount('/?ouvrir');
+  await screen.findByRole('tab', { name: fr.auth.openFile });
+  expect(screen.queryByText(fr.auth.foundNext)).toBeNull();
+});
+
+it('shows the password on request, and hides it again', async () => {
+  mount();
+  const field = (await screen.findByLabelText(fr.auth.passwordLabel)) as HTMLInputElement;
+  expect(field.type).toBe('password');
+  fireEvent.click(screen.getByRole('button', { name: fr.auth.showPassword }));
+  expect(field.type).toBe('text');
+  fireEvent.click(screen.getByRole('button', { name: fr.auth.hidePassword }));
+  expect(field.type).toBe('password');
+});
+
 it('opens on the tab for a file already held otherwise', async () => {
   mount();
   const tab = await screen.findByRole('tab', { name: fr.auth.haveFile });
