@@ -724,6 +724,15 @@ export const fr = {
       return `LES SEPT SONT TIRÉS — ${names.slice(0, -1).join(', ')} et ${names.at(-1)}. Qui en tient quatre vingt-quatre heures d’affilée prend la saison.`;
     },
     /** **Dakar** : le dépôt capturé au teneur brûle ; les deux camps l'apprennent. */
+    /** **La course** (#614) : la même dépêche à toute la table, le meneur lit la sienne. */
+    raceStarted: (nation: string, mine: boolean, until: string) =>
+      mine
+        ? `Vous tenez quatre points : tenez-les jusqu’au ${until}.`
+        : `${nation} tient quatre points : s’il les garde jusqu’au ${until}, la saison est à lui.`,
+    raceReminder: (nation: string, mine: boolean, hoursLeft: number, until: string) =>
+      mine
+        ? `Plus que ${num(hoursLeft)} h : tenez vos quatre points jusqu’au ${until}.`
+        : `Plus que ${num(hoursLeft)} h : ${nation} tient quatre points jusqu’au ${until}.`,
     narvikLost: `Narvik est perdu : vos exploitations coupées du réseau ne produisent plus.`,
     depotBurned: (side: 'capturer' | 'holder', country: string, lost: string) =>
       side === 'capturer'

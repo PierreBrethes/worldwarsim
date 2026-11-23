@@ -341,6 +341,113 @@ describe('winning the race', () => {
     expect((await seasonOf(t)).status).toBe('launched');
   });
 
+  const noticesOf = (t: Bench, kind: string) =>
+    t.run(async (ctx) => (await ctx.db.query('notices').collect()).filter((n) => n.kind === kind));
+
+  /** **Toute la table apprend qu'une course commence**, puis à 12 h et 6 h de la fin : le meneur
+   *  se lit lui-même à l'écran (`leaderNation`), le serveur n'écrit qu'une dépêche par siège. */
+  it('tells every seat the race began, and reminds them at 12 h and 6 h left', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    await give(t, seat, ['lisbon', 'tangier', 'narvik']);
+    expect(await noticesOf(t, 'raceStarted')).toHaveLength(0);
+
+    await give(t, seat, ['istanbul']);
+    const started = await noticesOf(t, 'raceStarted');
+    expect(started).toHaveLength(2);
+    expect(started.every((n) => n.kind === 'raceStarted' && n.leaderNation === 'france')).toBe(
+      true,
+    );
+    expect(started.map((n) => n.kind === 'raceStarted' && n.endsAt)).toEqual([
+      MIDDAY + 24 * HOUR,
+      MIDDAY + 24 * HOUR,
+    ]);
+    const season = await seasonOf(t);
+
+    vi.setSystemTime(MIDDAY + 12 * HOUR);
+    await t.mutation(internal.race.remindRace, {
+      seasonId: season._id,
+      since: MIDDAY,
+      hoursLeft: 12,
+    });
+    vi.setSystemTime(MIDDAY + 18 * HOUR);
+    await t.mutation(internal.race.remindRace, {
+      seasonId: season._id,
+      since: MIDDAY,
+      hoursLeft: 6,
+    });
+    const reminders = await noticesOf(t, 'raceReminder');
+    expect(
+      reminders
+        .map((n) => n.kind === 'raceReminder' && n.hoursLeft)
+        .sort((a, b) => Number(a) - Number(b)),
+    ).toEqual([6, 6, 12, 12]);
+  });
+
+  it('sends no reminder once the leader fell or the season ended', async () => {
+    const t = boot();
+    const { seat, guest } = await launched(t);
+    await give(t, seat, ['lisbon', 'tangier', 'narvik', 'istanbul']);
+    const season = await seasonOf(t);
+
+    vi.setSystemTime(MIDDAY + 5 * HOUR);
+    await give(t, guest, ['narvik']);
+    vi.setSystemTime(MIDDAY + 12 * HOUR);
+    await t.mutation(internal.race.remindRace, {
+      seasonId: season._id,
+      since: MIDDAY,
+      hoursLeft: 12,
+    });
+    expect(await noticesOf(t, 'raceReminder')).toHaveLength(0);
+
+    // Same leader falls then climbs again: a new dispatch, and the old reminders die alone.
+    vi.setSystemTime(MIDDAY + 13 * HOUR);
+    await give(t, seat, ['narvik']);
+    expect(await noticesOf(t, 'raceStarted')).toHaveLength(4);
+    vi.setSystemTime(MIDDAY + 18 * HOUR);
+    await t.mutation(internal.race.remindRace, {
+      seasonId: season._id,
+      since: MIDDAY,
+      hoursLeft: 6,
+    });
+    expect(await noticesOf(t, 'raceReminder')).toHaveLength(0);
+    await t.mutation(internal.race.remindRace, {
+      seasonId: season._id,
+      since: MIDDAY + 13 * HOUR,
+      hoursLeft: 6,
+    });
+    expect(await noticesOf(t, 'raceReminder')).toHaveLength(2);
+
+    await t.run(async (ctx) => ctx.db.patch((await seatIn(ctx, seat))._id, { defeated: true }));
+    await t.mutation(internal.race.remindRace, {
+      seasonId: season._id,
+      since: MIDDAY + 13 * HOUR,
+      hoursLeft: 12,
+    });
+    expect(await noticesOf(t, 'raceReminder')).toHaveLength(2);
+
+    await t.run(async (ctx) => ctx.db.patch((await seatIn(ctx, seat))._id, { defeated: false }));
+    await t.run(async (ctx) => ctx.db.patch(season._id, { status: 'concluded' }));
+    await t.mutation(internal.race.remindRace, {
+      seasonId: season._id,
+      since: MIDDAY + 13 * HOUR,
+      hoursLeft: 12,
+    });
+    expect(await noticesOf(t, 'raceReminder')).toHaveLength(2);
+  });
+
+  it('announces a different leader afresh', async () => {
+    const t = boot();
+    const { seat, guest } = await launched(t);
+    await give(t, seat, ['lisbon', 'tangier', 'narvik', 'istanbul']);
+    vi.setSystemTime(MIDDAY + HOUR);
+    await give(t, guest, ['lisbon', 'tangier', 'narvik', 'istanbul']);
+    const started = await noticesOf(t, 'raceStarted');
+    expect(
+      started.filter((n) => n.kind === 'raceStarted' && n.leaderNation === 'ussr'),
+    ).toHaveLength(2);
+  });
+
   it('serves the hours its holder held a point before, to everyone', async () => {
     const t = boot();
     const { seat, guest } = await launched(t);

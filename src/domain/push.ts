@@ -3,7 +3,7 @@ import { insideWindow, minutesSinceMidnight, windowExit, type TimeWindow } from 
 /**
  * **Les notifications, sans base ni réseau** : ce qui part, groupé, et à quelle heure. Les
  * phrases vivent ici et non dans `src/i18n/fr.ts` : `fr.ts` tire le catalogue des pays et la moitié
- * du domaine, et le serveur n'a besoin que de six phrases — le choix est gravé dans
+ * du domaine, et le serveur n'a besoin que de quelques phrases — le choix est gravé dans
  * `WWS/docs/design/propositions/notifications-push-et-alarmes.md`. **Aucune ne nomme un pays ni
  * une nation** : un écran verrouillé est lu par n'importe qui, et ce que le brouillard cache à un
  * adversaire, il le cache à l'épaule d'un voisin.
@@ -40,6 +40,9 @@ export const push = {
   sighting: 'Une colonne adverse a été relevée dans une de vos portées.',
   dryFire: 'Des troupes à sec n’ont pas tiré : sans coups, ni frappe ni riposte.',
   seasonLaunched: 'La saison est lancée.',
+  /** Ni pays ni nation : un écran verrouillé est lu par n'importe qui. */
+  raceLeft: (hours: number) =>
+    `Un belligérant tient quatre points : la saison se joue dans ${hours} h.`,
   rendezvousSoon: (minutes: number) => `La Blitz commence dans ${minutes} minutes : à table.`,
   seasonConcluded: 'La saison est close.',
   seasonDominated: 'La saison est dominée : un belligérant l’emporte.',

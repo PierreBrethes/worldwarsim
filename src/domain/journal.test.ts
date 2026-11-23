@@ -291,6 +291,22 @@ describe('the journal', () => {
     expect(transferred!.severity).toBe('routine');
   });
 
+  it('tells the leader "Vous", the others the nation, and gives the day and hour', () => {
+    const endsAt = NOON + 24 * HOUR;
+    const notices = [
+      { kind: 'raceStarted', at: NOON, leaderNation: 'france', endsAt },
+      { kind: 'raceReminder', at: NOON + HOUR, leaderNation: 'france', endsAt, hoursLeft: 12 },
+    ] as const;
+    const [mineReminder, mineStarted] = journalDispatches([], null, notices, null, 'france');
+    expect(mineStarted!.text).toContain('Vous tenez quatre points');
+    expect(mineReminder!.text).toContain('Plus que 12 h');
+    expect(mineReminder!.text).toContain('tenez vos quatre points');
+    const [otherReminder, otherStarted] = journalDispatches([], null, notices, null, 'ussr');
+    expect(otherStarted!.text).toContain(fr.nations.france);
+    expect(otherStarted!.text).toContain('la saison est à lui');
+    expect(otherReminder!.text).toContain(fr.nations.france);
+  });
+
   /** Une notice écrite avant le tirage n'a pas de `keys` : elle nomme les sept d'alors. */
   it('names the first seven when the drawn notice carries no keys, and the drawn ones otherwise', () => {
     const [old] = journalDispatches([], null, [{ kind: 'pointsDrawn', at: NOON }]);

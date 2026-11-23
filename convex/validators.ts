@@ -817,6 +817,22 @@ export const NOTICE = v.union(
     /** Absent sur les notices d'avant le tirage : les sept du premier vivier. */
     keys: v.optional(v.array(STRATEGIC_POINT_KEY)),
   }),
+  /** **Un belligérant tient quatre points** (#614) : toute la table, le meneur compris — il se
+   *  lit lui-même à l'écran, `leaderNation` étant sa nation. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('raceStarted'),
+    leaderNation: v.string(),
+    endsAt: v.number(),
+  }),
+  /** **Le rappel de la course**, à `hoursLeft` heures de la fin. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('raceReminder'),
+    leaderNation: v.string(),
+    endsAt: v.number(),
+    hoursLeft: v.number(),
+  }),
   /** **Narvik perdu** (ADR 0032) : l'ancien teneur apprend que ses sites coupés ne produisent
    *  plus rien — la dépêche de la prise, elle, ne dit que le nom. */
   v.object({ ...NOTICE_HEAD, kind: v.literal('narvikLost') }),
