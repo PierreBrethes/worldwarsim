@@ -79,6 +79,7 @@ import type * as sites from "../sites.js";
 import type * as strategicPoints from "../strategicPoints.js";
 import type * as supplies from "../supplies.js";
 import type * as surveys from "../surveys.js";
+import type * as tourSlot from "../tourSlot.js";
 import type * as tours from "../tours.js";
 import type * as troops from "../troops.js";
 import type * as upkeep from "../upkeep.js";
@@ -163,6 +164,7 @@ declare const fullApi: ApiFromModules<{
   strategicPoints: typeof strategicPoints;
   supplies: typeof supplies;
   surveys: typeof surveys;
+  tourSlot: typeof tourSlot;
   tours: typeof tours;
   troops: typeof troops;
   upkeep: typeof upkeep;
