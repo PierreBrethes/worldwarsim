@@ -99,7 +99,7 @@ conversations — y compris avec une IA, qui navigue beaucoup mieux dans un doma
 
 | Terme | Définition |
 |---|---|
-| **Capture** | Ce que fait une infanterie qui tient un bâtiment, un avant-poste, un point stratégique ou un QG adverse : au bout du temps, il change de propriétaire. Elle avance **au rythme des PV** de la troupe ; un combat ne la remet jamais à zéro, seuls le départ ou la mort de la troupe l'annulent. En Mondiale elle s'arrête pendant la plage de repos du défenseur. Jamais « prise ». *(décision du 14/10)* |
+| **Capture** | Ce que fait une infanterie qui tient un bâtiment, un avant-poste, un point stratégique ou un QG adverse : au bout du temps, il change de propriétaire. Elle avance **au rythme des PV** de la troupe ; un combat ne la remet jamais à zéro, seuls le départ ou la mort de la troupe l'annulent. En Mondiale elle s'arrête pendant la plage de repos du défenseur, et **n'aboutit pas tant que le capteur a faim** : suspendue à son échéance, elle aboutit au retour des vivres *(ADR 0044)*. Jamais « prise ». *(décision du 14/10)* |
 | **Initiative** | L'attaquant frappe le premier ; le défenseur **riposte** avec ce qui lui reste. Ensemble, frappe et riposte font une **passe de résolution**. |
 | **Choc** | Deux unités qui s'attaquent l'une l'autre au contact : elles tirent en même temps, personne n'a l'initiative. |
 | **Riposte** | La réponse automatique d'un attaqué, avec ses PV restants, s'il peut toucher l'attaquant. Elle ne coûte pas de rechargement. |
