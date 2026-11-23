@@ -11,6 +11,7 @@ import { hostAtPoint } from './routes';
 import { BAKU_REFUEL_MS, OBJECTIVE_AMMUNITION_PER_TROOP, POINT_GARRISON } from './constants';
 import { regionFacts } from './regions';
 import { handOver } from './strategicPoints';
+import { irregularSeat } from './objectives';
 import { drawPoints } from '../src/domain/strategic-points';
 import schema from './schema';
 import { modules } from './test.setup';
@@ -325,6 +326,20 @@ describe('the garrison of a neutral point', () => {
       (troop) => troop.playerId === irregular!._id,
     );
     expect(posted).toHaveLength(7 * POINT_GARRISON.length);
+  });
+
+  /** Pas de rattrapage (ADR 0043 §3) : un siège irrégulier déjà né dit qu'une garnison a été posée. */
+  it('is not posted when the irregular seat already exists', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    const { seasonId } = await playerOf(t, seat);
+    await t.run((ctx) => irregularSeat(ctx, seasonId));
+    await commitNothing(t, seat);
+    const irregular = await irregularOf(t);
+    const posted = (await t.run((ctx) => ctx.db.query('troops').collect())).filter(
+      (troop) => troop.playerId === irregular!._id,
+    );
+    expect(posted).toEqual([]);
   });
 
   it('comes with the objectives, and shares their one dotation', async () => {

@@ -696,7 +696,7 @@ export const fr = {
     contested: 'contesté — une capture est en cours',
     /** Une règle vraie en tout temps, jamais un état : la force ne se lit que par relevé. */
     guarded: 'Gardé au lancement par une garnison locale.',
-    how: 'Il se prend comme un bâtiment : une infanterie le tient six heures. Son teneur le garde sans garnison.',
+    how: 'Une colonne doit d’abord vaincre la garnison, puis garder une infanterie debout pendant six heures ; une garnison entamée le reste pour la suivante. Son teneur le garde sans garnison.',
     needsAColumn: 'Levez une colonne d’infanterie, puis visez le point pour le capturer.',
     race: {
       title: 'La course aux Sept',
