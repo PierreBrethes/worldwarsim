@@ -8,6 +8,7 @@ import {
   journalLines,
   passesFilter,
   type JournalBundle,
+  retainBundles,
   type JournalFilter,
 } from '@/domain/journal-lines';
 import { asDayAndTime } from '@/domain/duration';
@@ -43,6 +44,21 @@ export type LootRumor = {
 };
 
 const keyOf = (dispatch: JournalDispatch): string => `${dispatch.at}-${dispatch.text}`;
+
+/** **La clé d'une liasse est celle de sa plus ancienne dépêche** : une dépêche qui arrive en tête ne
+ *  change ni la clé d'une liasse dépliée, ni son état. Deux dépêches de même heure et même phrase se
+ *  départagent par leur rang depuis le bas : une clé ne se répète pas. */
+const bundleKeysOf = (bundles: ReadonlyArray<JournalBundle>): string[] => {
+  const seen = new Map<string, number>();
+  const keys = bundles.map(() => '');
+  for (let rank = bundles.length - 1; rank >= 0; rank--) {
+    const base = keyOf(bundles[rank]!.oldest.dispatch);
+    const n = seen.get(base) ?? 0;
+    seen.set(base, n + 1);
+    keys[rank] = `${base}#${n}`;
+  }
+  return keys;
+};
 
 const FILTERS: ReadonlyArray<JournalFilter> = ['all', 'unread', 'critical', 'notable', 'routine'];
 
@@ -110,11 +126,10 @@ export function JournalWindow({
         : lines.find((line) => line.dispatch.combat?.id === leadReport);
     return lead === undefined ? null : keyOf(lead.dispatch);
   });
-  /** Les liasses se forment sur l'ordre entier, puis le filtre les retient ou non ; ‹ › lit leurs
+  /** Les liasses se forment sur l'ordre entier, puis le filtre en retire des lignes ; ‹ › lit leurs
    *  dépêches aplaties, dans l'ordre du journal. */
-  const bundles = groupJournal(lines).filter((bundle) =>
-    bundle.lines.some((line) => passesFilter(line.dispatch, filter)),
-  );
+  const bundles = retainBundles(groupJournal(lines), filter);
+  const bundleKeys = bundleKeysOf(bundles);
   const shown = bundles.flatMap((bundle) => bundle.lines);
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   const toggle = (key: string) =>
@@ -123,6 +138,15 @@ export function JournalWindow({
       if (!next.delete(key)) next.add(key);
       return next;
     });
+  /** Ouvrir une dépêche déplie la liasse qui la porte : ‹ › y entre sans la chercher. */
+  const pick = (dispatch: JournalDispatch) => {
+    setPicked(keyOf(dispatch));
+    const at = bundles.findIndex((bundle) =>
+      bundle.lines.some((line) => line.dispatch === dispatch),
+    );
+    const key = bundleKeys[at];
+    if (key !== undefined && bundles[at]!.lines.length > 1) setOpen((was) => new Set(was).add(key));
+  };
   const at = shown.findIndex((line) => keyOf(line.dispatch) === picked);
   const sheet = at < 0 ? null : shown[at];
   const unread = lines.filter((line) => line.dispatch.unread).length;
@@ -204,22 +228,22 @@ export function JournalWindow({
           {view.mode !== 'blitz' && <Waking view={view} stalled={stalled} />}
           {bundles.map((bundle, rank) => {
             const head = bundle.head.dispatch;
-            const key = keyOf(head);
+            const key = bundleKeys[rank] ?? '';
             return bundle.lines.length === 1 ? (
               <TelexLine
-                key={`${key}-${rank}`}
+                key={key}
                 dispatch={head}
-                picked={key === picked}
-                onOpen={() => setPicked(key)}
+                picked={keyOf(head) === picked}
+                onOpen={() => pick(head)}
               />
             ) : (
               <Bundle
-                key={`${key}-${rank}`}
+                key={key}
                 bundle={bundle}
                 expanded={open.has(key)}
                 picked={picked}
                 onToggle={() => toggle(key)}
-                onOpen={(dispatch) => setPicked(keyOf(dispatch))}
+                onOpen={pick}
               />
             );
           })}
@@ -241,7 +265,7 @@ export function JournalWindow({
             station={sheet.dispatch.combat ? garrisonAt(sheet.dispatch.combat) : null}
             onStep={(step) => {
               const next = shown[at + step];
-              if (next !== undefined) setPicked(keyOf(next.dispatch));
+              if (next !== undefined) pick(next.dispatch);
             }}
             onShowCombat={leaving(onShowCombat)}
             onLocate={leaving(onLocate)}
@@ -292,7 +316,7 @@ function Waking({ view, stalled }: { view: PlayerView; stalled: ReadonlyArray<Jo
 /** **Une ligne, une dépêche** : l'heure, la barre de gravité — pleine quand elle est neuve, en
  *  pointillé quand elle est lue —, la sorte, le titre. Le non lu se lit au gras. Sur deux lignes
  *  quand la fenêtre est étroite (l'heure et la sorte, puis la phrase), sur une au bureau : c'est la
- *  largeur de la fenêtre (`@[420px]`, entre un téléphone et le dock) qui décide, jamais celle de l'écran. `end` est la queue d'une
+ *  largeur de la fenêtre qui décide, jamais celle de l'écran, et à `@[420px]` plutôt qu'à `@md` (448 px) : le dock du bureau ne fait que ≈ 438 px et resterait sur deux lignes, un téléphone (≈ 388 px) y reste. `end` est la queue d'une
  *  liasse (« depuis », « × N », ▾) ; `tint` la distingue d'une dépêche seule. */
 function TelexLine({
   dispatch,
@@ -407,9 +431,9 @@ function Bundle({
       />
       {expanded && (
         <div className="ml-3 border-b border-[var(--ink)] border-l-[3px] bg-(--paper-pile)/20">
-          {bundle.lines.map(({ dispatch }) => (
+          {bundle.lines.map(({ dispatch }, rank) => (
             <button
-              key={`${keyOf(dispatch)}-${dispatch.t}`}
+              key={`${keyOf(dispatch)}#${bundle.lines.length - rank}`}
               type="button"
               onClick={() => onOpen(dispatch)}
               aria-current={keyOf(dispatch) === picked}

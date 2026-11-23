@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { groupJournal, journalLines, passesFilter, type JournalLine } from './journal-lines';
+import {
+  groupJournal,
+  retainBundles,
+  journalLines,
+  passesFilter,
+  type JournalLine,
+} from './journal-lines';
 import type { DispatchKind, DispatchSeverity, JournalDispatch } from './player-view';
 
 const dispatch = (
@@ -135,5 +141,38 @@ describe('groupJournal', () => {
         entry(at(5, 10), 'delivery'),
       ]),
     ).toEqual([1, 1, 1]);
+  });
+
+  it('compares with the head of the bundle, not with the previous line (A~B~C)', () => {
+    // A et B partagent une minute, B et C un lieu, mais C n'a ni le lieu ni la minute de A.
+    expect(
+      sizes([
+        entry(at(9, 50), 'delivery', place(2)),
+        entry(at(9, 10), 'delivery', place(5)),
+        entry(at(4), 'delivery', place(5)),
+      ]),
+    ).toEqual([2, 1]);
+  });
+});
+
+describe('retainBundles', () => {
+  const line = (time: number, severity: DispatchSeverity, unread = false): JournalLine => ({
+    dispatch: { ...dispatch(time, severity, 'delivery'), unread },
+    earlier: 0,
+  });
+
+  it('filters the lines inside each bundle, and drops a bundle left empty', () => {
+    const [bundle] = groupJournal([
+      line(30, 'routine', true),
+      line(20, 'routine'),
+      line(10, 'routine', true),
+    ]);
+    const kept = retainBundles([bundle!], 'unread');
+
+    expect(kept).toHaveLength(1);
+    expect(kept[0]!.lines.map((entry) => entry.dispatch.at)).toEqual([30, 10]);
+    expect(kept[0]!.head.dispatch.at).toBe(30);
+    expect(kept[0]!.oldest.dispatch.at).toBe(10);
+    expect(retainBundles([bundle!], 'critical')).toEqual([]);
   });
 });

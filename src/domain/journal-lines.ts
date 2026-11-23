@@ -55,12 +55,12 @@ const standsAlone = ({ dispatch }: JournalLine): boolean =>
 
 const MINUTE_MS = 60_000;
 
-const sameBundle = (older: JournalLine, newer: JournalLine): boolean => {
-  const a = older.dispatch;
-  const b = newer.dispatch;
+const sameBundle = (head: JournalLine, line: JournalLine): boolean => {
+  const a = head.dispatch;
+  const b = line.dispatch;
   return (
-    !standsAlone(older) &&
-    !standsAlone(newer) &&
+    !standsAlone(head) &&
+    !standsAlone(line) &&
     a.kind === b.kind &&
     ((a.place !== null &&
       b.place !== null &&
@@ -71,19 +71,31 @@ const sameBundle = (older: JournalLine, newer: JournalLine): boolean => {
 
 /**
  * **Les dépêches répétées se replient en liasses, l'ordre du serveur intact** : seules des voisines
- * de même sorte, au même lieu (`place` connu des deux) ou à la même minute (`at`, jamais `t`), se
- * rejoignent, et une liasse ne réordonne rien. Le filtre du journal s'applique ensuite aux liasses.
+ * de même sorte que la tête de la liasse (sa plus récente), au même lieu (`place` connu des deux) ou à la
+ * même minute (`at`, jamais `t`), la rejoignent, et une liasse ne réordonne rien. Le filtre du journal s'applique ensuite aux liasses.
  */
 export function groupJournal(lines: ReadonlyArray<JournalLine>): JournalBundle[] {
   const bundles: Array<{ head: JournalLine; lines: JournalLine[]; oldest: JournalLine }> = [];
-  let previous: JournalLine | undefined;
   for (const line of lines) {
     const last = bundles.at(-1);
-    if (last !== undefined && previous !== undefined && sameBundle(previous, line)) {
+    if (last !== undefined && sameBundle(last.head, line)) {
       last.lines.push(line);
       last.oldest = line;
     } else bundles.push({ head: line, lines: [line], oldest: line });
-    previous = line;
   }
   return bundles;
+}
+
+/** Le filtre s'applique aux lignes de chaque liasse : celles qu'il écarte la quittent, une liasse
+ *  vidée disparaît, une liasse réduite à une ligne s'affiche comme une dépêche seule. */
+export function retainBundles(
+  bundles: ReadonlyArray<JournalBundle>,
+  filter: JournalFilter,
+): JournalBundle[] {
+  return bundles.flatMap((bundle): JournalBundle[] => {
+    const lines = bundle.lines.filter((line) => passesFilter(line.dispatch, filter));
+    const head = lines[0];
+    const oldest = lines.at(-1);
+    return head === undefined || oldest === undefined ? [] : [{ head, lines, oldest }];
+  });
 }
