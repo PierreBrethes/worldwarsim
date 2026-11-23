@@ -950,7 +950,7 @@ describe('in aim', () => {
     };
     const hungry = compassOf(target, view, { ...column, starving: true });
     expect(hungry?.actions.some((action) => action.key === 'capture')).toBe(false);
-    expect(hungry?.refusal).toBe(fr.errors.CAPTURE_STARVING({}));
+    expect(hungry?.refusal).toBe(fr.errors.CAPTURE_STARVING());
     expect(compassOf(target, view, column)?.actions.map((action) => action.key)).toContain(
       'capture',
     );
