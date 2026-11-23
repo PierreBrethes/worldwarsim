@@ -543,6 +543,40 @@ describe('winning the race', () => {
     ).toEqual([6, 6, 12, 12]);
   });
 
+  const raceJobs = (t: Bench) =>
+    t.run(async (ctx) =>
+      (await ctx.db.system.query('_scheduled_functions').collect())
+        .filter((job) => /^race:(closeRace|remindRace)$/.test(job.name))
+        .map((job) => ({
+          name: job.name.split(':')[1],
+          at: job.scheduledTime,
+          args: (({ since, hoursLeft }) => ({
+            since,
+            ...(hoursLeft === undefined ? {} : { hoursLeft }),
+          }))(job.args[0] as { since: number; hoursLeft?: number }),
+        }))
+        .sort((a, b) => a.at - b.at),
+    );
+
+  it('schedules the close and both reminders from the moment the race began', async () => {
+    const t = boot();
+    const { seat, guest } = await launched(t);
+    await give(t, seat, ['lisbon', 'tangier', 'narvik', 'istanbul']);
+    const trio = (since: number) => [
+      { name: 'remindRace', at: since + 12 * HOUR, args: { since, hoursLeft: 12 } },
+      { name: 'remindRace', at: since + 18 * HOUR, args: { since, hoursLeft: 6 } },
+      { name: 'closeRace', at: since + 24 * HOUR, args: { since } },
+    ];
+    expect(await raceJobs(t)).toEqual(trio(MIDDAY));
+
+    vi.setSystemTime(MIDDAY + 2 * HOUR);
+    await give(t, guest, ['narvik']);
+    await give(t, seat, ['narvik']);
+    expect(await raceJobs(t)).toEqual(
+      [...trio(MIDDAY), ...trio(MIDDAY + 2 * HOUR)].sort((a, b) => a.at - b.at),
+    );
+  });
+
   it('sends no reminder once the leader fell or the season ended', async () => {
     const t = boot();
     const { seat, guest } = await launched(t);
