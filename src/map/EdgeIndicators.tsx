@@ -22,7 +22,7 @@ import {
   type RawIndicator,
   type AlertMark,
 } from '@/domain/indicators';
-import type { ScreenBox } from '@/domain/label-groups';
+import { boxesOverlap, type ScreenBox } from '@/domain/label-groups';
 import { IndicatorGlyph } from '@/shell/IndicatorGlyph';
 import type { LabelProjection } from './engine/labels';
 import type { MapEngine } from './engine';
@@ -70,10 +70,12 @@ export function EdgeIndicators({
   held?: { readonly id: string; readonly covered: number } | null;
 }) {
   const insets = useBoardInsets();
-  const narrow = useRef(useNarrowScreen());
-  narrow.current = useNarrowScreen();
-  const motion = useRef(useMapMotion());
-  motion.current = useMapMotion();
+  const narrowScreen = useNarrowScreen();
+  const narrow = useRef(narrowScreen);
+  narrow.current = narrowScreen;
+  const mapMotion = useMapMotion();
+  const motion = useRef(mapMotion);
+  motion.current = mapMotion;
   /** Où en est le glissé de chaque jeton nommé : l'écart qu'il a pris pour dégager la bulle. */
   const glides = useRef(new Map<string, { offset: number; at: number }>());
   const heldTag = useRef<HTMLElement | null>(null);
@@ -180,6 +182,7 @@ export function EdgeIndicators({
         if (tag === undefined) continue;
         if (!projection.atEdge) {
           tag.style.display = 'none';
+          glides.current.delete(projection.id);
           continue;
         }
         tag.style.display = '';
@@ -197,24 +200,29 @@ export function EdgeIndicators({
         const tall = pill?.height ?? 0;
         const left = projection.edgeX - (across === '0' ? 0 : wide);
         const top = projection.edgeY - (down === '0' ? 0 : down === '-100%' ? tall : tall / 2);
+        // Les colonnes (#376) se dégagent toujours sur `y`, quel que soit le bord ; seule la bulle
+        // glisse sur l'axe du bord, entre les marges du plateau. Si rien ne tient sous les
+        // colonnes, le nom sort de l'écran plutôt que de les recouvrir, comme avant #623.
         const axis = slideAxisOf(sideOf(projection.edgeX, projection.edgeY, width, height));
-        const extent = axis === 'y' ? height : width;
-        const start = (box: ScreenBox) => (axis === 'y' ? box.top : box.left);
-        const place = (box: ScreenBox, avoid: ReadonlyArray<ScreenBox>) =>
-          clearOfColumns(box, avoid, extent, axis) - start(box);
         const box = { left, top, right: left + wide, bottom: top + tall };
-        const step = place(box, columns);
-        const stepped = shiftedBy(box, axis, step);
-        const aside = place(stepped, bubbles);
-        // Seul ce qui dégage la bulle glisse : l'écart aux colonnes suit la caméra image par image.
+        const step = clearOfColumns(box, columns, height) - top;
+        const stepped = shiftedBy(box, 'y', step);
+        const [min, max] =
+          axis === 'y'
+            ? [heldInsets.top, height - heldInsets.bottom]
+            : [heldInsets.left, width - heldInsets.right];
+        const from = axis === 'y' ? stepped.top : stepped.left;
+        let aside = clearOfColumns(stepped, bubbles, max, axis, min) - from;
+        // Dégager la bulle ne rejette pas le nom sur une colonne : il reste alors où il est.
+        if (columns.some((column) => boxesOverlap(column, shiftedBy(stepped, axis, aside), 0)))
+          aside = 0;
         const now = performance.now();
         const glide = glides.current.get(projection.id) ?? { offset: 0, at: now };
         const slid =
           motion.current === 'full' ? glideToward(glide.offset, aside, now - glide.at) : aside;
         if (slid === 0 && aside === 0) glides.current.delete(projection.id);
         else glides.current.set(projection.id, { offset: slid, at: now });
-        const along = step + slid;
-        tag.style.transform = `translate3d(${projection.edgeX + (axis === 'x' ? along : 0)}px, ${projection.edgeY + (axis === 'y' ? along : 0)}px, 0) translate(${across}, ${down})`;
+        tag.style.transform = `translate3d(${projection.edgeX + (axis === 'x' ? slid : 0)}px, ${projection.edgeY + step + (axis === 'y' ? slid : 0)}px, 0) translate(${across}, ${down})`;
       }
       for (const sum of sums) {
         sum.x = sum.y = sum.count = 0;
@@ -263,7 +271,6 @@ export function EdgeIndicators({
 
   // La bulle de pile s'ouvre et se ferme par ses classes (CSS) : le jeton qui la dégage a besoin
   // d'images pour glisser, et la carte au repos n'en rend plus (`engine/frame-demand.ts`).
-  const narrowScreen = narrow.current;
   useEffect(() => {
     const root = layer.current?.parentElement;
     if (!engine || !root || !narrowScreen) return;
@@ -271,7 +278,8 @@ export function EdgeIndicators({
       if (
         changes.some(
           (change) =>
-            change.target instanceof Element && change.target.matches('.cargo-tag, .label-anchor'),
+            change.target instanceof Element &&
+            change.target.matches('.cargo-tag, .label-anchor, .label'),
         )
       )
         engine.invalidate();

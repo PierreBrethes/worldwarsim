@@ -249,31 +249,33 @@ function dueOf(label: MapLabel): number | null {
   return countdown?.dueAt ?? null;
 }
 
-/** The axis a token slides on along its edge: up and down on the sides, across on top and bottom. */
+/** The axis a token slides on to clear the pile bubble, along its edge: up and down on the sides, across on top and bottom. */
 export const slideAxisOf = (side: EdgeSide): 'x' | 'y' =>
   side === 'left' || side === 'right' ? 'y' : 'x';
 
 /**
  * **Un nom au bord ne couvre pas ma colonne** (#376) : posé au-dessus des étiquettes, il cacherait
- * celle de ma colonne en route et son « rappeler ». Le début où le poser, sur l'axe du bord
- * (`slideAxisOf`) : le sien s'il ne couvre rien, sinon juste après ce qu'il couvrait — ou juste
- * avant quand la fin de l'écran manque, sans jamais sortir par le début. Le jeton garde son bord
- * et sa flèche : la bulle de pile en main (#623) se dégage de la même façon.
+ * celle de ma colonne en route et son « rappeler ». Le début où le poser, sur l'axe demandé : le
+ * sien s'il ne couvre rien, sinon juste après ce qu'il couvrait — ou juste avant quand la fin
+ * (`max`) manque. Sans `min`, rien ne le retient en deçà : sortir de l'écran plutôt que recouvrir
+ * la colonne, comme avant #623. La bulle de pile en main passe `min` et ses marges, pour que le
+ * jeton ne tombe ni sous le bandeau ni sur les boutons de la carte.
  */
 export function clearOfColumns(
   box: ScreenBox,
   columns: ReadonlyArray<ScreenBox>,
-  extent: number,
+  max: number,
   axis: 'x' | 'y' = 'y',
+  min = -Infinity,
 ): number {
   const [start, end] = axis === 'y' ? (['top', 'bottom'] as const) : (['left', 'right'] as const);
   const covered = columns.filter((column) => boxesOverlap(column, box, 0));
   if (covered.length === 0) return box[start];
   const length = box[end] - box[start];
   const after = Math.max(...covered.map((column) => column[end])) + 4;
-  return after + length <= extent
+  return after + length <= max
     ? after
-    : Math.max(0, Math.min(...covered.map((column) => column[start])) - 4 - length);
+    : Math.max(min, Math.min(...covered.map((column) => column[start])) - 4 - length);
 }
 
 /** @a-mesurer How long a token takes to close most of the way to its place (ms). */

@@ -139,6 +139,7 @@ describe('EdgeIndicators, the « hors champ » layer (#604)', () => {
 /** **Le jeton hors champ glisse le long du bord** pour dégager la bulle de pile en main (#623) :
  *  au téléphone seulement, interpolé en « actives », d'un saut sinon. */
 describe('EdgeIndicators, a name sliding clear of the bubble (#623)', () => {
+  let COLUMN = { left: 0, top: 0, right: 0, bottom: 0 };
   const BUBBLE = { left: 100, top: 280, right: 340, bottom: 400 };
   const PILL = { left: 0, top: 0, right: 80, bottom: 44 };
   const frame = { id: 'paris', atEdge: true, edgeX: 390, edgeY: 300, distance: 900 };
@@ -147,7 +148,7 @@ describe('EdgeIndicators, a name sliding clear of the bubble (#623)', () => {
     return { ...box, width: box.right - box.left, height: box.bottom - box.top } as DOMRect;
   }
 
-  function scene() {
+  function scene(insets = { top: 0, right: 0, bottom: 0, left: 0 }) {
     vi.stubGlobal('performance', { now: () => clock });
     (Element.prototype as unknown as { checkVisibility: () => boolean }).checkVisibility = () =>
       true;
@@ -155,6 +156,7 @@ describe('EdgeIndicators, a name sliding clear of the bubble (#623)', () => {
       this: Element,
     ) {
       if (this.classList.contains('cargo-tag-body')) return boxOf(BUBBLE);
+      if (this.classList.contains('label-block')) return boxOf(COLUMN);
       if (this.classList.contains('destination-edge')) return boxOf(PILL);
       return boxOf({ left: 0, top: 0, right: 390, bottom: 844 });
     });
@@ -166,7 +168,7 @@ describe('EdgeIndicators, a name sliding clear of the bubble (#623)', () => {
       onEdges: (() => {}) as (projections: unknown[]) => void,
     };
     const view = render(
-      <div>
+      <BoardInsetsContext.Provider value={insets}>
         <div className="cargo-tags">
           <div className="cargo-tag">
             <div className="cargo-tag-body" />
@@ -178,7 +180,7 @@ describe('EdgeIndicators, a name sliding clear of the bubble (#623)', () => {
           toggles={DEFAULT_TOGGLES}
           destinations={new Map([['paris', 'Paris']])}
         />
-      </div>,
+      </BoardInsetsContext.Provider>,
     );
     const anchor = view.container.querySelector<HTMLElement>('.destination-anchor')!;
     const draw = () => act(() => engine.onEdges([frame]));
@@ -234,10 +236,60 @@ describe('EdgeIndicators, a name sliding clear of the bubble (#623)', () => {
     expect(anchor.style.transform).toContain('translate3d(390px, 300px, 0)');
   });
 
+  it('returns to its place once the bubble closes', () => {
+    const { anchor, draw, view } = scene();
+    draw();
+    clock = 2000;
+    draw();
+    expect(anchor.style.transform).toContain('426px');
+    view.container.querySelector('.cargo-tag-body')!.className = 'gone';
+    clock = 4000;
+    draw();
+    expect(anchor.style.transform).toContain('translate3d(390px, 300px, 0)');
+  });
+
+  it('keeps clear of the bar and the button stack: never below the foot margin (#621)', () => {
+    const { anchor, draw } = scene({ top: 60, right: 0, bottom: 400, left: 0 });
+    // Below the bubble lies the bar (foot margin 400): the token goes above it, not under the bar.
+    clock = 0;
+    draw();
+    clock = 2000;
+    draw();
+    const y = Number(/390px, ([\d.]+)px/.exec(anchor.style.transform)![1]);
+    expect(y).toBe(254); // the name's top at 232, above the bubble
+  });
+
+  it('still steps over my column from the foot of a phone, on any edge (#376)', () => {
+    const { anchor, view, engine } = scene();
+    view.container.querySelector('.cargo-tag-body')!.className = 'gone';
+    const column = document.createElement('div');
+    column.className = 'label--my-movement';
+    column.innerHTML = '<div class="label-block"></div>';
+    view.container.append(column);
+    COLUMN = { left: 100, top: 790, right: 290, bottom: 830 };
+    act(() =>
+      engine.onEdges([{ id: 'paris', atEdge: true, edgeX: 190, edgeY: 844, distance: 900 }]),
+    );
+    // Above the column (the name's top at 742), not off the foot of the screen.
+    expect(anchor.style.transform).toContain('translate3d(190px, 786px, 0)');
+  });
+
   it('asks for frames when the bubble opens or closes, since the map no longer renders at rest', async () => {
     const { engine, view } = scene();
     engine.invalidate.mockClear();
     view.container.querySelector('.cargo-tag')!.classList.add('cargo-tag--selected');
+    await act(async () => {});
+    expect(engine.invalidate).toHaveBeenCalled();
+  });
+
+  it('asks for frames when a label is pointed, which opens its bubble (`point()` does not)', async () => {
+    const { engine, view } = scene();
+    const label = document.createElement('div');
+    label.className = 'label';
+    view.container.append(label);
+    await act(async () => {});
+    engine.invalidate.mockClear();
+    label.classList.add('label--pointed');
     await act(async () => {});
     expect(engine.invalidate).toHaveBeenCalled();
   });

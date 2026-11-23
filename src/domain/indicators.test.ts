@@ -257,7 +257,15 @@ describe('a destination token sliding along its edge, clear of the bubble', () =
   });
   it('never leaves the screen at a corner', () => {
     const token = { left: 0, top: 0, right: 80, bottom: 44 };
-    expect(clearOfColumns(token, [{ left: 0, top: 0, right: 200, bottom: 80 }], 90, 'y')).toBe(0);
+    expect(clearOfColumns(token, [{ left: 0, top: 0, right: 200, bottom: 80 }], 90, 'y', 0)).toBe(
+      0,
+    );
+  });
+  it('climbs above a column from the foot of the screen, and keeps the margins it is given (#376)', () => {
+    const token = { left: 150, top: 800, right: 230, bottom: 844 };
+    const column = { left: 100, top: 790, right: 290, bottom: 830 };
+    expect(clearOfColumns(token, [column], 844)).toBe(742);
+    expect(clearOfColumns(token, [column], 844, 'y', 760)).toBe(760);
   });
   it('glides toward its place, and lands on it', () => {
     const half = glideToward(0, 100, 80);
