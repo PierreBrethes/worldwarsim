@@ -571,14 +571,9 @@ function BoardContent({
   );
   const endSweep = useCallback(() => setSweep(null), []);
   const [sweepStatus, setSweepStatus] = useState<string | null>(null);
-  const sweepButton = (thumb: boolean) =>
+  const sweepButton = (icon: boolean) =>
     blitz ? null : (
-      <SweepButton
-        species={sweepSpecies}
-        onSweep={launchSweep}
-        status={sweepStatus}
-        thumb={thumb}
-      />
+      <SweepButton species={sweepSpecies} onSweep={launchSweep} status={sweepStatus} icon={icon} />
     );
   /** Les cases cochées du panneau de garnison ouvert — remontées pour la seule mise en avant :
    *  la composition reste au panneau, qui seul la soumet. */
@@ -3885,16 +3880,8 @@ function BoardContent({
                       layers={view.mode !== 'blitz'}
                       onRecenter={recenterOnHome}
                       onCorner={setCorner}
+                      sweep={sweepButton(true)}
                     />
-                  </div>
-                )}
-                {narrow && sent === null && replay === null && !blitz && (
-                  <div
-                    data-poster-floor
-                    className="absolute right-(--table-margin) bottom-(--table-margin) z-[var(--z-indicator)]"
-                    style={{ marginBottom: MAT_LIFT }}
-                  >
-                    {sweepButton(true)}
                   </div>
                 )}
                 {narrow && corner === 'layers' && <LayersSheet onClose={() => setCorner(null)} />}

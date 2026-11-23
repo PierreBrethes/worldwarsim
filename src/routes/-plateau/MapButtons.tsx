@@ -1,5 +1,5 @@
 import { Link, useSearch } from '@tanstack/react-router';
-import { useEffect, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { fr } from '@/i18n/fr';
 import { isTyping } from '@/map/typing';
 import { Glyph, LayersGlyph, SettingsGlyph } from '@/shell/Glyph';
@@ -21,12 +21,15 @@ export function MapButtons({
   layers,
   onRecenter,
   onCorner,
+  sweep = null,
 }: {
   narrow: boolean;
   /** A Blitz has no deposits: nothing for the layers to switch. */
   layers: boolean;
   onRecenter: () => void;
   onCorner: Dispatch<SetStateAction<Corner | null>>;
+  /** « Sonder » en icône, au téléphone (#621) : le dernier de la pile, que le pouce atteint en dernier. */
+  sweep?: ReactNode;
 }) {
   const unread = useUnreadPatchnotes();
   const toggle = (card: Corner) => onCorner((open) => (open === card ? null : card));
@@ -109,6 +112,7 @@ export function MapButtons({
           </span>
         </Link>
       )}
+      {sweep}
     </div>
   );
 }

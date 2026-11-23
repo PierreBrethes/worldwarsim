@@ -11,20 +11,21 @@ const SPECIES: ReadonlyArray<DepositKey> = ['coal', 'iron', 'food', 'oil'];
 /**
  * **« Sonder · espèce »** (#249, maquette `radar-gisements/choisie.html`) : un poussoir de la
  * réglette qui lance l'onde pour la dernière espèce, et son chevron qui ouvre la liste. S relance,
- * 1 à 4 choisissent dans la liste ouverte. Au téléphone, il se tient sous le pouce (`thumb`) et
- * sa liste s'ouvre vers le haut.
+ * 1 à 4 choisissent dans la liste ouverte. Au téléphone (`icon`, #621), il se range au pied des
+ * boutons de carte : l'icône de l'espèce seule, 44 × 44 px, son chevron dans l'angle, et sa liste
+ * s'ouvre vers la droite et le haut. Pas d'appui long : le chevron est la seule entrée de la liste.
  */
 export function SweepButton({
   species,
   onSweep,
   status = null,
-  thumb = false,
+  icon = false,
 }: {
   species: DepositKey;
   onSweep: (species: DepositKey) => void;
   /** What the wave is doing or found, beside the button; nothing when none runs. */
   status?: string | null;
-  thumb?: boolean;
+  icon?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -59,20 +60,82 @@ export function SweepButton({
     return () => removeEventListener('keydown', onKey);
   }, [open, species, onSweep]);
 
-  const height = thumb ? 'h-[52px]' : 'h-[32px]';
-  const paper = thumb
-    ? 'bg-[var(--paper)] shadow-[0_1px_0_var(--ink),0_8px_18px_rgb(0_0_0/45%)]'
-    : '';
+  const menu = (
+    <div
+      role="menu"
+      className={`hud paper-grain absolute z-[var(--z-band)] min-w-[210px] border border-[var(--ink)] py-[4px] shadow-[0_10px_24px_rgb(0_0_0/40%)] ${
+        icon ? 'bottom-[calc(100%+8px)] left-0' : 'top-[calc(100%+6px)] left-0'
+      }`}
+    >
+      <p className="mx-[10px] mt-[2px] mb-[4px] text-[9.5px] font-semibold tracking-[.14em] text-[var(--ink-soft)] uppercase">
+        {fr.sweep.menu}
+      </p>
+      {SPECIES.map((one, rank) => (
+        <button
+          key={one}
+          type="button"
+          role="menuitem"
+          aria-current={one === species}
+          onClick={() => {
+            setOpen(false);
+            onSweep(one);
+          }}
+          className={`flex w-full items-center gap-[9px] px-[10px] ${icon ? 'py-[11px]' : 'py-[7px]'} text-[14px] font-medium hover:bg-(color:--ink)/8 ${one === species ? 'bg-(color:--ink)/8' : ''}`}
+        >
+          <ResourcePlate resource={YIELD_OF[one]} height={18} boxed={false} />
+          <span>
+            {fr.sweep.species(one)}
+            {one === species && (
+              <span className="text-[12px] text-[var(--ink-soft)]"> · {fr.sweep.last}</span>
+            )}
+          </span>
+          {!icon && <Key className="ml-auto">{rank + 1}</Key>}
+        </button>
+      ))}
+    </div>
+  );
+  if (icon) {
+    return (
+      <div ref={root} className="relative flex items-center">
+        <div className="relative h-[44px] w-[44px] shrink-0">
+          <button
+            type="button"
+            title={fr.sweep.launch(species)}
+            aria-label={fr.sweep.launch(species)}
+            onClick={() => {
+              setOpen(false);
+              onSweep(species);
+            }}
+            className="press paper-grain paper-hover float flex h-[44px] w-[44px] cursor-pointer items-center justify-center border border-[var(--ink)]"
+          >
+            <ResourcePlate resource={YIELD_OF[species]} height={24} boxed={false} />
+          </button>
+          <button
+            type="button"
+            title={fr.sweep.choose}
+            aria-label={fr.sweep.choose}
+            aria-expanded={open}
+            aria-haspopup="menu"
+            onClick={() => setOpen((was) => !was)}
+            className={`absolute right-0 bottom-0 h-[20px] w-[20px] cursor-pointer text-[11px] leading-none font-semibold ${open ? 'bg-[var(--ink)] text-[var(--paper)]' : ''}`}
+          >
+            ▾
+          </button>
+        </div>
+        {status !== null && (
+          <span
+            role="status"
+            className="ml-[8px] border border-(color:--ink)/40 bg-[rgb(233_222_196/94%)] px-[7px] py-[3px] text-[12px] font-medium whitespace-nowrap text-[var(--ink-soft)]"
+          >
+            {status}
+          </span>
+        )}
+        {open && menu}
+      </div>
+    );
+  }
   return (
     <div ref={root} className="relative flex items-center">
-      {thumb && status !== null && (
-        <span
-          role="status"
-          className="mr-[8px] border border-(color:--ink)/40 bg-[rgb(233_222_196/94%)] px-[7px] py-[3px] text-[12px] font-medium whitespace-nowrap text-[var(--ink-soft)]"
-        >
-          {status}
-        </span>
-      )}
       <button
         type="button"
         title={fr.sweep.launch(species)}
@@ -81,14 +144,14 @@ export function SweepButton({
           setOpen(false);
           onSweep(species);
         }}
-        className={`flex ${height} items-center gap-[7px] border border-[var(--ink)] px-[9px] text-[12px] font-semibold tracking-[.06em] uppercase hover:bg-(color:--ink)/8 ${paper} ${thumb ? 'px-[14px]' : ''}`}
+        className="flex h-[32px] items-center gap-[7px] border border-[var(--ink)] px-[9px] text-[12px] font-semibold tracking-[.06em] uppercase hover:bg-(color:--ink)/8"
       >
         <ResourcePlate resource={YIELD_OF[species]} height={18} boxed={false} />
         {fr.sweep.button}
         <b className="font-(family-name:--font-display) text-[13px] font-semibold tracking-normal normal-case italic">
           {fr.deposits[species]}
         </b>
-        {!thumb && <Key>S</Key>}
+        <Key>S</Key>
       </button>
       <button
         type="button"
@@ -97,11 +160,11 @@ export function SweepButton({
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => setOpen((was) => !was)}
-        className={`${height} border border-l-0 border-[var(--ink)] ${thumb ? 'w-[36px] text-[16px]' : 'w-[24px] text-[11px]'} font-semibold ${open ? 'bg-[var(--ink)] text-[var(--paper)]' : paper}`}
+        className={`h-[32px] w-[24px] border border-l-0 border-[var(--ink)] text-[11px] font-semibold ${open ? 'bg-[var(--ink)] text-[var(--paper)]' : ''}`}
       >
         ▾
       </button>
-      {!thumb && status !== null && (
+      {status !== null && (
         <span
           role="status"
           className="ml-[8px] text-[12px] font-medium whitespace-nowrap text-[var(--ink-soft)]"
@@ -109,40 +172,7 @@ export function SweepButton({
           {status}
         </span>
       )}
-      {open && (
-        <div
-          role="menu"
-          className={`hud paper-grain absolute z-[var(--z-band)] min-w-[210px] border border-[var(--ink)] py-[4px] shadow-[0_10px_24px_rgb(0_0_0/40%)] ${
-            thumb ? 'right-0 bottom-[calc(100%+8px)]' : 'top-[calc(100%+6px)] left-0'
-          }`}
-        >
-          <p className="mx-[10px] mt-[2px] mb-[4px] text-[9.5px] font-semibold tracking-[.14em] text-[var(--ink-soft)] uppercase">
-            {fr.sweep.menu}
-          </p>
-          {SPECIES.map((one, rank) => (
-            <button
-              key={one}
-              type="button"
-              role="menuitem"
-              aria-current={one === species}
-              onClick={() => {
-                setOpen(false);
-                onSweep(one);
-              }}
-              className={`flex w-full items-center gap-[9px] px-[10px] ${thumb ? 'py-[11px]' : 'py-[7px]'} text-[14px] font-medium hover:bg-(color:--ink)/8 ${one === species ? 'bg-(color:--ink)/8' : ''}`}
-            >
-              <ResourcePlate resource={YIELD_OF[one]} height={18} boxed={false} />
-              <span>
-                {fr.sweep.species(one)}
-                {one === species && (
-                  <span className="text-[12px] text-[var(--ink-soft)]"> · {fr.sweep.last}</span>
-                )}
-              </span>
-              {!thumb && <Key className="ml-auto">{rank + 1}</Key>}
-            </button>
-          ))}
-        </div>
-      )}
+      {open && menu}
     </div>
   );
 }

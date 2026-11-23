@@ -51,4 +51,19 @@ describe('SweepButton', () => {
     fireEvent.pointerDown(screen.getByRole('menu'));
     expect(screen.getByRole('menu')).not.toBeNull();
   });
+
+  it('as an icon, is one 44 px square: a touch sweeps, the chevron opens the list to the right and up (#621)', () => {
+    const onSweep = vi.fn();
+    render(<SweepButton species="iron" onSweep={onSweep} status="Onde en route" icon />);
+    const launch = screen.getByTitle(fr.sweep.launch('iron'));
+    expect(launch.className).toContain('h-[44px] w-[44px]');
+    expect(launch.textContent).not.toContain(fr.sweep.button);
+    fireEvent.click(launch);
+    expect(onSweep).toHaveBeenLastCalledWith('iron');
+    expect(screen.getByRole('status').textContent).toBe('Onde en route');
+    fireEvent.click(screen.getByLabelText(fr.sweep.choose));
+    expect(screen.getByRole('menu').className).toMatch(/left-0.*bottom-|bottom-.*left-0/);
+    fireEvent.click(screen.getAllByRole('menuitem')[0]!);
+    expect(onSweep).toHaveBeenLastCalledWith('coal');
+  });
 });
