@@ -4,8 +4,8 @@ import { NATIONS, type Nation } from './ids';
 import { STRATEGIC_POINTS, type StrategicPointKey } from './strategic-points';
 
 /** @a-mesurer placeholders for the lobby sheet, not game rules. */
-export const NEIGHBOR_REACH_KM = 3500;
-export const NEAR_POINT_REACH_KM = 3000;
+const NEIGHBOR_REACH_KM = 3500;
+const NEAR_POINT_REACH_KM = 3000;
 const MAX_NEIGHBORS = 3;
 const MAX_NEAR_POINTS = 2;
 

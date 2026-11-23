@@ -29,6 +29,10 @@ import { reassessDetection } from './movement/detection';
 import { modeOf } from '../src/domain/season-mode';
 import { restampChanged, type Heaps } from './heaps';
 
+/** **Le tirage d'une saison**, lu de sa graine : le lancement le pose, le salon le montre, par ce
+ *  seul appel (la graine ne sort jamais du serveur). */
+export const drawnOf = (season: Doc<'seasons'> | null) => drawPoints(season?.seed ?? 0);
+
 /**
  * **Les sept, tirés par la graine de la saison et posés neutres au lancement d'une Mondiale**
  * (P11), et annoncés à toute la table — la une des Sept au jour 0. Chacun sur la région de son
@@ -36,7 +40,7 @@ import { restampChanged, type Heaps } from './heaps';
  */
 export async function layOut(ctx: MutationCtx, seasonId: Id<'seasons'>, at: number): Promise<void> {
   const season = await ctx.db.get(seasonId);
-  const drawn = drawPoints(season?.seed ?? 0);
+  const drawn = drawnOf(season);
   for (const seat of await seatsOf(ctx, seasonId)) {
     await ctx.db.insert('notices', {
       playerId: seat._id,
