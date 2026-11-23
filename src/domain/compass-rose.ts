@@ -13,7 +13,7 @@ import {
 } from './movement-orders';
 import { onTourRefusalOf } from './logistics';
 import { patrolRefusalIn } from './patrol';
-import { carriesSurveyedInstallation } from './objectives';
+import { carriesSurveyedInstallation, objectiveSpentIn } from './objectives';
 import { stationKeyOf } from './troops';
 import { type LonLat } from './geo';
 import type { Ground } from './routing';
@@ -773,6 +773,7 @@ function aim(
         lon: target.point[0],
         lat: target.point[1],
         hostCountry: target.country ?? '',
+        spent: objectiveSpentIn(view.objectives, target.id),
       },
     ]);
   }

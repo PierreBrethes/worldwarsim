@@ -510,6 +510,60 @@ describe('the neutral objectives', () => {
       ).rejects.toThrow(ConvexError);
     }, 60_000);
 
+    /** **Un objectif épuisé ne s'attaque plus** : la fiche n'offre rien, le serveur dit pourquoi. */
+    it('refuses an order against an objective already emptied', async () => {
+      const t = boot();
+      const seats = await launchedSeason(t, ['france', 'ussr']);
+      const objectiveId = await plantObjective(t, seats[0]!, 'abandonedStores', HAINAUT);
+      await placeHq(t, seats[0]!);
+      const barracks = await raise(t, seats[0]!, 'barracks', MARNE);
+      const column = [await form(t, seats[0]!, 'infantry', barracks)];
+      await t.run((ctx) => ctx.db.patch(objectiveId, { status: 'taken', takenAt: 1 }));
+
+      const refused = await t
+        .mutation(api.movements.attack, {
+          ...seats[0]!,
+          origin: { kind: 'building', buildingId: barracks },
+          troopIds: column,
+          target: { kind: 'objective', objectiveId },
+        })
+        .catch((error: unknown) => error);
+      expect(refused).toBeInstanceOf(ConvexError);
+      expect((refused as ConvexError<{ code: string }>).data.code).toBe('OBJECTIVE_SPENT');
+    }, 60_000);
+
+    /** **Une colonne déjà en route** trouve l'objectif pris entre-temps : l'arrivée relit le
+     *  dépôt, n'emporte rien et n'annonce pas une seconde prise. */
+    it('lets a column already marching arrive on an objective taken meanwhile, and take nothing', async () => {
+      const t = boot();
+      const seats = await launchedSeason(t, ['france', 'ussr']);
+      const objectiveId = await plantObjective(t, seats[0]!, 'abandonedStores', HAINAUT);
+      await placeHq(t, seats[0]!);
+      const barracks = await raise(t, seats[0]!, 'barracks', MARNE);
+      const column: Array<Id<'troops'>> = [];
+      for (let rank = 0; rank < 8; rank += 1) {
+        column.push(await form(t, seats[0]!, 'infantry', barracks));
+      }
+      await t.mutation(api.movements.attack, {
+        ...seats[0]!,
+        origin: { kind: 'building', buildingId: barracks },
+        troopIds: column,
+        target: { kind: 'objective', objectiveId },
+      });
+      await t.run(async (ctx) => {
+        const emptied = { ...(await ctx.db.get(objectiveId))!.depot };
+        for (const key of RESOURCES) emptied[key] = 0;
+        await ctx.db.patch(objectiveId, { depot: emptied, status: 'taken', takenAt: 1 });
+      });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+      const objective = (await t.run((ctx) => ctx.db.get(objectiveId)))!;
+      expect(objective.takenAt).toBe(1);
+      for (const seat of seats) {
+        expect(await noticesOf(t, seat, 'objectiveTaken')).toHaveLength(0);
+      }
+    }, 60_000);
+
     /**
      * **Réduire, puis emporter.** Le dépôt ne part que si la garnison ne tient plus rien debout —
      * c'est la règle du combat telle qu'elle existe (ADR 0014, `winnerOf` : *dégager le terrain,
