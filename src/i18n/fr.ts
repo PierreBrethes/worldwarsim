@@ -694,6 +694,8 @@ export const fr = {
       done: (got: number) => `Comptoir de Tanger : ${got} reçus.`,
     },
     contested: 'contesté — une capture est en cours',
+    /** Une règle vraie en tout temps, jamais un état : la force ne se lit que par relevé. */
+    guarded: 'Gardé au lancement par une garnison locale.',
     how: 'Il se prend comme un bâtiment : une infanterie le tient six heures. Son teneur le garde sans garnison.',
     needsAColumn: 'Levez une colonne d’infanterie, puis visez le point pour le capturer.',
     race: {

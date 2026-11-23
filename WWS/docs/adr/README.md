@@ -50,3 +50,4 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0040](0040-l-edition-finale-survit-a-sa-saison.md) | L'édition finale survit à sa saison | acceptée (05/11) — déroge à 0001 pour l'édition finale d'une Mondiale |
 | [0041](0041-la-recolte-se-rapporte.md) | La récolte se rapporte : un tas par exploitation, ramassé en tournée | acceptée (12/11) — révise 0028 §4 ; Mondiale seule |
 | [0042](0042-des-bots-faciles-en-local.md) | Des bots faciles, en local, par la porte d'un joueur | acceptée (21/11) — révise 0027 (aucun bot en Mondiale) ; local seulement |
+| [0043](0043-un-point-neutre-est-garde.md) | Un point stratégique neutre est gardé par une garnison locale | acceptée (23/11) — amende 0027 §4 ; précise 0019 §3 ; Mondiale seule |

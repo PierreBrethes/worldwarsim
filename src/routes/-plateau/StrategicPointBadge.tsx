@@ -100,6 +100,11 @@ export function StrategicPointBadge({
       <p className="mt-[6px] text-[11.5px] leading-[1.4] text-[var(--ink)] italic">{rule}</p>
       {mine && point.key === 'istanbul' && <Listen seat={seat} nations={nations} />}
       {mine && point.key === 'tangier' && <Trade seat={seat} />}
+      {point.holder === null && (
+        <p className="mt-[6px] text-[11.5px] leading-[1.4] text-[var(--ink)]">
+          {fr.points.guarded}
+        </p>
+      )}
       <p className="mt-[6px] text-[10.5px] leading-[1.4] text-[var(--ink-quiet)]">
         {fr.points.how}
       </p>
