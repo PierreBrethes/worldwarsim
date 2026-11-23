@@ -561,7 +561,10 @@ describe('dev.backfillOutpostServing', () => {
       return { near: await outpost(26), far: await outpost(40), served };
     });
 
-    expect(await t.mutation(internal.dev.backfillOutpostServing, {})).toEqual({ seasons: 1 });
+    expect(await t.mutation(internal.dev.backfillOutpostServing, {})).toEqual({
+      seasons: 1,
+      more: false,
+    });
     vi.runOnlyPendingTimers();
     await t.finishInProgressScheduledFunctions();
 
