@@ -39,7 +39,7 @@ const delivery = (minutes: number, text: string, unread = false): JournalDispatc
   place: { lon: 2, lat: 48 },
 });
 
-const mount = (journal: JournalDispatch[]) => {
+const tree = (journal: JournalDispatch[]) => {
   const view = {
     journal,
     mode: 'mondiale',
@@ -47,7 +47,7 @@ const mount = (journal: JournalDispatch[]) => {
     me: { slots: { used: 0, total: 2 } },
   } as unknown as PlayerView;
   const client = { mutation: async () => null } as unknown as ConvexReactClient;
-  render(
+  return (
     <ConvexProvider client={client}>
       <JournalWindow
         view={view}
@@ -64,8 +64,13 @@ const mount = (journal: JournalDispatch[]) => {
         inFront
         onBringForward={() => {}}
       />
-    </ConvexProvider>,
+    </ConvexProvider>
   );
+};
+
+const mount = (journal: JournalDispatch[]) => {
+  const { rerender } = render(tree(journal));
+  return (next: JournalDispatch[]) => rerender(tree(next));
 };
 
 const TEXTS = ['Livraison trois.', 'Livraison deux.', 'Livraison une.'];
@@ -101,4 +106,29 @@ it('déplie la liasse de la dépêche ouverte, et la surligne, quand ‹ › y e
   expect(document.querySelector('[aria-current="true"]')?.textContent).toContain(
     'Livraison trois.',
   );
+});
+
+it('garde dépliée une liasse quand une dépêche neuve arrive en tête', () => {
+  const journal = TEXTS.map((text, rank) => delivery(11 + rank * 5, text));
+  const update = mount(journal);
+  fireEvent.click(screen.getByRole('button', { expanded: false }));
+
+  update([delivery(1, 'Livraison neuve.'), ...journal]);
+
+  expect(screen.getByRole('button', { expanded: true }).textContent).toContain('× 4');
+  expect(screen.getAllByText(/Livraison/)).toHaveLength(5);
+});
+
+it('ne garde dans la liasse que les lignes non lues quand « non lues » filtre', () => {
+  mount([
+    delivery(1, 'Livraison neuve.', true),
+    delivery(6, 'Livraison lue.'),
+    delivery(11, 'Livraison encore neuve.', true),
+  ]);
+  fireEvent.click(screen.getByRole('radio', { name: new RegExp(fr.journal.filters.unread) }));
+
+  const bundle = screen.getByRole('button', { expanded: false });
+  expect(bundle.textContent).toContain('× 2');
+  fireEvent.click(bundle);
+  expect(screen.queryByText('Livraison lue.')).toBeNull();
 });
