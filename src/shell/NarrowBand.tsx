@@ -2,7 +2,7 @@ import { useState, type ReactNode, type Ref } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useSearch } from '@tanstack/react-router';
 import { fr, nationLabel } from '@/i18n/fr';
-import { CATEGORIES } from '@/domain/indicators';
+import { LAYERS } from '@/domain/indicators';
 import { slotCardsOf } from '@/domain/research';
 import { halifaxNoteOf } from '@/domain/movement-orders';
 import { seasonDayOf, type PlayerView } from '@/domain/player-view';
@@ -207,8 +207,8 @@ function NationDossier({
               icon={<LayersGlyph size={24} />}
               title={fr.dossier.layers}
               note={fr.dossier.layersNote(
-                CATEGORIES.filter((category) => toggles[category]).length,
-                CATEGORIES.length,
+                LAYERS.filter((layer) => toggles[layer]).length,
+                LAYERS.length,
               )}
             />
           </button>

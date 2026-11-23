@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { MapLabel } from './labels';
 import {
   clearOfColumns,
-  CATEGORIES,
   CATEGORY_BY_TYPE,
   DEFAULT_TOGGLES,
+  layerOf,
   EDGE_MARGIN,
   alertMark,
   clampToEdge,
@@ -56,16 +56,14 @@ const label = (override: Partial<MapLabel>): MapLabel => ({
 });
 
 describe('toggles', () => {
-  // Buildings, deposits and outposts sit apart: their bascules govern the board itself, so
-  // lighting them costs the edge nothing, and hiding them would cost the player his own
-  // economy, the only map of where he may put one, and the points his spent columns hold.
-  it('only lights what the player owns on the ground, plus inbound, on first load', () => {
+  // Buildings, deposits, objectives and the outposts zones govern the board itself; inbound is
+  // the only alert. Everything else only parks at the edge, under one « hors champ » bascule.
+  it('lights the board layers and inbound on first load, not the rest of the edge', () => {
     expect(Object.entries(DEFAULT_TOGGLES).filter(([, on]) => on)).toEqual([
       ['buildings', true],
       ['deposits', true],
-      ['outposts', true],
-      ['outpost-zones', true],
       ['objectives', true],
+      ['outpost-zones', true],
       ['inbound', true],
     ]);
   });
@@ -76,10 +74,13 @@ describe('toggles', () => {
     expect(CATEGORY_BY_TYPE.installation).toBe('intel');
   });
 
-  it('folds a label of every category to the edge, but the outposts zones that no label carries', () => {
-    expect(new Set(Object.values(CATEGORY_BY_TYPE))).toEqual(
-      new Set(CATEGORIES.filter((category) => category !== 'outpost-zones')),
+  it('puts every edge category that changes nothing on the board under « hors champ »', () => {
+    const offscreen = Object.values(CATEGORY_BY_TYPE).filter((c) => layerOf(c) === 'offscreen');
+    expect(new Set(offscreen)).toEqual(
+      new Set(['outposts', 'constructions', 'forces', 'my-movements', 'intel']),
     );
+    expect(layerOf('buildings')).toBe('buildings');
+    expect(layerOf('inbound')).toBe('inbound');
   });
 });
 

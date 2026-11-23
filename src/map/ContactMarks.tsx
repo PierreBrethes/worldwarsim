@@ -38,7 +38,7 @@ export function ContactMarks({
 }: {
   contacts: ReadonlyArray<Contact>;
   engine: MapEngine | null;
-  /** The intel toggle: what folds a contact to the edge. */
+  /** The « hors champ » layer: what folds a contact to the edge. */
   intel: boolean;
   /** My nation's ink, for the cartouche's dot of mine. */
   ink: string | null;

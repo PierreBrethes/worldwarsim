@@ -2438,17 +2438,15 @@ export const fr = {
     whole: 'vigie au rayon entier',
   },
 
-  indicatorCategories: {
+  /** Les calques de la carte (#604) : « hors champ » allume ensemble les jetons au bord de
+   *  l'écran qui ne changent rien sur la carte. */
+  layers: {
     buildings: 'bâtiments',
     deposits: 'gisements',
-    outposts: 'avant-postes',
-    'outpost-zones': 'zones et liaisons des avant-postes',
     objectives: 'objectifs neutres',
-    constructions: 'chantiers',
-    forces: 'forces',
-    'my-movements': 'mes mouvements',
+    'outpost-zones': 'zones et liaisons des avant-postes',
     inbound: 'cap sur moi',
-    intel: 'renseignement',
+    offscreen: 'hors champ',
   },
 
   edgeIndicators: {

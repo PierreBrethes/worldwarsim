@@ -4,33 +4,24 @@ import { boxesOverlap, type ScreenBox } from './label-groups';
 /**
  * An off-screen entity does not vanish: it parks at the screen edge. The categories are the
  * label types' (`CATEGORY_BY_TYPE`) — an indicator invents nothing, it folds to the edge what the
- * map was showing on the ground, same pictogram, same priority — and one layer that no label
- * carries: `outpost-zones`, the reaches and liaisons of my outposts drawn on the ground (ADR 0037
- * §9), which has nothing to fold to an edge.
+ * map was showing on the ground, same pictogram, same priority.
  *
  * `buildings` are what stands, `constructions` what is being raised: two states of the same
  * object, but one is an economy read on the map and the other a duration to watch. Merging
  * them would light a crane over an arsenal finished three seasons ago.
  *
- * `deposits` are neither: what the ground holds, whether or not anything works it. They ride
- * the same bascule idiom because they answer the same question — *what is on this region* —
- * and they must stay separable from it, since a player looks for a deposit precisely when he
- * has not built there yet.
+ * `deposits` are neither: what the ground holds, whether or not anything works it.
  */
-export type IndicatorCategory =
+export type EdgeCategory =
   | 'buildings'
   | 'deposits'
   | 'outposts'
-  | 'outpost-zones'
   | 'objectives'
   | 'constructions'
   | 'forces'
   | 'my-movements'
   | 'inbound'
   | 'intel';
-
-/** What folds to an edge: every layer a label carries. */
-export type EdgeCategory = Exclude<IndicatorCategory, 'outpost-zones'>;
 
 /** Private loot stays on the board only; it does not create a new global edge inventory. */
 export const CATEGORY_BY_TYPE: Readonly<Partial<Record<LabelType, EdgeCategory>>> = {
@@ -51,55 +42,55 @@ export const CATEGORY_BY_TYPE: Readonly<Partial<Record<LabelType, EdgeCategory>>
   intel: 'intel',
 };
 
-export type IndicatorToggles = Readonly<Record<IndicatorCategory, boolean>>;
+/**
+ * **The map's layers** (#604): a bascule earns its own case only if it changes the board, or if
+ * it is the alert. `buildings`, `deposits` and `objectives` decide whether their marks stand on
+ * the board at all, `outpost-zones` draws my outposts' reaches and liaisons (ADR 0037 §9), and
+ * `inbound` is what is coming at me. Every other category only parks at the edge: one bascule,
+ * `offscreen`, so that a case never toggles without the screen answering.
+ */
+export type Layer =
+  'buildings' | 'deposits' | 'objectives' | 'outpost-zones' | 'inbound' | 'offscreen';
+
+export const LAYERS: ReadonlyArray<Layer> = [
+  'buildings',
+  'deposits',
+  'objectives',
+  'outpost-zones',
+  'inbound',
+  'offscreen',
+];
+
+export type IndicatorToggles = Readonly<Record<Layer, boolean>>;
+
+export function layerOf(category: EdgeCategory): Layer {
+  switch (category) {
+    case 'buildings':
+    case 'deposits':
+    case 'objectives':
+    case 'inbound':
+      return category;
+    default:
+      return 'offscreen';
+  }
+}
 
 /**
  * The screen edge opens on a single alert category: what is coming at me. Turning everything
  * on by default would make the border a second dashboard, and red would no longer mean
- * anything — this is the only default that keeps the alert's value as an alert.
+ * anything — so `offscreen` starts folded.
  *
- * `buildings` is the exception, and it is not one of degree: the bascule does not only fold
- * the building to the edge, it decides whether the plate stands on the board at all. Off by
- * default, the player's own economy would be invisible until he found the button.
- *
- * `deposits` is on for the same reason and a sharper one: it is the layer that answers "where
- * do I put a mine", and the fallback for a player who never finds the button is to right-click
- * a hundred regions one by one. Counted on `public/deposits.json`, a playable nation holds
- * nine to seventeen of them — the layer is thin enough that showing it costs nothing to read.
- *
- * `outposts` joins them for exactly the argument written above, and the layer is thinner still:
- * a point is a column already spent, and its garrison has **no other address on the board**.
- * Folded by default, founding one reads as nothing having happened at all.
+ * The board layers start lit: off, the player's own economy, the only map of where he may put
+ * a mine, and the reserves a dispatch announces would be invisible until he found the button.
  */
 export const DEFAULT_TOGGLES: IndicatorToggles = {
   buildings: true,
   deposits: true,
-  outposts: true,
-  /** Allumé par défaut, indépendant du calque des mâts (#375) : le réseau est ce qui dit où un
-   *  point de plus prolonge l'accélération. */
-  'outpost-zones': true,
-  /** Allumée pour la même raison que les avant-postes : une réserve annoncée par dépêche qui ne
-   *  se tient nulle part sur la carte ne ferait converger personne. */
   objectives: true,
-  constructions: false,
-  forces: false,
-  'my-movements': false,
+  'outpost-zones': true,
   inbound: true,
-  intel: false,
+  offscreen: false,
 };
-
-export const CATEGORIES: ReadonlyArray<IndicatorCategory> = [
-  'buildings',
-  'deposits',
-  'outposts',
-  'outpost-zones',
-  'objectives',
-  'constructions',
-  'forces',
-  'my-movements',
-  'inbound',
-  'intel',
-];
 
 /**
  * The inner margin: the indicator sits inside the screen, never astride its edge. The badge

@@ -12,6 +12,7 @@ import {
   clearOfColumns,
   cluster,
   idleConstruction,
+  layerOf,
   sideOf,
   strongestMark,
   type IndicatorToggles,
@@ -74,7 +75,7 @@ export function EdgeIndicators({
         labels
           .filter((label) => {
             const category = CATEGORY_BY_TYPE[label.type];
-            return category !== undefined && toggles[category];
+            return category !== undefined && toggles[layerOf(category)];
           })
           .map((label) => [label.id, label] as const),
       ),
