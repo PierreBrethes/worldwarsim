@@ -7,7 +7,16 @@ import { decideTurn, worldFrom, type BotOrder } from '../src/domain/bot';
 import { adaptServerView } from '../src/data/serverView';
 import schema from './schema';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, unclocked, type Seat } from './seats.fixture';
+import {
+  foundSeat,
+  joinSeat,
+  neutralPoint,
+  placeHq,
+  seatIn,
+  unclocked,
+  type Seat,
+} from './seats.fixture';
+import { BOT_POINT_COLUMN } from '../src/domain/bot';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
 
@@ -45,6 +54,13 @@ async function submit(t: Bench, seat: Seat, order: BotOrder): Promise<unknown> {
         origin: originOf(order.args.origin),
         troopIds: ids(order.args.troopIds),
         target: { kind: 'camp', campId: order.args.target.campId as Id<'campSightings'> },
+      });
+    case 'movements.capture':
+      return t.mutation(api.movements.capture, {
+        ...seat,
+        origin: originOf(order.args.origin),
+        troopIds: ids(order.args.troopIds),
+        target: { kind: 'point', pointId: order.args.target.pointId as Id<'strategicPoints'> },
       });
     case 'movements.marchTo':
       return t.mutation(api.movements.marchTo, {
@@ -158,4 +174,55 @@ describe("un bot joue son ouverture par la porte d'un joueur", () => {
       expect(workshop.troopsInService + workshop.troopsQueued).toBeGreaterThan(1);
     }
   }, 30_000);
+});
+
+describe("un bot prend un point neutre par la porte d'un joueur", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('envoie sa colonne du QG sur Lisbonne et le serveur accepte la capture', async () => {
+    const t = boot();
+    const { seat: bot, code } = await foundSeat(t, 'Bot1', 0.5);
+    const idle = await joinSeat(t, code, 'Bot2');
+    await t.mutation(api.players.reserveNation, { ...bot, nation: 'france' });
+    await t.mutation(api.players.declareReady, { ...bot, ready: true });
+    await t.mutation(api.players.reserveNation, { ...idle, nation: 'ussr' });
+    await t.mutation(api.players.declareReady, { ...idle, ready: true });
+    await t.mutation(api.seasons.launch, bot);
+    await unclocked(t);
+    await placeHq(t, bot);
+    const player = await t.run((ctx) => seatIn(ctx, bot));
+    await t.run(async (ctx) => neutralPoint(ctx, player.seasonId, 'lisbon'));
+    const hq = await t.run(async (ctx) =>
+      (await ctx.db.query('buildings').collect()).find(
+        (building) => building.playerId === player._id && building.key === 'hq',
+      ),
+    );
+    await t.run(async (ctx) => {
+      for (let rank = 0; rank < BOT_POINT_COLUMN; rank += 1)
+        await ctx.db.insert('troops', {
+          seasonId: player.seasonId,
+          playerId: player._id,
+          role: 'infantry',
+          tier: 1,
+          nominalStrength: 50,
+          currentStrength: 50,
+          stationedAt: hq!._id,
+        });
+    });
+
+    const refused: string[] = [];
+    const played: string[] = [];
+    // Le socle et le QG passent d'abord (leurs envies sont plus fortes, deux ordres par passage).
+    for (let i = 0; i < 6 && !played.includes('movements.capture'); i++) {
+      await pass(t, bot, refused, played);
+      vi.advanceTimersByTime(HOUR);
+      await t.finishInProgressScheduledFunctions();
+    }
+    expect(refused).toEqual([]);
+    expect(played).toContain('movements.capture');
+  });
 });

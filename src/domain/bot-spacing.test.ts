@@ -26,6 +26,7 @@ describe('le socle du bot', () => {
       loadedAt: 0,
       arcs: [],
       camps: [],
+      strategicPoints: [],
       buildCatalog: catalog,
       surveyedInstallations: [],
       me: {
