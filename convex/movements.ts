@@ -110,6 +110,7 @@ import { blitzTheatreOf } from './movement/theatre';
 import { bombard as bombardFrom } from './movement/bombard';
 import { firesIndirect } from '../src/domain/indirect-fire';
 import { arriveForCapture } from './captures';
+import { notifyYourMove } from './notifications';
 import { changeCourse as steer, plotCourse } from './movement/course';
 import {
   chainSecondTarget,
@@ -297,6 +298,7 @@ export const marchTo = mutation({
       troopIds,
       boardsOn,
       aim: await aimOf(ctx, player._id, { kind: 'point', point }),
+      slowedByHunger: true,
     });
   },
 });
@@ -473,6 +475,7 @@ export const enterGarrison = mutation({
       troopIds,
       boardsOn,
       aim: await aimOf(ctx, player._id, { kind: 'building', buildingId }),
+      slowedByHunger: true,
     });
   },
 });
@@ -505,6 +508,7 @@ export const enterOutpost = mutation({
       troopIds,
       boardsOn,
       aim: await aimOf(ctx, player._id, { kind: 'outpost', outpostId }),
+      slowedByHunger: true,
     });
   },
 });
@@ -553,6 +557,7 @@ export const attack = mutation({
       troopIds,
       aim: aimed,
       ...(hunted === null ? {} : { pursuit: { troopId: hunted.troopId } }),
+      slowedByHunger: then === undefined,
     });
     /** Pesée sur la colonne partie, sa première jambe payée : un refus défait tout l'ordre. */
     if (then !== undefined)
@@ -600,6 +605,7 @@ export const raid = mutation({
       origin,
       troopIds,
       aim: await aimOf(ctx, player._id, { kind: 'outpost', outpostId }),
+      slowedByHunger: true,
     });
   },
 });
@@ -735,6 +741,7 @@ export const capture = mutation({
       troopIds,
       aim: await captureAimOf(ctx, player, target),
       capture: target,
+      slowedByHunger: true,
     });
   },
 });
@@ -777,8 +784,13 @@ export const preview = query({
     roundTrip: v.optional(v.boolean()),
     /** **La seconde cible d'une Guerre éclair** (ADR 0039 §6) : sa jambe, ou son refus. */
     then: v.optional(ATTACK_TARGET),
+    /** **Une livraison** (ADR 0044) : le serveur ne la ralentit pas, l'aperçu non plus. */
+    delivery: v.optional(v.boolean()),
   },
-  handler: async (ctx, { token, seasonId, origin, troopIds, target, type, roundTrip, then }) => {
+  handler: async (
+    ctx,
+    { token, seasonId, origin, troopIds, target, type, roundTrip, then, delivery },
+  ) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     if (namesATroopTwice(troopIds)) return null;
     const departure = await departureOf(ctx, player._id, origin);
@@ -806,7 +818,11 @@ export const preview = query({
     );
     if (route === null) return null;
 
-    const minutes = await pacedMinutes(ctx, player._id, route, now);
+    /** **Au pas** (ADR 0044) : la même lecture que le départ, hors largage, livraison et Guerre
+     *  éclair. */
+    const slow =
+      column.starving === true && roundTrip !== true && then === undefined && delivery !== true;
+    const minutes = await pacedMinutes(ctx, player._id, route, now, false, slow);
     const arrivesAt = now + minutes * 60_000;
     const chained = chainRefusalOf(
       assetOf(player.nation ?? null, modeOf(season.mode)),
@@ -815,6 +831,7 @@ export const preview = query({
     );
     return {
       minutes,
+      slow,
       arrivesAt,
       relayed: relayedMinutes(route, minutes, column),
       holdUntil: await restHold(ctx, player._id, host, arrivesAt),
@@ -1349,6 +1366,9 @@ export const arrive = internalMutation({
     }
 
     if (!pressing) await forgetMovement(ctx, movementId);
+    /** **« À vous »** (ADR 0045) : le slot revient. Les étapes de tournée et de ronde, les
+     *  largages et les livraisons sont partis plus haut : ils ne passent pas ici. */
+    if (!pressing) await notifyYourMove(ctx, movement.playerId, now);
     /** **Arrivée à l'ancre, elle se recharge** (ADR 0028 §3) : la pièce dit ses crans pleins dès
      *  qu'elle est posée, et non au prochain ordre. Une colonne repartie chez elle roule encore. */
     const landed = await troopsAmong(ctx, movement.playerId, movement.troopIds);

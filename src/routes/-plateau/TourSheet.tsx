@@ -332,6 +332,10 @@ function SheetBody({ sheet }: { sheet: TourSheetState }) {
           <dd>{text.peak(loop.peak, capacity)}</dd>
           <dt>{text.bankedLabel}</dt>
           <dd>{bankedSaid === '' ? text.banksNothing : bankedSaid}</dd>
+          <dt>{text.slotLabel}</dt>
+          <dd data-slot={analysis.slot ? 'held' : 'free'}>
+            {analysis.slot ? text.slotHeld : text.slotFree}
+          </dd>
         </dl>
       </footer>
       <div className="tour-btns">

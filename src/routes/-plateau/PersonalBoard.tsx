@@ -351,6 +351,8 @@ export function PersonalBoard({
     held === null &&
     placing === null &&
     (narrow ? stageUp && !collapsed : !research && folded);
+  /** Au téléphone, étage replié : le conseil se lit sur la ligne de titre, que la bulle ne peut plus poser (#621). */
+  const titleCued = front && held === null && placing === null && stageUp && collapsed;
 
   /** La poignée du bureau : le titre de la bande, qui la bascule. */
   const handle = (
@@ -449,7 +451,12 @@ export function PersonalBoard({
             title={fr.personalBoard.header}
             aside={
               <span className="min-w-0 truncate text-[11px] leading-[1.2] text-[var(--ink-soft)]">
-                <WorkLine view={view} now={now} />
+                {/* Replié, le conseil du moment prend la ligne : la bulle n'a plus d'étage où se poser (#621). */}
+                {titleCued && rackCue !== null ? (
+                  <b className="font-semibold text-[var(--ink)]">{rackCue.text}</b>
+                ) : (
+                  <WorkLine view={view} now={now} />
+                )}
               </span>
             }
             onClose={() => chooseStep('collapsed')}

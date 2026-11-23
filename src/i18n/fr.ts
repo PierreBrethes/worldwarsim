@@ -554,6 +554,11 @@ export const fr = {
     endsAt: (percent: number, hour: string) => `${percent} % · fin vers ${hour}`,
     lostAt: (percent: number, hour: string, hq = false) =>
       `${percent} % · ${hq ? 'QG perdu' : 'perdu'} vers ${hour}`,
+    /** **Gelée à 100 % faute de vivres** (ADR 0044) : lue du seul capteur. */
+    suspended: 'suspendue : l’armée a faim',
+    /** **Due, pas encore conclue** : ce que lit le défenseur, qui ne sait rien de la famine. */
+    concluding: (percent: number) => `${percent} % · en cours de conclusion`,
+    concludingWhy: 'Une infanterie adverse tient le site : sa capture est due, elle se conclut.',
     underCapture: 'en cours de capture',
     underCaptureWhy: (hour: string) =>
       `Une infanterie adverse tient le site : il change de main vers ${hour} si personne ne l’en chasse. Le combat ne remet rien à zéro — il faut tuer ou chasser toute l’infanterie qui capture.`,
@@ -694,7 +699,9 @@ export const fr = {
       done: (got: number) => `Comptoir de Tanger : ${got} reçus.`,
     },
     contested: 'contesté — une capture est en cours',
-    how: 'Il se prend comme un bâtiment : une infanterie le tient six heures. Son teneur le garde sans garnison.',
+    /** Une règle vraie en tout temps, jamais un état : la force ne se lit que par relevé. */
+    guarded: 'Gardé au lancement par une garnison locale.',
+    how: 'Une colonne doit d’abord vaincre la garnison, puis garder une infanterie debout pendant six heures ; une garnison entamée le reste pour la suivante. Son teneur le garde sans garnison.',
     needsAColumn: 'Levez une colonne d’infanterie, puis visez le point pour le capturer.',
     race: {
       title: 'La course aux Sept',
@@ -723,6 +730,15 @@ export const fr = {
       const names = keys.map((key) => fr.points.names[key]);
       return `LES SEPT SONT TIRÉS — ${names.slice(0, -1).join(', ')} et ${names.at(-1)}. Qui en tient quatre vingt-quatre heures d’affilée prend la saison.`;
     },
+    /** **La course** (#614) : la même dépêche à toute la table, le meneur lit la sienne. */
+    raceStarted: (nation: string, mine: boolean, until: string) =>
+      mine
+        ? `Vous tenez quatre points : tenez-les jusqu’au ${until}.`
+        : `${nation} tient quatre points : s’il les garde jusqu’au ${until}, la saison est à lui.`,
+    raceReminder: (nation: string, mine: boolean, hoursLeft: number, until: string) =>
+      mine
+        ? `Plus que ${num(hoursLeft)} h : tenez vos quatre points jusqu’au ${until}.`
+        : `Plus que ${num(hoursLeft)} h : ${nation} tient quatre points jusqu’au ${until}.`,
     /** **Dakar** : le dépôt capturé au teneur brûle ; les deux camps l'apprennent. */
     narvikLost: `Narvik est perdu : vos exploitations coupées du réseau ne produisent plus.`,
     depotBurned: (side: 'capturer' | 'holder', country: string, lost: string) =>
@@ -1012,6 +1028,7 @@ export const fr = {
     INFANTRY_REQUIRED: () => 'il faut au moins une troupe d’infanterie pour rapporter la charge',
     WAREHOUSE_TARGET_ONLY: () => 'seuls un entrepôt ou un site producteur se pillent',
     CAPTURE_NEEDS_INFANTRY: () => 'seule l’infanterie capture : il en faut au moins une troupe',
+    CAPTURE_STARVING: () => 'l’armée a faim : elle ne capture plus avant d’être nourrie',
     CAPTURE_ON_FOOT: () => 'l’infanterie capture à pied : débarquez-la d’abord',
     INSUFFICIENT_FUNDS: (d) =>
       d.needed === undefined
@@ -1491,12 +1508,32 @@ export const fr = {
     world: 'Le monde',
     world1940: 'Le monde, 1940',
     generalMap: 'carte générale',
+    capital: {
+      france: 'Paris',
+      uk: 'Londres',
+      usa: 'Washington',
+      ussr: 'Moscou',
+      germany: 'Berlin',
+      japan: 'Tokyo',
+      italy: 'Rome',
+      china: 'Chongqing',
+    } satisfies Record<Nation, string>,
+    sheetNeighbours: 'Voisins',
+    sheetNoNeighbour: 'aucun à terre',
+    sheetNearPoints: 'Points proches',
+    sheetNoNearPoint: 'aucun',
+    classicNation: 'Nation classique',
+    classicRule: 'aucune règle brisée, rien à apprendre',
+    heldBy: (nick: string) => `prise par ${nick}`,
+    restHint: 'Survolez un jeton : la nation se teinte, sa fiche s’écrit ici.',
+    sevenLegend: 'Les Sept',
+    sevenRule: 'quatre points tenus 24 h l’emportent',
     worldSheet: 'carte générale',
     theatreSheet: 'théâtre',
     staffSheet: (sheet: string) => `état-major · ${sheet}`,
     worldKm: '0 · 2500 · 5000 km',
     worldSeas: [
-      ['Océan Pacifique', -128, 4, 1],
+      ['Océan Pacifique', -104, 4, 1],
       ['Atlantique', -38, 30, 1],
       ['Océan Indien', 78, -20, 1],
     ] as ReadonlyArray<readonly [string, number, number, number]>,
@@ -1630,6 +1667,18 @@ export const fr = {
     yourFlag: 'votre drapeau',
     yourNation: 'votre nation',
     takenBy: (nickname: string) => `prise par ${nickname}`,
+    /** The phone registry: the button on the row shown, and the status line that goes with it. */
+    take: (nation: Nation) => `Prendre ${theNation(nation)}`,
+    freeSay: (nation: Nation) => `${fr.nations[nation]} : libre, à prendre.`,
+    takenSay: (nation: Nation, nickname: string) =>
+      `${fr.nations[nation]} : déjà prise par ${nickname}. Premier arrivé, premier servi.`,
+    /** The four sheets of the phone map, the nation shown picks one (`phoneSheetOf`). */
+    phoneSheets: {
+      europe: 'Feuille d’Europe',
+      america: 'Feuille d’Amérique',
+      russia: 'Feuille de Russie',
+      asia: 'Feuille d’Asie',
+    },
     restFrom: 'repos dès',
     restLabel: 'début de votre plage de repos, heure locale',
     restUntil: (end: string) => `jusqu’à ${end} · publique`,
@@ -2419,6 +2468,23 @@ export const fr = {
     foundation: (country: string) => `fondation · ${country}`,
     recruitment: (region: string) => `recrutement · ${region}`,
     lot: (ordered: number, resource: string) => `lot · ${num(ordered)} ${resource}`,
+    /** **Le volet « En cours » du bureau**, ouvert par le compteur de slots de la réglette (#615). */
+    drawer: {
+      title: 'En cours',
+      count: (count: number) => `${count} échéance${plural(count, '', 's')}`,
+      close: 'Fermer',
+      empty: 'Rien ne court.',
+      movements: 'mouvements',
+      slots: (used: number, total: number) => `slots ${used} / ${total}`,
+      rest: 'chantiers, recrutements, lots',
+      holdsSlot: 'tient un slot de mouvement',
+      /** « Les deux slots sont engagés » : le nombre suit la vue, deux au départ. */
+      allEngaged: (total: number) =>
+        `${total === 2 ? 'Les deux' : `Les ${num(total)}`} slots sont engagés`,
+      /** Suivie du temps qui reste, que le volet fait battre, puis d'un point. */
+      freesAt: (total: number, label: string) =>
+        `${total === 2 ? 'Les deux' : `Les ${num(total)}`} slots sont engagés : le prochain mouvement part quand « ${label} » arrive, dans `,
+    },
   },
 
   /**
@@ -2718,6 +2784,9 @@ export const fr = {
       routine: 'routine',
     },
     noneFiltered: 'Aucune dépêche de cette sorte.',
+    /** **La liasse** (`groupJournal`) : le décompte de ses dépêches, et l'heure de la plus ancienne. */
+    bundleCount: (count: number) => `× ${count}`,
+    bundleSince: (time: string) => `depuis ${time}`,
     showOnMap: 'voir sur la carte',
     /** Les éditions plus anciennes que la dernière, que le journal ne liste plus (`journalLines`). */
     earlierEditions: (count: number) =>
@@ -2945,6 +3014,8 @@ export const fr = {
       siteLost: (site: string) => `${upperFirst(site)} a été capturé — il n’est plus à nous.`,
       captureAbandoned: (site: string) =>
         `Capture ${ofSite(site)} abandonnée : plus aucune infanterie à nous sur place.`,
+      captureStarved: (site: string) =>
+        `Capture ${ofSite(site)} levée : l’armée a faim, elle est rentrée sans prendre le site.`,
       captureLifted: (site: string) => `La capture ${ofSite(site)} est levée.`,
       captureVoid: (site: string) =>
         `Capture ${ofSite(site)} sans objet : le site n’est plus à celui qu’on visait.`,
@@ -3209,6 +3280,9 @@ export const fr = {
     peakLabel: 'Au plus fort',
     peak: (peak: number, capacity: number) => `${peak} / ${capacity} à bord`,
     bankedLabel: 'Au stock, par boucle',
+    slotLabel: 'Slot de mouvement',
+    slotFree: 'aucun : elle reste au pays',
+    slotHeld: 'un : un point hors du sol national',
     orderSame: (km: number) => `Ordre déjà au mieux : ${km} km, rien de perdu.`,
     orderMoves: (after: number, before: number) =>
       `Un autre ordre rapporte plus : ${after} déplacés au lieu de ${before}.`,
@@ -3345,6 +3419,8 @@ export const fr = {
   hand: {
     kicker: (place: string) => `en main · ${place}`,
     hint: 'clic gauche sur la carte, ou glisser : poser · sur un transport : embarquer · échap : reposer',
+    /** La même aide sur une ligne, au pied de la fiche bornée du bureau (#619). */
+    hintShort: 'clic ou glisser : poser · transport : embarquer · échap : reposer',
     /** **La visée au téléphone** (#586) : « Envoyer » donne l'ordre, « Annuler » retire la visée et
      *  laisse la pièce en main. */
     send: 'Envoyer',
@@ -3367,6 +3443,9 @@ export const fr = {
     approach: 'approcher',
     aboard: 'à bord',
     disembark: 'débarquer',
+    /** Au bureau, les jauges de la pile en main sont repliées derrière ce bouton (#619). */
+    gauges: 'détails des jauges',
+    pieces: (count: number) => `${count} pièce${plural(count, '', 's')}`,
   },
 
   /**
@@ -3417,6 +3496,7 @@ export const fr = {
     idleSite: 'chantier libre — rien en file',
     siteUnderCapture: (site: string, hour: string) =>
       `${site} : capture en cours, perdue vers ${hour}`,
+    siteConcluding: (site: string) => `${site} : capture en cours de conclusion`,
     sitesUnderCapture: (count: number) => `${count} sites en cours de capture`,
     captureStopped: (site: string) => `Capture de ${site} arrêtée : plus d’infanterie sur place`,
     capturesStopped: (count: number) => `${count} captures arrêtées`,
@@ -3775,6 +3855,8 @@ export const fr = {
      *  la part de mer quand le trajet en a une. */
     distance: (km: number, span: string) => `≈ ${km} km · ${span}`,
     distanceSea: (km: number) => `dont ${km} km de mer`,
+    /** **Pourquoi la durée est doublée** (ADR 0044) : une armée affamée marche au pas. */
+    starvingPace: 'au pas : l’armée a faim',
     pursuit: 'poursuite',
     /**
      * **Ce que les liaisons ont pris sur le trajet** (ADR 0037 §8). Une route plus courte que
@@ -4628,8 +4710,12 @@ export const fr = {
         dryFire: 'Tir à sec',
         season: 'La saison (lancement et fin)',
         telegraph: 'Télégraphe',
+        yourMove: 'À vous (colonne arrivée)',
       },
-      typeNotes: { telegraph: 'Une fois par heure au plus.' },
+      typeNotes: {
+        telegraph: 'Une fois par heure au plus.',
+        yourMove: 'Une fois par heure au plus.',
+      },
       test: 'envoyer une dépêche d’essai',
       testNote: 'Une dépêche part vers vos appareils abonnés : c’est la preuve que tout marche.',
     },

@@ -938,6 +938,24 @@ describe('in aim', () => {
     expect(mine?.actions.some((action) => action.key === 'capture')).toBe(false);
   });
 
+  /** **Une armée affamée ne capture plus** (ADR 0044, #622) : la branche disparaît de la rose et
+   *  son motif est dit, par la fonction que le serveur relit. */
+  it('draws no capture branch for a hungry column, and says why', () => {
+    const target = {
+      kind: 'installation' as const,
+      id: 'barracks-enemy',
+      key: 'barracks' as const,
+      regionId: 'ROU-310',
+      name: 'Caserne',
+    };
+    const hungry = compassOf(target, view, { ...column, starving: true });
+    expect(hungry?.actions.some((action) => action.key === 'capture')).toBe(false);
+    expect(hungry?.refusal).toBe(fr.errors.CAPTURE_STARVING());
+    expect(compassOf(target, view, column)?.actions.map((action) => action.key)).toContain(
+      'capture',
+    );
+  });
+
   it('announces the duration at the strength the column really has', () => {
     const worn = compassOf(
       {

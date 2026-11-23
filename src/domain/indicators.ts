@@ -249,21 +249,40 @@ function dueOf(label: MapLabel): number | null {
   return countdown?.dueAt ?? null;
 }
 
+/** The axis a token slides on to clear the pile bubble, along its edge: up and down on the sides, across on top and bottom. */
+export const slideAxisOf = (side: EdgeSide): 'x' | 'y' =>
+  side === 'left' || side === 'right' ? 'y' : 'x';
+
 /**
  * **Un nom au bord ne couvre pas ma colonne** (#376) : posé au-dessus des étiquettes, il cacherait
- * celle de ma colonne en route et son « rappeler ». Le haut où le poser : le sien s'il ne couvre
- * rien, sinon juste sous ce qu'il couvrait — ou juste dessus quand le pied de l'écran manque.
+ * celle de ma colonne en route et son « rappeler ». Le début où le poser, sur l'axe demandé : le
+ * sien s'il ne couvre rien, sinon juste après ce qu'il couvrait — ou juste avant quand la fin
+ * (`max`) manque. Sans `min`, rien ne le retient en deçà : sortir de l'écran plutôt que recouvrir
+ * la colonne, comme avant #623. La bulle de pile en main passe `min` et ses marges, pour que le
+ * jeton ne tombe ni sous le bandeau ni sur les boutons de la carte.
  */
 export function clearOfColumns(
   box: ScreenBox,
   columns: ReadonlyArray<ScreenBox>,
-  height: number,
+  max: number,
+  axis: 'x' | 'y' = 'y',
+  min = -Infinity,
 ): number {
+  const [start, end] = axis === 'y' ? (['top', 'bottom'] as const) : (['left', 'right'] as const);
   const covered = columns.filter((column) => boxesOverlap(column, box, 0));
-  if (covered.length === 0) return box.top;
-  const tall = box.bottom - box.top;
-  const below = Math.max(...covered.map((column) => column.bottom)) + 4;
-  return below + tall <= height
-    ? below
-    : Math.min(...covered.map((column) => column.top)) - 4 - tall;
+  if (covered.length === 0) return box[start];
+  const length = box[end] - box[start];
+  const after = Math.max(...covered.map((column) => column[end])) + 4;
+  return after + length <= max
+    ? after
+    : Math.max(min, Math.min(...covered.map((column) => column[start])) - 4 - length);
+}
+
+/** @a-mesurer How long a token takes to close most of the way to its place (ms). */
+const GLIDE_MS = 80;
+
+/** One step of the glide, exponential so that a frame of any length lands it on its place. */
+export function glideToward(current: number, target: number, elapsed: number): number {
+  const next = target + (current - target) * Math.exp(-elapsed / GLIDE_MS);
+  return Math.abs(next - target) < 0.5 ? target : next;
 }

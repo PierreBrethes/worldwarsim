@@ -34,6 +34,27 @@ fiche 03. **Mondiale seule** : la Blitz garde ses fonds et tire sans compter. Ri
 >   écartée (`QUESTIONS.md`) ;
 > - **le placement libre et les gisements ponctuels** : [ADR 0029](0029-placement-libre-et-gisements-ponctuels.md).
 
+> **Précisée le 23/11/2026 (#618, audit gameplay)** : depuis l'[ADR 0041](0041-la-recolte-se-rapporte.md)
+> la récolte ne rentre au stock que ramassée par une tournée, et deux slots au départ étaient tous
+> pris par l'économie. Cette précision l'emporte sur « garde son slot tant qu'elle tourne » (§4) :
+> - **une tournée dont le point de chargement et chaque arrêt sont sur le sol national ne prend
+>   aucun slot**, ni au départ (`tours.start`) ni tant qu'elle tourne, en vol comme à l'arrêt.
+>   « Sol national » est la géographie (`region.country` égal au pays du joueur, comme `siteFor`),
+>   jamais la couleur : un seul arrêt ailleurs (dépôt d'avant-poste, exploitation en région
+>   d'avant-poste) et elle garde son slot, comme avant. La règle est `tourHoldsSlot`
+>   (`src/domain/tour-slot.ts`), lue par le serveur et par la feuille de route, qui le dit avant
+>   « lancer » ;
+> - **un chargement sur un point nu** (la troupe ne se tient ni dans un bâtiment ni dans un
+>   avant-poste) n'a pas de pays lu : la tournée garde son slot ;
+> - **le compte se relit à chaque décompte, rien n'est stocké** : si une tournée change de
+>   catégorie en route, `used` peut dépasser `total`. C'est accepté, l'ordre déjà donné ne se
+>   reprend pas ;
+> - **la tournée au pays compte encore parmi les mouvements maritimes d'Halifax** (ADR 0032) : elle
+>   ne coûte rien, mais n'ouvre pas en plus la mise à l'écart d'une autre flotte ;
+> - **les rondes ne changent pas** : elles gardent leur slot (ADR 0037 §10) ;
+> - rien ne change pour l'adversaire : une étape reste un arc sans type, relevable et
+>   interceptable.
+
 ## Contexte
 
 L'ADR 0027 a fait de l'économie le seul frein de la Mondiale, et a posé ses principes sans leur

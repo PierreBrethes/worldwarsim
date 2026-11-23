@@ -1,6 +1,6 @@
 import { fr } from '@/i18n/fr';
-import { asClockTime } from './duration';
 import { capturingAt } from './capture';
+import { captureSaid } from './capture-said';
 import { captureSiteName } from './labels';
 import { produces } from './economy';
 import { BLITZ_SHARE } from '../../convex/constants';
@@ -85,7 +85,10 @@ const lineOf = (
  * tient sur le terrain. Une liste vide est le cas normal d'une partie tenue, et la carte n'a
  * alors pas d'état fermé : elle n'existe pas.
  */
-export function nextActionsOf(view: PlayerView): ReadonlyArray<NextAction> {
+export function nextActionsOf(
+  view: PlayerView,
+  now: number = Date.now(),
+): ReadonlyArray<NextAction> {
   /** **Rien n'attend un observateur** (décision du 31/08). La carte n'a pas d'état fermé — son
    *  absence *est* l'état fermé — et c'est exactement ce qu'on doit à un joueur qui a déposé les
    *  armes : pas une liste grisée de ce qu'il ne fera plus. */
@@ -104,7 +107,7 @@ export function nextActionsOf(view: PlayerView): ReadonlyArray<NextAction> {
   const standing = view.me.troops.filter((troop) => !marching.has(troop.id));
 
   return [
-    ...captureLines(view),
+    ...captureLines(view, now),
     ...foundationLine(view),
     ...unlinkedSitesLine(view),
     ...(view.mode === 'blitz' ? [] : idleSiteLine(view)),
@@ -120,7 +123,7 @@ export function nextActionsOf(view: PlayerView): ReadonlyArray<NextAction> {
  * part — la ligne recentre sur lui ; plus bas, celle que mon infanterie a lâchée, à relancer.
  * Celle qui court chez moi n'attend rien de moi : elle se lit sur la carte.
  */
-function captureLines(view: PlayerView): ReadonlyArray<NextAction> {
+function captureLines(view: PlayerView, now: number): ReadonlyArray<NextAction> {
   const threatened = view.captures.filter((capture) => capture.side === 'defender');
   const stopped = view.captures.filter(
     (capture) => capture.side === 'capturer' && capture.stoppedAt !== null,
@@ -131,7 +134,7 @@ function captureLines(view: PlayerView): ReadonlyArray<NextAction> {
     ...lineOf(
       'siteUnderCapture',
       threatened.length === 1 && one !== undefined
-        ? fr.nextActions.siteUnderCapture(captureSiteName(one), asClockTime(one.completesAt))
+        ? captureSaid(one, now, 'todo')
         : fr.nextActions.sitesUnderCapture(threatened.length),
       threatened.map((capture) => ({ kind: 'map', point: capture.point })),
     ),

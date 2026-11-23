@@ -403,6 +403,8 @@ export type LabelLine =
       readonly site: CaptureView['site'];
       readonly clock: CaptureClock;
       readonly completesAt: number;
+      /** **Due, mais le capteur a faim** (ADR 0044) : absent, elle court. */
+      readonly suspended?: true;
     };
 
 /**
@@ -759,6 +761,7 @@ function withCaptures(
     site: capture.site,
     clock: capture.clock,
     completesAt: capture.completesAt,
+    ...(capture.suspended === true ? { suspended: true as const } : {}),
   });
   const carried = labels.map((label) => {
     const capture = running.find((candidate) => carriesSite(label, candidate.target));

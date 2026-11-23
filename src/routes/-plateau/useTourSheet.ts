@@ -7,6 +7,7 @@ import { buildingLabelId } from '@/domain/building-label-id';
 import type { PlayerView } from '@/domain/player-view';
 import { outpostPinId } from '@/domain/pins';
 import {
+  holdsSlot,
   launchRefusalOf,
   loopOf,
   orderBest,
@@ -130,6 +131,7 @@ export function useTourSheet(
       ranked: picking && !touring ? rankStops(sheet, stops, candidates) : null,
       order: stops.length > 1 ? orderBest(sheet, stops) : null,
       refusal: launchRefusalOf(sheet, stops),
+      slot: holdsSlot(sheet, stops),
     };
   }, [reading, stops, picking, touring]);
 

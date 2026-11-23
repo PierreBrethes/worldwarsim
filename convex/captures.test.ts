@@ -1021,7 +1021,8 @@ describe('a Mondiale headquarters', () => {
         .query('resources')
         .withIndex('byPlayer', (q) => q.eq('playerId', winner._id))
         .collect()) {
-        await ctx.db.patch(row._id, { stock: 0, updatedAt: MIDDAY });
+        /** Nourri : une capture d'un capteur affamé n'aboutit pas (ADR 0044). */
+        await ctx.db.patch(row._id, { stock: row.key === 'food' ? 5000 : 0, updatedAt: MIDDAY });
       }
     });
 
@@ -1542,7 +1543,11 @@ describe('a headquarters falling at a full table', () => {
               .query('resources')
               .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
               .collect()) {
-              await ctx.db.patch(row._id, { stock, updatedAt: Date.now() });
+              /** Le capteur est à sec de charbon, pas de vivres : il serait affamé (ADR 0044). */
+              await ctx.db.patch(row._id, {
+                stock: row.key === 'food' ? 5000 : stock,
+                updatedAt: Date.now(),
+              });
             }
           }
         });
@@ -1621,4 +1626,280 @@ describe('a headquarters falling at a full table', () => {
       expect(await fog(t)).toEqual(fallen);
     },
   );
+});
+
+/**
+ * **La faim ralentit et suspend** (ADR 0044) : une armée affamée marche au pas, n'ordonne plus
+ * de capture, et une capture n'aboutit pas tant que son capteur a faim.
+ */
+describe('a hungry nation', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const setFood = async (t: Bench, seat: Seat, stock: number) => {
+    const playerId = (await playerOf(t, seat))._id;
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db
+        .query('resources')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect())
+        if (row.key === 'food') await ctx.db.patch(row._id, { stock, updatedAt: Date.now() });
+    });
+  };
+
+  /** Empty reserve and twenty mouths with no farm: the rate stays negative (`starving`). */
+  const starve = async (t: Bench, seat: Seat) => {
+    const player = await playerOf(t, seat);
+    await setFood(t, seat, 0);
+    await t.run(async (ctx) => {
+      for (let mouth = 0; mouth < 20; mouth += 1)
+        await ctx.db.insert('troops', {
+          seasonId: player.seasonId,
+          playerId: player._id,
+          role: 'infantry',
+          tier: 1,
+          nominalStrength: 100,
+          currentStrength: 100,
+          stationedAt: null,
+        });
+    });
+    expect((await t.query(api.view.playerView, seat)).me.starving).toBe(true);
+  };
+
+  const setup = async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const barracks = await building(t, seat, MARNE);
+    const infantry = await troop(t, seat, 'infantry', barracks);
+    const other = await troop(t, seat, 'infantry', barracks);
+    const target = await building(t, guest, PSKOV);
+    await surveyRegion(t, seat, PSKOV);
+    const origin = { kind: 'building', buildingId: barracks } as const;
+    return { t, seat, guest, origin, infantry, other, target };
+  };
+
+  it('walks at half pace, and the preview says the hour it will arrive', async () => {
+    const { t, seat, origin, infantry, other } = await setup();
+    const args = {
+      ...seat,
+      origin,
+      target: { kind: 'region', regionId: PSKOV },
+      type: 'attack',
+    } as const;
+    const fed = (await t.query(api.movements.preview, { ...args, troopIds: [infantry] }))!;
+    expect(fed.slow).toBe(false);
+    await starve(t, seat);
+
+    const hungry = (await t.query(api.movements.preview, { ...args, troopIds: [infantry] }))!;
+    expect(hungry.slow).toBe(true);
+    expect(hungry.minutes).toBeCloseTo(fed.minutes * 2);
+
+    const { movementId } = await t.mutation(api.movements.attack, {
+      ...seat,
+      origin,
+      troopIds: [other],
+      target: args.target,
+    });
+    const row = (await t.run((ctx) => ctx.db.get(movementId)))!;
+    expect(row.arrivesAt).toBe(hungry.arrivesAt);
+    expect(row.arrivesAt - row.departedAt).toBeCloseTo(fed.minutes * 2 * 60_000);
+  });
+
+  it('is refused the order to capture, before and at the door', async () => {
+    const { t, seat, origin, infantry, target } = await setup();
+    const aim = { kind: 'building', buildingId: target } as const;
+    const fed = await t.query(api.movements.previewCapture, {
+      ...seat,
+      origin,
+      troopIds: [infantry],
+      target: aim,
+    });
+    expect(fed).not.toBeNull();
+    await starve(t, seat);
+
+    await expect(
+      t.mutation(api.movements.capture, { ...seat, origin, troopIds: [infantry], target: aim }),
+    ).rejects.toThrow('CAPTURE_STARVING');
+  });
+
+  it('fights, then walks home without capturing, when it arrives hungry', async () => {
+    const { t, seat, guest, infantry, target } = await setup();
+    await starve(t, seat);
+
+    await captureArrival(
+      t,
+      seat,
+      { kind: 'building', buildingId: target },
+      pointOfRegion(PSKOV),
+      'RUS',
+      [infantry],
+    );
+
+    expect(await capturesOf(t)).toEqual([]);
+    expect(await noticesOf(t, seat, 'captureCancelled')).toMatchObject([
+      { side: 'capturer', reason: 'starving' },
+    ]);
+    const [seen] = await noticesOf(t, guest, 'captureCancelled');
+    expect(seen).toMatchObject({ side: 'defender' });
+    /** L'adversaire ne lit pas la famine (ADR 0044). */
+    expect(seen).not.toHaveProperty('reason');
+    expect(await t.run((ctx) => ctx.db.query('movements').collect())).not.toEqual([]);
+  });
+
+  it('holds a due capture suspended, then takes the site when the food returns', async () => {
+    const { t, seat, guest, infantry, target } = await setup();
+    await captureArrival(
+      t,
+      seat,
+      { kind: 'building', buildingId: target },
+      pointOfRegion(PSKOV),
+      'RUS',
+      [infantry],
+    );
+    const [started] = await capturesOf(t);
+    await starve(t, seat);
+
+    await finish(t);
+    const [held] = await capturesOf(t);
+    expect(held).toMatchObject({ suspended: true, completesAt: started!.completesAt });
+    expect((await t.run((ctx) => ctx.db.get(target)))!.playerId).toBe(
+      (await playerOf(t, guest))._id,
+    );
+    expect((await t.query(api.view.playerView, seat)).captures).toMatchObject([
+      { suspended: true },
+    ]);
+
+    await setFood(t, seat, 50_000);
+    await t.mutation(internal.troops.resumeQueues, { playerId: (await playerOf(t, seat))._id });
+    expect(await capturesOf(t)).toEqual([]);
+    expect((await t.run((ctx) => ctx.db.get(target)))!.playerId).toBe(
+      (await playerOf(t, seat))._id,
+    );
+    expect(await noticesOf(t, seat, 'captureSucceeded')).toHaveLength(1);
+  });
+
+  /** Suspendue, elle n'a plus d'horloge, mais son infanterie la tient encore : partie, elle lève. */
+  it('is lifted when its infantry leaves while it is suspended', async () => {
+    const { t, seat, guest, infantry, target } = await setup();
+    await captureArrival(
+      t,
+      seat,
+      { kind: 'building', buildingId: target },
+      pointOfRegion(PSKOV),
+      'RUS',
+      [infantry],
+    );
+    await starve(t, seat);
+    await finish(t);
+    await t.run((ctx) => ctx.db.patch(infantry, { stationedAt: pointOfRegion(PRAHOVA) }));
+
+    await reassess(t, seat.seasonId);
+
+    const [lifted] = await capturesOf(t);
+    expect(lifted).toMatchObject({ stoppedAt: expect.any(Number) });
+    expect(lifted!.suspended).toBeUndefined();
+    expect(await noticesOf(t, guest, 'captureCancelled')).toMatchObject([{ reason: 'left' }]);
+  });
+
+  it('keeps the full fuel round trip of an airdrop at its own pace', async () => {
+    const { t, seat, origin, infantry } = await setup();
+    await starve(t, seat);
+    const preview = await t.query(api.movements.preview, {
+      ...seat,
+      origin,
+      troopIds: [infantry],
+      target: { kind: 'point', point: pointOfRegion(PSKOV) },
+      type: 'march',
+      roundTrip: true,
+    });
+    expect(preview!.slow).toBe(false);
+  });
+
+  it('keeps a delivery, like an airdrop, at its own pace in the preview', async () => {
+    const { t, seat, origin, infantry } = await setup();
+    await starve(t, seat);
+    const preview = await t.query(api.movements.preview, {
+      ...seat,
+      origin,
+      troopIds: [infantry],
+      target: { kind: 'point', point: pointOfRegion(PSKOV) },
+      type: 'march',
+      delivery: true,
+    });
+    expect(preview!.slow).toBe(false);
+  });
+
+  /** Le repos du défenseur tient encore quand les vivres reviennent : elle attend sa fin. */
+  it('waits out the defender’s rest window when the food returns inside it', async () => {
+    const { t, seat, guest, infantry, target } = await setup();
+    await captureArrival(
+      t,
+      seat,
+      { kind: 'building', buildingId: target },
+      pointOfRegion(PSKOV),
+      'RUS',
+      [infantry],
+    );
+    await starve(t, seat);
+    await finish(t);
+    const [held] = await capturesOf(t);
+    const rest = { startMinutes: 17 * 60, endMinutes: 23 * 60 };
+    await t.run((ctx) => ctx.db.patch(held!._id, { rest }));
+    await setFood(t, seat, 50_000);
+
+    await t.mutation(internal.troops.resumeQueues, { playerId: (await playerOf(t, seat))._id });
+
+    const [waiting] = await capturesOf(t);
+    expect(waiting!.suspended).toBeUndefined();
+    expect(waiting!.completesAt).toBe(Date.UTC(2026, 8, 9, 23));
+    expect((await t.run((ctx) => ctx.db.get(target)))!.playerId).toBe(
+      (await playerOf(t, guest))._id,
+    );
+    await finish(t);
+    expect((await t.run((ctx) => ctx.db.get(target)))!.playerId).toBe(
+      (await playerOf(t, seat))._id,
+    );
+  });
+
+  /** L'adversaire ne lit pas la famine : ni le champ, ni le motif de sa dépêche. */
+  it('tells the defender neither the suspension nor the reason of a lifted capture', async () => {
+    const { t, seat, guest, infantry, target } = await setup();
+    await captureArrival(
+      t,
+      seat,
+      { kind: 'building', buildingId: target },
+      pointOfRegion(PSKOV),
+      'RUS',
+      [infantry],
+    );
+    await starve(t, seat);
+    await finish(t);
+    expect((await t.query(api.view.playerView, guest)).captures).toMatchObject([
+      { side: 'defender', suspended: false },
+    ]);
+
+    await t.run((ctx) => ctx.db.patch(infantry, { stationedAt: pointOfRegion(PRAHOVA) }));
+    await reassess(t, seat.seasonId);
+    expect(await noticesOf(t, guest, 'captureCancelled')).toMatchObject([{ reason: 'left' }]);
+  });
+
+  it('takes no hunger into a blitz: its capture opens as usual', async () => {
+    const { t, seat, infantry, target } = await setup();
+    await starve(t, seat);
+    await t.run((ctx) => ctx.db.patch(seat.seasonId, { mode: 'blitz' }));
+
+    await captureArrival(
+      t,
+      seat,
+      { kind: 'building', buildingId: target },
+      pointOfRegion(PSKOV),
+      'RUS',
+      [infantry],
+    );
+
+    expect(await capturesOf(t)).toHaveLength(1);
+  });
 });

@@ -1,10 +1,17 @@
 import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { api } from './_generated/api';
-import type { Id } from './_generated/dataModel';
+import { api, internal } from './_generated/api';
+import type { Doc, Id } from './_generated/dataModel';
 import { distanceKm, type LonLat } from '../src/domain/geo';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
-import { journalUrl, push, reportUrl, telegraphUrl, type PushType } from '../src/domain/push';
+import {
+  YOUR_MOVE_PUSH_INTERVAL_MS,
+  journalUrl,
+  push,
+  reportUrl,
+  telegraphUrl,
+  type PushType,
+} from '../src/domain/push';
 import { DETECTION_RANGE_KM, nominalStrength } from './constants';
 import { notifyPlayer } from './notifications';
 import { accountOf } from './seats';
@@ -12,7 +19,15 @@ import { regionFacts, pointOfRegion } from './regions';
 import { routeBetween } from './routes';
 import schema from './schema';
 import { modules } from './test.setup';
-import { attacking, foundSeat, joinSeat, raiding, seatIn } from './seats.fixture';
+import {
+  attacking,
+  foundSeat,
+  joinSeat,
+  raiding,
+  seatDoc,
+  seatIn,
+  surveyRegion,
+} from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 const webpush = vi.hoisted(() => ({
@@ -42,6 +57,7 @@ vi.mock('web-push', () => ({
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
 
 const MARNE = 'FRA-5323';
+const PSKOV = 'RUS-2335';
 const PRAHOVA = 'ROU-310';
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -164,6 +180,66 @@ async function post(t: Bench, seat: Seat, point: LonLat) {
   await t.run(async (ctx) => ctx.db.patch(troopId, { stationedAt: asPoint(point) }));
   return troopId;
 }
+
+/** Une colonne du joueur qui arrive à l'instant, comme `movements.arrive` la reçoit. */
+async function arriving(
+  t: Bench,
+  seat: Seat,
+  troopId: Id<'troops'>,
+  extra: Partial<Doc<'movements'>> = {},
+) {
+  const playerId = await playerOf(t, seat);
+  const to = asPoint(pointOf(MARNE));
+  const movementId = await t.run(async (ctx) =>
+    ctx.db.insert('movements', {
+      seasonId: (await ctx.db.get(playerId))!.seasonId,
+      playerId,
+      type: 'march',
+      fromBuildingId: null,
+      target: { kind: 'point', point: to },
+      from: { lon: to.lon - 1, lat: to.lat },
+      to,
+      hostCountry: 'FRA',
+      points: [{ lon: to.lon - 1, lat: to.lat }, to],
+      legs: [{ medium: 'land', distanceUnits: 1 }],
+      distanceUnits: 1,
+      costUnits: 1,
+      troopIds: [troopId],
+      departedAt: Date.now() - HOUR,
+      arrivesAt: Date.now(),
+      ...extra,
+    }),
+  );
+  await t.mutation(internal.movements.arrive, { movementId });
+}
+
+/** Vivres à zéro et vingt bouches sans ferme : la famine de l'ADR 0044. */
+async function starve(t: Bench, seat: Seat) {
+  const playerId = await playerOf(t, seat);
+  await t.run(async (ctx) => {
+    const seasonId = (await ctx.db.get(playerId))!.seasonId;
+    for (const row of await ctx.db
+      .query('resources')
+      .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+      .collect())
+      if (row.key === 'food') await ctx.db.patch(row._id, { stock: 0, updatedAt: Date.now() });
+    for (let mouth = 0; mouth < 20; mouth += 1)
+      await ctx.db.insert('troops', {
+        seasonId,
+        playerId,
+        role: 'infantry',
+        tier: 1,
+        nominalStrength: 100,
+        currentStrength: 100,
+        stationedAt: null,
+      });
+  });
+}
+
+const clearQueue = (t: Bench) =>
+  t.run(async (ctx) => {
+    for (const row of await ctx.db.query('pushQueue').collect()) await ctx.db.delete(row._id);
+  });
 
 const types = async (t: Bench, seat: Seat) => (await queued(t, seat)).map((row) => row.type);
 
@@ -292,6 +368,7 @@ describe('les abonnements', () => {
       dryFire: true,
       season: true,
       telegraph: true,
+      yourMove: true,
     });
     await t.mutation(api.notifications.setPreference, {
       token: seat.token,
@@ -361,7 +438,8 @@ describe('ce qui entre dans la file', () => {
     await t.finishInProgressScheduledFunctions();
 
     expect(await types(t, guest)).toEqual(expect.arrayContaining(['attack', 'dryFire']));
-    expect(await types(t, seat)).toEqual([]);
+    /** L'attaquant n'entend aucune alarme : sa colonne est arrivée, c'est son « À vous ». */
+    expect(await types(t, seat)).toEqual(['yourMove']);
   });
 
   it('attaque seule : l’adresse ouvre sa dépêche, et l’écran verrouillé n’en dit pas plus', async () => {
@@ -482,6 +560,73 @@ describe('ce qui entre dans la file', () => {
 
     expect(await types(t, guest)).toEqual(['sighting']);
     expect(await types(t, seat)).toEqual([]);
+  });
+
+  it('à vous : une marche ou un retour qui arrive, chez son propriétaire seul', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    await clearQueue(t);
+    const troop = await post(t, seat, pointOf(MARNE));
+    await arriving(t, seat, troop);
+    expect(await types(t, seat)).toEqual(['yourMove']);
+    expect(await types(t, guest)).toEqual([]);
+
+    await clearQueue(t);
+    await arriving(t, seat, troop, { type: 'return' });
+    expect(await types(t, seat)).toEqual(['yourMove']);
+    expect((await queued(t, seat))[0]!.phrase).toBe(push.yourMove);
+  });
+
+  it('à vous : ni une étape de tournée, ni une étape de ronde', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await clearQueue(t);
+    const troop = await post(t, seat, pointOf(MARNE));
+    await arriving(t, seat, troop, { patrolLeg: true });
+    await arriving(t, seat, troop, { tourLeg: 'base' });
+    expect(await types(t, seat)).toEqual([]);
+  });
+
+  it('à vous : jamais en Blitz', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await clearQueue(t);
+    const troop = await post(t, seat, pointOf(MARNE));
+    await t.run(async (ctx) => ctx.db.patch(seat.seasonId, { mode: 'blitz' }));
+    await arriving(t, seat, troop);
+    expect(await types(t, seat)).toEqual([]);
+  });
+
+  it('à vous : une colonne de capture qui arrive nourrie, pas affamée — son retour, si', async () => {
+    const t = boot();
+    const { seat, guest } = await launchedSeason(t);
+    const target = await raise(t, guest, 'barracks', PSKOV);
+    await surveyRegion(t, seat, PSKOV);
+    const capture = { kind: 'building', buildingId: target } as const;
+    const aimed = {
+      type: 'attack',
+      target: { kind: 'building', buildingId: target },
+      to: asPoint(pointOf(PSKOV)),
+      hostCountry: 'RUS',
+      capture,
+    } as const;
+
+    const fed = await post(t, seat, pointOf(PSKOV));
+    await clearQueue(t);
+    await arriving(t, seat, fed, aimed);
+    expect(await types(t, seat)).toEqual(['yourMove']);
+
+    const barracks = await raise(t, seat, 'barracks', MARNE);
+    const hungry = await form(t, seat, 'infantry', barracks);
+    await clearQueue(t);
+    await starve(t, seat);
+    await arriving(t, seat, hungry, aimed);
+    expect(await types(t, seat)).toEqual([]);
+    const all = await t.run(async (ctx) => ctx.db.query('movements').collect());
+    const home = all.find((movement) => movement.type === 'return')!;
+    await t.run(async (ctx) => ctx.db.patch(home._id, { arrivesAt: Date.now() }));
+    await t.mutation(internal.movements.arrive, { movementId: home._id });
+    expect(await types(t, seat)).toEqual(['yourMove']);
   });
 
   it('rien quand le type est décoché, ni quand le compte n’a aucun appareil', async () => {
@@ -641,6 +786,91 @@ describe('le vidage', () => {
       push.telegraphMany(2),
     ]);
     expect(webpush.sent[1]!.payload.url).toBe(telegraphUrl);
+  });
+
+  it('à vous : trois arrivées partent en un seul message, vers le plateau', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    webpush.sent.length = 0;
+    await enqueue(t, seat, 'yourMove');
+    await enqueue(t, seat, 'yourMove');
+    await enqueue(t, seat, 'yourMove');
+    await advance(t, MINUTE);
+
+    expect(webpush.sent.map((entry) => [entry.payload.body, entry.payload.url])).toEqual([
+      [push.yourMove, '/plateau'],
+    ]);
+    expect(await queued(t, seat)).toEqual([]);
+  });
+
+  it('à vous : une heure entre deux, la marque sur readMarks et non sur la place', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    webpush.sent.length = 0;
+    await enqueue(t, seat, 'yourMove');
+    await advance(t, MINUTE);
+    expect(webpush.sent).toHaveLength(1);
+    const marks = await t.run(async (ctx) => ctx.db.query('readMarks').collect());
+    expect(marks).toHaveLength(1);
+    expect(marks[0]!.yourMovePushedAt).toBeGreaterThan(NOON);
+    expect((await seatDoc(t, seat)) as object).not.toHaveProperty('yourMovePushedAt');
+
+    await enqueue(t, seat, 'yourMove');
+    await advance(t, 20 * MINUTE);
+    await enqueue(t, seat, 'yourMove');
+    await advance(t, 20 * MINUTE);
+    expect(webpush.sent).toHaveLength(1);
+    expect(await queued(t, seat)).toHaveLength(2);
+
+    await advance(t, YOUR_MOVE_PUSH_INTERVAL_MS);
+    expect(webpush.sent.map((entry) => entry.payload.body)).toEqual([push.yourMove, push.yourMove]);
+    expect(await queued(t, seat)).toEqual([]);
+  });
+
+  it('à vous : ne retient ni le télégraphe ni une alarme, et inversement', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    webpush.sent.length = 0;
+    await enqueue(t, seat, 'yourMove');
+    await advance(t, MINUTE);
+    await enqueue(t, seat, 'yourMove');
+    await enqueue(t, seat, 'telegraph');
+    await enqueue(t, seat, 'attack', 'une passe');
+    await advance(t, MINUTE);
+
+    expect(webpush.sent.map((entry) => entry.payload.body).sort()).toEqual(
+      [push.yourMove, push.telegraphOne, 'une passe'].sort(),
+    );
+  });
+
+  it('à vous : se tait pour un joueur en jeu, sans marquer l’heure', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    webpush.sent.length = 0;
+    await t.mutation(api.notifications.present, seat);
+    await enqueue(t, seat, 'yourMove');
+    await advance(t, MINUTE);
+
+    expect(webpush.sent).toEqual([]);
+    expect(await queued(t, seat)).toEqual([]);
+    await advance(t, 3 * MINUTE);
+    await enqueue(t, seat, 'yourMove');
+    await advance(t, MINUTE);
+    expect(webpush.sent.map((entry) => entry.payload.body)).toEqual([push.yourMove]);
+  });
+
+  it('à vous : retenu pendant le repos, un seul au réveil', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    webpush.sent.length = 0;
+    vi.setSystemTime(NIGHT);
+    await enqueue(t, seat, 'yourMove');
+    await enqueue(t, seat, 'yourMove');
+    await advance(t, 2 * HOUR);
+    expect(webpush.sent).toEqual([]);
+
+    await advance(t, 6 * HOUR);
+    expect(webpush.sent.map((entry) => entry.payload.body)).toEqual([push.yourMove]);
   });
 
   it('ne retient pas une alarme derrière l’attente du télégraphe', async () => {

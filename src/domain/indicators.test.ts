@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { MapLabel } from './labels';
 import {
   clearOfColumns,
+  glideToward,
+  slideAxisOf,
   CATEGORY_BY_TYPE,
   DEFAULT_TOGGLES,
   layerOf,
@@ -230,5 +232,46 @@ describe('a destination named at the edge, beside my column', () => {
     expect(clearOfColumns({ left: 250, top: 380, right: 380, bottom: 424 }, [label], 480)).toBe(
       332,
     );
+  });
+});
+
+/** **Le jeton glisse le long de son bord** pour dégager la bulle de pile (#623). */
+describe('a destination token sliding along its edge, clear of the bubble', () => {
+  const bubble = { left: 100, top: 300, right: 290, bottom: 420 };
+  const edgeBubble = { left: 330, top: 300, right: 390, bottom: 420 };
+  it('slides on the axis of its edge: up and down on the sides, across on top and bottom', () => {
+    expect(slideAxisOf('left')).toBe('y');
+    expect(slideAxisOf('right')).toBe('y');
+    expect(slideAxisOf('top')).toBe('x');
+    expect(slideAxisOf('bottom')).toBe('x');
+  });
+  it('steps past a bubble that covers it across the axis of a top or bottom edge', () => {
+    const token = { left: 150, top: 0, right: 230, bottom: 44 };
+    expect(clearOfColumns(token, [{ ...bubble, top: 0, bottom: 120 }], 390, 'x')).toBe(294);
+    expect(clearOfColumns({ ...token, left: 20, right: 100 }, [bubble], 390, 'x')).toBe(20);
+  });
+  it('goes to the side that has room: below a bubble in the middle, above it at the foot', () => {
+    const token = { left: 340, top: 340, right: 390, bottom: 384 };
+    expect(clearOfColumns(token, [edgeBubble], 844, 'y')).toBe(424);
+    expect(clearOfColumns(token, [edgeBubble], 430, 'y')).toBe(252);
+  });
+  it('never leaves the screen at a corner', () => {
+    const token = { left: 0, top: 0, right: 80, bottom: 44 };
+    expect(clearOfColumns(token, [{ left: 0, top: 0, right: 200, bottom: 80 }], 90, 'y', 0)).toBe(
+      0,
+    );
+  });
+  it('climbs above a column from the foot of the screen, and keeps the margins it is given (#376)', () => {
+    const token = { left: 150, top: 800, right: 230, bottom: 844 };
+    const column = { left: 100, top: 790, right: 290, bottom: 830 };
+    expect(clearOfColumns(token, [column], 844)).toBe(742);
+    expect(clearOfColumns(token, [column], 844, 'y', 760)).toBe(760);
+  });
+  it('glides toward its place, and lands on it', () => {
+    const half = glideToward(0, 100, 80);
+    expect(half).toBeGreaterThan(0);
+    expect(half).toBeLessThan(100);
+    expect(glideToward(99.8, 100, 16)).toBe(100);
+    expect(glideToward(0, 100, 5000)).toBe(100);
   });
 });

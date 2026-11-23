@@ -102,6 +102,9 @@ export function drawPoints(seed: number): ReadonlyArray<StrategicPointKey> {
 export const RACE_TO_WIN = 4;
 export const RACE_HOLD_HOURS = 24;
 
+/** Les heures restantes auxquelles la table est rappelée que la course court (#614). */
+export const RACE_REMINDER_HOURS_LEFT = [12, 6] as const;
+
 /**
  * **Le meneur de la course** : celui qui tient au moins quatre des sept. Il ne peut y en avoir
  * qu'un (4 + 4 > 7). Le compte à rebours court tant qu'il en tient quatre, et repart à zéro s'il

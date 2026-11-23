@@ -30,6 +30,8 @@ export function MapCard({
   at,
   gap,
   width,
+  maxHeight,
+  foot,
   hug = true,
   initial = 'peek',
   pinned,
@@ -44,7 +46,11 @@ export function MapCard({
   at: { x: number; y: number };
   /** L'écart horizontal au point, et le vertical qui en découle : la place de la rose. */
   gap: { readonly x: number; readonly y: number };
-  width: number;
+  width: number | string;
+  /** Au bureau, la hauteur que la fiche ne dépasse pas : son corps défile, son `foot` reste. */
+  maxHeight?: string;
+  /** Au bureau, un pied qui ne défile pas (les ordres de la pile en main, #619). */
+  foot?: ReactNode;
   /** Au doigt, l'aperçu épouse la fiche (`BottomSheet.hug`) ; sans, il garde son tiers. */
   hug?: boolean;
   /** Le cran où la feuille s'ouvre au doigt. */
@@ -60,6 +66,7 @@ export function MapCard({
   children: ReactNode;
 }) {
   const narrow = useNarrowScreen();
+  const bounded = maxHeight !== undefined;
   if (narrow && sheet !== undefined) {
     return (
       <FicheSheet title={kicker} aside={aside} {...sheet} cycle={cycle} onClose={onClose}>
@@ -100,10 +107,12 @@ export function MapCard({
       }}
     >
       <section
-        className="hud paper-grain surface-in border border-[var(--ink)] bg-[var(--paper)] px-[10px] py-[8px]"
-        style={{ width }}
+        className={`hud paper-grain surface-in border border-[var(--ink)] bg-[var(--paper)] ${
+          bounded ? 'flex flex-col' : 'px-[10px] py-[8px]'
+        }`}
+        style={{ width, maxHeight }}
       >
-        <DragHandle className="flex items-baseline gap-2">
+        <DragHandle className={`flex items-baseline gap-2 ${bounded ? 'px-[10px] pt-[8px]' : ''}`}>
           <span className="text-[9px] tracking-[.18em] text-[var(--ink-soft)] uppercase">
             {kicker}
           </span>
@@ -116,7 +125,18 @@ export function MapCard({
             {fr.common.close}
           </button>
         </DragHandle>
-        {children}
+        {bounded ? (
+          <>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-[10px] pb-[8px]">
+              {children}
+            </div>
+            <div className="flex-none border-t border-[var(--ink)] px-[10px] pt-[2px] pb-[8px]">
+              {foot}
+            </div>
+          </>
+        ) : (
+          children
+        )}
       </section>
     </Draggable>
   );

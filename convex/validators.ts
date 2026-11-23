@@ -349,8 +349,9 @@ export const NOTICE = v.union(
     side: CAPTURE_SIDE,
     site: CAPTURE_SITE,
     point: LON_LAT,
-    /** `left` : plus d'infanterie sur place ; `gone` : le site rasé ou pris par un autre. */
-    reason: v.optional(v.union(v.literal('left'), v.literal('gone'))),
+    /** `left` : plus d'infanterie sur place ; `gone` : le site rasé ou pris par un autre ;
+     *  `starving` : le capteur a faim (ADR 0044). */
+    reason: v.optional(v.union(v.literal('left'), v.literal('gone'), v.literal('starving'))),
   }),
   /** L'entrée que le monde a reprise avant son tour, remboursée entière. `BUILD_COST_KEY` parce
    *  qu'une élévation d'avant-poste se rembourse par la même porte (précision du 15/09). */
@@ -817,6 +818,22 @@ export const NOTICE = v.union(
     /** Absent sur les notices d'avant le tirage : les sept du premier vivier. */
     keys: v.optional(v.array(STRATEGIC_POINT_KEY)),
   }),
+  /** **Un belligérant tient quatre points** (#614) : toute la table, le meneur compris — il se
+   *  lit lui-même à l'écran, `leaderNation` étant sa nation. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('raceStarted'),
+    leaderNation: v.string(),
+    endsAt: v.number(),
+  }),
+  /** **Le rappel de la course**, à `hoursLeft` heures de la fin. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('raceReminder'),
+    leaderNation: v.string(),
+    endsAt: v.number(),
+    hoursLeft: v.number(),
+  }),
   /** **Narvik perdu** (ADR 0032) : l'ancien teneur apprend que ses sites coupés ne produisent
    *  plus rien — la dépêche de la prise, elle, ne dit que le nom. */
   v.object({ ...NOTICE_HEAD, kind: v.literal('narvikLost') }),
@@ -1106,7 +1123,7 @@ export const REST_WINDOW = v.object({
   endMinutes: v.number(),
 });
 
-/** Les six genres de notification, ceux des cases des Réglages (`src/domain/push.ts`). */
+/** Les sept genres de notification, ceux des cases des Réglages (`src/domain/push.ts`). */
 export const PUSH_TYPE = v.union(
   v.literal('attack'),
   v.literal('outpost'),
@@ -1114,6 +1131,7 @@ export const PUSH_TYPE = v.union(
   v.literal('dryFire'),
   v.literal('season'),
   v.literal('telegraph'),
+  v.literal('yourMove'),
 );
 
 export const PUSH_PREFERENCES = v.object({
@@ -1123,6 +1141,8 @@ export const PUSH_PREFERENCES = v.object({
   dryFire: v.boolean(),
   season: v.boolean(),
   telegraph: v.boolean(),
+  /** Ajouté après les six autres : absent, il se lit coché (`pushPreferencesOf`). */
+  yourMove: v.optional(v.boolean()),
 });
 
 /** Pourquoi une Blitz lancée est revenue au salon (`blitz.abandon`). */

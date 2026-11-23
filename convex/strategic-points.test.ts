@@ -8,9 +8,10 @@ import { distanceKm, type LonLat } from '../src/domain/geo';
 import { COST_BY_MEDIUM } from '../src/domain/routing';
 import { reassessDetection } from './movement/detection';
 import { hostAtPoint } from './routes';
-import { BAKU_REFUEL_MS } from './constants';
+import { BAKU_REFUEL_MS, OBJECTIVE_AMMUNITION_PER_TROOP, POINT_GARRISON } from './constants';
 import { regionFacts } from './regions';
 import { handOver } from './strategicPoints';
+import { irregularSeat } from './objectives';
 import { drawPoints } from '../src/domain/strategic-points';
 import schema from './schema';
 import { modules } from './test.setup';
@@ -128,6 +129,39 @@ describe('the seven points of a Mondiale', () => {
       // The front page of day 0: everyone is told the Seven.
       expect(served.notices.filter((notice) => notice.kind === 'pointsDrawn')).toHaveLength(1);
     }
+  });
+
+  /** **Le salon montre le vrai tirage** (#610) : les clés que `layOut` posera, dans le même ordre,
+   *  en Mondiale seule, et jamais la graine. */
+  it('serves the lobby the keys the launch will lay out, and never the seed', async () => {
+    const t = boot();
+    const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
+    const lobby = await t.query(api.seasons.lobby, seat);
+    expect(lobby.points).toEqual(drawPoints(TEST_SEASON_SEED));
+    expect(JSON.stringify(lobby)).not.toContain('seed');
+    const guest = await joinSeat(t, code, 'Léa');
+    for (const [who, nation] of [
+      [seat, 'france'],
+      [guest, 'ussr'],
+    ] as const) {
+      await t.mutation(api.players.reserveNation, { ...who, nation });
+      await t.mutation(api.players.declareReady, { ...who, ready: true });
+    }
+    await t.mutation(api.seasons.launch, seat);
+    const laid = await t.run(async (ctx) => {
+      const notice = (await ctx.db.query('notices').collect()).find(
+        (n) => n.kind === 'pointsDrawn',
+      );
+      return notice?.kind === 'pointsDrawn' ? notice.keys : null;
+    });
+    expect((await t.query(api.seasons.lobby, seat)).points).toEqual(laid);
+  });
+
+  it('serves the lobby no points in a Blitz', async () => {
+    const t = boot();
+    const { seat } = await foundSeat(t);
+    await t.run(async (ctx) => ctx.db.patch(seat.seasonId, { mode: 'blitz', theatre: 'europe' }));
+    expect((await t.query(api.seasons.lobby, seat)).points).toBeNull();
   });
 
   /** **Singapour sur son île** (#224) : la région se lit sur l'atlas, et non sur la cellule de
@@ -259,6 +293,189 @@ describe('taking a strategic point', () => {
  * d'affilée prennent la saison ; à l'horloge, le cumul d'heures de points tenus, puis le
  * territoire.
  */
+/**
+ * **Un point neutre est gardé** (#616, ADR 0043) : la garnison naît dans le travail des objectifs,
+ * jamais dans `layPoint`, que les scènes de démo et les suites de règles appellent pour poser un
+ * point nu.
+ */
+describe('the garrison of a neutral point', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(MIDDAY);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const commitNothing = async (t: Bench, seat: Seat) => {
+    const { seasonId } = await playerOf(t, seat);
+    await t.mutation(internal.objectives.commit, { seasonId, placements: [], gaps: [] });
+  };
+  const irregularOf = async (t: Bench) =>
+    (await t.run((ctx) => ctx.db.query('players').collect())).find(
+      (player) => player.irregular === true,
+    );
+  const garrisonOf = (t: Bench, point: Doc<'strategicPoints'>) =>
+    t.run(async (ctx) =>
+      (await ctx.db.query('troops').collect()).filter(
+        (troop) =>
+          typeof troop.stationedAt === 'object' &&
+          troop.stationedAt !== null &&
+          'lon' in troop.stationedAt &&
+          troop.stationedAt.lon === point.point.lon &&
+          troop.stationedAt.lat === point.point.lat,
+      ),
+    );
+  const ammunitionOf = async (t: Bench) => {
+    const irregular = await irregularOf(t);
+    return (await t.run((ctx) => ctx.db.query('resources').collect()))
+      .filter((row) => row.playerId === irregular!._id && row.key === 'ammunition')
+      .map((row) => row.stock);
+  };
+
+  it('is posted on all seven by the objectives job, even when it places no objective', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    await commitNothing(t, seat);
+
+    const irregular = await irregularOf(t);
+    for (const point of await pointsOf(t)) {
+      const garrison = await garrisonOf(t, point);
+      expect(garrison.map((troop) => [troop.role, troop.tier, troop.playerId])).toEqual(
+        POINT_GARRISON.map((unit) => [unit.role, unit.tier, irregular!._id]),
+      );
+    }
+    /** Une seule dotation, sur toutes les troupes posées : sans elle la garnison tire à sec. */
+    expect(await ammunitionOf(t)).toEqual([
+      7 * POINT_GARRISON.length * OBJECTIVE_AMMUNITION_PER_TROOP,
+    ]);
+  });
+
+  it('is posted once, however many times the job commits', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    await commitNothing(t, seat);
+    await commitNothing(t, seat);
+    const irregular = await irregularOf(t);
+    const posted = (await t.run((ctx) => ctx.db.query('troops').collect())).filter(
+      (troop) => troop.playerId === irregular!._id,
+    );
+    expect(posted).toHaveLength(7 * POINT_GARRISON.length);
+  });
+
+  /** Pas de rattrapage (ADR 0043 §3) : un siège irrégulier déjà né dit qu'une garnison a été posée. */
+  it('is not posted when the irregular seat already exists', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    const { seasonId } = await playerOf(t, seat);
+    await t.run((ctx) => irregularSeat(ctx, seasonId));
+    await commitNothing(t, seat);
+    const irregular = await irregularOf(t);
+    const posted = (await t.run((ctx) => ctx.db.query('troops').collect())).filter(
+      (troop) => troop.playerId === irregular!._id,
+    );
+    expect(posted).toEqual([]);
+  });
+
+  it('comes with the objectives, and shares their one dotation', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    await t.action(internal.objectives.place, { seasonId: (await playerOf(t, seat)).seasonId });
+    const irregular = await irregularOf(t);
+    const posted = (await t.run((ctx) => ctx.db.query('troops').collect())).filter(
+      (troop) => troop.playerId === irregular!._id,
+    );
+    expect(posted.length).toBeGreaterThan(7 * POINT_GARRISON.length);
+    expect(await ammunitionOf(t)).toEqual([posted.length * OBJECTIVE_AMMUNITION_PER_TROOP]);
+  }, 60_000);
+
+  it('is not posted by layPoint, which scenes and rule suites call for a bare point', async () => {
+    const t = boot();
+    await launched(t);
+    expect(await garrisonOf(t, await pointCalled(t, 'lisbon'))).toEqual([]);
+  });
+
+  it('beats a column too small for it, which walks home and takes nothing', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    await commitNothing(t, seat);
+    const lisbon = await pointCalled(t, 'lisbon');
+    await capture(t, seat, await postedAt(t, seat, lisbon), lisbon);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    expect(await t.run((ctx) => ctx.db.query('captures').collect())).toEqual([]);
+    expect((await pointCalled(t, 'lisbon')).holderId).toBeNull();
+    expect((await garrisonOf(t, lisbon)).length).toBeGreaterThan(0);
+  });
+
+  it('falls to a column that keeps infantry standing, which then takes the point', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    await commitNothing(t, seat);
+    const lisbon = await pointCalled(t, 'lisbon');
+    const column: Array<Id<'troops'>> = [];
+    for (let rank = 0; rank < 20; rank += 1) column.push(await postedAt(t, seat, lisbon));
+    /** Vingt bouches pendant toute la capture : sans vivres elle serait suspendue (ADR 0044). */
+    const owner = await playerOf(t, seat);
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db
+        .query('resources')
+        .withIndex('byPlayer', (q) => q.eq('playerId', owner._id))
+        .collect())
+        if (row.key === 'food')
+          await ctx.db.patch(row._id, { stock: 100_000, updatedAt: Date.now() });
+    });
+    const sent = await t.mutation(api.movements.capture, {
+      ...seat,
+      origin: { kind: 'point', point: { lon: lisbon.point.lon + 0.3, lat: lisbon.point.lat } },
+      troopIds: column,
+      target: { kind: 'point', pointId: lisbon._id },
+    });
+    vi.advanceTimersByTime(sent.minutes * 60_000);
+    await t.finishInProgressScheduledFunctions();
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect((await pointCalled(t, 'lisbon')).holderId).toBe((await playerOf(t, seat))._id);
+    const irregular = await irregularOf(t);
+    expect(
+      (await garrisonOf(t, lisbon)).filter((troop) => troop.playerId === irregular!._id),
+    ).toEqual([]);
+  });
+
+  it('lets a column win and still take nothing when its infantry did not stay standing', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    await commitNothing(t, seat);
+    const lisbon = await pointCalled(t, 'lisbon');
+    const column: Array<Id<'troops'>> = [await postedAt(t, seat, lisbon)];
+    await t.run((ctx) => ctx.db.patch(column[0]!, { currentStrength: 1 }));
+    for (let rank = 0; rank < 12; rank += 1) column.push(await postedAt(t, seat, lisbon, 'armor'));
+    const sent = await t.mutation(api.movements.capture, {
+      ...seat,
+      origin: { kind: 'point', point: { lon: lisbon.point.lon + 0.3, lat: lisbon.point.lat } },
+      troopIds: column,
+      target: { kind: 'point', pointId: lisbon._id },
+    });
+    vi.advanceTimersByTime(sent.minutes * 60_000);
+    await t.finishInProgressScheduledFunctions();
+
+    const [fought] = await t.run((ctx) => ctx.db.query('engagements').collect());
+    expect(fought!.winner).toBe('attacker');
+    expect(fought!.troops.find((one) => one.troopId === column[0])!.state).not.toBe('standing');
+    expect(await t.run((ctx) => ctx.db.query('captures').collect())).toEqual([]);
+  });
+
+  it('is served to nobody: a point says who holds it and whether it is contested, no more', async () => {
+    const t = boot();
+    const { seat, guest } = await launched(t);
+    await commitNothing(t, seat);
+    for (const who of [seat, guest]) {
+      const served = await t.query(api.view.playerView, who);
+      expect(JSON.stringify(served.strategicPoints)).not.toMatch(/garrison|guard|troop/i);
+      expect(
+        JSON.stringify(served.notices.filter((notice) => notice.kind === 'pointsDrawn')),
+      ).not.toMatch(/garrison|infantry/i);
+    }
+  });
+});
+
 describe('winning the race', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -339,6 +556,147 @@ describe('winning the race', () => {
     const season = await seasonOf(t);
     await t.mutation(internal.race.closeRace, { seasonId: season._id, since: MIDDAY });
     expect((await seasonOf(t)).status).toBe('launched');
+  });
+
+  const noticesOf = (t: Bench, kind: string) =>
+    t.run(async (ctx) => (await ctx.db.query('notices').collect()).filter((n) => n.kind === kind));
+
+  /** **Toute la table apprend qu'une course commence**, puis à 12 h et 6 h de la fin : le meneur
+   *  se lit lui-même à l'écran (`leaderNation`), le serveur n'écrit qu'une dépêche par siège. */
+  it('tells every seat the race began, and reminds them at 12 h and 6 h left', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    await give(t, seat, ['lisbon', 'tangier', 'narvik']);
+    expect(await noticesOf(t, 'raceStarted')).toHaveLength(0);
+
+    await give(t, seat, ['istanbul']);
+    const started = await noticesOf(t, 'raceStarted');
+    expect(started).toHaveLength(2);
+    expect(started.every((n) => n.kind === 'raceStarted' && n.leaderNation === 'france')).toBe(
+      true,
+    );
+    expect(started.map((n) => n.kind === 'raceStarted' && n.endsAt)).toEqual([
+      MIDDAY + 24 * HOUR,
+      MIDDAY + 24 * HOUR,
+    ]);
+    const season = await seasonOf(t);
+
+    vi.setSystemTime(MIDDAY + 12 * HOUR);
+    await t.mutation(internal.race.remindRace, {
+      seasonId: season._id,
+      since: MIDDAY,
+      hoursLeft: 12,
+    });
+    vi.setSystemTime(MIDDAY + 18 * HOUR);
+    await t.mutation(internal.race.remindRace, {
+      seasonId: season._id,
+      since: MIDDAY,
+      hoursLeft: 6,
+    });
+    const reminders = await noticesOf(t, 'raceReminder');
+    expect(
+      reminders
+        .map((n) => n.kind === 'raceReminder' && n.hoursLeft)
+        .sort((a, b) => Number(a) - Number(b)),
+    ).toEqual([6, 6, 12, 12]);
+  });
+
+  const raceJobs = (t: Bench) =>
+    t.run(async (ctx) =>
+      (await ctx.db.system.query('_scheduled_functions').collect())
+        .filter((job) => /^race:(closeRace|remindRace)$/.test(job.name))
+        .map((job) => ({
+          name: job.name.split(':')[1],
+          at: job.scheduledTime,
+          args: (({ since, hoursLeft }) => ({
+            since,
+            ...(hoursLeft === undefined ? {} : { hoursLeft }),
+          }))(job.args[0] as { since: number; hoursLeft?: number }),
+        }))
+        .sort((a, b) => a.at - b.at),
+    );
+
+  it('schedules the close and both reminders from the moment the race began', async () => {
+    const t = boot();
+    const { seat, guest } = await launched(t);
+    await give(t, seat, ['lisbon', 'tangier', 'narvik', 'istanbul']);
+    const trio = (since: number) => [
+      { name: 'remindRace', at: since + 12 * HOUR, args: { since, hoursLeft: 12 } },
+      { name: 'remindRace', at: since + 18 * HOUR, args: { since, hoursLeft: 6 } },
+      { name: 'closeRace', at: since + 24 * HOUR, args: { since } },
+    ];
+    expect(await raceJobs(t)).toEqual(trio(MIDDAY));
+
+    vi.setSystemTime(MIDDAY + 2 * HOUR);
+    await give(t, guest, ['narvik']);
+    await give(t, seat, ['narvik']);
+    expect(await raceJobs(t)).toEqual(
+      [...trio(MIDDAY), ...trio(MIDDAY + 2 * HOUR)].sort((a, b) => a.at - b.at),
+    );
+  });
+
+  it('sends no reminder once the leader fell or the season ended', async () => {
+    const t = boot();
+    const { seat, guest } = await launched(t);
+    await give(t, seat, ['lisbon', 'tangier', 'narvik', 'istanbul']);
+    const season = await seasonOf(t);
+
+    vi.setSystemTime(MIDDAY + 5 * HOUR);
+    await give(t, guest, ['narvik']);
+    vi.setSystemTime(MIDDAY + 12 * HOUR);
+    await t.mutation(internal.race.remindRace, {
+      seasonId: season._id,
+      since: MIDDAY,
+      hoursLeft: 12,
+    });
+    expect(await noticesOf(t, 'raceReminder')).toHaveLength(0);
+
+    // Same leader falls then climbs again: a new dispatch, and the old reminders die alone.
+    vi.setSystemTime(MIDDAY + 13 * HOUR);
+    await give(t, seat, ['narvik']);
+    expect(await noticesOf(t, 'raceStarted')).toHaveLength(4);
+    vi.setSystemTime(MIDDAY + 18 * HOUR);
+    await t.mutation(internal.race.remindRace, {
+      seasonId: season._id,
+      since: MIDDAY,
+      hoursLeft: 6,
+    });
+    expect(await noticesOf(t, 'raceReminder')).toHaveLength(0);
+    await t.mutation(internal.race.remindRace, {
+      seasonId: season._id,
+      since: MIDDAY + 13 * HOUR,
+      hoursLeft: 6,
+    });
+    expect(await noticesOf(t, 'raceReminder')).toHaveLength(2);
+
+    await t.run(async (ctx) => ctx.db.patch((await seatIn(ctx, seat))._id, { defeated: true }));
+    await t.mutation(internal.race.remindRace, {
+      seasonId: season._id,
+      since: MIDDAY + 13 * HOUR,
+      hoursLeft: 12,
+    });
+    expect(await noticesOf(t, 'raceReminder')).toHaveLength(2);
+
+    await t.run(async (ctx) => ctx.db.patch((await seatIn(ctx, seat))._id, { defeated: false }));
+    await t.run(async (ctx) => ctx.db.patch(season._id, { status: 'concluded' }));
+    await t.mutation(internal.race.remindRace, {
+      seasonId: season._id,
+      since: MIDDAY + 13 * HOUR,
+      hoursLeft: 12,
+    });
+    expect(await noticesOf(t, 'raceReminder')).toHaveLength(2);
+  });
+
+  it('announces a different leader afresh', async () => {
+    const t = boot();
+    const { seat, guest } = await launched(t);
+    await give(t, seat, ['lisbon', 'tangier', 'narvik', 'istanbul']);
+    vi.setSystemTime(MIDDAY + HOUR);
+    await give(t, guest, ['lisbon', 'tangier', 'narvik', 'istanbul']);
+    const started = await noticesOf(t, 'raceStarted');
+    expect(
+      started.filter((n) => n.kind === 'raceStarted' && n.leaderNation === 'ussr'),
+    ).toHaveLength(2);
   });
 
   it('serves the hours its holder held a point before, to everyone', async () => {

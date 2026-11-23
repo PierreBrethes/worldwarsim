@@ -166,8 +166,16 @@ it('laisse les préférences du compte modifiables sans appareil abonné', async
   });
 });
 
-it('ne propose pas l’avant-poste en Blitz, où rien ne se fonde', () => {
+it('propose « À vous » en Mondiale', () => {
+  mount({});
+  screen.getByRole('checkbox', { name: (name) => name.startsWith(words.types.yourMove) });
+});
+
+it('ne propose pas l’avant-poste en Blitz, où rien ne se fonde, ni « À vous », qui n’y sonne pas', () => {
   mount({ blitz: true });
   expect(screen.queryByRole('checkbox', { name: words.types.outpost })).toBeNull();
+  expect(
+    screen.queryByRole('checkbox', { name: (name) => name.startsWith(words.types.yourMove) }),
+  ).toBeNull();
   screen.getByRole('checkbox', { name: words.types.attack });
 });

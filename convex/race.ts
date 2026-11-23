@@ -1,6 +1,8 @@
 import { v } from 'convex/values';
 import { internalMutation } from './_generated/server';
-import { clockVerdictOf } from '../src/domain/strategic-points';
+import { RACE_HOLD_HOURS, clockVerdictOf } from '../src/domain/strategic-points';
+import { notifyPlayer } from './notifications';
+import { journalUrl, push } from '../src/domain/push';
 import { heldCounts } from './press';
 import { concludeSeason } from './seasons';
 import { seatsOf } from './seats';
@@ -19,6 +21,39 @@ export const closeRace = internalMutation({
     if (season.raceSince !== since || season.raceLeaderId === undefined) return;
     if ((await ctx.db.get(season.raceLeaderId))?.defeated === true) return;
     await concludeSeason(ctx, seasonId, season.raceLeaderId, Date.now(), { reason: 'points' });
+  },
+});
+
+/**
+ * **Le rappel de la course**, à `hoursLeft` heures de la fin, à toute la table. Il relit comme
+ * `closeRace` : un meneur retombé, remplacé ou défait, ou une saison close, et il se tait.
+ */
+export const remindRace = internalMutation({
+  args: { seasonId: v.id('seasons'), since: v.number(), hoursLeft: v.number() },
+  handler: async (ctx, { seasonId, since, hoursLeft }) => {
+    const season = await ctx.db.get(seasonId);
+    if (season === null || season.status !== 'launched') return;
+    if (season.raceSince !== since || season.raceLeaderId === undefined) return;
+    const leader = await ctx.db.get(season.raceLeaderId);
+    if (leader === null || leader.defeated === true) return;
+    const at = Date.now();
+    const endsAt = since + RACE_HOLD_HOURS * 3_600_000;
+    for (const seat of await seatsOf(ctx, seasonId)) {
+      await ctx.db.insert('notices', {
+        playerId: seat._id,
+        at,
+        kind: 'raceReminder',
+        leaderNation: leader.nation ?? leader.nickname,
+        endsAt,
+        hoursLeft,
+      });
+      await notifyPlayer(ctx, seat._id, {
+        type: 'season',
+        phrase: push.raceLeft(hoursLeft),
+        url: journalUrl,
+        at,
+      });
+    }
   },
 });
 

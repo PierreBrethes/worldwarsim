@@ -31,6 +31,7 @@ import {
   tourRefusalOf,
 } from './logistics';
 import {
+  captureOrderRefusalOf,
   foundingRefusal,
   freeSlotsOf,
   landCostOf,
@@ -50,6 +51,7 @@ import {
   type Ground,
 } from './routing';
 import { fuelRefusalOf } from './supplies';
+import { tourHoldsSlot } from './tour-slot';
 import {
   marchingTroopIds,
   recruitRefusalOf,
@@ -87,6 +89,12 @@ export type BotOrder =
   | {
       readonly fn: 'movements.attack';
       readonly args: BotColumn & { readonly target: BotCampTarget };
+    }
+  | {
+      readonly fn: 'movements.capture';
+      readonly args: BotColumn & {
+        readonly target: { readonly kind: 'point'; readonly pointId: string };
+      };
     }
   | {
       readonly fn: 'movements.marchTo';
@@ -216,8 +224,19 @@ type Desire = { readonly want: number; readonly order: BotOrder };
 
 /** @a-mesurer : combien d'ordres un passage garde ; peu, pour qu'un bot reste facile (ADR 0042 §5). */
 const BOT_ORDERS_PER_TURN = 2;
-/** @a-mesurer : les troupes, debout et en file, à partir desquelles le bot cesse de recruter. */
-export const BOT_ARMY_TARGET = 6;
+/**
+ * @a-mesurer : les infanteries d'une colonne qui prend un point neutre. Au banc de `convex` (ADR 0043),
+ * neuf infanteries de palier 1 battent la garnison de trois en une passe et huit non : la colonne
+ * ne part pas avant d'avoir de quoi vaincre.
+ */
+export const BOT_POINT_COLUMN = 9;
+/**
+ * @a-mesurer : l'armée libre (sans la garnison des avant-postes), debout et en file, à partir de
+ * laquelle le bot cesse de recruter : une colonne, un camion, et deux fantassins que l'avance laisse.
+ */
+export const BOT_ARMY_TARGET = BOT_POINT_COLUMN + 3;
+/** @a-mesurer : les points neutres essayés par escouade, du plus proche ; chaque essai coûte une route. */
+const BOT_POINT_CANDIDATES = 3;
 
 /** @a-mesurer : à moins de ce rayon du QG, un camp relevé est une menace (ADR 0042 §2, urgence). */
 const BOT_HQ_ALERT_KM = 400;
@@ -233,6 +252,7 @@ const WANT_DEFEND = 500;
 const WANT_FOUNDATION = 200;
 const WANT_FOUND = 150;
 const WANT_SUPPLY = 130;
+const WANT_POINT = 120;
 const WANT_BARRACKS = 100;
 const WANT_ADVANCE = 90;
 const WANT_RECRUIT = 80;
@@ -339,10 +359,18 @@ const buildBarracks = ({ view, world, now }: BotContext): Desire[] => {
   return [];
 };
 
+/** L'armée libre : les troupes en service et en file, sans la garnison des avant-postes, qui ne repartira jamais. */
+const freeArmyOf = (view: PlayerView, workshop: BotWorkshop): number =>
+  workshop.troopsInService +
+  workshop.troopsQueued -
+  view.me.troops.filter((troop) => troop.stationedAt.kind === 'outpost').length;
+
 const recruit = ({ view, workshop, now }: BotContext): Desire[] => {
   const site = workshop.facilities.find((facility) => facility.key === 'barracks');
-  const army = workshop.troopsInService + workshop.troopsQueued;
-  if (site === undefined || army >= BOT_ARMY_TARGET || army >= MONDIALE_TROOP_BOUND) return [];
+  const total = workshop.troopsInService + workshop.troopsQueued;
+  // Seule l'armée libre se compte contre la cible ; la borne du serveur compte tout.
+  const army = freeArmyOf(view, workshop);
+  if (site === undefined || army >= BOT_ARMY_TARGET || total >= MONDIALE_TROOP_BOUND) return [];
   const trucks =
     workshop.roster.some((line) => line.role === 'landTransport') ||
     workshop.facilities.some((facility) =>
@@ -414,11 +442,17 @@ const originOf = (station: Squad['station']): BotOrigin =>
 
 const idsOf = (troops: ReadonlyArray<TroopView>) => troops.map((troop) => troop.id);
 
+/** Le pays d'origine de la nation, `null` quand on ne sait pas la lire. */
+const homeOf = (view: PlayerView): string | null =>
+  isNation(view.me.nation) ? ADM0_BY_NATION[view.me.nation] : null;
+
 const hqOf = (view: PlayerView) => view.me.buildings.find((building) => building.key === 'hq');
 
 /**
  * Les camps relevés à moins de `BOT_HQ_ALERT_KM` du QG que la défense peut frapper (camp à terre,
- * route à pied), le plus proche d'abord : un camp naval ou coupé du QG ne retient ni l'avance ni la garnison.
+ * route à pied), le plus proche d'abord : un camp naval ou coupé du QG ne retient ni l'avance ni la
+ * garnison. Un camp perdu de vue n'est qu'une dernière position, gardée `LAST_KNOWN_HOURS` : il
+ * ne retient plus rien (#625).
  */
 function threatsOf(view: PlayerView, world: BotWorld) {
   const hq = hqOf(view);
@@ -426,7 +460,9 @@ function threatsOf(view: PlayerView, world: BotWorld) {
   return view.camps
     .filter(
       (camp) =>
-        camp.medium === 'land' && world.landRoute(hq.point, camp.point, ['infantry']) !== null,
+        !camp.lastKnown &&
+        camp.medium === 'land' &&
+        world.landRoute(hq.point, camp.point, ['infantry']) !== null,
     )
     .map((camp) => ({ camp, km: distanceKm(camp.point, hq.point) }))
     .filter(({ km }) => km <= BOT_HQ_ALERT_KM)
@@ -450,12 +486,16 @@ function marchRefused(
   { view, world }: BotContext,
   squad: Squad,
   troops: ReadonlyArray<TroopView>,
-  type: 'march' | 'attack',
+  type: 'march' | 'attack' | 'capture',
   aim: MovementAim,
   to: LonLat,
 ): boolean {
   const column = armedColumn(view, squad.station, idsOf(troops));
-  if (refusalOf(type, aim, column.rule) !== null) return true;
+  const refused =
+    type === 'capture'
+      ? captureOrderRefusalOf(aim, column.rule, false)
+      : refusalOf(type, aim, column.rule);
+  if (refused !== null) return true;
   const route = world.landRoute(squad.at, to, column.rule.roles);
   if (route === null) return true;
   const drivers = troops.map((troop) => ({ role: troop.role, ...troop.supplies }));
@@ -565,7 +605,7 @@ const advance = (context: BotContext): Desire[] => {
   const hq = hqOf(view);
   if (hq === undefined || freeSlotsOf(view.me.slots) <= 0 || threatsOf(view, world).length > 0)
     return [];
-  const home = isNation(view.me.nation) ? ADM0_BY_NATION[view.me.nation] : null;
+  const home = homeOf(view);
   const held = heldRegionIds(view);
   const targets = world.regions
     .filter((region) => region.country !== home && !held.has(region.id))
@@ -580,6 +620,13 @@ const advance = (context: BotContext): Desire[] => {
       (a, b) =>
         b.troops.length - a.troops.length ||
         distanceKm(a.at, hq.point) - distanceKm(b.at, hq.point),
+    )
+    // Une colonne se forme : tant que l'armée libre n'est pas à la cible et qu'un point est joignable, l'escouade attend de pouvoir le prendre.
+    .filter(
+      (squad) =>
+        squad.troops.length >= BOT_POINT_COLUMN ||
+        freeArmyOf(view, context.workshop) >= BOT_ARMY_TARGET ||
+        reachablePoint(context, squad) === undefined,
     );
   for (const target of targets) {
     for (const squad of squads) {
@@ -605,6 +652,56 @@ const advance = (context: BotContext): Desire[] => {
     }
   }
   return [];
+};
+
+/** Le point neutre le plus proche de l'escouade que sa route atteint, parmi `BOT_POINT_CANDIDATES`. */
+function reachablePoint(context: BotContext, squad: Squad) {
+  const { view, world } = context;
+  return view.strategicPoints
+    .filter((point) => point.holder === null && !point.mine && !point.contested)
+    .sort((a, b) => distanceKm(a.point, squad.at) - distanceKm(b.point, squad.at))
+    .slice(0, BOT_POINT_CANDIDATES)
+    .find((point) => {
+      const aim: MovementAim = {
+        kind: 'strategic',
+        pointId: point.id,
+        lon: point.point[0],
+        lat: point.point[1],
+        hostCountry: world.regionAt(point.point)?.country ?? '',
+      };
+      return !marchRefused(context, squad, squad.troops, 'capture', aim, point.point);
+    });
+}
+
+/**
+ * Capturer le point neutre le plus proche que la route atteint, avec toute l'escouade quand elle a
+ * de quoi vaincre sa garnison (`BOT_POINT_COLUMN`). Les neutres seuls : le bot ne voit pas la garde
+ * d'un point tenu. Même porte que la rose (`captureOrderRefusalOf`, qui dit aussi la faim) et même
+ * garde qu'`advance` : jamais pendant qu'un camp menace le QG.
+ */
+const takePoint = (context: BotContext): Desire[] => {
+  const { view, world } = context;
+  if (freeSlotsOf(view.me.slots) <= 0 || threatsOf(view, world).length > 0) return [];
+  return squadsOf(view, 'infantry')
+    .filter((squad) => squad.troops.length >= BOT_POINT_COLUMN)
+    .flatMap((squad) => {
+      const target = reachablePoint(context, squad);
+      return target === undefined
+        ? []
+        : [
+            {
+              want: WANT_POINT,
+              order: {
+                fn: 'movements.capture' as const,
+                args: {
+                  origin: originOf(squad.station),
+                  troopIds: idsOf(squad.troops),
+                  target: { kind: 'point' as const, pointId: target.id },
+                },
+              },
+            },
+          ];
+    });
 };
 
 /** Un de mes avant-postes debout et en service dont le dépôt est sous la moitié de sa place. */
@@ -705,6 +802,7 @@ const RULES: ReadonlyArray<(context: BotContext) => Desire[]> = [
   recruit,
   defendHq,
   foundOutpost,
+  takePoint,
   advance,
   supply,
 ];
@@ -713,13 +811,34 @@ const RULES: ReadonlyArray<(context: BotContext) => Desire[]> = [
 const troopsOf = ({ args }: BotOrder): ReadonlyArray<string> =>
   'troopIds' in args ? args.troopIds : 'troopId' in args ? [args.troopId] : [];
 
-/** Les ordres qui prennent un slot de mouvement : `claimSlot` les refuse tous une fois le plafond atteint. */
+/** Les ordres qui prennent toujours un slot de mouvement (la tournée, selon son pays : `claimsSlot`). */
 const CLAIMS_A_SLOT: ReadonlySet<BotOrder['fn']> = new Set([
   'movements.attack',
+  'movements.capture',
   'movements.marchTo',
   'movements.enterGarrison',
-  'tours.start',
 ]);
+
+/**
+ * Cet ordre prend-il un slot ? Une tournée qui reste au pays n'en prend pas (`tourHoldsSlot`, #618) :
+ * le chargement est au QG et l'arrêt dans un dépôt dont le pays est celui de la nation ; un pays
+ * qu'on ne sait pas lire en prend un, comme le serveur.
+ */
+function claimsSlot({ view, world }: BotContext, order: BotOrder): boolean {
+  if (order.fn !== 'tours.start') return CLAIMS_A_SLOT.has(order.fn);
+  const hq = hqOf(view);
+  const depots = order.args.stops.map((id) =>
+    view.me.outposts.find((outpost) => outpost.id === id),
+  );
+  const home = homeOf(view);
+  return tourHoldsSlot(
+    [
+      hq === undefined ? null : (world.regionAt(hq.point)?.country ?? null),
+      ...depots.map((depot) => depot?.hostCountry ?? null),
+    ],
+    home,
+  );
+}
 
 /**
  * Les ordres du passage : les envies les plus fortes d'abord, `BOT_ORDERS_PER_TURN` au plus, sans
@@ -735,7 +854,7 @@ export function decideTurn(context: BotContext): BotOrder[] {
     if (chosen.length === BOT_ORDERS_PER_TURN) break;
     const troops = troopsOf(order);
     if (troops.some((id) => engaged.has(id))) continue;
-    if (CLAIMS_A_SLOT.has(order.fn)) {
+    if (claimsSlot(context, order)) {
       if (slots <= 0) continue;
       slots -= 1;
     }

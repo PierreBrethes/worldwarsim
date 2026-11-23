@@ -563,6 +563,14 @@ export const TOUR_RETRY_MINUTES = 30;
 export const TOUR_CRAWL_FACTOR = 2;
 
 /**
+ * **Une armée affamée marche au pas** (ADR 0044) : ses minutes sont multipliées par ce facteur, à
+ * la marche, à l'attaque et à la capture, lu au départ.
+ *
+ * @a-mesurer aucune partie ne l'a joué
+ */
+export const STARVING_PACE_FACTOR = 2;
+
+/**
  * **Une route refusée** au chargement autant de fois d'affilée arrête la tournée : elle ne
  * revient pas seule, à la différence d'un plateau à sec ou de dépôts pleins.
  *
@@ -1265,7 +1273,7 @@ export const OBJECTIVE_ARCHETYPES: ReadonlyArray<ObjectiveArchetype> = [
       { role: 'infantry', tier: 1 },
       { role: 'infantry', tier: 1 },
     ],
-    depot: { steel: 60 },
+    depot: { steel: 180, oil: 60 },
   },
   {
     key: 'stalledConvoy',
@@ -1275,7 +1283,7 @@ export const OBJECTIVE_ARCHETYPES: ReadonlyArray<ObjectiveArchetype> = [
       { role: 'infantry', tier: 1 },
       { role: 'infantry', tier: 1 },
     ],
-    depot: { steel: 150, ammunition: 40 },
+    depot: { steel: 450, ammunition: 120, oil: 120 },
   },
   {
     key: 'fuelDump',
@@ -1285,7 +1293,7 @@ export const OBJECTIVE_ARCHETYPES: ReadonlyArray<ObjectiveArchetype> = [
       { role: 'infantry', tier: 1 },
       { role: 'infantry', tier: 1 },
     ],
-    depot: { steel: 150, oil: 60 },
+    depot: { steel: 450, oil: 180 },
   },
   {
     key: 'irregularArsenal',
@@ -1295,7 +1303,7 @@ export const OBJECTIVE_ARCHETYPES: ReadonlyArray<ObjectiveArchetype> = [
       { role: 'infantry', tier: 1 },
       { role: 'armor', tier: 1 },
     ],
-    depot: { steel: 300, ammunition: 80 },
+    depot: { steel: 900, ammunition: 240, oil: 240 },
   },
 ];
 
@@ -1355,6 +1363,20 @@ export const OBJECTIVE_HARD_MAX = 4;
  * @a-mesurer une réserve tenue au doigt pour qu'une garnison ne tire jamais à sec sur une saison de 48 h
  */
 export const OBJECTIVE_AMMUNITION_PER_TROOP = 200;
+
+/**
+ * **La garnison locale d'un point stratégique neutre** (ADR 0043) : la même pour les sept, trois
+ * infanteries de palier 1 — l'archétype moyen des objectifs. Sans elle une infanterie seule prenait
+ * un point en six heures, et quatre points tenus un jour gagnaient la saison avant toute recherche.
+ * Elle ne se pose qu'au lancement et ne se renforce jamais : une fois réduite, le point se prend.
+ *
+ * @a-mesurer à combien de colonnes un point tient avant la première recherche, au banc
+ */
+export const POINT_GARRISON: ObjectiveArchetype['garrison'] = [
+  { role: 'infantry', tier: 1 },
+  { role: 'infantry', tier: 1 },
+  { role: 'infantry', tier: 1 },
+];
 
 /**
  * **L'économie de la Blitz, en une table** (lot 4 des deux modes, 14/10). Une seule ressource,

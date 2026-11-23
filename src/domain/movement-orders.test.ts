@@ -1154,3 +1154,11 @@ describe('the span of a dissolution crown (#534)', () => {
     expect(disbandSpanKm([{ role: 'infantry' }, { role: 'armor' }])).toBeCloseTo(9.6, 9);
   });
 });
+
+describe('a hungry column', () => {
+  it('is refused the order to capture, and a fed one is not', () => {
+    const hungry = column(['infantry'], { starving: true });
+    expect(captureOrderRefusalOf(outpost, hungry, false)).toBe('CAPTURE_STARVING');
+    expect(captureOrderRefusalOf(outpost, column(['infantry']), false)).toBeNull();
+  });
+});

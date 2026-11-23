@@ -4,7 +4,8 @@ import { researchProgressOf, searcherOf } from './research';
 import { incomePerMinute } from './blitz';
 import { riseOf, type WorkSite } from './construction';
 import type { BuildingKey } from './ids';
-import { capturingAt, isHqSite, progressAt } from './capture';
+import { capturingAt } from './capture';
+import { captureSaid } from './capture-said';
 import { asClockTime, asDatedClock, asDuration, reloadClock } from './duration';
 import { produces } from './economy';
 import { loadingUntilOf } from './loading';
@@ -66,15 +67,10 @@ export function posterOf(label: MapLabel, view: PlayerView, now: number): Poster
   const capture = captureOn(label, view);
   const poster = pieceOf(label, view, now);
   if (capture === null) return poster;
-  const percent = Math.floor(progressAt(capture.clock, now) * 100);
-  const hour = asClockTime(capture.completesAt);
   const line: PosterLine = {
     kind: 'chip',
     label: fr.capture.stamp,
-    chip:
-      capture.side === 'capturer'
-        ? fr.capture.endsAt(percent, hour)
-        : fr.capture.lostAt(percent, hour, isHqSite(capture.site)),
+    chip: captureSaid(capture, now, 'gauge'),
     tone: capture.side === 'capturer' ? 'ok' : 'cut',
   };
   return poster === null

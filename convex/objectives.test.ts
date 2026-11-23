@@ -485,7 +485,8 @@ describe('the neutral objectives', () => {
         expect(view.objectives).toHaveLength(1);
         const [objective] = view.objectives;
         expect(objective).toMatchObject({ key: 'abandonedStores', regionId: HAINAUT });
-        expect(objective!.depot.steel).toBe(60);
+        expect(objective!.depot.steel).toBe(180);
+        expect(objective!.depot.oil).toBe(60);
         expect(Object.keys(objective!)).not.toContain('garrison');
         /** La garnison n'est pas servie : elle se relève comme toute force posée, ou pas. */
         expect(view.camps).toHaveLength(0);
@@ -593,7 +594,7 @@ describe('the neutral objectives', () => {
       const objective = (await t.run((ctx) => ctx.db.get(objectiveId)))!;
       expect(objective.status).toBe('taken');
       expect(objective.depot.steel).toBe(0);
-      /** La capacité de la colonne dépasse les soixante d'acier : rien ne reste au sol. */
+      /** La capacité de la colonne dépasse les deux cent quarante de butin : rien ne reste au sol. */
       expect(
         carryCapacityOf(
           column.map(() => ({
@@ -603,7 +604,7 @@ describe('the neutral objectives', () => {
           })),
           CARRY_CAPACITY_BY_ROLE,
         ),
-      ).toBeGreaterThan(60);
+      ).toBeGreaterThan(240);
       /** Le dépôt vidé s'annonce à tout le monde, et ne nomme personne. */
       for (const seat of seats) {
         expect(await noticesOf(t, seat, 'objectiveTaken')).toHaveLength(1);
@@ -638,7 +639,7 @@ describe('the neutral objectives', () => {
 
       const objective = (await t.run((ctx) => ctx.db.get(objectiveId)))!;
       expect(objective.status).toBe('standing');
-      expect(objective.depot.steel).toBe(300);
+      expect(objective.depot.steel).toBe(900);
       const garrisonAfter = await garrisonStrength(t, seats[0]!);
       expect(garrisonAfter).toBeGreaterThan(0);
       expect(garrisonAfter).toBeLessThan(garrisonBefore);
@@ -679,9 +680,9 @@ describe('the neutral objectives', () => {
       const objective = (await t.run((ctx) => ctx.db.get(objectiveId)))!;
       const left = RESOURCES.reduce((sum, resource) => sum + objective.depot[resource], 0);
       expect(objective.status).toBe('standing');
-      /** Une compagnie porte quarante : trois cent quatre-vingts moins quarante restent. */
+      /** Une compagnie porte quarante : treize cent quatre-vingts moins quarante restent. */
       expect(left).toBeGreaterThan(0);
-      expect(left).toBeLessThan(380);
+      expect(left).toBeLessThan(1380);
     }, 60_000);
   });
 });

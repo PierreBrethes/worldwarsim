@@ -581,7 +581,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       slots: {
         total: movementSlots(player.researched ?? []),
         // A return holds nothing, nor the one fleet at a time of the holder of Halifax; a resting
-        // tour holds one (`slotsTaken`).
+        // tour holds one, unless it stays on national soil (#618, `slotsTaken`).
         used: slots.used,
         /** **Halifax** : son teneur ne paie pas un mouvement maritime à la fois (`slotsAskedBy`). */
         ...(halifax ? { halifax: true as const, maritime: slots.maritime } : {}),
@@ -1406,6 +1406,8 @@ const captureView = (capture: Doc<'captures'>, side: 'capturer' | 'defender') =>
   },
   completesAt: capture.completesAt,
   stoppedAt: capture.stoppedAt ?? null,
+  /** **Servi au seul capteur** (ADR 0044) : le défenseur ne lit pas la famine de l'autre. */
+  suspended: side === 'capturer' && capture.suspended === true,
 });
 
 /** Where a dispatch happened, for the journal's locate button: the point the row stored, else the

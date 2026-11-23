@@ -52,14 +52,14 @@ async function launchedSeason(t: Bench) {
 
 const playerOf = (t: Bench, seat: Seat) => t.run(async (ctx) => (await seatIn(ctx, seat))._id);
 
-async function plant(t: Bench, seat: Seat, point: LonLat) {
+async function plant(t: Bench, seat: Seat, point: LonLat, where = GERMANY) {
   const playerId = await playerOf(t, seat);
   return t.run(async (ctx) =>
     ctx.db.insert('outposts', {
       seasonId: (await ctx.db.get(playerId))!.seasonId,
       playerId,
       point: { lon: point[0], lat: point[1] },
-      ...GERMANY,
+      ...where,
       level: 1,
       foundedAt: Date.now() - 1,
       disabledUntil: null,
@@ -143,6 +143,21 @@ describe('a patrol on a liaison', () => {
       waiting: null,
     });
     expect(JSON.stringify(await t.query(api.view.playerView, guest))).not.toContain('patrol');
+  });
+
+  it('keeps its slot on national soil, where a tour keeps none (#618)', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const home = { hostCountry: 'FRA', regionId: 'FRA-5323' };
+    const reims = await plant(t, seat, [4.03, 49.25], home);
+    const troyes = await plant(t, seat, [4.07, 48.3], home);
+    const troop = await form(t, seat, 'infantry', reims);
+    await t.mutation(api.patrols.start, { ...seat, troopId: troop, ends: [troyes, reims] });
+
+    expect(await flying(t)).toMatchObject([{ patrolLeg: true }]);
+    expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(1);
+    await arriveNext(t);
+    expect((await t.query(api.view.playerView, seat)).me.slots.used).toBe(1);
   });
 
   it('halts an hour in garrison at the end it reaches, its slot kept, then leaves for the other', async () => {

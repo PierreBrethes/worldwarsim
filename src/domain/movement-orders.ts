@@ -218,6 +218,9 @@ export type Column = {
    * l'ancre : elle marche, elle n'attaque pas. Absent, elle en a (et la Blitz ne compte pas).
    */
   readonly outOfRounds?: boolean;
+  /** **Son joueur a faim** (ADR 0044, Mondiale) : `economyOf(...).starving`, côté serveur comme
+   *  dans la vue. Elle marche au pas et ne capture plus. Absent, elle est nourrie. */
+  readonly starving?: boolean;
   /** **Une Blitz** (lot 5) : absent, la Mondiale, où rien de ceci ne se lit. */
   readonly blitz?: {
     readonly theatre: Theatre;
@@ -314,7 +317,12 @@ export function captureOrderRefusalOf(
   isMine: boolean,
 ): CaptureRefusal | OrderRefusal | null {
   const mode = column.blitz === undefined ? 'mondiale' : 'blitz';
-  return captureRefusalOf(column.roles, isMine, mode) ?? dry(column) ?? closedGate(aim, column);
+  return (
+    captureRefusalOf(column.roles, isMine, mode) ??
+    (column.starving === true ? 'CAPTURE_STARVING' : null) ??
+    dry(column) ??
+    closedGate(aim, column)
+  );
 }
 
 /** Collection is a march with one additional requirement: something selected must carry home. */

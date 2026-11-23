@@ -36,6 +36,7 @@ const depot = (id: string, point: LonLat, held: number, capacity = 150): SheetDe
   capacity,
   level: 2,
   standing: true,
+  country: 'FRA',
 });
 const site = (
   id: string,
@@ -53,6 +54,7 @@ const site = (
   working: true,
   stoppedForHours: null,
   facts: { ours: true, exploitation: true, hasQuay: false, routed: true },
+  country: 'FRA',
   ...extra,
 });
 
@@ -60,6 +62,8 @@ const truck = (consigne = 80, stockRoom = 1000): TourSheet => ({
   world: projection,
   role: 'landTransport',
   base: paris,
+  baseCountry: 'FRA',
+  homeCountry: 'FRA',
   consigne: { ammunition: consigne, oil: 0, coal: 0 },
   stockRoom: { ...emptyStocks(), coal: stockRoom },
   rules: { place: { kind: 'building', key: 'hq' }, busy: null, baseOutpostId: null },

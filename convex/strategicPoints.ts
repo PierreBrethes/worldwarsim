@@ -6,6 +6,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import {
   ISTANBUL_PERIOD_HOURS,
   RACE_HOLD_HOURS,
+  RACE_REMINDER_HOURS_LEFT,
   STRATEGIC_POINTS,
   drawPoints,
   TANGIER_LOT,
@@ -28,6 +29,12 @@ import { regionAtPoint } from './regionGeometry';
 import { reassessDetection } from './movement/detection';
 import { modeOf } from '../src/domain/season-mode';
 import { restampChanged, type Heaps } from './heaps';
+import { notifyPlayer } from './notifications';
+import { journalUrl, push } from '../src/domain/push';
+
+/** **Le tirage d'une saison**, lu de sa graine : le lancement le pose, le salon le montre, par ce
+ *  seul appel (la graine ne sort jamais du serveur). */
+export const drawnOf = (season: Doc<'seasons'> | null) => drawPoints(season?.seed ?? 0);
 
 /**
  * **Les sept, tirés par la graine de la saison et posés neutres au lancement d'une Mondiale**
@@ -36,7 +43,7 @@ import { restampChanged, type Heaps } from './heaps';
  */
 export async function layOut(ctx: MutationCtx, seasonId: Id<'seasons'>, at: number): Promise<void> {
   const season = await ctx.db.get(seasonId);
-  const drawn = drawPoints(season?.seed ?? 0);
+  const drawn = drawnOf(season);
   for (const seat of await seatsOf(ctx, seasonId)) {
     await ctx.db.insert('notices', {
       playerId: seat._id,
@@ -260,10 +267,32 @@ async function tallyRace(ctx: MutationCtx, seasonId: Id<'seasons'>, now: number)
     return;
   }
   await ctx.db.patch(seasonId, { raceLeaderId: leader, raceSince: now });
-  await ctx.scheduler.runAt(now + RACE_HOLD_HOURS * 3_600_000, internal.race.closeRace, {
-    seasonId,
-    since: now,
-  });
+  const endsAt = now + RACE_HOLD_HOURS * 3_600_000;
+  const leaderSeat = await ctx.db.get(leader);
+  const leaderNation = leaderSeat?.nation ?? leaderSeat?.nickname ?? '?';
+  for (const seat of await seatsOf(ctx, seasonId)) {
+    await ctx.db.insert('notices', {
+      playerId: seat._id,
+      at: now,
+      kind: 'raceStarted',
+      leaderNation,
+      endsAt,
+    });
+    await notifyPlayer(ctx, seat._id, {
+      type: 'season',
+      phrase: push.raceLeft(RACE_HOLD_HOURS),
+      url: journalUrl,
+      at: now,
+    });
+  }
+  await ctx.scheduler.runAt(endsAt, internal.race.closeRace, { seasonId, since: now });
+  for (const hoursLeft of RACE_REMINDER_HOURS_LEFT) {
+    await ctx.scheduler.runAt(endsAt - hoursLeft * 3_600_000, internal.race.remindRace, {
+      seasonId,
+      since: now,
+      hoursLeft,
+    });
+  }
 }
 
 /** Les heures qu'un joueur a tenu un point jusqu'à `now` : perdues, et tenues encore. */

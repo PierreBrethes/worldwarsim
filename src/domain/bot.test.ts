@@ -37,6 +37,7 @@ const viewOf = (me: Record<string, unknown> = {}): PlayerView =>
     mode: 'mondiale',
     arcs: [],
     camps: [],
+    strategicPoints: [],
     outpostFoundation: { cost: { steel: 10 }, minutes: 60 },
     buildCatalog: catalog,
     surveyedInstallations: [],

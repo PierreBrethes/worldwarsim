@@ -286,16 +286,17 @@ const TILES_STEP_KEY = 'wws-tiles-step';
 
 /**
  * **Le cran de l'étage des tuiles est une préférence de l'appareil** (#589) : seuls « replié » et
- * « rang » se retiennent. Un volet ouvert (la moitié ou le plein) revient au rang au lancement suivant, et
- * tout autre contenu retombe sur le rang.
+ * « rang » se retiennent. **Un appareil neuf arrive replié** (#621) : la carte garde sa hauteur tant que le
+ * joueur n'a pas relevé l'étage. Un volet ouvert (la moitié ou le plein) revient au rang au lancement
+ * suivant, et tout autre contenu retombe sur le cran replié.
  */
 export type TilesStep = 'collapsed' | 'peek';
 
 export const readTilesStep = (): TilesStep => {
   try {
-    return localStorage.getItem(TILES_STEP_KEY) === 'collapsed' ? 'collapsed' : 'peek';
+    return localStorage.getItem(TILES_STEP_KEY) === 'peek' ? 'peek' : 'collapsed';
   } catch {
-    return 'peek';
+    return 'collapsed';
   }
 };
 

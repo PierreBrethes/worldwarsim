@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { ConvexProvider, type ConvexReactClient } from 'convex/react';
-import { useState } from 'react';
+import { useState, type ComponentProps } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fr } from '@/i18n/fr';
 import { RESOURCES } from '@/domain/ids';
@@ -29,7 +29,9 @@ const client = {
 } as unknown as ConvexReactClient;
 
 beforeEach(() => {
+  // Un appareil neuf arrive replié ; la plupart des cas partent d'un étage que le joueur a relevé.
   localStorage.clear();
+  localStorage.setItem('wws-tiles-step', 'peek');
   Element.prototype.scrollIntoView = () => {};
   Element.prototype.animate = () => ({}) as Animation;
   vi.stubGlobal('matchMedia', () => ({
@@ -120,7 +122,15 @@ const held: string[] = [];
 const opened: Array<[boolean, boolean | undefined]> = [];
 
 /** L'étage câblé comme `plateau.tsx` : la fenêtre `personalBoard` n'est que l'adresse du mât. */
-function Table({ view = viewOf(), open = false }: { view?: PlayerView; open?: boolean }) {
+function Table({
+  view = viewOf(),
+  open = false,
+  cue = null,
+}: {
+  view?: PlayerView;
+  open?: boolean;
+  cue?: ComponentProps<typeof PersonalBoard>['cue'];
+}) {
   const [rose, openRose] = useState(false);
   const [sheet, openSheet] = useState(false);
   setRose = openRose;
@@ -136,6 +146,7 @@ function Table({ view = viewOf(), open = false }: { view?: PlayerView; open?: bo
           research={false}
           onResearch={() => {}}
           front
+          cue={cue}
           focused={null}
           site={null}
           onDeselectSite={() => {}}
@@ -180,11 +191,30 @@ const tile = (name: string) =>
   screen.getByRole('button', { name: new RegExp(`^${name} — `), hidden: true });
 
 describe("the tiles' stage under the threshold", () => {
-  it('comes out at the row of tiles on the first launch, out of the address', () => {
+  it('comes out folded on its title line on the first launch, out of the address (#621)', () => {
+    localStorage.clear();
     render(<Table />);
-    expect(step()).toBe('peek');
+    expect(step()).toBe('collapsed');
     expect(hidden()).toBe(false);
     expect(localStorage.getItem('wws-tiles-step')).toBeNull();
+  });
+
+  it('says the lit step on the title line while folded, and drops the bubble (#621)', () => {
+    localStorage.clear();
+    const cue = { text: 'Pose une ferme', tile: 'farm' as const, rack: 'tiles' as const };
+    render(<Table cue={cue} />);
+    expect(stage().querySelector('h2')!.parentElement!.textContent).toContain(cue.text);
+    expect(stage().querySelector('.first-step-cue')).toBeNull();
+    act(() => toggle().click());
+    expect(step()).toBe('peek');
+    expect(stage().querySelector('.first-step-cue')).not.toBeNull();
+    expect(stage().textContent).toContain(cue.text);
+  });
+
+  it('keeps the works on the title line while folded and no step is lit', () => {
+    localStorage.clear();
+    render(<Table />);
+    expect(stage().textContent).toContain(fr.personalBoard.noWorks);
   });
 
   it('keeps « folded » and « row » from one launch to the next, and nothing taller', () => {
@@ -192,9 +222,13 @@ describe("the tiles' stage under the threshold", () => {
     render(<Table />);
     expect(step()).toBe('collapsed');
     cleanup();
-    localStorage.setItem('wws-tiles-step', 'half');
+    localStorage.setItem('wws-tiles-step', 'peek');
     render(<Table />);
     expect(step()).toBe('peek');
+    cleanup();
+    localStorage.setItem('wws-tiles-step', 'half');
+    render(<Table />);
+    expect(step()).toBe('collapsed');
   });
 
   it('remembers the step the player chose', () => {

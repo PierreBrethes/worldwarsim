@@ -1,5 +1,5 @@
 import { isHqSite } from './capture';
-import { asClockTime, asLocalTime } from './duration';
+import { asClockTime, asDayAndTime, asLocalTime } from './duration';
 import { cardinalLabel, countryLabel, fr, nationLabel, ofName, theBuilding } from '../i18n/fr';
 import { isNation } from './nations';
 import { EXPLOITED_DEPOSITS } from './economy';
@@ -60,6 +60,8 @@ export function journalDispatches(
   outcome: (SeasonOutcome & { readonly verdict?: SeasonVerdict | null }) | null,
   notices: ReadonlyArray<Notice> = [],
   readAt: number | null = null,
+  /** Sa nation : la course se dit « vous » au meneur. */
+  viewerNation: string | null = null,
 ): ReadonlyArray<JournalDispatch> {
   const verdict = outcome?.verdict ?? null;
   /** Une clôture à la main a déjà sa dépêche (`seasonClosed`) : la ligne la doublerait. */
@@ -88,7 +90,7 @@ export function journalDispatches(
         ];
 
   const filed: ReadonlyArray<Written> = notices.map((notice) => ({
-    ...written(notice),
+    ...written(notice, viewerNation),
     place: notice.place ?? null,
   }));
 
@@ -140,7 +142,7 @@ type Written = {
  * a notice already carries everything its sentence needs, which is what lets the journal be
  * *what happened* rather than *what is true now*.
  */
-function written(notice: Notice): Written {
+function written(notice: Notice, viewerNation: string | null): Written {
   const said = fr.journal.notices;
   switch (notice.kind) {
     /** A chantier the world took back: an entry of the queue is accepted against the state at
@@ -435,7 +437,9 @@ function written(notice: Notice): Written {
           ? said.captureLifted(site)
           : notice.reason === 'gone'
             ? said.captureVoid(site)
-            : said.captureAbandoned(site),
+            : notice.reason === 'starving'
+              ? said.captureStarved(site)
+              : said.captureAbandoned(site),
       };
     }
     case 'productionRestored':
@@ -700,6 +704,29 @@ function written(notice: Notice): Written {
         severity: 'notable',
         kind: 'pointTaken',
         text: fr.points.drawn(notice.keys ?? FIRST_SEVEN),
+      };
+    case 'raceStarted':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'pointTaken',
+        text: fr.points.raceStarted(
+          nationName(notice.leaderNation),
+          notice.leaderNation === viewerNation,
+          asDayAndTime(notice.endsAt),
+        ),
+      };
+    case 'raceReminder':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'pointTaken',
+        text: fr.points.raceReminder(
+          nationName(notice.leaderNation),
+          notice.leaderNation === viewerNation,
+          notice.hoursLeft,
+          asDayAndTime(notice.endsAt),
+        ),
       };
     case 'narvikLost':
       return {

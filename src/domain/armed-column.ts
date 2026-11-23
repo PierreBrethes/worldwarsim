@@ -100,6 +100,7 @@ export function armedColumn(
       coastal: station.kind === 'point' ? station.coastal : (outpost?.coastal ?? false),
       captureRate: captureRate(troops),
       ...roundsOf(view, troops),
+      ...(view.mode !== 'blitz' && view.me.starving ? { starving: true } : {}),
       ...blitzOf(view, troops),
     },
   };

@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   IN_PLAY_WINDOW_MS,
   TELEGRAPH_PUSH_INTERVAL_MS,
+  YOUR_MOVE_PUSH_INTERVAL_MS,
   deviceLabelOf,
   groupAlarms,
   groupTelegraph,
+  groupYourMove,
+  push,
   isPushEndpoint,
   journalUrl,
   pushPreferencesOf,
@@ -33,6 +36,7 @@ describe('pushPreferencesOf', () => {
       true,
       true,
       true,
+      true,
     ]);
   });
 
@@ -48,6 +52,13 @@ describe('groupAlarms', () => {
 
   it('ne dit rien quand il n’y a que du télégraphe', () => {
     expect(groupAlarms([row('telegraph', 1)], 's1')).toBeNull();
+  });
+
+  it('laisse « À vous » à sa propre cadence, hors du lot des alarmes', () => {
+    expect(groupAlarms([row('yourMove', 1)], 's1')).toBeNull();
+    expect(groupAlarms([row('attack', 1, 'une passe'), row('yourMove', 2)], 's1')?.body).toBe(
+      'une passe',
+    );
   });
 
   it('envoie la phrase d’une attaque seule, vers sa dépêche', () => {
@@ -97,7 +108,12 @@ describe('readSeat', () => {
   const NOON = Date.UTC(2026, 7, 17, 12, 0, 0);
   const NIGHT = Date.UTC(2026, 7, 17, 22, 0, 0);
   const rest = { startMinutes: 21 * 60, endMinutes: 4 * 60 };
-  const seat = { presentAt: null, restWindow: rest, telegraphPushedAt: null };
+  const seat = {
+    presentAt: null,
+    restWindow: rest,
+    telegraphPushedAt: null,
+    yourMovePushedAt: null,
+  };
 
   it('laisse tout partir en dehors du repos, absent', () => {
     expect(readSeat(seat, NOON)).toEqual({
@@ -105,6 +121,8 @@ describe('readSeat', () => {
       inPlay: false,
       telegraphAllowed: true,
       telegraphRetryAt: null,
+      yourMoveAllowed: true,
+      yourMoveRetryAt: null,
     });
   });
 
@@ -123,6 +141,35 @@ describe('readSeat', () => {
       telegraphAllowed: false,
       telegraphRetryAt: pushedAt + TELEGRAPH_PUSH_INTERVAL_MS,
     });
+  });
+});
+
+describe('« À vous »', () => {
+  const NOON = Date.UTC(2026, 7, 17, 12, 0, 0);
+  const seat = {
+    presentAt: null,
+    restWindow: { startMinutes: 21 * 60, endMinutes: 4 * 60 },
+    telegraphPushedAt: null,
+    yourMovePushedAt: null,
+  };
+
+  it('se retient une heure après le dernier envoi, sans toucher au télégraphe', () => {
+    const pushedAt = NOON - 10 * 60_000;
+    expect(readSeat({ ...seat, yourMovePushedAt: pushedAt }, NOON)).toMatchObject({
+      yourMoveAllowed: false,
+      yourMoveRetryAt: pushedAt + YOUR_MOVE_PUSH_INTERVAL_MS,
+      telegraphAllowed: true,
+    });
+    expect(
+      readSeat({ ...seat, yourMovePushedAt: NOON - YOUR_MOVE_PUSH_INTERVAL_MS }, NOON),
+    ).toMatchObject({ yourMoveAllowed: true, yourMoveRetryAt: null });
+  });
+
+  it('ne dit qu’une phrase, quel que soit le nombre d’arrivées, et ne nomme personne', () => {
+    expect(groupYourMove(0, 's1')).toBeNull();
+    const one = groupYourMove(1, 's1');
+    expect(one).toEqual(groupYourMove(5, 's1'));
+    expect(one).toEqual({ body: push.yourMove, url: '/plateau', tag: 's1:yourMove' });
   });
 });
 

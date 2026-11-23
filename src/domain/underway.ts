@@ -1,5 +1,6 @@
 import { cardName, countryLabel, fr } from '@/i18n/fr';
-import { researchProgressOf, searcherOf } from './research';
+import { researchMs, researchProgressOf, searcherOf } from './research';
+import { foundationMinutes } from './level-speed';
 import { isOutpostWork, type BuildingKey, type UnitRole } from './ids';
 import { lotFinishesAt, type PlayerView } from './player-view';
 import type { LonLat } from './geo';
@@ -38,6 +39,17 @@ export type Underway = {
   readonly place: UnderwayPlace;
   /** Un mouvement se lit à l'ambre de son fil ; le reste à l'encre. */
   readonly moving: boolean;
+  /** **Un mouvement tient un slot, sauf un retour** (`claimSlot`) et la marche d'une ronde ou d'une
+   *  tournée, qui garde le sien à l'arrivée : seul lui compte dans « tient un slot » et dans la
+   *  phrase du refus. */
+  readonly holdsSlot: boolean;
+  /** L'instant où ce slot se rend : l'arrivée, non `endsAt`, qui peut être la fin d'une marche vers
+   *  une plage de repos. */
+  readonly slotFreedAt?: number;
+  /** **La durée entière dont la jauge se tire**, en ms ; absente quand la vue ne la porte pas :
+   *  la jauge n'est alors pas dessinée plutôt que devinée. Celle d'une fondation est une
+   *  approximation : la durée au niveau du QG d'aujourd'hui, que la vue ne date pas. */
+  readonly span?: number;
   /** **Une ronde qu'on peut rappeler** (#376) : sa troupe. */
   readonly recall?: string;
 };
@@ -50,6 +62,8 @@ export type RecruitmentDue = {
   readonly regionId: string;
   readonly regionName: string;
   readonly endsAt: number;
+  /** La durée de la formation, quand l'atelier la sert (`troops.workshop`). */
+  readonly span?: number;
 };
 
 /**
@@ -73,9 +87,17 @@ export function underwayOf(
     if (arc.state !== 'mine') continue;
     const patroller = patrolling.find((troop) => arc.troopIds.includes(troop.id));
     const patrol = patroller?.patrol;
+    /** Une ronde ou une tournée garde son slot à l'arrivée : sa marche n'en rend aucun. */
+    const keepsSlot = view.me.troops.some(
+      (troop) =>
+        (troop.patrol !== undefined || troop.tour !== undefined) && arc.troopIds.includes(troop.id),
+    );
+    const holdsSlot = arc.type !== 'return' && !keepsSlot;
+    const endsAt = borderResolution(arc.schedule) ?? arc.schedule.arrivesAt;
     lines.push({
       id: `movement-${arc.id}`,
-      endsAt: borderResolution(arc.schedule) ?? arc.schedule.arrivesAt,
+      endsAt,
+      span: endsAt - arc.schedule.departedAt,
       label:
         patrol !== undefined
           ? fr.patrol.state({ ...patrol, to: outpostNameIn(view.me, patrol.to), here: null })
@@ -86,6 +108,8 @@ export function underwayOf(
       face: { kind: 'unit', role: representativeRole(arc.stack) },
       place: { kind: 'movement', arcId: arc.id },
       moving: true,
+      holdsSlot,
+      ...(holdsSlot ? { slotFreedAt: arc.schedule.arrivesAt } : {}),
       ...(patrol === undefined || patrol.recalled ? {} : { recall: patroller!.id }),
     });
   }
@@ -97,6 +121,7 @@ export function underwayOf(
         lines.push({
           id: `construction-${work.id}`,
           endsAt: at(work.minutesLeft),
+          ...(work.minutes === undefined ? {} : { span: work.minutes * 60_000 }),
           label: work.respecialize
             ? fr.underway.respecialize(fr.specialties[work.specialty ?? 'general'])
             : fr.underway.raise(
@@ -106,6 +131,7 @@ export function underwayOf(
           face: { kind: 'outpost' },
           place: { kind: 'outpost', outpostId: outpost.id },
           moving: false,
+          holdsSlot: false,
         });
     } else {
       /** La tête de file ne porte pas son niveau : il se lit sur le bâtiment qu'elle monte, et un
@@ -121,6 +147,7 @@ export function underwayOf(
       lines.push({
         id: `construction-${work.id}`,
         endsAt: at(work.minutesLeft),
+        ...(work.minutes === undefined ? {} : { span: work.minutes * 60_000 }),
         label: fr.underway.construction(
           work.name,
           standing !== undefined
@@ -132,6 +159,7 @@ export function underwayOf(
         face: { kind: 'building', key: work.key },
         place: { kind: 'building', regionId: work.regionId, key: work.key, point: work.point },
         moving: false,
+        holdsSlot: false,
       });
     }
   }
@@ -151,6 +179,7 @@ export function underwayOf(
       face: { kind: 'unit', role: troop.role },
       place: { kind: 'outpost', outpostId: station.outpostId },
       moving: false,
+      holdsSlot: false,
       recall: troop.id,
     });
   }
@@ -160,10 +189,12 @@ export function underwayOf(
     lines.push({
       id: `foundation-${outpost.id}`,
       endsAt: outpost.standsAt,
+      span: foundationMinutes(view.me.hqLevel) * 60_000,
       label: fr.underway.foundation(countryLabel(outpost.hostCountry)),
       face: { kind: 'outpost' },
       place: { kind: 'outpost', outpostId: outpost.id },
       moving: false,
+      holdsSlot: false,
     });
   }
 
@@ -171,6 +202,7 @@ export function underwayOf(
     lines.push({
       id: `recruitment-${recruitment.buildingId}`,
       endsAt: recruitment.endsAt,
+      ...(recruitment.span === undefined ? {} : { span: recruitment.span }),
       label: fr.underway.recruitment(recruitment.regionName),
       face: { kind: 'building', key: recruitment.key },
       place: {
@@ -182,6 +214,7 @@ export function underwayOf(
           null,
       },
       moving: false,
+      holdsSlot: false,
     });
   }
 
@@ -195,6 +228,7 @@ export function underwayOf(
     lines.push({
       id: 'research',
       endsAt: researchEnds,
+      span: research.totalMs ?? researchMs(research.card),
       label: fr.research.onCenter(cardName(research.card)),
       face: { kind: 'building', key: 'researchCenter' },
       place: {
@@ -204,6 +238,7 @@ export function underwayOf(
         point: center.point,
       },
       moving: false,
+      holdsSlot: false,
     });
 
   for (const chain of view.me.chains) {
@@ -213,12 +248,37 @@ export function underwayOf(
     lines.push({
       id: `lot-${chain.by}`,
       endsAt: finishesAt,
+      span:
+        (chain.order.ordered / (chain.state === 'running' ? chain.nominalPerHour : chain.perHour)) *
+        3_600_000,
       label: fr.underway.lot(chain.order.ordered, fr.resources[chain.output]),
       face: { kind: 'building', key: chain.by },
       place: { kind: 'building', regionId: site.regionId, key: site.key, point: site.point },
       moving: false,
+      holdsSlot: false,
     });
   }
 
   return lines.sort((first, second) => first.endsAt - second.endsAt);
+}
+
+/**
+ * **Le refus que le volet dit sous les mouvements** (ADR 0015) quand tous les slots sont pris : à
+ * quelle échéance le prochain se libère. Les lignes qui tiennent un slot doivent égaler `used` ;
+ * sinon (Halifax épargne un mouvement maritime, une colonne qu'on ne lit pas) on ne nomme rien
+ * qu'on ne sache, et on dit seulement que les slots sont engagés. `lines` est déjà trié.
+ */
+export function slotsRefusalOf(
+  slots: { readonly total: number; readonly used: number },
+  lines: ReadonlyArray<Underway>,
+):
+  | { readonly kind: 'frees'; readonly line: Underway; readonly at: number }
+  | { readonly kind: 'engaged' }
+  | null {
+  if (slots.used < slots.total) return null;
+  const holders = lines.filter((line) => line.holdsSlot);
+  if (holders.length === 0 || holders.length !== slots.used) return { kind: 'engaged' };
+  const freedAt = (line: Underway) => line.slotFreedAt ?? line.endsAt;
+  const first = holders.reduce((best, line) => (freedAt(line) < freedAt(best) ? line : best));
+  return { kind: 'frees', line: first, at: freedAt(first) };
 }

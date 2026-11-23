@@ -241,6 +241,7 @@ function adaptedView(server: ServerView): PlayerView {
       server.notices ?? [],
       // Absent means nothing has ever been read — which is the state of a first visit anyway.
       server.journalReadAt ?? null,
+      server.me.nation,
     ),
     journalReadAt: server.journalReadAt ?? null,
     absenceTourAt: server.absenceTourAt ?? null,

@@ -275,6 +275,13 @@ function submit(seat, order) {
         troopIds: args.troopIds,
         target: { kind: 'camp', campId: args.target.campId },
       });
+    case 'movements.capture':
+      return client.mutation(api.movements.capture, {
+        ...seat,
+        origin: origin(args.origin),
+        troopIds: args.troopIds,
+        target: { kind: 'point', pointId: args.target.pointId },
+      });
     case 'movements.marchTo':
       return client.mutation(api.movements.marchTo, {
         ...seat,

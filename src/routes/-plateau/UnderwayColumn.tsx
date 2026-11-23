@@ -20,7 +20,7 @@ const FOLDED_ROW_PX = 90;
 
 /**
  * **La pile se replie sur son onglet quand ce qui monte du bas de la carte la recouvrirait**
- * (#587) : les boutons et « Sonder » (`data-poster-floor`) suivent l'étage. Mesuré sur l'écran, à
+ * (#587) : les boutons de carte, Sonder compris (`data-poster-floor`) suivent l'étage. Mesuré sur l'écran, à
  * chaque changement d'étage (`--mat-rise` s'écrit sur la racine), de taille ou de lignes.
  */
 function useCrowded(section: React.RefObject<HTMLElement | null>, count: number): boolean {
@@ -161,7 +161,7 @@ export function UnderwayColumn({
   );
 }
 
-function Face({ face, nation }: { face: UnderwayFace; nation: string }) {
+export function Face({ face, nation }: { face: UnderwayFace; nation: string }) {
   switch (face.kind) {
     case 'unit':
       return face.role === null ? (

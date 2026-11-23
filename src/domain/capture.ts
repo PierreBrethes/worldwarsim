@@ -17,7 +17,12 @@ export type CaptureTarget =
   | { readonly kind: 'point' };
 
 export type CaptureRefusal =
-  'EMPTY_MOVEMENT' | 'FRIENDLY_TARGET' | 'CAPTURE_NEEDS_INFANTRY' | 'CAPTURE_ON_FOOT';
+  | 'EMPTY_MOVEMENT'
+  | 'FRIENDLY_TARGET'
+  | 'CAPTURE_NEEDS_INFANTRY'
+  | 'CAPTURE_ON_FOOT'
+  /** **Une armée affamée ne capture plus** (ADR 0044) : dit par `captureOrderRefusalOf`. */
+  | 'CAPTURE_STARVING';
 
 /** **Le QG se capture dans les deux modes**, et sa chute élimine (B10, M2a). **En Blitz
  *  l'infanterie capture à pied** (retour de Pierre, 15/10) : une unité est un transport et ce

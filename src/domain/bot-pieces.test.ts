@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { decideTurn, type BotContext, type BotWorld, type BotWorkshop } from './bot';
+import {
+  BOT_ARMY_TARGET,
+  BOT_POINT_COLUMN,
+  decideTurn,
+  type BotContext,
+  type BotWorld,
+  type BotWorkshop,
+} from './bot';
 import { BUILDINGS, RESOURCES, type BuildingKey, type UnitRole } from './ids';
 import type { BuildSpec, PlayerView, TroopView } from './player-view';
 
@@ -75,6 +82,7 @@ const viewOf = (me: Record<string, unknown> = {}, rest: Record<string, unknown> 
     surveyedInstallations: [],
     arcs: [],
     camps: [],
+    strategicPoints: [],
     me: {
       nation: 'france',
       capitalPoint: HQ_POINT,
@@ -109,7 +117,12 @@ const fullArmy: BotWorkshop = {
 const turn = (view: PlayerView, geography = world()) =>
   decideTurn({ view, workshop: fullArmy, world: geography, now: NOW } satisfies BotContext);
 
-const camp = (point: readonly [number, number]) => ({ id: 'camp-1', point, medium: 'land' });
+const camp = (point: readonly [number, number], lastKnown = false) => ({
+  id: 'camp-1',
+  point,
+  medium: 'land',
+  lastKnown,
+});
 
 describe('le bot facile défend son QG', () => {
   const near = [2.6, 49.2] as const;
@@ -252,6 +265,13 @@ describe('le bot facile avance', () => {
     expect(turn(inland, cut).map((order) => order.fn)).toEqual(['movements.marchTo']);
   });
 
+  it("n'attend pas un camp perdu de vue : sa dernière position périme, la défense n'y court pas", () => {
+    const near = [2.6, 49.2] as const;
+    const squad = [troop('t1', inBuilding('b-1')), troop('t2', inBuilding('b-1'))];
+    const gone = viewOf({ troops: squad }, { camps: [camp(near, true)] });
+    expect(turn(gone).map((order) => order.fn)).toEqual(['movements.marchTo']);
+  });
+
   it("ne garde qu'une marche par slot libre", () => {
     const near = [2.6, 49.2] as const;
     const view = viewOf(
@@ -266,6 +286,230 @@ describe('le bot facile avance', () => {
     expect(
       turn(viewOf({ ...view.me, slots: { total: 2, used: 0 } }, { camps: [camp(near)] })),
     ).toHaveLength(2);
+  });
+});
+
+describe('le bot facile recrute', () => {
+  const workshop = (facilities: BotWorkshop['facilities'], inService: number): BotWorkshop => ({
+    troopsInService: inService,
+    troopsQueued: 0,
+    facilities,
+    roster: [{ role: 'landTransport', count: 1 }],
+    grid: [{ role: 'infantry', unit: { costs: { steel: 5 } } }],
+  });
+  const site = [{ id: 'b-1', key: 'barracks' as const, queue: [] }];
+  const garrison = (id: string, outpostId: string) => troop(id, { kind: 'outpost', outpostId });
+
+  it("ne compte pas la garnison de ses avant-postes dans l'armée qui avance", () => {
+    const view = viewOf({
+      troops: [
+        troop('t1', inBuilding('b-1')),
+        garrison('g1', 'o-1'),
+        garrison('g2', 'o-1'),
+        garrison('g3', 'o-2'),
+        garrison('g4', 'o-2'),
+        troop('c1', inBuilding('b-1'), 'landTransport'),
+      ],
+    });
+    // Six troupes en service, mais quatre tiennent des points : l'armée libre est à deux.
+    expect(
+      decideTurn({ view, workshop: workshop(site, 6), world: world(), now: NOW }),
+    ).toMatchObject([{ fn: 'troops.recruit', args: { role: 'infantry' } }]);
+  });
+});
+
+describe('le bot facile prend un point', () => {
+  const LISBON = [-9.14, 38.72] as const;
+  const neutral = (id: string, point: readonly [number, number] = LISBON) => ({
+    id,
+    key: 'lisbon',
+    regionId: 'PRT-1',
+    point,
+    holder: null,
+    heldSince: null,
+    mine: false,
+    contested: false,
+    longest: null,
+  });
+  const army = (count: number, at = inBuilding('b-1')) =>
+    Array.from({ length: count }, (_, rank) => troop(`t${rank}`, at));
+  const ids = (count: number) => army(count).map((one) => one.id);
+  const capture = (order: unknown) => ({
+    fn: 'movements.capture',
+    args: {
+      origin: { kind: 'building', buildingId: 'b-1' },
+      troopIds: ids(BOT_POINT_COLUMN),
+      target: { kind: 'point', pointId: 'p-1' },
+    },
+    ...(order as object),
+  });
+  const turnWith = (
+    me: Record<string, unknown>,
+    rest: Record<string, unknown> = {},
+    geo = world(),
+  ) => turn(viewOf(me, { strategicPoints: [neutral('p-1')], ...rest }), geo);
+
+  it('envoie toute son escouade prendre le point neutre quand elle a de quoi vaincre la garnison', () => {
+    expect(turnWith({ troops: army(BOT_POINT_COLUMN) })).toEqual([capture({})]);
+  });
+
+  it("ne part pas à la capture avec moins d'infanteries que la colonne", () => {
+    expect(turnWith({ troops: army(BOT_POINT_COLUMN - 1) })).toEqual([]);
+  });
+
+  it("joue une seule envie par escouade : la capture prend les troupes que l'avance voulait", () => {
+    const orders = turnWith({ troops: army(BOT_POINT_COLUMN + 3) });
+    expect(orders.map((order) => order.fn)).toEqual(['movements.capture']);
+  });
+
+  it('ne garde que les captures que les slots libres permettent', () => {
+    const troops = [
+      ...army(BOT_POINT_COLUMN),
+      ...Array.from({ length: BOT_POINT_COLUMN }, (_, rank) =>
+        troop(`h${rank}`, inBuilding('hq-1')),
+      ),
+    ];
+    const view = (used: number) =>
+      viewOf({ troops, slots: { total: 2, used } }, { strategicPoints: [neutral('p-1')] });
+    expect(turn(view(1))).toHaveLength(1);
+    expect(turn(view(0))).toHaveLength(2);
+  });
+
+  it("n'attaque ni un point tenu, ni un point à soi", () => {
+    const held = { ...neutral('p-1'), holder: { nation: 'ussr', heldMs: 0 } };
+    const mine = { ...neutral('p-1'), holder: { nation: 'france', heldMs: 0 }, mine: true };
+    const contested = { ...neutral('p-1'), contested: true };
+    for (const point of [held, mine, contested]) {
+      const orders = turn(viewOf({ troops: army(BOT_POINT_COLUMN) }, { strategicPoints: [point] }));
+      expect(orders.map((order) => order.fn)).not.toContain('movements.capture');
+    }
+  });
+
+  it('laisse la défense du QG au-dessus : un camp relevé près du QG prend les troupes', () => {
+    const orders = turnWith({ troops: army(BOT_POINT_COLUMN) }, { camps: [camp([2.6, 49.2])] });
+    expect(orders.map((order) => order.fn)).toEqual(['movements.attack']);
+  });
+
+  it("n'y va pas non plus tant qu'un camp menace le QG, même si la défense ne peut pas le frapper", () => {
+    const cut = world({
+      landRoute: (from, to) => (from === HQ_POINT || to === LISBON ? { km: 100 } : null),
+    });
+    const orders = turnWith(
+      { troops: army(BOT_POINT_COLUMN) },
+      { camps: [camp([2.6, 49.2])] },
+      cut,
+    );
+    expect(orders).toEqual([]);
+  });
+
+  it('ne capture pas quand le joueur a faim, ni sans slot libre', () => {
+    const starving = turnWith({ troops: army(BOT_POINT_COLUMN), starving: true });
+    expect(starving.map((order) => order.fn)).not.toContain('movements.capture');
+    const full = turnWith({ troops: army(BOT_POINT_COLUMN), slots: { total: 2, used: 2 } });
+    expect(full).toEqual([]);
+  });
+
+  it('passe au point suivant quand la route du plus proche est refusée', () => {
+    const far = [28.98, 41.01] as const;
+    const orders = turn(
+      viewOf(
+        { troops: army(BOT_POINT_COLUMN) },
+        { strategicPoints: [neutral('p-1'), neutral('p-2', far)] },
+      ),
+      world({ landRoute: (_from, to) => (to === LISBON ? null : { km: 100 }) }),
+    );
+    expect(orders).toMatchObject([
+      { fn: 'movements.capture', args: { target: { pointId: 'p-2' } } },
+    ]);
+  });
+
+  it("ne part pas sans route à pied jusqu'à aucun des points", () => {
+    expect(
+      turnWith({ troops: army(BOT_POINT_COLUMN) }, {}, world({ landRoute: () => null })),
+    ).toEqual([]);
+  });
+
+  it('refuse par la même porte que la rose : sans infanterie, sans capture', () => {
+    const armor = Array.from({ length: BOT_POINT_COLUMN }, (_, rank) =>
+      troop(`a${rank}`, inBuilding('b-1'), 'armor'),
+    );
+    expect(turnWith({ troops: armor }).map((order) => order.fn)).not.toContain('movements.capture');
+  });
+
+  describe("l'avance laisse la colonne se former", () => {
+    const recruiting = (inService: number): BotWorkshop => ({
+      troopsInService: inService,
+      troopsQueued: 0,
+      facilities: [{ id: 'b-1', key: 'barracks' as const, queue: [] }],
+      roster: [{ role: 'landTransport', count: 1 }],
+      grid: [{ role: 'infantry', unit: { costs: { steel: 5 } } }],
+    });
+    const play = (count: number, workshop: BotWorkshop, geo = world(), points = [neutral('p-1')]) =>
+      decideTurn({
+        view: viewOf({ troops: army(count) }, { strategicPoints: points }),
+        workshop,
+        world: geo,
+        now: NOW,
+      }).map((order) => order.fn);
+
+    it("ne marche pas vers une région étrangère tant que l'armée se forme et qu'un point est joignable", () => {
+      expect(play(3, recruiting(3))).toEqual(['troops.recruit']);
+    });
+
+    it('capture avant toute marche une fois la colonne formée, recrutement après recrutement', () => {
+      const sent: string[][] = [];
+      for (let count = 3; count <= BOT_POINT_COLUMN; count += 1)
+        sent.push(play(count, recruiting(count)));
+      expect(sent.flat()).not.toContain('movements.marchTo');
+      expect(sent.at(-1)).toContain('movements.capture');
+    });
+
+    it("reprend l'avance quand l'armée libre est pleine sans escouade à neuf", () => {
+      expect(play(3, recruiting(BOT_ARMY_TARGET))).toContain('movements.marchTo');
+    });
+
+    it("reprend l'avance quand aucun point n'est joignable", () => {
+      const cut = world({ landRoute: (_from, to) => (to === LISBON ? null : { km: 100 }) });
+      expect(play(3, recruiting(3), cut)).toContain('movements.marchTo');
+    });
+
+    it("garde l'avance quand il n'y a aucun point neutre", () => {
+      expect(play(3, recruiting(3), world(), [])).toContain('movements.marchTo');
+    });
+  });
+
+  it("recrute encore à neuf infanteries libres : la cible laisse la place d'une colonne", () => {
+    const view = viewOf({ troops: army(BOT_POINT_COLUMN) });
+    const site = [{ id: 'b-1', key: 'barracks' as const, queue: [] }];
+    const workshop: BotWorkshop = {
+      troopsInService: BOT_POINT_COLUMN,
+      troopsQueued: 0,
+      facilities: site,
+      roster: [{ role: 'landTransport', count: 1 }],
+      grid: [{ role: 'infantry', unit: { costs: { steel: 5 } } }],
+    };
+    expect(
+      decideTurn({ view, workshop, world: world(), now: NOW }).map((order) => order.fn),
+    ).toContain('troops.recruit');
+  });
+});
+
+describe('le bot facile recrute sous la borne du serveur', () => {
+  it('ne recrute plus quand le total des troupes touche la borne, garnisons comprises', () => {
+    const garrison = Array.from({ length: 140 }, (_, rank) =>
+      troop(`g${rank}`, { kind: 'outpost', outpostId: 'o-1' }),
+    );
+    const free = Array.from({ length: 10 }, (_, rank) => troop(`f${rank}`, inBuilding('b-1')));
+    const view = viewOf({ troops: [...garrison, ...free] });
+    const workshop: BotWorkshop = {
+      troopsInService: 150,
+      troopsQueued: 0,
+      facilities: [{ id: 'b-1', key: 'barracks', queue: [] }],
+      roster: [{ role: 'landTransport', count: 1 }],
+      grid: [{ role: 'infantry', unit: { costs: { steel: 5 } } }],
+    };
+    const orders = decideTurn({ view, workshop, world: world(), now: NOW });
+    expect(orders.map((order) => order.fn)).not.toContain('troops.recruit');
   });
 });
 
@@ -401,6 +645,46 @@ describe('le bot facile ravitaille', () => {
     const free = troop('c2', inBuilding('hq-1'), 'landTransport');
     const orders = turn(viewOf({ troops: [stuffed, free], outposts: [outpost(10)] }));
     expect(orders).toMatchObject([{ fn: 'logistics.load', args: { troopId: 'c2' } }]);
+  });
+
+  describe('la tournée et le slot (#618)', () => {
+    const full = { total: 2, used: 2 };
+    const loaded = { ammunition: 20, oil: 0, coal: 0 };
+    const atHome = world({
+      regionAt: (point) =>
+        point === HQ_POINT
+          ? { id: 'FRA-0', country: 'FRA' }
+          : (regions.find((r) => r.point === point) ?? null),
+    });
+    const tour = (hostCountry: string) =>
+      turn(
+        viewOf({
+          troops: [lorry(inBuilding('hq-1'), loaded)],
+          outposts: [{ ...outpost(10), hostCountry }],
+          slots: full,
+        }),
+        atHome,
+      );
+
+    it("lance la tournée d'un dépôt au pays sans slot libre : elle n'en prend pas", () => {
+      expect(tour('FRA')).toEqual([{ fn: 'tours.start', args: { troopId: 'c1', stops: ['o-1'] } }]);
+    });
+
+    it("n'en lance pas vers un dépôt étranger sans slot libre : elle en tiendrait un", () => {
+      expect(tour('BEL')).toEqual([]);
+    });
+
+    it('lit un pays inconnu comme un slot pris', () => {
+      expect(
+        turn(
+          viewOf({
+            troops: [lorry(inBuilding('hq-1'), loaded)],
+            outposts: [outpost(10)],
+            slots: full,
+          }),
+        ),
+      ).toEqual([]);
+    });
   });
 
   it('ne bouge pas un camion en tournée', () => {

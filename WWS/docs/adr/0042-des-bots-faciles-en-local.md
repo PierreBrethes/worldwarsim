@@ -6,6 +6,15 @@ et défendent leur QG ; son go sur le plan du 21/11 (« Vas-y, lance le plan »)
 
 **Révise** ADR 0027 (« aucun bot en Mondiale ») : des bots en local, jamais sur un backend distant.
 
+> **Précisée le 23/11/2026 (#625).** Le bot prend aussi les points stratégiques neutres : une envie
+> `WANT_POINT` envoie toute une escouade d'au moins `BOT_POINT_COLUMN` infanteries (de quoi battre la
+> garnison de l'ADR 0043), par `movements.capture` et la porte `captureOrderRefusalOf`. Une
+> nation insulaire (Royaume-Uni, Japon) n'a aucune route à pied vers un point ni une région
+> étrangère : le bot ne navigue pas, elle reste immobile. L'armée qui compte contre la cible de
+> recrutement exclut la garnison des avant-postes. Un camp perdu de vue ne retient plus rien : le bot
+> ne réagit pas à ce qu'il ne voit plus. Tant qu'un point neutre est joignable et que l'armée libre
+> n'a pas atteint sa cible, l'avance laisse les escouades de moins de neuf former la colonne.
+
 ## Contexte
 
 Aucun bot n'existe. Le simulateur d'ouverture, qui jouait contre un modèle et non contre Convex,

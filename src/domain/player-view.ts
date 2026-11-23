@@ -1200,6 +1200,19 @@ type NoticeBody =
       readonly at: number;
       readonly keys?: ReadonlyArray<StrategicPointKey>;
     }
+  | {
+      readonly kind: 'raceStarted';
+      readonly at: number;
+      readonly leaderNation: string;
+      readonly endsAt: number;
+    }
+  | {
+      readonly kind: 'raceReminder';
+      readonly at: number;
+      readonly leaderNation: string;
+      readonly endsAt: number;
+      readonly hoursLeft: number;
+    }
   | { readonly kind: 'narvikLost'; readonly at: number }
   /** **Dakar** (P11) : le dépôt d'un avant-poste pris à son teneur brûle ; chaque camp le lit. */
   | {
@@ -1301,7 +1314,10 @@ type NoticeBody =
     } & (
       | { readonly kind: 'captureStarted'; readonly completesAt: number }
       | { readonly kind: 'captureSucceeded' }
-      | { readonly kind: 'captureCancelled'; readonly reason?: 'left' | 'gone' }
+      | {
+          readonly kind: 'captureCancelled';
+          readonly reason?: 'left' | 'gone' | 'starving';
+        }
     ));
 
 /**
@@ -1320,6 +1336,9 @@ export type CaptureView = {
   readonly completesAt: number;
   /** Arrêtée faute d'infanterie : servie au seul capteur, pour qu'il la relance. */
   readonly stoppedAt: number | null;
+  /** **Due, mais le capteur a faim** (ADR 0044) : gelée à 100 %, elle aboutit au retour des vivres.
+   *  Absent, elle court. */
+  readonly suspended?: boolean;
 };
 
 /** Le site d'une capture tel que les deux camps le nomment — jamais celui qui capture. */

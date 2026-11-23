@@ -1,6 +1,7 @@
 import {
   MINUTES_PER_1000_KM_ON_LAND,
   MINUTES_PER_ROUTE_UNIT,
+  STARVING_PACE_FACTOR,
   TOUR_CRAWL_FACTOR,
   routeMinutes,
 } from '../../convex/constants';
@@ -29,6 +30,11 @@ export function costMinutes(costUnits: number, theatre: Theatre | null): number 
  *  ne change pas : l'aperçu d'un ordre et la carte lisent la durée ordinaire. */
 export const crawledMinutes = (minutes: number, slow: boolean): number =>
   slow ? minutes * TOUR_CRAWL_FACTOR : minutes;
+
+/** **Au pas de la faim** (ADR 0044) : la durée d'un départ affamé. Elle ne touche que les minutes,
+ *  jamais la facture de carburant (à la différence du pas d'une tournée à sec). */
+export const starvedMinutes = (minutes: number, starved: boolean): number =>
+  starved ? minutes * STARVING_PACE_FACTOR : minutes;
 
 /** L'air n'a pas de multiplicateur : sa distance est son coût (`airRoute`). */
 const AIR_COST = 1;

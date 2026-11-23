@@ -9,6 +9,7 @@ import type { Loop, SheetDepot, SheetSite, SheetStop, SheetWorld, TourSheet } fr
 import type { SupplyLoad } from './logistics';
 import { fr } from '@/i18n/fr';
 import { emptyStocks } from './economy';
+import { ADM0_BY_NATION, isNation } from './nations';
 
 /**
  * **Ce que le serveur lit pour la feuille** (`tours.pickups`, #551) : par exploitation à soi, le
@@ -65,6 +66,11 @@ export function readSheet(
     at.kind === 'outpost' ? me.outposts.find((o) => o.id === at.outpostId) : undefined;
   const base: LonLat =
     baseBuilding?.point ?? baseOutpost?.lonLat ?? (at.kind === 'point' ? at.lonLat : [0, 0]);
+  const home = isNation(me.nation) ? ADM0_BY_NATION[me.nation] : null;
+  /** **Le sol national d'un bâtiment** : sa région est celle du pays, que la vue sert comme un site
+   *  sans avant-poste (`siteFor`). Un bâtiment d'une région d'avant-poste, ou qu'on ne lit pas, n'est pas au pays. */
+  const countryOfBuilding = (regionId: string) =>
+    me.regions.find((region) => region.id === regionId)?.site?.outpostId === null ? home : null;
   const baseName =
     baseBuilding?.name ?? (baseOutpost === undefined ? '' : outpostNameIn(me, baseOutpost.id));
 
@@ -85,6 +91,7 @@ export function readSheet(
       capacity: outpost.depotCapacity,
       level: outpost.level,
       standing: outpost.standsAt === null,
+      country: outpost.hostCountry,
     }));
 
   const sites: SheetSite[] = (pickups ?? []).flatMap((read) => {
@@ -110,6 +117,7 @@ export function readSheet(
         stoppedForHours:
           heap.fullSince === undefined ? null : Math.max(0, now - heap.fullSince) / HOUR,
         facts: { ours: true, exploitation: true, hasQuay: read.hasQuay, routed: read.routed },
+        country: countryOfBuilding(building.regionId),
       },
     ];
   });
@@ -137,6 +145,10 @@ export function readSheet(
       world,
       role: carrier.role,
       base,
+      baseCountry:
+        baseOutpost?.hostCountry ??
+        (baseBuilding === undefined ? null : countryOfBuilding(baseBuilding.regionId)),
+      homeCountry: home,
       consigne: carrier.tour?.consigne ?? carrier.load ?? emptyLoad(),
       stockRoom,
       fuelHeld: suppliesOf(carrier).fuel,

@@ -76,7 +76,7 @@ export default defineSchema({
     salt: v.string(),
     iterations: v.number(),
     createdAt: v.number(),
-    /** Les six interrupteurs du compte, absents tant qu'il n'en a touché aucun : un compte sans
+    /** Les sept interrupteurs du compte, absents tant qu'il n'en a touché aucun : un compte sans
      *  ligne a tout coché (`pushPreferencesOf`, `convex/notifications.ts`). */
     pushPreferences: v.optional(PUSH_PREFERENCES),
     /** Le vidage de la file d'envoi qui attend ce compte — un seul à la fois, et c'est cette
@@ -554,7 +554,7 @@ export default defineSchema({
      * (`base`), quatre dépôts au plus, et la **consigne** qu'elle recharge à chaque tour. `next`
      * est l'arrêt que le tour en cours visite après celui-ci, `skipped` les dépôts pleins qu'il
      * saute ; `waiting` dit qu'elle attend au chargement, depuis quand, pourquoi et combien de fois sa route a été refusée d'affilée, `recalled`
-     * qu'on l'a rappelée et qu'elle finit au chargement. Elle garde son slot tant qu'elle tourne.
+     * qu'on l'a rappelée et qu'elle finit au chargement. Elle garde son slot tant qu'elle tourne, sauf au pays (#618).
      */
     tour: v.optional(
       v.object({
@@ -1293,6 +1293,9 @@ export default defineSchema({
     /** The hour each private channel was last closed, keyed by the other player's id. */
     telegraphDirectReadAt: v.optional(v.record(v.string(), v.number())),
     telegraphPushedAt: v.optional(v.number()),
+    /** **Le dernier « À vous » parti** (ADR 0045) : sa cadence horaire se lit ici, jamais sur
+     *  `players`, que toute vue de la saison lit. */
+    yourMovePushedAt: v.optional(v.number()),
     /** **La dernière ouverture du plateau personnel, et les stocks qu'il montrait alors** : la
      *  récolte de la visite suivante est l'écart entre ces stocks et ceux de l'heure. */
     boardReadAt: v.optional(v.number()),
@@ -1582,6 +1585,9 @@ export default defineSchema({
     rest: v.union(REST_WINDOW, v.null()),
     completesAt: v.number(),
     stoppedAt: v.optional(v.number()),
+    /** **Due, mais son capteur a faim** (ADR 0044) : gelée à 100 %, sans autre rendez-vous ; le
+     *  retour des vivres (`resumeQueues`) la conclut. Absent, elle court. */
+    suspended: v.optional(v.boolean()),
   })
     .index('bySeason', ['seasonId'])
     .index('byPlayer', ['playerId'])

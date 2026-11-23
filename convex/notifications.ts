@@ -11,7 +11,10 @@ import {
   deviceLabelOf,
   groupAlarms,
   groupTelegraph,
+  groupYourMove,
   isPushEndpoint,
+  yourMoveUrl,
+  push,
   pushPreferencesOf,
   readSeat,
   type OutgoingPush,
@@ -68,6 +71,26 @@ export async function notifyPlayer(
     url: entry.url,
   });
   await planFlush(ctx, account._id, account.pushFlushJobId, entry.at + FLUSH_DELAY_MS);
+}
+
+/**
+ * **« À vous » : une colonne du joueur vient d'arriver** (ADR 0045), et avec elle un slot de
+ * mouvement revient. Mondiale seule : la Blitz se joue à l'écran, sans repos ni retours.
+ */
+export async function notifyYourMove(
+  ctx: MutationCtx,
+  playerId: Id<'players'>,
+  now: number,
+): Promise<void> {
+  const player = await ctx.db.get(playerId);
+  const season = player === null ? null : await ctx.db.get(player.seasonId);
+  if (season === null || modeOf(season.mode) === 'blitz') return;
+  await notifyPlayer(ctx, playerId, {
+    type: 'yourMove',
+    phrase: push.yourMove,
+    url: yourMoveUrl,
+    at: now,
+  });
 }
 
 /** Un seul vidage en attente, et jamais plus tard que `due` : un vidage replanifié à la fin d'un
@@ -134,11 +157,13 @@ export const flush = internalMutation({
         .query('presences')
         .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
         .first();
+      const marks = await readMarksOf(ctx, player);
       const reading = readSeat(
         {
           presentAt: presence?.at ?? null,
           restWindow: player.restWindow,
-          telegraphPushedAt: (await readMarksOf(ctx, player)).telegraphPushedAt,
+          telegraphPushedAt: marks.telegraphPushedAt,
+          yourMovePushedAt: marks.yourMovePushedAt,
         },
         now,
       );
@@ -148,11 +173,26 @@ export const flush = internalMutation({
         continue;
       }
 
-      const alarms = rows.filter((row) => row.type !== 'telegraph');
+      const alarms = rows.filter((row) => row.type !== 'telegraph' && row.type !== 'yourMove');
       const telegraph = rows.filter((row) => row.type === 'telegraph');
+      const yourMove = rows.filter((row) => row.type === 'yourMove');
       const alarm = reading.inPlay ? null : groupAlarms(alarms, seasonId);
       if (alarm !== null) departures.push({ ...alarm, seasonId });
       for (const row of alarms) await ctx.db.delete(row._id);
+
+      /** **Un seul « À vous », une heure au plus** : l'écran qui le montre déjà l'abandonne, la
+       *  cadence retient le reste jusqu'à la fin de l'heure, et le vidage n'en fait qu'un. */
+      if (yourMove.length > 0) {
+        if (!reading.inPlay && !reading.yourMoveAllowed) {
+          retryNoLaterThan(reading.yourMoveRetryAt!);
+        } else {
+          if (!reading.inPlay) {
+            departures.push({ ...groupYourMove(yourMove.length, seasonId)!, seasonId });
+            await stampReadMark(ctx, player._id, { yourMovePushedAt: now });
+          }
+          for (const row of yourMove) await ctx.db.delete(row._id);
+        }
+      }
 
       if (telegraph.length === 0) continue;
       if (!reading.telegraphAllowed) {
