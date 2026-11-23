@@ -34,11 +34,13 @@ export function TileCue({ text, tile }: { text: string; tile: BuildingKey }) {
       const chevron = rail.parentElement
         ?.querySelector<HTMLElement>(`[data-side="${side}"]`)
         ?.getBoundingClientRect();
-      at = chevron
-        ? (chevron.left + chevron.right) / 2
-        : side === 'next'
-          ? box.right - 12
-          : box.left + 12;
+      // No chevron (a phone's rail): aiming at its edge would land on another tile. The rail is
+      // brought to the tile when the bubble appears; still out of the band, it says nothing.
+      if (!chevron) {
+        node.style.visibility = 'hidden';
+        return;
+      }
+      at = (chevron.left + chevron.right) / 2;
     }
     const frame = parent.getBoundingClientRect();
     const scale = parent.offsetWidth > 0 ? frame.width / parent.offsetWidth : 1;
@@ -52,9 +54,24 @@ export function TileCue({ text, tile }: { text: string; tile: BuildingKey }) {
     node.style.visibility = 'visible';
   };
 
+  /** A rail without chevrons brings the named tile into view once, as the bubble appears: a hand
+   *  that scrolls it away afterwards is not pulled back. */
+  const reveal = () => {
+    const tileNode = document.querySelector<HTMLElement>(`[data-tile="${tile}"]`);
+    const rail = tileNode?.closest<HTMLElement>('[role="group"]');
+    // Only a phone's rail lacks `data-before`: the desk's has chevrons to aim at.
+    if (!tileNode || !rail || rail.hasAttribute('data-before')) return;
+    const box = rail.getBoundingClientRect();
+    const mine = tileNode.getBoundingClientRect();
+    const middle = (mine.left + mine.right) / 2;
+    if (middle < box.left || middle > box.right)
+      tileNode.scrollIntoView?.({ inline: 'center', block: 'nearest' });
+  };
+
   // After every draw: the tile's place follows the rail's scroll, the arrows and the sheet's step.
   useLayoutEffect(aim);
   useEffect(() => {
+    reveal();
     const rail = document.querySelector(`[data-tile="${tile}"]`)?.closest('[role="group"]');
     const watched = rail?.parentElement;
     const observer = new ResizeObserver(aim);
@@ -69,7 +86,7 @@ export function TileCue({ text, tile }: { text: string; tile: BuildingKey }) {
       window.removeEventListener('resize', aim);
       document.removeEventListener('scroll', aim, { capture: true });
     };
-    // `aim` reads only `tile` and the DOM.
+    // `aim` and `reveal` read only `tile` and the DOM.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tile]);
 

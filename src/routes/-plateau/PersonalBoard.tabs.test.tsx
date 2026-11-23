@@ -103,9 +103,11 @@ const view = {
 const Table = ({
   cue = null,
   front = true,
+  placing = null,
 }: {
-  cue?: { rack: 'tiles'; text: string; tile: 'farm' } | null;
+  cue?: { rack: 'tiles'; text: string; tile: 'farm' | 'hq' } | null;
   front?: boolean;
+  placing?: 'farm' | null;
 }) => (
   <ConvexProvider client={client}>
     <SoleSurfaceProvider>
@@ -124,7 +126,7 @@ const Table = ({
         onHoldTile={() => {}}
         onPlaceTile={() => false}
         maquetteAt={null}
-        placing={null}
+        placing={placing}
         cue={cue}
       />
     </SoleSurfaceProvider>
@@ -283,5 +285,37 @@ describe("the tiles' row at the full step", () => {
     expect(screen.queryByText('Pose une ferme')).toBeNull();
     rerender(<Table cue={cue} />);
     expect(screen.queryByText('Pose une ferme')).toBeTruthy();
+  });
+
+  it('hides the first-step bubble while a tile is armed on the map', () => {
+    const cue = { rack: 'tiles', text: 'Pose une ferme', tile: 'farm' } as const;
+    const { rerender } = render(<Table cue={cue} />);
+    rerender(<Table cue={cue} placing="farm" />);
+    expect(screen.queryByText('Pose une ferme')).toBeNull();
+  });
+
+  it('hides the first-step bubble while a tile is in hand', () => {
+    const cue = { rack: 'tiles', text: 'Pose une ferme', tile: 'hq' } as const;
+    render(<Table cue={cue} />);
+    // jsdom has no pointer capture.
+    Element.prototype.hasPointerCapture = () => false;
+    const tile = document.querySelector<HTMLElement>('[data-tile="hq"]')!;
+    // An upward gesture lifts the tile: it is in the hand for as long as the finger holds it.
+    act(() => {
+      fireEvent.pointerDown(tile, {
+        pointerId: 1,
+        pointerType: 'touch',
+        button: 0,
+        clientX: 40,
+        clientY: 700,
+      });
+      fireEvent.pointerMove(window, {
+        pointerId: 1,
+        pointerType: 'touch',
+        clientX: 40,
+        clientY: 640,
+      });
+    });
+    expect(screen.queryByText('Pose une ferme')).toBeNull();
   });
 });
