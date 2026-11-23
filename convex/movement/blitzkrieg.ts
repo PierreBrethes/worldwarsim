@@ -10,6 +10,7 @@
  */
 
 import { ConvexError } from 'convex/values';
+import { notifyYourMove } from '../notifications';
 import type { Doc, Id } from '../_generated/dataModel';
 import { internal } from '../_generated/api';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
@@ -270,6 +271,8 @@ export async function pressOn(
       details: leg.refusal.details,
       troopIds: troops.map((troop) => troop._id),
     });
+    /** **Le slot est rendu** : la colonne est à la main du joueur (ADR 0045). */
+    await notifyYourMove(ctx, player._id, now);
     await reassessDetection(ctx, movement.seasonId, now, player._id);
     return;
   }

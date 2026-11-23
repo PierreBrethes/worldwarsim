@@ -52,31 +52,33 @@ export function NotificationsSection({ seat, blitz }: { seat: Seat; blitz: boole
       <div className="mt-[14px] text-[13.5px] text-[var(--ink)]">{words.typesLabel}</div>
       <p className="mt-[3px] text-[11.5px] text-[var(--ink-soft)]">{words.typesNote}</p>
       <div className="mt-[8px] flex flex-col gap-[6px]">
-        {PUSH_TYPES.filter((type) => !(blitz && type === 'outpost')).map((type) => (
-          <label
-            key={type}
-            className="flex items-baseline gap-[10px] text-[12.5px] text-[var(--ink)]"
-          >
-            <input
-              type="checkbox"
-              className="accent-[var(--ink)]"
-              checked={preferences?.[type] ?? true}
-              onChange={(event) =>
-                void setPreference({
-                  token: seat.token,
-                  type,
-                  enabled: event.target.checked,
-                }).catch(() => undefined)
-              }
-            />
-            <span>
-              {words.types[type]}
-              {(type === 'telegraph' || type === 'yourMove') && (
-                <span className="text-[var(--ink-soft)]"> — {words.typeNotes[type]}</span>
-              )}
-            </span>
-          </label>
-        ))}
+        {PUSH_TYPES.filter((type) => !(blitz && (type === 'outpost' || type === 'yourMove'))).map(
+          (type) => (
+            <label
+              key={type}
+              className="flex items-baseline gap-[10px] text-[12.5px] text-[var(--ink)]"
+            >
+              <input
+                type="checkbox"
+                className="accent-[var(--ink)]"
+                checked={preferences?.[type] ?? true}
+                onChange={(event) =>
+                  void setPreference({
+                    token: seat.token,
+                    type,
+                    enabled: event.target.checked,
+                  }).catch(() => undefined)
+                }
+              />
+              <span>
+                {words.types[type]}
+                {(type === 'telegraph' || type === 'yourMove') && (
+                  <span className="text-[var(--ink-soft)]"> — {words.typeNotes[type]}</span>
+                )}
+              </span>
+            </label>
+          ),
+        )}
       </div>
 
       {device.active && (

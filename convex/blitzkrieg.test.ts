@@ -157,6 +157,24 @@ const arrive = async (t: Bench, movementId: Id<'movements'>) => {
   await runDue(t);
 };
 
+/** Un appareil abonné au compte du joueur, puis ce que sa file d'envoi retient. */
+async function listening(t: Bench, seat: Seat) {
+  await t.run(async (ctx) => {
+    const player = await seatIn(ctx, seat);
+    await ctx.db.insert('pushSubscriptions', {
+      accountId: player.accountId!,
+      endpoint: 'https://fcm.googleapis.com/germany',
+      p256dh: 'p256dh',
+      auth: 'auth',
+      deviceLabel: 'Chrome sur Android',
+      createdAt: Date.now(),
+    });
+  });
+}
+
+const pushed = (t: Bench) =>
+  t.run(async (ctx) => (await ctx.db.query('pushQueue').collect()).map((row) => row.type));
+
 const blitzNotices = (t: Bench, seat: Seat) =>
   t.run(async (ctx) => {
     const player = await seatIn(ctx, seat);
@@ -325,6 +343,27 @@ describe('the blitzkrieg (ADR 0039 §6)', () => {
     expect(preview!.then).toEqual({
       refusal: { code: 'CHAIN_ATTACK_ONLY', details: { type: 'march' } },
     });
+  });
+
+  it('rings « À vous » when the chain halts after the first win, and not while the second leg runs', async () => {
+    const t = boot();
+    const { germany, liege, namur, tanks } = await scene(t);
+    await listening(t, germany);
+    const onward = await attack(t, germany, tanks, liege, namur);
+    await arrive(t, onward.movementId);
+    expect((await movements(t)).some((movement) => movement.type === 'attack')).toBe(true);
+    expect(await pushed(t)).toEqual([]);
+
+    const t2 = boot();
+    const short = await scene(t2);
+    await listening(t2, short.germany);
+    await t2.run(async (ctx) => {
+      for (const id of short.tanks) await ctx.db.patch(id, { fuel: 1 });
+    });
+    const first = await attack(t2, short.germany, short.tanks, short.liege, short.namur);
+    await arrive(t2, first.movementId);
+    expect(await blitzNotices(t2, short.germany)).toMatchObject([{ outcome: 'halted' }]);
+    expect(await pushed(t2)).toEqual(['yourMove']);
   });
 
   it('shows a short second leg at the order, and stays at its departure when nothing filled it', async () => {

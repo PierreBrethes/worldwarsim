@@ -23,11 +23,12 @@ fiche n'étaient écrites ni dans un ADR ni dans le registre.
 
 1. **Un septième genre, `yourMove`**, phrase unique « À vous : une de vos colonnes est
    arrivée. », adresse `/plateau`. Il couvre l'arrivée et le slot de mouvement qu'elle rend.
-2. **Ce qui sonne** : l'arrivée d'une marche, d'une attaque, d'un raid, d'une capture ou d'un
-   retour, à l'endroit où le mouvement s'oublie (`movements.arrive`, `arriveForCapture`). Ne
-   sonnent pas : une étape de tournée ou de ronde, un largage, une livraison (leur retour, lui,
-   sonne), une seconde jambe de Guerre éclair en cours, et une capture que la faim annule à
-   l'arrivée (ADR 0044) ou suspend à son échéance : le retour qui suit sonnera.
+2. **Ce qui sonne** : chaque arrivée qui rend la colonne à la main du joueur, y compris une
+   colonne vaincue qui rentre ; la cadence d'une heure absorbe le retour qui suit. Exceptions : la
+   capture affamée (#620, annulée à l'arrivée ou suspendue à l'échéance), les étapes de tournée
+   et de ronde, le largage, la livraison, la seconde jambe engagée d'une Guerre éclair (arrêtée
+   après la première victoire, la colonne sonne). Le pillage et la collecte de caisse sonnent à
+   leur retour. Accroche : `movements.arrive`, `arriveForCapture`, `pressOn` (branche `halted`).
 3. **Cadence** : au vidage, `yourMove` est une troisième branche, sur le patron du télégraphe.
    Les arrivées retenues se réduisent à **un seul** « À vous » ; au plus un par heure et par
    joueur (`YOUR_MOVE_PUSH_INTERVAL_MS`, `@a-mesurer`) ; retenu dans l'heure, il repart à son
@@ -35,7 +36,7 @@ fiche n'étaient écrites ni dans un ADR ni dans le registre.
    marquer l'heure. Il part seul, hors du lot des alarmes.
 4. **La marque** est `readMarks.yourMovePushedAt` (optionnelle), jamais `players`.
 5. **Réglages** : `PUSH_PREFERENCES.yourMove` est `v.optional`, lu coché à défaut (`pushPreferencesOf`) ;
-   la case se libelle « À vous (colonne arrivée) ».
+   la case se libelle « À vous (colonne arrivée) » et n'est pas offerte en Blitz, où rien ne sonne.
 
 ## Ce qu'on abandonne
 
