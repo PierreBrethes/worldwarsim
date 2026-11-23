@@ -5,6 +5,7 @@ import { LOAD_CAPACITY_BY_ROLE, UPKEEP_UNSUPPLIED_MULTIPLIER } from '../../../co
 import { fr, roleLabel } from '@/i18n/fr';
 import { UnitSprite } from '@/emblems/UnitSprite';
 import { foundingTerms } from '@/domain/compass-works';
+import { tagTourOf } from '@/domain/cargo-tag';
 import type { Offer } from '@/domain/offers';
 import { outpostNameIn, patrolLineOf } from '@/domain/patrol';
 import { unitsOf, type MarchStation } from '@/domain/troops';
@@ -86,10 +87,10 @@ export function HandSheet({
   const hint = narrow ? null : (
     <p
       className={`mt-[6px] text-[11px] leading-[1.35] text-[var(--notable-paper)] ${
-        view.mode === 'blitz' ? '' : gauges ? 'hidden' : 'hidden [@media(min-height:700px)]:block'
+        view.mode === 'blitz' ? '' : 'truncate'
       }`}
     >
-      {fr.hand.hint}
+      {view.mode === 'blitz' ? fr.hand.hint : fr.hand.hintShort}
     </p>
   );
   /** **Restée d'une Guerre éclair** (#451) : au doigt, pas d'affiche au survol ; la fiche le dit. */
@@ -189,6 +190,16 @@ export function HandSheet({
       </MapCard>
     );
   }
+  /** **Débarquer un passager, de sa ligne** : la bulle de la pile le faisait, elle se tait pendant la
+   *  main. Une offre qui parle d'un seul se rejoue sur ce passager. */
+  const standing = offers.flatMap((offer) =>
+    offer.key === 'disembark' && offer.refusal === null ? [offer] : [],
+  );
+  const standDown = (ids: ReadonlyArray<string>) => {
+    const offer = standing.find((one) => ids.every((id) => one.troopIds.includes(id)));
+    if (offer !== undefined) onOffer({ ...offer, troopIds: ids });
+  };
+  const disembarkable = new Set(standing.flatMap((offer) => offer.troopIds));
   const unsupplied = !supplied && (
     <p className="mt-[6px] font-(family-name:--font-mono) text-[10.5px] text-[var(--critical)]">
       {fr.troops.unsupplied(UPKEEP_UNSUPPLIED_MULTIPLIER)}
@@ -228,6 +239,8 @@ export function HandSheet({
             canPrepare
             observing={false}
             onPickedChange={onCompose}
+            onDisembark={standDown}
+            disembarkable={disembarkable}
             statsBelow
           />
         </div>
@@ -423,18 +436,27 @@ function HandOffers({
         );
   return (
     <div className="mt-[2px]">
-      {carriers.map((carrier) => (
-        <button
-          key={`tour-${carrier.id}`}
-          type="button"
-          title={fr.tourSheet.openTitle}
-          onClick={() => onTour?.(carrier.id)}
-          className={`mt-[8px] ${button}`}
-        >
-          {fr.tourSheet.open}
-          <span className={sub}>{roleLabel(carrier.role, 1)}</span>
-        </button>
-      ))}
+      {carriers.map((carrier) => {
+        const tour = tagTourOf(carrier);
+        return (
+          <div key={`tour-${carrier.id}`}>
+            <button
+              type="button"
+              title={fr.tourSheet.openTitle}
+              onClick={() => onTour?.(carrier.id)}
+              className={`mt-[8px] ${button}`}
+            >
+              {fr.tourSheet.open}
+              <span className={sub}>{roleLabel(carrier.role, 1)}</span>
+            </button>
+            {tour !== null && (
+              <p className="mt-[3px] font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
+                {fr.logistics.tourLine(tour)}
+              </p>
+            )}
+          </div>
+        );
+      })}
       {round?.kind === 'patrolling' && (
         <p className="mt-[8px] font-(family-name:--font-mono) text-[10.5px]">
           {fr.patrol.title} · {fr.patrol.state(round)}
@@ -462,6 +484,8 @@ function HandOffers({
           case 'disembark': {
             const riders = held.filter((troop) => offer.troopIds.includes(troop.id));
             const aboard = riders.map((troop) => roleLabel(troop.role, 1)).join(', ');
+            /* Au bureau, chaque passager descend de sa ligne (#619) : le pied ne garde que le refus. */
+            if (!narrow && offer.refusal === null) return null;
             return offer.refusal !== null ? (
               <div key={`disembark-${offer.troopIds.join()}`}>{said(offer.refusal)}</div>
             ) : (

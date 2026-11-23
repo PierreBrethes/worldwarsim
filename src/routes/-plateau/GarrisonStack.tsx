@@ -43,6 +43,7 @@ export function GarrisonStack({
   onPrepare,
   onPickedChange,
   onDisembark,
+  disembarkable,
   statsBelow = false,
 }: {
   view: PlayerView;
@@ -60,6 +61,8 @@ export function GarrisonStack({
   onPickedChange?: ((troopIds: ReadonlyArray<string>) => void) | undefined;
   /** **Débarquer** (15/10) : la voie clavier de la branche de la rose ; absent, pas de bouton. */
   onDisembark?: ((troopIds: ReadonlyArray<string>) => void) | undefined;
+  /** Les passagers qui peuvent descendre ici : sans elle, tous ceux que `onDisembark` sert (#619). */
+  disembarkable?: ReadonlySet<string> | undefined;
   /** Le bloc de statistiques de la pile se lit juste dessous : allure, places et butin n'y sont
    *  pas dits deux fois. */
   statsBelow?: boolean;
@@ -204,11 +207,14 @@ export function GarrisonStack({
                       {roleLabel(troop.role, 1)}
                       <PatrolLine troop={troop} />
                     </span>
-                    <span className="font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
-                      {carrier === null
-                        ? fr.stats.of(troop.strength, troop.nominalStrength)
-                        : fr.hand.aboard}
-                    </span>
+                    {/* Le bouton « débarquer » dit déjà « à bord » : il prend la place de l'état. */}
+                    {(carrier === null || onDisembark === undefined) && (
+                      <span className="font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
+                        {carrier === null
+                          ? fr.stats.of(troop.strength, troop.nominalStrength)
+                          : fr.hand.aboard}
+                      </span>
+                    )}
                     <span className="text-[10.5px] text-[var(--ink-soft)]">
                       <SupplyPictos supplies={pileSupplies([troop])} />
                     </span>
@@ -232,18 +238,20 @@ export function GarrisonStack({
                     </span>
                   </span>
                 )}
-                {carrier !== null && onDisembark !== undefined && (
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onDisembark([troop.id]);
-                    }}
-                    className="cursor-pointer border border-[var(--ink)] px-[8px] py-[3px] text-[9.5px] tracking-[.14em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
-                  >
-                    {fr.hand.disembark}
-                  </button>
-                )}
+                {carrier !== null &&
+                  onDisembark !== undefined &&
+                  (disembarkable === undefined || disembarkable.has(troop.id)) && (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onDisembark([troop.id]);
+                      }}
+                      className="cursor-pointer border border-[var(--ink)] px-[8px] py-[3px] text-[9.5px] tracking-[.14em] uppercase hover:bg-[var(--ink)] hover:text-[var(--paper)]"
+                    >
+                      {fr.hand.disembark}
+                    </button>
+                  )}
               </div>
             );
           })}

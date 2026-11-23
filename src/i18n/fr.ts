@@ -3397,6 +3397,8 @@ export const fr = {
   hand: {
     kicker: (place: string) => `en main · ${place}`,
     hint: 'clic gauche sur la carte, ou glisser : poser · sur un transport : embarquer · échap : reposer',
+    /** La même aide sur une ligne, au pied de la fiche bornée du bureau (#619). */
+    hintShort: 'clic ou glisser : poser · transport : embarquer · échap : reposer',
     /** **La visée au téléphone** (#586) : « Envoyer » donne l'ordre, « Annuler » retire la visée et
      *  laisse la pièce en main. */
     send: 'Envoyer',

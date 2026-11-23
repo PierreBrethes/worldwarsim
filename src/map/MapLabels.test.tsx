@@ -127,6 +127,26 @@ describe('MapLabels', () => {
     vi.useRealTimers();
   });
 
+  /** **Le survol se tait pièce en main** (ADR 0026 §6, #619) : la fiche latérale parle, la carte de
+   *  survol de la pile en main ne s'ouvre pas ; sans pièce, elle s'ouvre. */
+  it('opens no press card on a hovered pile while a piece is in hand', () => {
+    const card = vi.fn(() => <p>affiche</p>);
+    const withCard = (holding: boolean) => (
+      <MapLabels
+        {...layer([outpost('a', 'Lille')], { holding, onAct: noop, onCancelHeld: noop }).props}
+        poster={card}
+      />
+    );
+    const { rerender } = render(withCard(true));
+    fireEvent.pointerEnter(document.querySelector('.label')!);
+    fireEvent.pointerOver(document.querySelector('.label')!);
+    expect(screen.queryByText('affiche')).toBeNull();
+    rerender(withCard(false));
+    fireEvent.pointerOver(document.querySelector('.label')!);
+    fireEvent.pointerEnter(document.querySelector('.label')!);
+    expect(screen.queryByText('affiche')).not.toBeNull();
+  });
+
   /** **Pièce en main, le clic droit sur une étiquette la repose** (#229) : aucune rose. Sans pièce
    *  en main, il agit comme avant. */
   it('puts a held piece back on a right click, and acts when none is held', () => {
