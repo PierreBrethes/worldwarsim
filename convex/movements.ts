@@ -297,6 +297,7 @@ export const marchTo = mutation({
       troopIds,
       boardsOn,
       aim: await aimOf(ctx, player._id, { kind: 'point', point }),
+      slowedByHunger: true,
     });
   },
 });
@@ -473,6 +474,7 @@ export const enterGarrison = mutation({
       troopIds,
       boardsOn,
       aim: await aimOf(ctx, player._id, { kind: 'building', buildingId }),
+      slowedByHunger: true,
     });
   },
 });
@@ -505,6 +507,7 @@ export const enterOutpost = mutation({
       troopIds,
       boardsOn,
       aim: await aimOf(ctx, player._id, { kind: 'outpost', outpostId }),
+      slowedByHunger: true,
     });
   },
 });
@@ -553,6 +556,7 @@ export const attack = mutation({
       troopIds,
       aim: aimed,
       ...(hunted === null ? {} : { pursuit: { troopId: hunted.troopId } }),
+      slowedByHunger: then === undefined,
     });
     /** Pesée sur la colonne partie, sa première jambe payée : un refus défait tout l'ordre. */
     if (then !== undefined)
@@ -600,6 +604,7 @@ export const raid = mutation({
       origin,
       troopIds,
       aim: await aimOf(ctx, player._id, { kind: 'outpost', outpostId }),
+      slowedByHunger: true,
     });
   },
 });
@@ -735,6 +740,7 @@ export const capture = mutation({
       troopIds,
       aim: await captureAimOf(ctx, player, target),
       capture: target,
+      slowedByHunger: true,
     });
   },
 });
@@ -806,7 +812,9 @@ export const preview = query({
     );
     if (route === null) return null;
 
-    const minutes = await pacedMinutes(ctx, player._id, route, now);
+    /** **Au pas** (ADR 0044) : la même lecture que le départ, hors largage et Guerre éclair. */
+    const slow = column.starving === true && roundTrip !== true && then === undefined;
+    const minutes = await pacedMinutes(ctx, player._id, route, now, false, slow);
     const arrivesAt = now + minutes * 60_000;
     const chained = chainRefusalOf(
       assetOf(player.nation ?? null, modeOf(season.mode)),
@@ -815,6 +823,7 @@ export const preview = query({
     );
     return {
       minutes,
+      slow,
       arrivesAt,
       relayed: relayedMinutes(route, minutes, column),
       holdUntil: await restHold(ctx, player._id, host, arrivesAt),
@@ -1079,10 +1088,12 @@ export const previewCapture = query({
     );
     if (route === null) return null;
     const now = Date.now();
-    const minutes = await pacedMinutes(ctx, player._id, route, now);
+    const slow = column.starving === true;
+    const minutes = await pacedMinutes(ctx, player._id, route, now, false, slow);
     const arrivesAt = now + minutes * 60_000;
     return {
       minutes,
+      slow,
       arrivesAt,
       relayed: relayedMinutes(route, minutes, column),
       holdUntil: await restHold(ctx, player._id, aimed.host, arrivesAt),

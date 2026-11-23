@@ -1023,6 +1023,7 @@ export const fr = {
     INFANTRY_REQUIRED: () => 'il faut au moins une troupe d’infanterie pour rapporter la charge',
     WAREHOUSE_TARGET_ONLY: () => 'seuls un entrepôt ou un site producteur se pillent',
     CAPTURE_NEEDS_INFANTRY: () => 'seule l’infanterie capture : il en faut au moins une troupe',
+    CAPTURE_STARVING: () => 'l’armée a faim : elle ne capture plus avant d’être nourrie',
     CAPTURE_ON_FOOT: () => 'l’infanterie capture à pied : débarquez-la d’abord',
     INSUFFICIENT_FUNDS: (d) =>
       d.needed === undefined
@@ -2956,6 +2957,8 @@ export const fr = {
       siteLost: (site: string) => `${upperFirst(site)} a été capturé — il n’est plus à nous.`,
       captureAbandoned: (site: string) =>
         `Capture ${ofSite(site)} abandonnée : plus aucune infanterie à nous sur place.`,
+      captureStarved: (site: string) =>
+        `Capture ${ofSite(site)} levée : l’armée a faim, elle est rentrée sans prendre le site.`,
       captureLifted: (site: string) => `La capture ${ofSite(site)} est levée.`,
       captureVoid: (site: string) =>
         `Capture ${ofSite(site)} sans objet : le site n’est plus à celui qu’on visait.`,

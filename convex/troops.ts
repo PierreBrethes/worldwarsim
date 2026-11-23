@@ -38,6 +38,7 @@ import {
 } from './seats';
 import { UNIT_ROLE, UNIT_TIER } from './validators';
 import { reassessDetection } from './movement/detection';
+import { resumeCaptures } from './captures';
 
 /** Derived from the domain table rather than written a second time: one key, one domain. */
 const DOMAIN_OF_PROJECTION = new Map<BuildingKey, UnitDomain>(
@@ -294,6 +295,7 @@ export const resumeQueues = internalMutation({
     if (!(await seasonStillPlays(ctx, playerId))) return;
     const now = Date.now();
     if ((await economyOf(ctx, playerId, now)).starving) return;
+    await resumeCaptures(ctx, playerId, now);
     const waiting = await recruitmentsOf(ctx, playerId);
     for (const buildingId of new Set(waiting.map((batch) => batch.buildingId))) {
       await startLanes(ctx, buildingId, now);

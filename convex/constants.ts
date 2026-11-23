@@ -563,6 +563,14 @@ export const TOUR_RETRY_MINUTES = 30;
 export const TOUR_CRAWL_FACTOR = 2;
 
 /**
+ * **Une armée affamée marche au pas** (ADR 0044) : ses minutes sont multipliées par ce facteur, à
+ * la marche, à l'attaque et à la capture, lu au départ.
+ *
+ * @a-mesurer aucune partie ne l'a joué
+ */
+export const STARVING_PACE_FACTOR = 2;
+
+/**
  * **Une route refusée** au chargement autant de fois d'affilée arrête la tournée : elle ne
  * revient pas seule, à la différence d'un plateau à sec ou de dépôts pleins.
  *

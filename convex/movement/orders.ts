@@ -45,6 +45,7 @@ import {
 } from '../routes';
 import { surveyFromPoint, surveyedOutposts, surveysWithInstallations } from '../surveys';
 import { collapseIfAbandoned } from '../outposts';
+import { economyOf } from '../resources';
 import { reassessDetection } from './detection';
 import { pacedMinutes } from './pace';
 import { blitzTheatreOf } from './theatre';
@@ -637,6 +638,9 @@ export async function columnOf(
     afloat: departure.afloat,
     coastal: departure.coastal,
     ...(theatre === null && outOfRounds(troops) ? { outOfRounds: true } : {}),
+    ...(theatre === null && (await economyOf(ctx, playerId, Date.now())).starving
+      ? { starving: true }
+      : {}),
   };
 }
 
@@ -815,6 +819,7 @@ export async function march(
     keepsSlot = false,
     anyDoor = false,
     crawl = false,
+    slowedByHunger = false,
   }: {
     playerId: Id<'players'>;
     /** Read for its id alone: a movement is filed under the season it flies in. */
@@ -850,6 +855,10 @@ export async function march(
     /** **Au pas** (ADR 0041 §4) : une tournée à sec part sans payer le plein ni être refusée pour
      *  lui, deux fois plus lente. */
     crawl?: boolean;
+    /** **Une armée affamée marche au pas** (ADR 0044) : la marche, l'attaque et la capture que le
+     *  joueur ordonne le demandent ; largage, butin, ravitaillement, Guerre éclair, tournée et
+     *  ronde ne le demandent pas. */
+    slowedByHunger?: boolean;
   },
 ) {
   if (namesATroopTwice(troopIds)) fail('DUPLICATE_TROOP');
@@ -961,7 +970,14 @@ export async function march(
     fail('NOT_ENOUGH_FUEL', { ...fuel.short, km: fuel.km, roundTrip: airdrop !== undefined });
 
   const now = Date.now();
-  const minutes = await pacedMinutes(ctx, playerId, route, now, crawl);
+  const minutes = await pacedMinutes(
+    ctx,
+    playerId,
+    route,
+    now,
+    crawl,
+    slowedByHunger && column.starving === true,
+  );
   const arrivesAt = now + minutes * 60_000;
   /** Le plein se débite ici, l'arrivée connue : le cran de Bakou se compte depuis l'arrêt. */
   const paying = new Set(crawl ? [] : fuel.drivers.map((troop) => troop._id));

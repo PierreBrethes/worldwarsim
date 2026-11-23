@@ -1406,6 +1406,7 @@ const captureView = (capture: Doc<'captures'>, side: 'capturer' | 'defender') =>
   },
   completesAt: capture.completesAt,
   stoppedAt: capture.stoppedAt ?? null,
+  suspended: capture.suspended === true,
 });
 
 /** Where a dispatch happened, for the journal's locate button: the point the row stored, else the

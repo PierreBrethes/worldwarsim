@@ -380,6 +380,16 @@ describe('the garrison of a neutral point', () => {
     const lisbon = await pointCalled(t, 'lisbon');
     const column: Array<Id<'troops'>> = [];
     for (let rank = 0; rank < 20; rank += 1) column.push(await postedAt(t, seat, lisbon));
+    /** Vingt bouches pendant toute la capture : sans vivres elle serait suspendue (ADR 0044). */
+    const owner = await playerOf(t, seat);
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db
+        .query('resources')
+        .withIndex('byPlayer', (q) => q.eq('playerId', owner._id))
+        .collect())
+        if (row.key === 'food')
+          await ctx.db.patch(row._id, { stock: 100_000, updatedAt: Date.now() });
+    });
     const sent = await t.mutation(api.movements.capture, {
       ...seat,
       origin: { kind: 'point', point: { lon: lisbon.point.lon + 0.3, lat: lisbon.point.lat } },

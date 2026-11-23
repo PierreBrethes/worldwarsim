@@ -163,7 +163,7 @@ async function notifyBoth(
   notice:
     | { kind: 'captureStarted'; completesAt: number }
     | { kind: 'captureSucceeded' }
-    | { kind: 'captureCancelled'; reason: 'left' | 'gone' },
+    | { kind: 'captureCancelled'; reason: 'left' | 'gone' | 'starving' },
 ): Promise<void> {
   /** Le siège irrégulier ne lit rien : un point neutre ne prévient personne. */
   const defended = (await ctx.db.get(capture.defenderId))?.irregular !== true;
@@ -289,21 +289,49 @@ export async function arriveForCapture(
     }
   }
 
+  /** **Arrivée affamée** (ADR 0044) : il a combattu, il ne capture pas, il rentre. */
+  if (await isStarving(ctx, movement.playerId, now)) {
+    await refuse(ctx, movement, site, now, 'starving');
+    await walkHome(ctx, { winners: standing, beaten: [] }, pointOf(movement.to), now);
+    await forgetMovement(ctx, movement._id);
+    return defence === null ? [] : [defence.playerId];
+  }
   for (const troop of standing) await ctx.db.patch(troop._id, { stationedAt: movement.to });
   await forgetMovement(ctx, movement._id);
   if (await surrenderedInBlitz(ctx, movement.playerId)) {
-    const refused = {
-      seasonId: movement.seasonId,
-      playerId: movement.playerId,
-      defenderId: ownerOf(site) ?? (await irregularSeat(ctx, movement.seasonId)),
-      site: siteOf(site),
-      point: movement.to,
-    };
-    await notifyBoth(ctx, refused, now, { kind: 'captureCancelled', reason: 'left' });
+    await refuse(ctx, movement, site, now, 'left');
     return defence === null ? [] : [defence.playerId];
   }
   await startCapture(ctx, movement, site, standing, now);
   return defence === null ? [] : [defence.playerId];
+}
+
+/** La capture que la colonne n'ouvre pas, dite aux deux camps. */
+async function refuse(
+  ctx: MutationCtx,
+  movement: Doc<'movements'>,
+  site: Target,
+  now: number,
+  reason: 'left' | 'starving',
+): Promise<void> {
+  const refused = {
+    seasonId: movement.seasonId,
+    playerId: movement.playerId,
+    defenderId: ownerOf(site) ?? (await irregularSeat(ctx, movement.seasonId)),
+    site: siteOf(site),
+    point: movement.to,
+  };
+  await notifyBoth(ctx, refused, now, { kind: 'captureCancelled', reason });
+}
+
+/** **La faim ne se lit qu'en Mondiale** (ADR 0044) : la Blitz n'a pas de vivres. */
+async function isStarving(ctx: QueryCtx, playerId: Id<'players'>, now: number): Promise<boolean> {
+  const player = await ctx.db.get(playerId);
+  return (
+    player !== null &&
+    (await seasonModeOf(ctx, player.seasonId)) === 'mondiale' &&
+    (await economyOf(ctx, playerId, now)).starving
+  );
 }
 
 async function startCapture(
@@ -386,7 +414,7 @@ async function reassessOne(
 ): Promise<void> {
   /** **Échue, elle est faite** : le rendez-vous de `complete` peut se réveiller après l'heure,
    *  et ce qui arrive entre-temps à l'infanterie n'efface pas une capture déjà achevée. */
-  if (capture.completesAt <= now) return;
+  if (capture.completesAt <= now && capture.suspended !== true) return;
   const site = await targetOf(ctx, capture.target, capture.playerId, capture.seasonId);
   const troops = capturersOf(byPoint, capture);
   if (site === null || !stillHeldBy(site, capture.defenderId)) {
@@ -397,6 +425,8 @@ async function reassessOne(
     await stop(ctx, capture, now, 'left');
     return;
   }
+  /** Suspendue, elle n'a plus d'horloge : seuls son infanterie et son site la défont. */
+  if (capture.suspended === true) return;
   const rate = rateOf(troops);
   if (rate === capture.rate) return;
   const progress = progressAt(clockOf(capture), now);
@@ -506,116 +536,150 @@ export const complete = internalMutation({
       await stop(ctx, capture, now, 'gone');
       return;
     }
-    const loser = (await ctx.db.get(capture.defenderId))!;
-    const mode = await seasonModeOf(ctx, capture.seasonId);
-
-    const before = await settleBeforeChange(ctx, capture.seasonId, now);
-    /** Le débit des fonds change avec la main qui tient le site : régler les deux avant. */
-    if (mode === 'blitz') {
-      await settleFunds(ctx, capture.playerId, now);
-      await settleFunds(ctx, loser._id, now);
+    /** **Due, elle n'aboutit pas tant que son capteur a faim** (ADR 0044) : gelée à 100 %, sans
+     *  nouveau rendez-vous — `resumeCaptures` la conclut au retour des vivres. */
+    if (await isStarving(ctx, capture.playerId, now)) {
+      await ctx.db.patch(captureId, { suspended: true });
+      return;
     }
-    const taken: Array<Doc<'buildings'>> = [];
-    /** **Un QG de départ tombé élimine son joueur** (B10, M2a), qui sort de la guerre
-     *  (`leaveTheWar`, plus bas). En Blitz il emporte tout : ses bâtiments passent au capteur,
-     *  ses troupes disparaissent. En Mondiale le capteur ne prend que le QG et le stock au-dessus
-     *  du seuil scellé ; le reste passe au siège irrégulier (`toIrregulars`). */
-    const falls = isBuilding(site) && site.homeOf === loser._id;
-    /** Les sièges dont un détecteur change : le capteur — la saisie peut rallumer ses stations —,
-     *  le défenseur, et le siège irrégulier qui hérite d'un vaincu. */
-    const touched = [capture.playerId, loser._id];
-    if (falls && mode === 'mondiale') {
-      await releaseBuilding(ctx, loser, site, now);
-      await passHeap(ctx, site, before.heaps, capture.playerId, now);
-      await ctx.db.patch(site._id, {
-        playerId: capture.playerId,
-        capturedAt: now,
-        level: Math.max(1, site.level - 1),
-      });
-      taken.push(site);
-      // La saisie à la chute du QG n'est pas un pillage : Dakar ne la bloque pas.
-      await seizeAboveTheSeal(ctx, loser._id, capture.playerId, now);
-      touched.push(await toIrregulars(ctx, capture, loser, before.heaps, now));
-    } else if (isPoint(site)) {
-      await takePoint(ctx, site, capture.playerId, now);
-    } else if (isBuilding(site)) {
-      for (const building of falls ? await playerBuildings(ctx, loser._id) : [site]) {
-        await releaseBuilding(ctx, loser, building, now);
-        await passHeap(ctx, building, before.heaps, capture.playerId, now);
-        await ctx.db.patch(building._id, {
-          playerId: capture.playerId,
-          capturedAt: now,
-          foundationMark: undefined,
-          level: mode === 'mondiale' ? Math.max(1, building.level - 1) : building.level,
-        });
-        taken.push(building);
-      }
-      if (falls) {
-        await disband(ctx, loser._id, now);
-        await handOverSieges(ctx, capture, capture.playerId, now);
-      }
-    } else {
-      const anchored = (
-        await ctx.db
-          .query('buildings')
-          .withIndex('byPlayer', (q) => q.eq('playerId', loser._id))
-          .collect()
-      ).filter((building) => building.outpostId === site._id);
-      for (const building of anchored) {
-        await releaseBuilding(ctx, loser, building, now);
-        await passHeap(ctx, building, before.heaps, capture.playerId, now);
-        await ctx.db.patch(building._id, { playerId: capture.playerId, foundationMark: undefined });
-      }
-      taken.push(...anchored);
-      await groundGarrison(ctx, site);
-      await cancelRaisesOf(ctx, loser._id, site, now);
-      await ctx.db.patch(site._id, { playerId: capture.playerId });
-      await burnDepotAtDakar(ctx, site, loser, capture.playerId, now);
-      /** La garnison du capteur entre dans le point qu'il vient de prendre : sans elle, le premier
-       *  raid le trouverait vide et le désactiverait sans combat. */
-      for (const troop of capturersOf(await infantryByPoint(ctx, capture.seasonId), capture)) {
-        await ctx.db.patch(troop._id, { stationedAt: site._id });
-      }
-    }
-    if (taken.some((building) => canonicalBuildingKey(building.key) === 'warehouse')) {
-      await clipToStorage(ctx, loser._id, now);
-    }
-    /** Son Centre de recherche pris, sa carte attend : ce qu'elle a couru et payé n'est pas perdu. */
-    if (taken.some((building) => building.key === 'researchCenter'))
-      await followCenter(ctx, loser._id, now);
-    await reportChange(ctx, capture.seasonId, before, now);
-
-    await ctx.db.delete(captureId);
-    await notifyBoth(ctx, capture, now, { kind: 'captureSucceeded' });
-    if (!isPoint(site)) await dispatchFromHongKong(ctx, capture, loser, now);
-    const point = isBuilding(site) ? pointOfBuilding(site) : pointOf(site.point);
-    await surveyFromPoint(ctx, capture.playerId, point, now);
-    if (loser.irregular !== true) await surveyFromPoint(ctx, loser._id, point, now);
-    await ctx.scheduler.runAfter(0, internal.constructions.resume, { playerId: loser._id });
-    /** Le QG pris rouvre des files au capteur : ce que le niveau d'avant bloquait repart. */
-    await ctx.scheduler.runAfter(0, internal.constructions.resume, { playerId: capture.playerId });
-    await reassessDetection(ctx, capture.seasonId, now, touched);
-    /** Un joueur qui avait capitulé perd son QG sans sortir une seconde fois de la guerre. */
-    if (falls && loser.defeated !== true) {
-      const capturer = (await ctx.db.get(capture.playerId))!;
-      await leaveTheWar(
-        ctx,
-        (await ctx.db.get(capture.seasonId))!,
-        (await ctx.db.get(loser._id))!,
-        now,
-        {
-          kind: 'playerEliminated',
-          by: capturer.nation ?? capturer.nickname,
-          capturerId: capturer._id,
-          irregulars: mode === 'mondiale',
-          ...(mode === 'mondiale' && isBuilding(site)
-            ? { hq: { buildingId: site._id, regionId: site.regionId, point: site.point } }
-            : {}),
-        },
-      );
-    }
+    await conclude(ctx, capture, site, now);
   },
 });
+
+/** **Les captures que la faim tenait, conclues** au retour des vivres (`troops.resumeQueues`). */
+export async function resumeCaptures(
+  ctx: MutationCtx,
+  playerId: Id<'players'>,
+  now: number,
+): Promise<void> {
+  for (const capture of await ctx.db
+    .query('captures')
+    .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+    .collect()) {
+    if (capture.suspended !== true || capture.stoppedAt !== undefined) continue;
+    const site = await targetOf(ctx, capture.target, capture.playerId, capture.seasonId);
+    if (site === null || !stillHeldBy(site, capture.defenderId))
+      await stop(ctx, capture, now, 'gone');
+    else await conclude(ctx, capture, site, now);
+  }
+}
+
+async function conclude(
+  ctx: MutationCtx,
+  capture: Capture,
+  site: Target,
+  now: number,
+): Promise<void> {
+  const captureId = capture._id;
+  const loser = (await ctx.db.get(capture.defenderId))!;
+  const mode = await seasonModeOf(ctx, capture.seasonId);
+
+  const before = await settleBeforeChange(ctx, capture.seasonId, now);
+  /** Le débit des fonds change avec la main qui tient le site : régler les deux avant. */
+  if (mode === 'blitz') {
+    await settleFunds(ctx, capture.playerId, now);
+    await settleFunds(ctx, loser._id, now);
+  }
+  const taken: Array<Doc<'buildings'>> = [];
+  /** **Un QG de départ tombé élimine son joueur** (B10, M2a), qui sort de la guerre
+   *  (`leaveTheWar`, plus bas). En Blitz il emporte tout : ses bâtiments passent au capteur,
+   *  ses troupes disparaissent. En Mondiale le capteur ne prend que le QG et le stock au-dessus
+   *  du seuil scellé ; le reste passe au siège irrégulier (`toIrregulars`). */
+  const falls = isBuilding(site) && site.homeOf === loser._id;
+  /** Les sièges dont un détecteur change : le capteur — la saisie peut rallumer ses stations —,
+   *  le défenseur, et le siège irrégulier qui hérite d'un vaincu. */
+  const touched = [capture.playerId, loser._id];
+  if (falls && mode === 'mondiale') {
+    await releaseBuilding(ctx, loser, site, now);
+    await passHeap(ctx, site, before.heaps, capture.playerId, now);
+    await ctx.db.patch(site._id, {
+      playerId: capture.playerId,
+      capturedAt: now,
+      level: Math.max(1, site.level - 1),
+    });
+    taken.push(site);
+    // La saisie à la chute du QG n'est pas un pillage : Dakar ne la bloque pas.
+    await seizeAboveTheSeal(ctx, loser._id, capture.playerId, now);
+    touched.push(await toIrregulars(ctx, capture, loser, before.heaps, now));
+  } else if (isPoint(site)) {
+    await takePoint(ctx, site, capture.playerId, now);
+  } else if (isBuilding(site)) {
+    for (const building of falls ? await playerBuildings(ctx, loser._id) : [site]) {
+      await releaseBuilding(ctx, loser, building, now);
+      await passHeap(ctx, building, before.heaps, capture.playerId, now);
+      await ctx.db.patch(building._id, {
+        playerId: capture.playerId,
+        capturedAt: now,
+        foundationMark: undefined,
+        level: mode === 'mondiale' ? Math.max(1, building.level - 1) : building.level,
+      });
+      taken.push(building);
+    }
+    if (falls) {
+      await disband(ctx, loser._id, now);
+      await handOverSieges(ctx, capture, capture.playerId, now);
+    }
+  } else {
+    const anchored = (
+      await ctx.db
+        .query('buildings')
+        .withIndex('byPlayer', (q) => q.eq('playerId', loser._id))
+        .collect()
+    ).filter((building) => building.outpostId === site._id);
+    for (const building of anchored) {
+      await releaseBuilding(ctx, loser, building, now);
+      await passHeap(ctx, building, before.heaps, capture.playerId, now);
+      await ctx.db.patch(building._id, { playerId: capture.playerId, foundationMark: undefined });
+    }
+    taken.push(...anchored);
+    await groundGarrison(ctx, site);
+    await cancelRaisesOf(ctx, loser._id, site, now);
+    await ctx.db.patch(site._id, { playerId: capture.playerId });
+    await burnDepotAtDakar(ctx, site, loser, capture.playerId, now);
+    /** La garnison du capteur entre dans le point qu'il vient de prendre : sans elle, le premier
+     *  raid le trouverait vide et le désactiverait sans combat. */
+    for (const troop of capturersOf(await infantryByPoint(ctx, capture.seasonId), capture)) {
+      await ctx.db.patch(troop._id, { stationedAt: site._id });
+    }
+  }
+  if (taken.some((building) => canonicalBuildingKey(building.key) === 'warehouse')) {
+    await clipToStorage(ctx, loser._id, now);
+  }
+  /** Son Centre de recherche pris, sa carte attend : ce qu'elle a couru et payé n'est pas perdu. */
+  if (taken.some((building) => building.key === 'researchCenter'))
+    await followCenter(ctx, loser._id, now);
+  await reportChange(ctx, capture.seasonId, before, now);
+
+  await ctx.db.delete(captureId);
+  await notifyBoth(ctx, capture, now, { kind: 'captureSucceeded' });
+  if (!isPoint(site)) await dispatchFromHongKong(ctx, capture, loser, now);
+  const point = isBuilding(site) ? pointOfBuilding(site) : pointOf(site.point);
+  await surveyFromPoint(ctx, capture.playerId, point, now);
+  if (loser.irregular !== true) await surveyFromPoint(ctx, loser._id, point, now);
+  await ctx.scheduler.runAfter(0, internal.constructions.resume, { playerId: loser._id });
+  /** Le QG pris rouvre des files au capteur : ce que le niveau d'avant bloquait repart. */
+  await ctx.scheduler.runAfter(0, internal.constructions.resume, { playerId: capture.playerId });
+  await reassessDetection(ctx, capture.seasonId, now, touched);
+  /** Un joueur qui avait capitulé perd son QG sans sortir une seconde fois de la guerre. */
+  if (falls && loser.defeated !== true) {
+    const capturer = (await ctx.db.get(capture.playerId))!;
+    await leaveTheWar(
+      ctx,
+      (await ctx.db.get(capture.seasonId))!,
+      (await ctx.db.get(loser._id))!,
+      now,
+      {
+        kind: 'playerEliminated',
+        by: capturer.nation ?? capturer.nickname,
+        capturerId: capturer._id,
+        irregulars: mode === 'mondiale',
+        ...(mode === 'mondiale' && isBuilding(site)
+          ? { hq: { buildingId: site._id, regionId: site.regionId, point: site.point } }
+          : {}),
+      },
+    );
+  }
+}
 
 /**
  * **Un point stratégique change de teneur** (P1-P3) : sa règle passe avec lui, et toute la table

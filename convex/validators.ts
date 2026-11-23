@@ -349,8 +349,9 @@ export const NOTICE = v.union(
     side: CAPTURE_SIDE,
     site: CAPTURE_SITE,
     point: LON_LAT,
-    /** `left` : plus d'infanterie sur place ; `gone` : le site rasé ou pris par un autre. */
-    reason: v.optional(v.union(v.literal('left'), v.literal('gone'))),
+    /** `left` : plus d'infanterie sur place ; `gone` : le site rasé ou pris par un autre ;
+     *  `starving` : le capteur a faim (ADR 0044). */
+    reason: v.optional(v.union(v.literal('left'), v.literal('gone'), v.literal('starving'))),
   }),
   /** L'entrée que le monde a reprise avant son tour, remboursée entière. `BUILD_COST_KEY` parce
    *  qu'une élévation d'avant-poste se rembourse par la même porte (précision du 15/09). */

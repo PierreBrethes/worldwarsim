@@ -1582,6 +1582,9 @@ export default defineSchema({
     rest: v.union(REST_WINDOW, v.null()),
     completesAt: v.number(),
     stoppedAt: v.optional(v.number()),
+    /** **Due, mais son capteur a faim** (ADR 0044) : gelée à 100 %, sans autre rendez-vous ; le
+     *  retour des vivres (`resumeQueues`) la conclut. Absent, elle court. */
+    suspended: v.optional(v.boolean()),
   })
     .index('bySeason', ['seasonId'])
     .index('byPlayer', ['playerId'])

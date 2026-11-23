@@ -437,7 +437,9 @@ function written(notice: Notice, viewerNation: string | null): Written {
           ? said.captureLifted(site)
           : notice.reason === 'gone'
             ? said.captureVoid(site)
-            : said.captureAbandoned(site),
+            : notice.reason === 'starving'
+              ? said.captureStarved(site)
+              : said.captureAbandoned(site),
       };
     }
     case 'productionRestored':
