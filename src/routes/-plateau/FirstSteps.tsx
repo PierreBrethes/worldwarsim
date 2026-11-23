@@ -1,5 +1,5 @@
 import { useMutation } from 'convex/react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../../../convex/_generated/api';
 import { handleError } from '@/data/errors';
 import type { Seat } from '@/data/session';
@@ -74,9 +74,10 @@ export function useFirstSteps(view: PlayerView, seat: Seat): FirstStepsState | n
 }
 
 /**
- * **La liste, en tête de « à faire »** : cinq gestes, le fait coché, celui du moment allumé et
- * menant où il se fait, les suivants à l'encre légère. Elle se replie sur son titre ou se passe ;
- * l'aide la reprend.
+ * **La liste, en tête de « à faire »** : une ligne « premiers pas 3 / 5 ✓ » qui replie les pas
+ * faits, et le seul pas allumé, ouvert et menant où il se fait. La ligne déplie les cinq (le
+ * fait coché, les suivants à l'encre légère). On la passe ; l'aide la reprend. Un `shown` retenu
+ * `folded` avant #607 se lit comme `open`.
  */
 export function FirstStepsList({
   steps,
@@ -86,81 +87,79 @@ export function FirstStepsList({
   /** Mène au geste du pas allumé : le plateau personnel, ou la pièce sur la carte. */
   onLead: () => void;
 }) {
-  const folded = steps.shown === 'folded';
+  const [all, setAll] = useState(false);
   const labelOf = (step: FirstStep): string =>
     step === 'deliver' && steps.outpostFirst
       ? fr.firstSteps.steps.outpost
       : fr.firstSteps.steps[step];
+  const rows = all ? FIRST_STEPS : FIRST_STEPS.filter((step) => step === steps.lit);
   return (
     <section
       aria-label={fr.firstSteps.header}
       className="border-b-2 border-[var(--ink)] bg-(--arc-mine)/10"
     >
-      {/* Le titre replie la liste : le « replier » de la carte, juste au-dessus, est déjà pris. */}
       <div className="flex items-baseline gap-3 px-[13px] pt-[8px] pb-[6px]">
         <button
           type="button"
-          aria-expanded={!folded}
-          title={folded ? fr.firstSteps.unfold : fr.firstSteps.fold}
-          onClick={() => steps.show(folded ? 'open' : 'folded')}
+          aria-expanded={all}
+          onClick={() => setAll(!all)}
           className="eyebrow min-w-0 flex-1 cursor-pointer text-left"
         >
           <span aria-hidden className="mr-[5px]">
-            {folded ? '▸' : '▾'}
+            {all ? '▾' : '▸'}
           </span>
           {fr.firstSteps.header}{' '}
           <span className="font-(family-name:--font-mono) tracking-normal">
             {fr.firstSteps.progress(steps.done.length, FIRST_STEPS.length)}
+            {steps.done.length > 0 && ' ✓'}
           </span>
         </button>
         <button type="button" onClick={() => steps.show('skipped')} className={LINK}>
           {fr.firstSteps.skip}
         </button>
       </div>
-      {!folded && (
-        <ol className="pb-[6px]">
-          {FIRST_STEPS.map((step) =>
-            step === steps.lit ? (
-              <li key={step}>
-                <button
-                  type="button"
-                  onClick={onLead}
-                  className="flex w-full cursor-pointer items-baseline gap-2 border-l-[3px] border-[var(--arc-mine)] px-[10px] py-[6px] text-left hover:bg-(--ink)/7"
-                >
-                  <span className="min-w-0 flex-1 text-[13px] leading-[1.25] font-semibold">
-                    {labelOf(step)}
-                  </span>
-                  <span className="shrink-0 text-[10px] tracking-[.12em] text-[var(--ink-soft)] uppercase">
-                    {steps.cue?.kind === 'map'
-                      ? fr.nextActions.toMap
-                      : fr.nextActions.toPersonalBoard}{' '}
-                    ›
-                  </span>
-                </button>
-              </li>
-            ) : (
-              <li
-                key={step}
-                className={`flex gap-2 px-[13px] py-[3px] text-[12px] leading-[1.3] ${
-                  steps.done.includes(step)
-                    ? 'text-[var(--ink-soft)] line-through decoration-(--ink)/40'
-                    : 'text-[var(--ink-soft)]'
-                }`}
+      <ol className="pb-[6px]">
+        {rows.map((step) =>
+          step === steps.lit ? (
+            <li key={step}>
+              <button
+                type="button"
+                onClick={onLead}
+                className="flex w-full cursor-pointer items-baseline gap-2 border-l-[3px] border-[var(--arc-mine)] px-[10px] py-[6px] text-left hover:bg-(--ink)/7"
               >
-                <span aria-hidden className="w-[10px] shrink-0 no-underline">
-                  {steps.done.includes(step) ? '✓' : '·'}
-                </span>
-                <span>
-                  {steps.done.includes(step) && (
-                    <span className="sr-only">{fr.firstSteps.doneLabel} </span>
-                  )}
+                <span className="min-w-0 flex-1 text-[13px] leading-[1.25] font-semibold">
                   {labelOf(step)}
                 </span>
-              </li>
-            ),
-          )}
-        </ol>
-      )}
+                <span className="shrink-0 text-[10px] tracking-[.12em] text-[var(--ink-soft)] uppercase">
+                  {steps.cue?.kind === 'map'
+                    ? fr.nextActions.toMap
+                    : fr.nextActions.toPersonalBoard}{' '}
+                  ›
+                </span>
+              </button>
+            </li>
+          ) : (
+            <li
+              key={step}
+              className={`flex gap-2 px-[13px] py-[3px] text-[12px] leading-[1.3] ${
+                steps.done.includes(step)
+                  ? 'text-[var(--ink-soft)] line-through decoration-(--ink)/40'
+                  : 'text-[var(--ink-soft)]'
+              }`}
+            >
+              <span aria-hidden className="w-[10px] shrink-0 no-underline">
+                {steps.done.includes(step) ? '✓' : '·'}
+              </span>
+              <span>
+                {steps.done.includes(step) && (
+                  <span className="sr-only">{fr.firstSteps.doneLabel} </span>
+                )}
+                {labelOf(step)}
+              </span>
+            </li>
+          ),
+        )}
+      </ol>
     </section>
   );
 }

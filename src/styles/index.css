@@ -576,6 +576,9 @@ body {
   left: 12px;
   translate: none;
 }
+.first-step-cue--aimed::after {
+  left: var(--tail, 50%);
+}
 .first-step-cue--corner::after {
   left: auto;
   right: 22px;

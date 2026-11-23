@@ -163,9 +163,9 @@ export function ResearchWindow({
   if (narrow)
     return (
       <BottomSheet
-        title={fr.research.title}
+        title={fr.research.titlePhone}
         aside={
-          <span className="min-w-0 truncate text-[12px] text-[var(--ink-soft)] italic">
+          <span className="min-w-0 flex-1 truncate text-[12px] text-[var(--ink-soft)] italic">
             {subtitle}
           </span>
         }
@@ -390,6 +390,11 @@ function Bar({ share }: { share: number }) {
 
 type Refusal = ReturnType<typeof researchRefusalOf>;
 
+/** A refusal that holds for every card alike (no Centre, a full queue): said once above the tree
+ *  (#607), the cards only fall to half-tone. The others (a card first, a price) stay on their card. */
+const sharedRefusal = (refusal: Refusal): boolean =>
+  refusal?.code === 'RESEARCH_NEEDS_CENTER' || refusal?.code === 'RESEARCH_FULL';
+
 /**
  * **L'arbre, de haut en bas** : une grille où chaque carte tient sa place (`PLACE`), et par-dessus
  * les traits tirés de ses « après » — plein après une carte acquise, pointillé sinon. Au téléphone
@@ -469,8 +474,14 @@ function Tree({
     />
   );
 
+  const held = RESEARCH_CARDS.map(refusalOf).find(sharedRefusal);
   return (
     <div ref={wrap} className="relative">
+      {held !== undefined && held !== null && (
+        <p role="status" className="m-0 mb-[12px] text-[12px] font-semibold text-[var(--critical)]">
+          {(({ code, ...details }) => fr.errors[code](details))(held)}
+        </p>
+      )}
       <svg
         aria-hidden
         className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
@@ -586,7 +597,8 @@ function ResearchCardView({
     refusal === null ||
     refusal.code === 'RESEARCH_AFTER' ||
     refusal.code === 'RESEARCH_DONE' ||
-    refusal.code === 'RESEARCH_QUEUED'
+    refusal.code === 'RESEARCH_QUEUED' ||
+    sharedRefusal(refusal)
       ? null
       : (({ code, ...details }) => fr.errors[code](details))(refusal);
 
@@ -595,13 +607,15 @@ function ResearchCardView({
       data-research-card={card}
       title={title || undefined}
       className={`relative z-[1] grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-[3px] border border-[var(--ink)] px-[7px] pt-[7px] pb-2 ${
-        done
-          ? 'bg-[var(--paper)] pb-6 shadow-[0_2px_0_var(--ink)]'
-          : running !== null || rank >= 0
-            ? 'bg-[var(--paper-hi)] shadow-[0_2px_0_var(--ink),0_0_0_2px_var(--arc-mine)]'
-            : locked
-              ? 'border-dashed bg-[color-mix(in_srgb,var(--paper-hi)_70%,var(--paper))]'
-              : 'bg-[var(--paper-hi)] shadow-[0_2px_0_var(--ink)]'
+        sharedRefusal(refusal) && !done && !locked && running === null && rank < 0
+          ? 'bg-[var(--paper-hi)] opacity-60 shadow-[0_2px_0_var(--ink)]'
+          : done
+            ? 'bg-[var(--paper)] pb-6 shadow-[0_2px_0_var(--ink)]'
+            : running !== null || rank >= 0
+              ? 'bg-[var(--paper-hi)] shadow-[0_2px_0_var(--ink),0_0_0_2px_var(--arc-mine)]'
+              : locked
+                ? 'border-dashed bg-[color-mix(in_srgb,var(--paper-hi)_70%,var(--paper))]'
+                : 'bg-[var(--paper-hi)] shadow-[0_2px_0_var(--ink)]'
       }`}
       style={style}
     >
@@ -655,7 +669,8 @@ function ResearchCardView({
             {refusalText !== null ? (
               <span className="text-[var(--critical)]">{refusalText}</span>
             ) : (
-              pose !== null && (
+              pose !== null &&
+              refusal === null && (
                 <button
                   type="button"
                   title={fr.research.searchTitle(

@@ -49,11 +49,16 @@ const view = {
   },
 } as unknown as PlayerView;
 
-const mount = (onClose = () => {}) =>
+const noCenter = {
+  ...view,
+  me: { ...view.me, buildings: [] },
+} as unknown as PlayerView;
+
+const mount = (onClose = () => {}, shown = view) =>
   render(
     <ConvexProvider client={client}>
       <ResearchWindow
-        view={view}
+        view={shown}
         seat={{ token: 't', seasonId: 's' } as unknown as Seat}
         focused="B-9"
         rank={0}
@@ -84,5 +89,20 @@ describe('the research sheet on a phone', () => {
     expect(document.querySelector('[data-surface="research"]')).toBeNull();
     act(() => screen.getByRole('button', { name: fr.common.close }).click());
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('is titled « Recherche », which the phone does not cut', () => {
+    mount();
+    expect(screen.getByRole('heading', { name: fr.research.titlePhone })).toBeTruthy();
+  });
+
+  /** #607 : sans Centre, le refus se dit une fois en tête et les cartes ne le répètent pas. */
+  it('says the missing Centre once above the tree, never on each card', () => {
+    mount(() => {}, noCenter);
+    act(() => screen.getByRole('tab', { name: fr.research.tabs.tree }).click());
+    expect(screen.getAllByText(fr.errors.RESEARCH_NEEDS_CENTER())).toHaveLength(1);
+    expect(document.querySelectorAll('[data-research-card]').length).toBeGreaterThan(5);
+    // Held back, a card offers no « chercher » : the refusal is said, not hidden.
+    expect(screen.queryByText(fr.research.search)).toBeNull();
   });
 });

@@ -100,7 +100,13 @@ const view = {
   },
 } as unknown as PlayerView;
 
-const Table = ({ cue = null }: { cue?: { rack: 'tiles'; text: string } | null }) => (
+const Table = ({
+  cue = null,
+  front = true,
+}: {
+  cue?: { rack: 'tiles'; text: string; tile: 'farm' } | null;
+  front?: boolean;
+}) => (
   <ConvexProvider client={client}>
     <SoleSurfaceProvider>
       <PersonalBoard
@@ -110,7 +116,7 @@ const Table = ({ cue = null }: { cue?: { rack: 'tiles'; text: string } | null })
         onOpen={() => {}}
         research={false}
         onResearch={() => {}}
-        front
+        front={front}
         focused={null}
         site={null}
         onDeselectSite={() => {}}
@@ -259,12 +265,23 @@ describe("the tiles' row at the full step", () => {
   });
 
   it('puts the first-step bubble on the row and the half, never over the full step', () => {
-    render(<Table cue={{ rack: 'tiles', text: 'Pose une ferme' }} />);
+    render(<Table cue={{ rack: 'tiles', text: 'Pose une ferme', tile: 'farm' }} />);
     expect(screen.queryByText('Pose une ferme')).toBeTruthy();
     pull(-120);
     expect(screen.queryByText('Pose une ferme')).toBeTruthy();
     pull(-120);
     expect(stage().dataset.height).toBe('full');
     expect(screen.queryByText('Pose une ferme')).toBeNull();
+  });
+
+  /** #607 : une fenêtre devant la bande masque la bulle, et sa fermeture la rend. */
+  it('hides the first-step bubble under a window, and brings it back after', () => {
+    const cue = { rack: 'tiles', text: 'Pose une ferme', tile: 'farm' } as const;
+    const { rerender } = render(<Table cue={cue} />);
+    expect(screen.queryByText('Pose une ferme')).toBeTruthy();
+    rerender(<Table cue={cue} front={false} />);
+    expect(screen.queryByText('Pose une ferme')).toBeNull();
+    rerender(<Table cue={cue} />);
+    expect(screen.queryByText('Pose une ferme')).toBeTruthy();
   });
 });

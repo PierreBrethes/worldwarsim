@@ -2088,12 +2088,13 @@ export const fr = {
        *  progression inventée. */
       noPrevious: 'première édition — rien à comparer',
     },
-    /** **Le signe s'imprime toujours**, et `=` remplace un zéro : une case vide se lirait comme
-     *  une donnée manquante plutôt que comme une immobilité. */
+    /** **Une tendance s'écrit ▲, ▼ ou « stable »** (#607) : le sens se lit sans légende, et un mot
+     *  remplace un zéro — une case vide se lirait comme une donnée manquante plutôt que comme une
+     *  immobilité. */
     delta: (value: number, decimals = 0): string =>
       Math.abs(value) < 10 ** -decimals / 2
-        ? '='
-        : `${value > 0 ? '+' : '−'}${decimal(Math.abs(value), decimals)}`,
+        ? 'stable'
+        : `${value > 0 ? '▲' : '▼'} ${decimal(Math.abs(value), decimals)}`,
     percent: (value: number): string => `${decimal(value, 1)} %`,
     score: (value: number): string => decimal(value, 0),
     /** Le rang de la dernière édition, à la française : « 1ᵉʳ », puis « 2ᵉ ». */
@@ -2105,7 +2106,8 @@ export const fr = {
     nextIn: (time: string, hours: number, minutes: number) =>
       `prochaine ${time} · dans ${hours > 0 ? `${hours} h ${String(minutes).padStart(2, '0')}` : `${minutes} min`}`,
     points: (value: number): string => `${decimal(value, 0)} pts`,
-    deedsCount: (value: number): string => `${decimal(value, 0)} fait${plural(value, '', 's')}`,
+    deedsCount: (value: number): string =>
+      `${decimal(value, 0)} fait${plural(value, '', 's')} d’armes`,
     you: 'vous',
     /** Ce que la page tient de son propre dispositif — la seule phrase d'explication qu'elle
      *  s'autorise, sous la table. */
@@ -3330,7 +3332,6 @@ export const fr = {
     mine: (troops: number) => `${troops} à vous`,
     seen: (count: number) => `${count} relevé${plural(count, '', 's')}`,
     edge: (numbers: string) => `Accrochage ${numbers} hors champ : y aller`,
-    none: 'Aucun accrochage : rien de relevé au contact de vos forces.',
   },
 
   hand: {
@@ -3370,8 +3371,6 @@ export const fr = {
   firstSteps: {
     header: 'premiers pas',
     progress: (done: number, total: number) => `${done} / ${total}`,
-    fold: 'replier',
-    unfold: 'déplier',
     skip: 'passer',
     doneLabel: 'fait :',
     resume: 'Reprendre les premiers pas',
@@ -4222,6 +4221,8 @@ export const fr = {
     /** **La fenêtre de l'arbre** (#123, variante A « l'éventail ») : le Centre, ses postes en
      *  marge, l'arbre de haut en bas. */
     title: 'Centre de recherche',
+    /** Au téléphone, la feuille n'a pas la place du titre entier (#607). */
+    titlePhone: 'Recherche',
     subtitle: (place: string, level: number) =>
       `${place} · niveau ${level} · trois cartes d’avance`,
     noCenter: 'aucun Centre de recherche — sa tuile est sur le plateau personnel',

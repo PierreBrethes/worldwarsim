@@ -23,6 +23,7 @@ import { bindSpots, centreOf, flightLayer, flyPastille, spent as flySpent } from
 import { notify } from '@/shell/notifications';
 import { Price } from '@/shell/Price';
 import { CueBubble } from '@/shell/CueBubble';
+import { TileCue } from './TileCue';
 import { FOOT_ROW, useFoot } from '@/shell/foot';
 import { ReserveCell } from '@/shell/ReserveCell';
 import { BottomSheet, type KeepingHeight } from '@/shell/BottomSheet';
@@ -129,7 +130,12 @@ export function PersonalBoard({
   /** Aucune fenêtre n'est devant la bande : Échap est à elle. */
   front: boolean;
   /** **La bulle des premiers pas** (ADR 0027 §2) : l'étagère où se prend le geste du pas allumé. */
-  cue?: { readonly rack: 'tiles' | 'research'; readonly text: string } | null;
+  cue?: {
+    readonly rack: 'tiles' | 'research';
+    readonly text: string;
+    /** The tile the bubble names. */
+    readonly tile: BuildingKey;
+  } | null;
   /** **Charger** (ADR 0028 §4) : des jetons pris dans un bac, glissés sur un transport. */
   onTakeTokens?: (resource: keyof SupplyLoad, event: ReactPointerEvent<HTMLElement>) => void;
   /** The building the board was opened on, from its mast: its tile is lit. */
@@ -335,11 +341,16 @@ export function PersonalBoard({
       else binRefs.current.set(resource, node);
     },
   });
-  const rackCue = cue !== null && cue.rack !== 'research' ? cue.text : null;
+  const rackCue = cue !== null && cue.rack !== 'research' ? cue : null;
   const researchCue = cue?.rack === 'research' ? cue.text : null;
   // Au bureau les tuiles sont debout, plateau replié (#579) : rien à déplier, la bulle les désigne.
   // Au téléphone elle se pose sur l'étage, au rang ou à la moitié : au plein, elle couvrirait le bandeau.
-  const rackCued = narrow ? stageUp && !collapsed : !research && placing === null;
+  // Fenêtre devant la bande, pièce en main, visée ou volet ouvert : elle se masque, et revient après (#607).
+  const rackCued =
+    front &&
+    held === null &&
+    placing === null &&
+    (narrow ? stageUp && !collapsed : !research && folded);
 
   /** La poignée du bureau : le titre de la bande, qui la bascule. */
   const handle = (
@@ -449,12 +460,7 @@ export function PersonalBoard({
             crest={
               rackCue !== null &&
               rackCued &&
-              step !== 'full' && (
-                <CueBubble
-                  text={rackCue}
-                  place="absolute bottom-[calc(100%+9px)] left-1/2 -translate-x-1/2"
-                />
-              )
+              step !== 'full' && <TileCue text={rackCue.text} tile={rackCue.tile} />
             }
           >
             <div ref={swap} className="relative flex h-full min-h-0 flex-col overflow-hidden">
@@ -512,13 +518,7 @@ export function PersonalBoard({
           zIndex: 'calc(var(--z-band) + 1)',
         }}
       >
-        {rackCue !== null && rackCued && (
-          <CueBubble
-            text={rackCue}
-            // Over the standing tiles.
-            place="absolute bottom-[calc(100%+9px)] left-[360px]"
-          />
-        )}
+        {rackCue !== null && rackCued && <TileCue text={rackCue.text} tile={rackCue.tile} />}
         <div
           className="mat-fold grid min-h-0"
           style={{
@@ -1047,12 +1047,15 @@ function TileFrame({
   lifts = true,
   wide = false,
   compact = false,
+  tileKey,
   picture,
   meta,
   price,
 }: {
   ref?: Ref<HTMLButtonElement> | undefined;
   name: string;
+  /** The building the tile makes: what the first-step bubble finds it by. */
+  tileKey?: BuildingKey;
   narrow: boolean;
   locked: boolean;
   lit: boolean;
@@ -1078,6 +1081,7 @@ function TileFrame({
         {...grip}
         title={label}
         aria-label={label}
+        data-tile={tileKey}
         className={`group relative flex min-h-[calc(44px/var(--hud-scale))]! w-[96px] shrink-0 touch-pan-x snap-start items-center gap-[5px] border border-[var(--ink)] px-[5px] text-left text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
           locked ? 'border-dashed bg-transparent' : 'bg-[#efe5cc] shadow-[0_2px_0_var(--ink)]'
         } ${'onClick' in grip ? 'cursor-pointer' : ''} ${lit ? 'outline-2 outline-offset-1 outline-[var(--ochre)]' : ''}`}
@@ -1095,6 +1099,7 @@ function TileFrame({
       {...grip}
       title={label}
       aria-label={label}
+      data-tile={tileKey}
       data-site-card={wide ? '' : undefined}
       className={`group relative grid shrink-0 ${lifts ? 'touch-pan-x' : 'touch-pan-x touch-pan-y'} snap-start grid-rows-[auto_1fr_auto_auto] border border-[var(--ink)] text-left text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
         narrow
@@ -1287,6 +1292,7 @@ function Tile({
       <TileFrame
         ref={ref}
         name={name}
+        tileKey={buildingKey}
         narrow
         compact={compact}
         locked={refusal !== null}
@@ -1307,6 +1313,7 @@ function Tile({
       type="button"
       {...grip}
       aria-label={`${name} — ${said}`}
+      data-tile={buildingKey}
       className={`desk-tile relative grid h-[70px] w-[102px] shrink-0 snap-start touch-pan-x gap-x-[5px] gap-y-[2px] border border-[var(--ink)] px-[6px] pt-[4px] pb-[3px] text-left text-[var(--ink)] select-none focus-visible:outline-2 focus-visible:outline-[var(--ochre)] ${
         refusal === null
           ? 'grid-cols-[27px_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto] bg-[#efe5cc] shadow-[0_2px_0_var(--ink)]'

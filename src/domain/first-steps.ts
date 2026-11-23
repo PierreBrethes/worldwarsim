@@ -2,7 +2,7 @@ import { searcherLevel } from './research';
 import { loadCapacityOf } from './logistics';
 import type { PlayerView, TroopStation, TroopView } from './player-view';
 import type { BuildingKey } from './ids';
-import { isProjectionKey, marchingTroopIds, projectionKeyOf } from './troops';
+import { PROJECTION_BY_DOMAIN, isProjectionKey, marchingTroopIds, projectionKeyOf } from './troops';
 
 /**
  * **Les premiers pas** (ADR 0027 §2) : cinq gestes à faire dans la vraie partie, pas une partie
@@ -16,7 +16,7 @@ export const FIRST_STEPS = ['hq', 'move', 'form', 'research', 'deliver'] as cons
 
 export type FirstStep = (typeof FIRST_STEPS)[number];
 
-/** La liste dépliée, repliée sur son titre, ou passée — on la reprend depuis l'aide. */
+/** La liste ouverte, ou passée — on la reprend depuis l'aide. `folded` : retenu avant #607, lu comme `open`. */
 export type FirstStepsShown = 'open' | 'folded' | 'skipped';
 
 /** What the place keeps: the steps once seen done, and how the list stands. */
@@ -32,7 +32,13 @@ type CueSay =
 /** Where the bubble stands — over a rack of the personal board, or on the map under a piece or
  *  a mast — and what it says there. */
 export type FirstStepCue =
-  | { readonly kind: 'rack'; readonly rack: 'tiles' | 'research'; readonly say: CueSay }
+  | {
+      readonly kind: 'rack';
+      readonly rack: 'tiles' | 'research';
+      readonly say: CueSay;
+      /** The tile the bubble names: it points at that one, not at whichever stands under it. */
+      readonly tile: BuildingKey;
+    }
   | { readonly kind: 'map'; readonly station: TroopStation; readonly say: CueSay };
 
 const filled = (load: Readonly<Record<string, number>> | undefined): boolean =>
@@ -103,12 +109,12 @@ export function cueOf(step: FirstStep, view: PlayerView): FirstStepCue | null {
   const onSite = (wanted: (key: BuildingKey) => boolean, say: CueSay): FirstStepCue => {
     const site = view.me.buildings.find((building) => wanted(building.key));
     return site === undefined
-      ? { kind: 'rack', rack: 'tiles', say: 'tiles' }
+      ? { kind: 'rack', rack: 'tiles', say: 'tiles', tile: PROJECTION_BY_DOMAIN.land }
       : { kind: 'map', station: { kind: 'building', buildingId: site.id }, say };
   };
   switch (step) {
     case 'hq':
-      return { kind: 'rack', rack: 'tiles', say: 'hq' };
+      return { kind: 'rack', rack: 'tiles', say: 'hq', tile: 'hq' };
     case 'move':
       return onPiece(
         standing(() => true),
@@ -118,8 +124,8 @@ export function cueOf(step: FirstStep, view: PlayerView): FirstStepCue | null {
       return onSite(isProjectionKey, 'pieces');
     case 'research':
       return searcherLevel(view.me.buildings) !== null
-        ? { kind: 'rack', rack: 'research', say: 'research' }
-        : { kind: 'rack', rack: 'tiles', say: 'center' };
+        ? { kind: 'rack', rack: 'research', say: 'research', tile: 'researchCenter' }
+        : { kind: 'rack', rack: 'tiles', say: 'center', tile: 'researchCenter' };
     case 'deliver': {
       if (outpostFirst(view))
         return onPiece(
