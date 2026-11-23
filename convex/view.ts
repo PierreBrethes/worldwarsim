@@ -76,7 +76,7 @@ import {
 } from './constants';
 import { engagementsOf } from './combat';
 import { isReached, sitesOf, type Site, type Sites } from './sites';
-import { movementsOf, outpostsOf, pointOf, outpostsServed } from './movement/forces';
+import { movementsOf, outpostsOf, pointOf, isServed } from './movement/forces';
 import { marchingForce } from './movement/detection';
 import { groundOf, linkedOn } from './holding';
 import { regionNameAt } from './placeNames';
@@ -229,13 +229,12 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
 
   const recruiting = await recruitmentsOf(ctx, player._id);
 
-  const served = await outpostsServed(ctx, season._id, outposts);
   /** Le refus de démantèlement sous capture, servi comme `serving` : la même lecture que la
    *  mutation (`siegeTargetsOf`, `besieged`). */
   const sieges = await siegesOf(ctx, player._id);
   const outpostRows = outposts.map((outpost) => ({
     outpost,
-    serving: served.has(outpost._id),
+    serving: isServed(outpost),
     underSiege: besieged(sieges, siegeTargetsOf(outpost, buildings)),
   }));
   const movements = await movementsOf(ctx, player._id);
@@ -861,7 +860,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
             ? (outpost.disabledUntil - now) / 60_000
             : null,
         isMine: true,
-        /** Un mouvement est passé dans son rayon depuis la fondation (`outpostServed`) :
+        /** Une colonne en route s'appuie sur lui (`isServed`) :
          *  servi plutôt que redérivé, le refus de démantèlement de l'écran et celui du serveur
          *  lisent la même réponse. */
         serving,

@@ -5,7 +5,6 @@ import type { Id } from './_generated/dataModel';
 import { NOTICES_SERVED, REPORTS_SERVED } from '../src/domain/player-view';
 import { buildGrid } from '../src/domain/routing';
 import { nominalStrength } from './constants';
-import { outpostServed, outpostsServed } from './movement/forces';
 import type { LonLat } from '../src/domain/geo';
 import { outpostReachKm } from './constants';
 import { heldOver } from './holding';
@@ -247,64 +246,6 @@ describe('la vue du plateau tient dans un budget', () => {
       REPORTS_SERVED * Math.max(...written.passes) +
       NOTICES_SERVED * Math.max(...written.dispatches);
     expect(read).toBeLessThan(READ_BYTES);
-  });
-
-  it('répond des métiers scellés en une lecture, et la même chose qu’une par point', async () => {
-    const t = boot();
-    const { seat } = await launchedSeason(t);
-
-    const answers = await t.run(async (ctx) => {
-      const me = await seatIn(ctx, seat);
-      const point = regionFacts(MARNE)!.point;
-      for (let index = 0; index < 12; index += 1) {
-        await ctx.db.insert('outposts', {
-          seasonId: me.seasonId,
-          playerId: me._id,
-          point: { lon: point[0] + index, lat: point[1] },
-          hostCountry: 'France',
-          level: 1,
-          foundedAt: MIDDAY.getTime(),
-          disabledUntil: null,
-          immuneUntil: null,
-        });
-      }
-      const outposts = await ctx.db
-        .query('outposts')
-        .withIndex('byPlayer', (q) => q.eq('playerId', me._id))
-        .collect();
-      await ctx.db.insert('movements', {
-        seasonId: me.seasonId,
-        playerId: me._id,
-        type: 'march' as const,
-        fromBuildingId: null,
-        target: { kind: 'point' as const, point: { lon: point[0] + 3, lat: point[1] } },
-        from: { lon: point[0], lat: point[1] },
-        to: { lon: point[0] + 3, lat: point[1] },
-        hostCountry: 'France',
-        points: [
-          { lon: point[0] + 3, lat: point[1] },
-          { lon: point[0] + 4, lat: point[1] },
-        ],
-        legs: [{ medium: 'land' as const, distanceUnits: 100 }],
-        distanceUnits: 100,
-        costUnits: 160,
-        troopIds: [],
-        departedAt: MIDDAY.getTime() + 60_000,
-        arrivesAt: MIDDAY.getTime() + 3_600_000,
-      });
-
-      const bulk = await outpostsServed(ctx, me.seasonId, outposts);
-      const one = new Map<string, boolean>();
-      for (const outpost of outposts) {
-        one.set(outpost._id, await outpostServed(ctx, outpost));
-      }
-      return outposts.map((outpost) => [bulk.has(outpost._id), one.get(outpost._id)!] as const);
-    });
-
-    expect(answers.every(([bulk, one]) => bulk === one)).toBe(true);
-    // Et la question a une réponse des deux côtés : un point servi, les autres non.
-    expect(answers.filter(([bulk]) => bulk)).not.toHaveLength(0);
-    expect(answers.filter(([bulk]) => !bulk)).not.toHaveLength(0);
   });
 });
 

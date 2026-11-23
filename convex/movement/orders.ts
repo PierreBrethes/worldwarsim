@@ -59,6 +59,7 @@ import {
   sameStation,
   seatedOf,
   standingPile,
+  insertMovement,
   type TroopAddress,
 } from './forces';
 import { carrierIn, cargoOf, PROJECTION_BY_DOMAIN, seatLoose } from '../../src/domain/troops';
@@ -1005,7 +1006,7 @@ export async function march(
     stationedAt: departure.stationId,
     troops,
   });
-  const movementId = await ctx.db.insert('movements', {
+  const movementId = await insertMovement(ctx, {
     seasonId: season._id,
     playerId,
     type,

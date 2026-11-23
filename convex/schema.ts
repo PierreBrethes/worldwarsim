@@ -1005,6 +1005,10 @@ export default defineSchema({
     /** **Le dépôt d'avant-poste** (ADR 0028 §4) : munitions, pétrole et charbon, une seule charge
      *  maximale partagée (`depotCapacity`). Il se capture avec le point. Absent, vide. */
     depot: v.optional(SUPPLY_LOAD),
+    /** **Les mouvements en route qui le desservent** (ADR 0037 §7, précisé le 23/11, #633),
+     *  écrits par `restampServed` et `restampOutpost` : la vue lit ici, et non la table des
+     *  mouvements, dont chaque départ relançait la vue de toute la table. Absent, aucun. */
+    servedBy: v.optional(v.array(v.id('movements'))),
   })
     .index('byPlayer', ['playerId'])
     .index('bySeason', ['seasonId']),
