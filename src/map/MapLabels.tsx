@@ -29,7 +29,6 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
-import { isHqSite } from '@/domain/capture';
 import { asDuration, reloadClock } from '@/domain/duration';
 import { fr } from '@/i18n/fr';
 import { FLAG_SWAP_MS } from '@/domain/ink-bursts';
@@ -1635,7 +1634,7 @@ const LabelNode = memo(function LabelNode({
                 <CaptureGauge
                   key={rank}
                   side={line.side}
-                  hq={isHqSite(line.site)}
+                  site={line.site}
                   clock={line.clock}
                   completesAt={line.completesAt}
                   suspended={line.suspended === true}

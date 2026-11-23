@@ -129,6 +129,22 @@ describe('a capture on the poster', () => {
     });
   });
 
+  /** **Gelée faute de vivres, ou due** (ADR 0044, #622) : l'affiche dit comme l'anneau. */
+  it('says a suspended capture waits for food, and a due one concludes, with no late hour', () => {
+    const chipOf = (over: Partial<PlayerView['captures'][number]>) =>
+      posterFor(
+        view({ captures: [{ ...capture('capturer', 'b-arsenal'), ...over }] }),
+        [building('b-arsenal', 'arsenal', 'r-plain')],
+        'm-b-arsenal',
+      )?.lines.find((line) => line.kind === 'chip' && line.label === 'capture');
+    expect(chipOf({ completesAt: LOADED_AT - 1, suspended: true })).toMatchObject({
+      chip: 'suspendue : l’armée a faim',
+    });
+    expect(chipOf({ side: 'defender', completesAt: LOADED_AT - 1 })).toMatchObject({
+      chip: expect.stringContaining('en cours de conclusion'),
+    });
+  });
+
   it('tells the capturer on the pile that holds the site', () => {
     const pile: MapMarker = {
       kind: 'stack',

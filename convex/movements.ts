@@ -1096,12 +1096,10 @@ export const previewCapture = query({
     );
     if (route === null) return null;
     const now = Date.now();
-    const slow = column.starving === true;
-    const minutes = await pacedMinutes(ctx, player._id, route, now, false, slow);
+    const minutes = await pacedMinutes(ctx, player._id, route, now);
     const arrivesAt = now + minutes * 60_000;
     return {
       minutes,
-      slow,
       arrivesAt,
       relayed: relayedMinutes(route, minutes, column),
       holdUntil: await restHold(ctx, player._id, aimed.host, arrivesAt),

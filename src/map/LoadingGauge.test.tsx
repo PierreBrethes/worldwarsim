@@ -46,6 +46,8 @@ describe('MarchGauge', () => {
   });
 });
 
+const SITE = { kind: 'building', building: 'mine', regionId: 'x' } as const;
+
 describe('CaptureGauge', () => {
   beforeEach(() => phone(false));
   afterEach(() => vi.useRealTimers());
@@ -64,6 +66,7 @@ describe('CaptureGauge', () => {
     const markup = renderToStaticMarkup(
       <CaptureGauge
         side="capturer"
+        site={SITE}
         suspended
         clock={clock}
         completesAt={Date.UTC(2026, 9, 14, 12, 30)}
@@ -86,7 +89,12 @@ describe('CaptureGauge', () => {
       rest: null,
     };
     const markup = renderToStaticMarkup(
-      <CaptureGauge side="defender" clock={clock} completesAt={Date.UTC(2026, 9, 14, 12, 30)} />,
+      <CaptureGauge
+        side="defender"
+        site={SITE}
+        clock={clock}
+        completesAt={Date.UTC(2026, 9, 14, 12, 30)}
+      />,
     );
     expect(markup).toContain('aria-label="100 % · en cours de conclusion"');
     expect(markup).not.toContain('perdu vers');
@@ -98,7 +106,9 @@ describe('CaptureGauge', () => {
     vi.setSystemTime(1_000);
     const clock = { progress: 0.5, at: 0, rate: 1, durationMs: 3_600_000, rest: null };
     expect(
-      renderToStaticMarkup(<CaptureGauge side="capturer" clock={clock} completesAt={3_600_000} />),
+      renderToStaticMarkup(
+        <CaptureGauge side="capturer" site={SITE} clock={clock} completesAt={3_600_000} />,
+      ),
     ).toContain('fin vers');
   });
 
@@ -113,7 +123,12 @@ describe('CaptureGauge', () => {
       rest: null,
     };
     const markup = renderToStaticMarkup(
-      <CaptureGauge side="defender" clock={clock} completesAt={Date.UTC(2026, 9, 14, 12, 30)} />,
+      <CaptureGauge
+        side="defender"
+        site={SITE}
+        clock={clock}
+        completesAt={Date.UTC(2026, 9, 14, 12, 30)}
+      />,
     );
     expect(markup).toContain('stroke-dasharray="0.75 1"');
     expect(markup).toContain('aria-label="75 % · perdu vers');
@@ -122,7 +137,7 @@ describe('CaptureGauge', () => {
       renderToStaticMarkup(
         <CaptureGauge
           side="defender"
-          hq
+          site={{ kind: 'building', building: 'hq', regionId: 'x' }}
           clock={clock}
           completesAt={Date.UTC(2026, 9, 14, 12, 30)}
         />,

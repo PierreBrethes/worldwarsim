@@ -1,6 +1,7 @@
 import { useContext, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { keepNextActionsFolded, readNextActionsFolded } from '@/data/settings';
 import { fr } from '@/i18n/fr';
+import { useClock } from '@/shell/clock';
 import { useSheetClose } from '@/shell/BottomSheet';
 import type { LonLat } from '@/domain/geo';
 import type { PlayerView } from '@/domain/player-view';
@@ -108,7 +109,7 @@ export function NextActions({
   const [folded, setFolded] = useState(() => readNextActionsFolded(view.mode === 'blitz'));
   const closeSheet = useSheetClose();
   const claimCard = useContext(ColumnCardContext);
-  const actions = nextActionsOf(view);
+  const actions = nextActionsOf(view, useClock());
   useRanks();
 
   const count = todoCountOf(view);

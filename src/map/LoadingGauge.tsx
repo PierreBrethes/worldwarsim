@@ -1,5 +1,6 @@
 import { progressAt, type CaptureClock } from '@/domain/capture';
-import { asClockTime } from '@/domain/duration';
+import type { CaptureView } from '@/domain/player-view';
+import { captureSaid } from '@/domain/capture-said';
 import { loadingAt } from '@/domain/loading';
 import { fr } from '@/i18n/fr';
 import { RACE_HOLD_HOURS } from '@/domain/strategic-points';
@@ -79,14 +80,14 @@ export function ResearchLine({
  */
 export function CaptureGauge({
   side,
-  hq = false,
+  site,
   clock,
   completesAt,
   suspended = false,
 }: {
   side: 'capturer' | 'defender';
   /** Un QG de Blitz : sa chute élimine, et le défenseur le lit « QG perdu vers ». */
-  hq?: boolean;
+  site: CaptureView['site'];
   clock: CaptureClock;
   completesAt: number;
   /** **Gelée faute de vivres** (ADR 0044) : dite en toutes lettres, sans survol. */
@@ -94,16 +95,7 @@ export function CaptureGauge({
 }) {
   const now = useClock();
   const share = suspended ? 1 : progressAt(clock, now);
-  const percent = Math.floor(share * 100);
-  const hour = asClockTime(completesAt);
-  /** **Une échéance dépassée n'est pas un retard** : le défenseur ne sait pas pourquoi elle l'est. */
-  const said = suspended
-    ? fr.capture.suspended
-    : completesAt <= now
-      ? fr.capture.concluding(percent)
-      : side === 'capturer'
-        ? fr.capture.endsAt(percent, hour)
-        : fr.capture.lostAt(percent, hour, hq);
+  const said = captureSaid({ side, site, clock, completesAt, suspended }, now, 'gauge');
   /** No hover on a phone: the poster never opens, so the label keeps its words there. */
   const narrow = useNarrowScreen();
   return (
@@ -125,7 +117,11 @@ export function CaptureGauge({
         />
       </svg>
       <span className="capture-stamp">{fr.capture.stamp}</span>
-      {(narrow || suspended) && <span>{said}</span>}
+      {(narrow || suspended) && (
+        <span className={suspended ? 'capture-words capture-words--suspended' : 'capture-words'}>
+          {said}
+        </span>
+      )}
     </div>
   );
 }

@@ -558,6 +558,7 @@ export const fr = {
     suspended: 'suspendue : l’armée a faim',
     /** **Due, pas encore conclue** : ce que lit le défenseur, qui ne sait rien de la famine. */
     concluding: (percent: number) => `${percent} % · en cours de conclusion`,
+    concludingWhy: 'Une infanterie adverse tient le site : sa capture est due, elle se conclut.',
     underCapture: 'en cours de capture',
     underCaptureWhy: (hour: string) =>
       `Une infanterie adverse tient le site : il change de main vers ${hour} si personne ne l’en chasse. Le combat ne remet rien à zéro — il faut tuer ou chasser toute l’infanterie qui capture.`,
@@ -3438,6 +3439,7 @@ export const fr = {
     idleSite: 'chantier libre — rien en file',
     siteUnderCapture: (site: string, hour: string) =>
       `${site} : capture en cours, perdue vers ${hour}`,
+    siteConcluding: (site: string) => `${site} : capture en cours de conclusion`,
     sitesUnderCapture: (count: number) => `${count} sites en cours de capture`,
     captureStopped: (site: string) => `Capture de ${site} arrêtée : plus d’infanterie sur place`,
     capturesStopped: (count: number) => `${count} captures arrêtées`,

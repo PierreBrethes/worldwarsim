@@ -1717,7 +1717,7 @@ describe('a hungry nation', () => {
       troopIds: [infantry],
       target: aim,
     });
-    expect(fed!.slow).toBe(false);
+    expect(fed).not.toBeNull();
     await starve(t, seat);
 
     await expect(

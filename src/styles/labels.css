@@ -833,6 +833,21 @@
   color: var(--capture-ink);
 }
 
+/* « suspendue : l'armée a faim » est longue : elle passe à la ligne sous l'anneau et le tampon
+   plutôt que de déborder l'étiquette, au téléphone comme au bureau. */
+.capture-gauge {
+  flex-wrap: wrap;
+}
+
+.capture-words {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.capture-words--suspended {
+  flex-basis: 100%;
+}
+
 .capture-gauge--defender {
   --capture-ink: var(--critical);
 }

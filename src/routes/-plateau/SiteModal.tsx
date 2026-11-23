@@ -7,6 +7,7 @@ import type { Id } from '../../../convex/_generated/dataModel';
 import { aBuilding, aSecondBuilding, fr, researchRequired, roleLabel } from '@/i18n/fr';
 import { pieceAt } from '@/domain/research';
 import { useClock } from '@/shell/clock';
+import { captureSaid } from '@/domain/capture-said';
 import { Stamp } from '@/shell/Stamp';
 import { Price } from '@/shell/Price';
 import { StatLines } from '@/shell/StatLines';
@@ -283,7 +284,7 @@ function Site({
           <UpgradeControl building={building} view={view} seat={seat} now={now} />
         </span>
       </WindowHead>
-      <UnderCapture view={view} buildingId={building.id} />
+      <UnderCapture view={view} buildingId={building.id} now={now} />
 
       {error && (
         <p className="shrink-0 border-b border-[var(--critical)] px-4 py-[9px] text-[12.5px] text-[var(--critical)]">
@@ -479,7 +480,7 @@ function BlitzSite({
 
   const body = (
     <>
-      <UnderCapture view={view} buildingId={building.id} />
+      <UnderCapture view={view} buildingId={building.id} now={now} />
       {error && (
         <p className="shrink-0 border-b border-[var(--critical)] px-4 py-[9px] text-[12.5px] text-[var(--critical)]">
           {error}
@@ -697,7 +698,15 @@ const RECRUITED_NOTICE_MS = 8_000;
  * et il change de main à l'heure dite si personne ne l'en chasse. Jamais qui : la vue ne le sert
  * pas. Le remède est sur la carte, comme pour « hors réseau ».
  */
-function UnderCapture({ view, buildingId }: { view: PlayerView; buildingId: string }) {
+export function UnderCapture({
+  view,
+  buildingId,
+  now,
+}: {
+  view: PlayerView;
+  buildingId: string;
+  now: number;
+}) {
   const capture = view.captures.find(
     (candidate) =>
       candidate.side === 'defender' &&
@@ -709,7 +718,7 @@ function UnderCapture({ view, buildingId }: { view: PlayerView; buildingId: stri
     <div className="flex flex-wrap items-center gap-2 border-b border-(color:--ink)/18 px-4 py-2">
       <Stamp label={fr.capture.underCapture} tone="critical" size="small" />
       <span className="text-[12.5px] text-[var(--critical)]">
-        {fr.capture.underCaptureWhy(asClockTime(capture.completesAt))}
+        {captureSaid(capture, now, 'why')}
       </span>
     </div>
   );
@@ -854,7 +863,7 @@ function NarrowSite({
           <Stamp label={fr.stamps.unlinkedBy(view.me.unlinkedShare)} tone="critical" size="small" />
         </div>
       )}
-      <UnderCapture view={view} buildingId={building.id} />
+      <UnderCapture view={view} buildingId={building.id} now={now} />
       <div role="tablist" className="grid h-[40px] grid-cols-4">
         {(['form', 'queue', 'garrison', 'site'] as const).map((id) => (
           <button

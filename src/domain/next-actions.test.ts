@@ -90,10 +90,17 @@ describe('a capture', () => {
   });
 
   it('puts the defender’s site first, with the hour it is lost, and recentres on it', () => {
-    const [first] = nextActionsOf(board({}, [], [capture('defender')]));
+    const running = capture('defender');
+    const [first] = nextActionsOf(board({}, [], [running]), running.completesAt - 1);
     expect(first?.kind).toBe('siteUnderCapture');
     expect(first?.label).toMatch(/^Arsenal de Lyon : capture en cours, perdue vers /);
     expect(first?.targets).toEqual([{ kind: 'map', point: [4.8, 45.7] }]);
+  });
+
+  it('says a due capture concludes, instead of a lost hour already gone (#622)', () => {
+    const due = capture('defender');
+    const [first] = nextActionsOf(board({}, [], [due]), due.completesAt + 1);
+    expect(first?.label).toBe('Arsenal de Lyon : capture en cours de conclusion');
   });
 
   it('tells the capturer a capture stopped, and nothing while it runs', () => {
