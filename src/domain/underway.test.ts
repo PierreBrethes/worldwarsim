@@ -85,6 +85,7 @@ describe('what runs, nearest first', () => {
       place: { kind: 'movement', arcId: 'M-1' },
       moving: true,
       holdsSlot: true,
+      span: 14 * 60_000,
     });
   });
 
@@ -316,5 +317,37 @@ describe('the refusal said under the movements when every slot is taken (ADR 001
   it('only says the slots are taken when the lines do not add up to the count (Halifax, a hidden column)', () => {
     expect(slotsRefusalOf({ total: 2, used: 2 }, [held('a', 5)])).toEqual({ kind: 'engaged' });
     expect(slotsRefusalOf({ total: 2, used: 2 }, [])).toEqual({ kind: 'engaged' });
+  });
+});
+
+describe('the whole length a gauge is drawn against', () => {
+  it('runs a movement from its departure to its arrival, a work over the length the server dated it', () => {
+    const work = {
+      id: 'W-1',
+      key: 'mine',
+      name: 'Mine',
+      outpostId: null,
+      regionId: 'FRA-1',
+      point: [3, 50],
+      minutesLeft: 30,
+      minutes: 120,
+    };
+    const lines = underwayOf(board({ construction: work }, [march('M-1', 14)]), []);
+    expect(lines.map((line) => [line.id, line.span])).toEqual([
+      ['movement-M-1', 14 * 60_000],
+      ['construction-W-1', 120 * 60_000],
+    ]);
+  });
+
+  it('leaves a line with no known length without one: its gauge is not drawn', () => {
+    const due: RecruitmentDue = {
+      buildingId: 'B-1',
+      key: 'barracks',
+      regionId: 'FRA-1',
+      regionName: 'Loiret',
+      endsAt: minutes(10),
+    };
+    expect(underwayOf(board(), [due])[0]?.span).toBeUndefined();
+    expect(underwayOf(board(), [{ ...due, span: 60 * 60_000 }])[0]?.span).toBe(3_600_000);
   });
 });

@@ -3305,23 +3305,23 @@ function BoardContent({
       (workshop?.facilities ?? []).flatMap((facility) => {
         const started = facility.queue.filter((batch) => batch.started);
         if (started.length === 0) return [];
-        const minutesLeft = Math.min(...started.map((batch) => batch.minutesLeft));
+        const head = started.reduce((first, batch) =>
+          batch.minutesLeft < first.minutesLeft ? batch : first,
+        );
         return [
           {
             buildingId: facility.id,
             key: facility.key,
             regionId: facility.regionId,
             regionName: facility.regionName,
-            endsAt: workshop!.loadedAt + minutesLeft * 60_000,
+            endsAt: workshop!.loadedAt + head.minutesLeft * 60_000,
+            span: head.minutes * 60_000,
           },
         ];
       }),
     [workshop],
   );
-  const underway = useMemo(
-    () => (narrow ? underwayOf(view, recruitments) : []),
-    [narrow, view, recruitments],
-  );
+  const underway = useMemo(() => underwayOf(view, recruitments), [view, recruitments]);
 
   /** **Un bâtiment se cadre même calque éteint** : sans le calque, son mât n'existe pas et la
    *  carte n'aurait rien à rejoindre — on vise alors le point de sa région. */

@@ -1,5 +1,6 @@
 import { cardName, countryLabel, fr } from '@/i18n/fr';
-import { researchProgressOf, searcherOf } from './research';
+import { researchMs, researchProgressOf, searcherOf } from './research';
+import { foundationMinutes } from './level-speed';
 import { isOutpostWork, type BuildingKey, type UnitRole } from './ids';
 import { lotFinishesAt, type PlayerView } from './player-view';
 import type { LonLat } from './geo';
@@ -41,6 +42,9 @@ export type Underway = {
   /** **Un mouvement tient un slot, sauf un retour** (`claimSlot`) : seul lui compte dans « tient un
    *  slot » et dans la phrase du refus. */
   readonly holdsSlot: boolean;
+  /** **La durée entière dont la jauge se tire**, en ms ; absente quand la vue ne la porte pas :
+   *  la jauge n'est alors pas dessinée plutôt que devinée. */
+  readonly span?: number;
   /** **Une ronde qu'on peut rappeler** (#376) : sa troupe. */
   readonly recall?: string;
 };
@@ -53,6 +57,8 @@ export type RecruitmentDue = {
   readonly regionId: string;
   readonly regionName: string;
   readonly endsAt: number;
+  /** La durée de la formation, quand l'atelier la sert (`troops.workshop`). */
+  readonly span?: number;
 };
 
 /**
@@ -76,9 +82,11 @@ export function underwayOf(
     if (arc.state !== 'mine') continue;
     const patroller = patrolling.find((troop) => arc.troopIds.includes(troop.id));
     const patrol = patroller?.patrol;
+    const endsAt = borderResolution(arc.schedule) ?? arc.schedule.arrivesAt;
     lines.push({
       id: `movement-${arc.id}`,
-      endsAt: borderResolution(arc.schedule) ?? arc.schedule.arrivesAt,
+      endsAt,
+      span: endsAt - arc.schedule.departedAt,
       label:
         patrol !== undefined
           ? fr.patrol.state({ ...patrol, to: outpostNameIn(view.me, patrol.to), here: null })
@@ -101,6 +109,7 @@ export function underwayOf(
         lines.push({
           id: `construction-${work.id}`,
           endsAt: at(work.minutesLeft),
+          ...(work.minutes === undefined ? {} : { span: work.minutes * 60_000 }),
           label: work.respecialize
             ? fr.underway.respecialize(fr.specialties[work.specialty ?? 'general'])
             : fr.underway.raise(
@@ -126,6 +135,7 @@ export function underwayOf(
       lines.push({
         id: `construction-${work.id}`,
         endsAt: at(work.minutesLeft),
+        ...(work.minutes === undefined ? {} : { span: work.minutes * 60_000 }),
         label: fr.underway.construction(
           work.name,
           standing !== undefined
@@ -167,6 +177,7 @@ export function underwayOf(
     lines.push({
       id: `foundation-${outpost.id}`,
       endsAt: outpost.standsAt,
+      span: foundationMinutes(view.me.hqLevel) * 60_000,
       label: fr.underway.foundation(countryLabel(outpost.hostCountry)),
       face: { kind: 'outpost' },
       place: { kind: 'outpost', outpostId: outpost.id },
@@ -179,6 +190,7 @@ export function underwayOf(
     lines.push({
       id: `recruitment-${recruitment.buildingId}`,
       endsAt: recruitment.endsAt,
+      ...(recruitment.span === undefined ? {} : { span: recruitment.span }),
       label: fr.underway.recruitment(recruitment.regionName),
       face: { kind: 'building', key: recruitment.key },
       place: {
@@ -204,6 +216,7 @@ export function underwayOf(
     lines.push({
       id: 'research',
       endsAt: researchEnds,
+      span: research.totalMs ?? researchMs(research.card),
       label: fr.research.onCenter(cardName(research.card)),
       face: { kind: 'building', key: 'researchCenter' },
       place: {
@@ -223,6 +236,9 @@ export function underwayOf(
     lines.push({
       id: `lot-${chain.by}`,
       endsAt: finishesAt,
+      span:
+        (chain.order.ordered / (chain.state === 'running' ? chain.nominalPerHour : chain.perHour)) *
+        3_600_000,
       label: fr.underway.lot(chain.order.ordered, fr.resources[chain.output]),
       face: { kind: 'building', key: chain.by },
       place: { kind: 'building', regionId: site.regionId, key: site.key, point: site.point },
