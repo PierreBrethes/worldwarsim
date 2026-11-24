@@ -1400,7 +1400,7 @@ export class StandingLayer implements SequenceHost {
     const object = new Group();
     object.add(piece, shadow.object, marks.reticle, marks.plumb);
     object.position.copy(entry.object.position);
-    copy.object.rotation.y = entry.object.rotation.y;
+    turnPile(copy.object, entry.object.rotation.y);
     object.visible = false;
     for (const smoke of copy.smokes) smoke.frame(this.time);
     const now = performance.now();

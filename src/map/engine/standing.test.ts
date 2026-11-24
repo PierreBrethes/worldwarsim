@@ -26,6 +26,7 @@ import {
   pileObject,
   pickedIn,
   StandingLayer,
+  type StandingPile,
   takenCopies,
   targetGrowth,
 } from './standing';
@@ -356,6 +357,60 @@ describe('a standing pile turning to its contact', () => {
     // The pole stays at its corner of the pile, which turns with it.
     const object = layer.group.children[0]!;
     expect(object.rotation.y).not.toBeCloseTo(0, 1);
+  });
+
+  it('keeps the cloth as a pile at no bearing has it on the copy in hand, and on a squad of a maquette’s yard (#645)', async () => {
+    const squad = (id: string, at: StandingPile['at'], facing?: number): StandingPile => ({
+      id,
+      at,
+      pieces: pilePieces([troop('infantry'), troop('armor')]),
+      ...(facing === undefined ? {} : { facing }),
+    });
+    const clothOf = (object: Object3D) => {
+      object.updateMatrixWorld(true);
+      const pennant = object.userData.pennant as Object3D;
+      return new Vector3(1, 0, 0).transformDirection(pennant.matrixWorld);
+    };
+    const upright = new Vector3(1, 0, 0);
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const layer = new StandingLayer(
+      flat,
+      () => {},
+      () => null,
+    );
+    layer.setNation('france');
+    layer.display([squad('p', { lonLat: [2, 48] }, 123)]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    layer.orient(eye);
+    layer.hold({ pileId: 'p', troopIds: ['infantry', 'armor'] });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const held = (layer as unknown as { carried: { piece: Group } }).carried.piece.children[0]!;
+    expect(held.rotation.y).not.toBeCloseTo(0, 1);
+    expect(clothOf(held).distanceTo(upright)).toBeLessThan(1e-6);
+
+    const yard = new StandingLayer(
+      flat,
+      () => {},
+      () => ({
+        at: new Vector3(0, 0, 0),
+        step: [0, 0],
+        facing: 1,
+        rank: false,
+        width: 1,
+        deep: [0, 1],
+        scale: 1,
+        toBoard: (point: Vector3) => point,
+      }),
+    );
+    yard.setNation('france');
+    yard.display([squad('g', { beside: 'building-hq' })]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    yard.orient(eye);
+    const garrison = yard.group.children[0]!;
+    expect(garrison.rotation.y).toBeCloseTo(1, 6);
+    // Far from the eye its scale is nil, so the yaw is read rather than a direction.
+    const pennant = garrison.userData.pennant as Object3D;
+    expect(garrison.rotation.y + pennant.rotation.y).toBeCloseTo(0, 9);
   });
 
   it('keeps one pivot when the same bearing is shown again on the way (a column steps)', async () => {
