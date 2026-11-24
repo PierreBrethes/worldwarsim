@@ -34,7 +34,7 @@ import { seasonStillPlays, seatsOf } from './seats';
 import { notifyPlayer, notifyYourMove } from './notifications';
 import { journalUrl, push } from '../src/domain/push';
 import { surveyFromPoint } from './surveys';
-import { forgetMovement, walkHome } from './movement/arrival';
+import { forgetMovement, forgetMovements, walkHome } from './movement/arrival';
 import { marchingForce, reassessDetection } from './movement/detection';
 import { playerBuildings } from './buildingReads';
 import { leaveTheWar } from './players';
@@ -753,9 +753,14 @@ async function surrenderedInBlitz(ctx: QueryCtx, playerId: Id<'players'>): Promi
 
 /** **Ses troupes disparaissent** (B10), en marche comme posées, et ses captures avec elles. */
 async function disband(ctx: MutationCtx, playerId: Id<'players'>, now: number): Promise<void> {
-  for (const movement of await movementsOf(ctx, playerId)) {
-    await forgetMovement(ctx, movement._id, now);
-  }
+  const marching = await movementsOf(ctx, playerId);
+  if (marching.length > 0)
+    await forgetMovements(
+      ctx,
+      marching[0]!.seasonId,
+      marching.map((movement) => movement._id),
+      now,
+    );
   for (const troop of await ctx.db
     .query('troops')
     .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
@@ -830,15 +835,21 @@ async function toIrregulars(
   }
   /** Une colonne à terre s'arrête où elle est ; une colonne en mer sombre avec ses coques —
    *  un siège irrégulier ne navigue pas, et personne ne capture le large. */
-  for (const movement of await movementsOf(ctx, loser._id)) {
+  const marching = await movementsOf(ctx, loser._id);
+  for (const movement of marching) {
     const [lon, lat] = positionAt(marchingForce(movement), now);
     const ashore = landAtPoint([lon, lat]);
     for (const troopId of movement.troopIds) {
       if (ashore) await ctx.db.patch(troopId, { stationedAt: { lon, lat } });
       else await ctx.db.delete(troopId);
     }
-    await forgetMovement(ctx, movement._id, now);
   }
+  await forgetMovements(
+    ctx,
+    fall.seasonId,
+    marching.map((movement) => movement._id),
+    now,
+  );
   /** Ses chantiers tombent avec lui : un bâtiment ne se pose pas au nom d'un éliminé. */
   for (const work of await ctx.db
     .query('constructions')

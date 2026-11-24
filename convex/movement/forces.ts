@@ -364,20 +364,28 @@ export const isServed = (outpost: Doc<'outposts'>): boolean => (outpost.servedBy
  * **Un mouvement parti, réécrit ou effacé** : chaque point de la saison qu'il dessert le porte,
  * les autres non. Appelée après l'insertion, après tout changement de sa route ou de son départ,
  * et après l'effacement (le mouvement absent ne dessert plus rien).
+ *
+ * **Plusieurs à la fois, en une lecture des points** (#638) : un point porte toutes les colonnes
+ * qui le desservent, donc relire la saison par colonne effacée coûtait les points fois les
+ * colonnes, par colonne. La chute d'un QG qui en efface vingt-quatre dépassait les 16 Mo.
  */
 export async function restampServed(
   ctx: MutationCtx,
   seasonId: Id<'seasons'>,
-  movementId: Id<'movements'>,
+  movementIds: Id<'movements'> | ReadonlyArray<Id<'movements'>>,
 ): Promise<void> {
-  const movement = await ctx.db.get(movementId);
+  const ids = [movementIds].flat();
+  const movements = (await Promise.all(ids.map((id) => ctx.db.get(id)))).flatMap((movement) =>
+    movement === null ? [] : [movement],
+  );
   for (const outpost of await seasonOutposts(ctx, seasonId)) {
     const listed = outpost.servedBy ?? [];
-    const serves = movement !== null && servedOver(outpost, [movement]);
-    if (listed.includes(movementId) === serves) continue;
-    await ctx.db.patch(outpost._id, {
-      servedBy: serves ? [...listed, movementId] : listed.filter((id) => id !== movementId),
-    });
+    const servedBy = [
+      ...listed.filter((id) => !ids.includes(id)),
+      ...movements.flatMap((movement) => (servedOver(outpost, [movement]) ? [movement._id] : [])),
+    ];
+    if (servedBy.length === listed.length && servedBy.every((id) => listed.includes(id))) continue;
+    await ctx.db.patch(outpost._id, { servedBy });
   }
 }
 

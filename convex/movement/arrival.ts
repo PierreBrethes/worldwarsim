@@ -83,6 +83,27 @@ export async function forgetMovement(
   movementId: Id<'movements'>,
   now = Date.now(),
 ): Promise<void> {
+  const movement = await dropMovement(ctx, movementId, now);
+  if (movement !== null) await restampServed(ctx, movement.seasonId, movementId);
+}
+
+/** **Les colonnes d'un joueur qui tombe**, effacées ensemble : les points qu'elles desservaient
+ *  se relisent une fois pour toutes, pas une fois par colonne (#638). */
+export async function forgetMovements(
+  ctx: MutationCtx,
+  seasonId: Id<'seasons'>,
+  movementIds: ReadonlyArray<Id<'movements'>>,
+  now: number,
+): Promise<void> {
+  for (const movementId of movementIds) await dropMovement(ctx, movementId, now);
+  await restampServed(ctx, seasonId, movementIds);
+}
+
+async function dropMovement(
+  ctx: MutationCtx,
+  movementId: Id<'movements'>,
+  now: number,
+): Promise<Doc<'movements'> | null> {
   const movement = await ctx.db.get(movementId);
   const seen = await ctx.db
     .query('sightings')
@@ -130,7 +151,7 @@ export async function forgetMovement(
   }
   if (movement !== null) await settleBatteries(ctx, movement.troopIds, now);
   await ctx.db.delete(movementId);
-  if (movement !== null) await restampServed(ctx, movement.seasonId, movementId);
+  return movement;
 }
 
 /** **Une pièce se met en batterie à l'arrêt** (B20) : la fin du mouvement qui la portait date

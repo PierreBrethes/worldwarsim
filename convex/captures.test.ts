@@ -8,6 +8,7 @@ import { push } from '../src/domain/push';
 import { heldOver } from './holding';
 import { reassessDetection } from './movement/detection';
 import { walkHome } from './movement/arrival';
+import { insertMovement } from './movement/forces';
 import { allRegions, foundationOwedBy, regionFacts, pointOfRegion } from './regions';
 import { distanceKm } from '../src/domain/geo';
 import schema from './schema';
@@ -985,6 +986,57 @@ describe('a Mondiale headquarters', () => {
       playerId: loser._id,
       why: 'irregular',
     });
+  });
+
+  /** **Les colonnes du vaincu s'effacent ensemble** (#638) : un point ne porte plus que celles
+   *  qui roulent encore, comme si chacune s'était effacée seule. */
+  it('drops the fallen player’s columns from the outposts they served, and only them', async () => {
+    const t = boot();
+    const { seat, guest } = await threeAtTable(t);
+    const loser = await playerOf(t, guest);
+    const capturer = await playerOf(t, seat);
+    const { outpostId, theirs } = await t.run(async (ctx) => {
+      const outpostId = await ctx.db.insert('outposts', {
+        seasonId: loser.seasonId,
+        playerId: capturer._id,
+        point: { lon: 30, lat: 57 },
+        hostCountry: 'RUS',
+        regionId: PSKOV,
+        level: 1,
+        foundedAt: MIDDAY - HOUR,
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+      const column = (playerId: Id<'players'>) =>
+        insertMovement(ctx, {
+          seasonId: loser.seasonId,
+          playerId,
+          type: 'march',
+          fromBuildingId: null,
+          target: { kind: 'point', point: { lon: 31, lat: 57 } },
+          from: { lon: 30, lat: 57 },
+          to: { lon: 31, lat: 57 },
+          hostCountry: 'RUS',
+          points: [
+            { lon: 30, lat: 57 },
+            { lon: 31, lat: 57 },
+          ],
+          legs: [{ medium: 'land', distanceUnits: 1 }],
+          distanceUnits: 1,
+          costUnits: 1,
+          troopIds: [],
+          departedAt: MIDDAY,
+          arrivesAt: MIDDAY + 48 * HOUR,
+        });
+      for (let k = 0; k < 3; k++) await column(loser._id);
+      return { outpostId, theirs: await column(capturer._id) };
+    });
+    expect((await t.run((ctx) => ctx.db.get(outpostId)))!.servedBy).toHaveLength(4);
+
+    await take(t, seat, await headquartersOf(t, guest));
+    await finish(t);
+
+    expect((await t.run((ctx) => ctx.db.get(outpostId)))!.servedBy).toEqual([theirs]);
   });
 
   it('writes the heap of an exploitation of the fallen onto the irregulars that inherit it', async () => {
