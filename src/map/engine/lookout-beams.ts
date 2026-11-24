@@ -2,6 +2,7 @@ import {
   AdditiveBlending,
   Box3,
   BufferGeometry,
+  DoubleSide,
   Color,
   Float32BufferAttribute,
   Group,
@@ -25,9 +26,9 @@ export const MAX_BEAMS = { desk: 6, touch: 3 } as const;
 export const BEAM_FADE_MS = 180;
 /** **Longueur et ouverture du secteur, vitesse du balayage** : fixes, sans lien au niveau du point
  *  ni à son rayon. `@a-mesurer` */
-export const BEAM_KM = 6;
-export const BEAM_SPREAD_DEG = 32;
-export const BEAM_TURN = 0.3;
+const BEAM_KM = 12;
+const BEAM_SPREAD_DEG = 30;
+const BEAM_TURN = 0.3;
 /** **La force du faisceau plein**, sous le `GROUND_GAIN` des halos : pâle, il laisse lire un
  *  chiffre d'épingle. `@a-mesurer` */
 export const BEAM_GAIN = 0.3;
@@ -153,8 +154,8 @@ export class LookoutBeams implements AmbientLayer {
   /** Les points de mes avant-postes en service, à chaque vue : les faisceaux en cours se gardent. */
   show(points: ReadonlyArray<BeamPoint>): void {
     this.points = points.map((point) => {
-      const at = this.board.projectLonLat(point.lonLat, 0);
-      const north = this.board.projectLonLat(lonLatAround(point.lonLat, BEAM_KM, 0), 0);
+      const at = this.board.projectLonLat(point.lonLat);
+      const north = this.board.projectLonLat(lonLatAround(point.lonLat, BEAM_KM, 0));
       const reach = at.distanceTo(north);
       return {
         ...point,
@@ -202,6 +203,7 @@ export class LookoutBeams implements AmbientLayer {
     const material = new MeshBasicMaterial({
       color: tint,
       vertexColors: true,
+      side: DoubleSide,
       transparent: true,
       blending: AdditiveBlending,
       depthWrite: false,
