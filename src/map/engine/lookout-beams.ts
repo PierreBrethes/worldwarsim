@@ -24,6 +24,9 @@ import { LIVE_PX } from './site-loops';
 export const MAX_BEAMS = { desk: 6, touch: 3 } as const;
 /** Le fondu d'un faisceau qui s'allume ou s'éteint (panne de charbon comprise), comme `FADE_MS`. */
 export const BEAM_FADE_MS = 180;
+/** Ce qu'une image peut avancer le fondu : après un long repos, il s'étale sur les images de la
+ *  fenêtre de l'`invalidate()` au lieu de sauter. */
+export const BEAM_STEP_MS = 50;
 /** **Longueur et ouverture du secteur, vitesse du balayage** : fixes, sans lien au niveau du point
  *  ni à son rayon. `@a-mesurer` */
 const BEAM_KM = 12;
@@ -171,7 +174,7 @@ export class LookoutBeams implements AmbientLayer {
 
   frame(seconds: number, motion: MapMotion): void {
     const now = this.now();
-    const fade = motion === 'full' ? (now - this.last) / BEAM_FADE_MS : 1;
+    const fade = motion === 'full' ? Math.min(now - this.last, BEAM_STEP_MS) / BEAM_FADE_MS : 1;
     this.last = now;
     const clock = motion === 'full' ? seconds : 0;
     const wanted = new Map(

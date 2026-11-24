@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { LonLat } from '@/domain/geo';
 import { Ambience } from './ambience';
 import {
-  BEAM_FADE_MS,
+  BEAM_STEP_MS,
   BEAM_GAIN,
   beamAzimuth,
   type BeamPoint,
@@ -84,21 +84,24 @@ describe('the lookout beams ambience', () => {
     const { layer, clock } = setup();
     const opacity = () =>
       (layer.object.children[0] as never as { material: { opacity: number } }).material.opacity;
+    // Frames of 30 ms, under the step cap: three make half a fade.
+    const run = (frames: number) => {
+      for (let k = 0; k < frames; k++) {
+        clock.ms += 30;
+        layer.frame(0, 'full');
+      }
+    };
     layer.show([point('a', 2)]);
     layer.frame(0, 'full');
-    clock.ms = BEAM_FADE_MS / 2;
-    layer.frame(0, 'full');
+    run(3);
     expect(opacity()).toBeCloseTo(BEAM_GAIN / 2, 5);
-    clock.ms = 2 * BEAM_FADE_MS;
-    layer.frame(0, 'full');
+    run(6);
     expect(opacity()).toBeCloseTo(BEAM_GAIN, 5);
     // The coal runs out: the same point, no longer seeing.
     layer.show([point('a', 2, null)]);
-    clock.ms += BEAM_FADE_MS / 2;
-    layer.frame(0, 'full');
+    run(3);
     expect(opacity()).toBeCloseTo(BEAM_GAIN / 2, 5);
-    clock.ms += BEAM_FADE_MS;
-    layer.frame(0, 'full');
+    run(6);
     expect(layer.size).toBe(0);
 
     const still = setup();
@@ -108,6 +111,28 @@ describe('the lookout beams ambience', () => {
       BEAM_GAIN,
       5,
     );
+  });
+
+  it('spreads the fade over frames after a long rest, lighting and putting out alike', () => {
+    const { layer, clock } = setup();
+    const opacity = () => (layer.object.children[0] as never as Lit).material.opacity;
+    // The map rested a minute, then the view is served: the first frame is not the whole fade.
+    clock.ms = 60_000;
+    layer.show([point('a', 2)]);
+    layer.frame(0, 'full');
+    expect(opacity()).toBeGreaterThan(0);
+    expect(opacity()).toBeLessThan(BEAM_GAIN);
+    for (let k = 0; k < 4; k++) {
+      clock.ms += BEAM_STEP_MS;
+      layer.frame(0, 'full');
+    }
+    expect(opacity()).toBeCloseTo(BEAM_GAIN, 5);
+    clock.ms += 60_000;
+    layer.show([point('a', 2, null)]);
+    layer.frame(0, 'full');
+    expect(layer.size).toBe(1);
+    expect(opacity()).toBeGreaterThan(0);
+    expect(opacity()).toBeLessThan(BEAM_GAIN);
   });
 
   it('turns at full motion, rests at its azimuth at reduced and cut motion', () => {
