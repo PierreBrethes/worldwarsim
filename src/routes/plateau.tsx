@@ -1,5 +1,5 @@
 import { campPinId, outpostPinId, pinsOf } from '@/domain/pins';
-import { contactFacingsOf, contactsOf, pairingOf } from '@/domain/contacts';
+import { contactFacingsOf, contactsOf, pairingOf, stableFacings } from '@/domain/contacts';
 import { PIN_APPROACH_DISTANCE } from '@/map/engine/pins';
 import { DISPATCH_VIEW_DISTANCE, HOME_VIEW_DISTANCE } from './-plateau/view-distance';
 import { useTokenDrag } from '@/map/TokenDrag';
@@ -2570,15 +2570,29 @@ function BoardContent({
    *  que la main soulève, et son ombre qui reste sur le fil. */
   /** **Ce que mes forces touchent** (#441, #641) : un seul appariement par vue, lu par les
    *  accrochages du cercle et par le cap de contact des piles. */
+  // Les champs que lit `pairingOf`, pas la vue entière : elle se réinvalide sans cesse, et un cap
+  // neuf redresserait toutes les piles (`displayStanding`). `me` change de bonne heure : seule
+  // l'égalité du contenu garde la même carte de caps.
   const contactView = useMemo(
-    () => ({ ...view, camps: campsShown(view, toggles) }),
-    [view, toggles],
+    () => ({
+      me: view.me,
+      arcs: view.arcs,
+      mode: view.mode,
+      theatre: view.theatre,
+      camps: campsShown(view, toggles),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [view.me, view.arcs, view.mode, view.theatre, view.camps, view.objectives, toggles.objectives],
   );
   const pairing = useMemo(() => pairingOf(contactView), [contactView]);
-  const contactFacings = useMemo(
-    () => contactFacingsOf(contactView, pairing),
-    [contactView, pairing],
-  );
+  const facingsKept = useRef<ReadonlyMap<string, number>>(new Map());
+  const contactFacings = useMemo(() => {
+    facingsKept.current = stableFacings(
+      facingsKept.current,
+      contactFacingsOf(contactView, pairing),
+    );
+    return facingsKept.current;
+  }, [contactView, pairing]);
   const standing = useMemo(() => {
     const piles = standingPilesOf(view.me, markers, marching, blitz, contactFacings);
     /** Comme elle, la colonne d'une Guerre éclair entre ses deux cibles se tient à la première. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { City } from './atlas';
-import { contactFacingsOf, contactsOf } from './contacts';
+import { contactFacingsOf, contactsOf, stableFacings } from './contacts';
 import { bearingDegrees } from './geo';
 import { stackLabelId } from './force-highlight';
 import type { LonLat } from './geo';
@@ -302,5 +302,19 @@ describe('contactFacingsOf — the way a pile at a point turns toward what it to
     const elapsed = performance.now() - started;
     expect(facings.size).toBeGreaterThan(0);
     expect(elapsed).toBeLessThan(250);
+  });
+
+  it('hands back the same map while its content is the same, so a served view does not redraw the piles', () => {
+    const world = () =>
+      view({ troops: [troop('infantry', point(METZ))], camps: [camp('c', east(40))] });
+    const first = contactFacingsOf(world());
+    const again = contactFacingsOf(world());
+    expect(again).not.toBe(first);
+    expect(stableFacings(first, again)).toBe(first);
+    const moved = contactFacingsOf(
+      view({ troops: [troop('infantry', point(METZ))], camps: [camp('c', east(-40))] }),
+    );
+    expect(stableFacings(first, moved)).toBe(moved);
+    expect(stableFacings(first, new Map())).not.toBe(first);
   });
 });

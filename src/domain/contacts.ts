@@ -112,6 +112,17 @@ export function contactFacingsOf(
   );
 }
 
+/** The previous map when `next` says the same thing: a view served again with nothing new must
+ *  not look new to what draws the piles (#641). */
+export function stableFacings(
+  previous: ReadonlyMap<string, number>,
+  next: ReadonlyMap<string, number>,
+): ReadonlyMap<string, number> {
+  return previous.size === next.size && [...next].every(([id, deg]) => previous.get(id) === deg)
+    ? previous
+    : next;
+}
+
 /**
  * My stations — piles posted, garrisons of outposts and buildings, counted from the troops that
  * stand there — and the camps still in sight, paired (`pairingOf`), then gathered into connected
