@@ -1,5 +1,5 @@
-import { Box3, Vector3 } from 'three';
-import { describe, expect, it } from 'vitest';
+import { Box3, MeshBasicMaterial, Vector3 } from 'three';
+import { describe, expect, it, vi } from 'vitest';
 import type { LonLat } from '@/domain/geo';
 import { Ambience } from './ambience';
 import {
@@ -135,6 +135,21 @@ describe('the lookout beams ambience', () => {
     expect(opacity()).toBeLessThan(BEAM_GAIN);
   });
 
+  it('frees the material of a beam put out, and of every one left on dispose', () => {
+    const dispose = vi.spyOn(MeshBasicMaterial.prototype, 'dispose');
+    const { layer, clock } = setup();
+    layer.show([point('a', 2), point('b', 3)]);
+    layer.frame(0, 'reduced');
+    layer.show([point('a', 2), point('b', 3, null)]);
+    clock.ms += 1000;
+    layer.frame(0, 'reduced');
+    expect(layer.size).toBe(1);
+    expect(dispose).toHaveBeenCalledTimes(1);
+    layer.dispose();
+    expect(dispose).toHaveBeenCalledTimes(2);
+    dispose.mockRestore();
+  });
+
   it('turns at full motion, rests at its azimuth at reduced and cut motion', () => {
     const { layer } = setup();
     layer.show([point('a', 2)]);
@@ -152,8 +167,10 @@ describe('the lookout beams ambience', () => {
     layer.show([point('a', 2)]);
     layer.frame(10, 'full');
     const before = layer.object.children[0]!.rotation.y;
+    const mesh = layer.object.children[0];
     layer.show([point('a', 2), point('b', 4)]);
     layer.frame(10, 'full');
+    expect(layer.object.children[0]).toBe(mesh);
     expect(layer.object.children[0]!.rotation.y).toBeCloseTo(before, 10);
     expect(beamAzimuth('a', 1)).not.toBeCloseTo(beamAzimuth('b', 1), 3);
   });
