@@ -322,6 +322,42 @@ describe('a standing pile turning to its contact', () => {
     expect(Math.sin(last)).toBeLessThan(0);
   });
 
+  it('keeps the cloth of the pennant as a pile at no bearing has it, at every bearing and through the pivot (#645)', async () => {
+    const squad = (facing: number) => ({
+      ...pile(facing),
+      pieces: pilePieces([troop('infantry'), troop('armor')]),
+    });
+    const cloth = (layer: StandingLayer) => {
+      const object = layer.group.children[0]!;
+      object.updateMatrixWorld(true);
+      const pennant = object.userData.pennant as Object3D;
+      // The cloth runs along the pennant's x, from its pole.
+      return new Vector3(1, 0, 0).transformDirection(pennant.matrixWorld);
+    };
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const layer = new StandingLayer(
+      flat,
+      () => {},
+      () => null,
+    );
+    layer.setNation('france');
+    layer.display([squad(0)]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    layer.orient(eye);
+    const bare = cloth(layer);
+    for (const facing of [90, 123, 200, 300]) {
+      layer.display([squad(facing)]);
+      // Through the pivot, then once it ends.
+      for (let t = 0; t <= 700; t += 100) {
+        expect(cloth(layer).distanceTo(bare)).toBeLessThan(1e-6);
+        at(layer, 100);
+      }
+    }
+    // The pole stays at its corner of the pile, which turns with it.
+    const object = layer.group.children[0]!;
+    expect(object.rotation.y).not.toBeCloseTo(0, 1);
+  });
+
   it('keeps one pivot when the same bearing is shown again on the way (a column steps)', async () => {
     const reference = await dressed(90);
     reference.display([pile(180)]);

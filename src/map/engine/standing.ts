@@ -429,7 +429,11 @@ export function pileObject(
       if (group.wear === 'burning') blacken(model);
     });
   });
-  if (pieces.squad && placed.length > 0) object.add(squadMarks(placed, nation, pieces.count));
+  if (pieces.squad && placed.length > 0) {
+    const marks = squadMarks(placed, nation, pieces.count);
+    object.add(marks);
+    object.userData.pennant = marks.userData.pennant;
+  }
   const margin = GROUP_SPACING * 0.62;
   const xs = placed.length === 0 ? [0] : placed.map(({ x }) => x);
   const zs = placed.length === 0 ? [0] : placed.map(({ z }) => z);
@@ -553,7 +557,19 @@ function squadMarks(
   pennant.position.set(-rx * Math.SQRT1_2, 0, -rz * Math.SQRT1_2);
   pennant.traverse((part) => (part.castShadow = true));
   marks.add(pennant);
+  marks.userData.pennant = pennant;
   return marks;
+}
+
+/**
+ * **Where a pile's `rotation.y` is written** (#645): its pole turns with it, at its corner, but
+ * the cloth keeps the orientation of a pile at no bearing, so it reads whichever way the pile
+ * faces. The one writer, so no path (pivot, rebuild, garrison) forgets the pennant.
+ */
+function turnPile(object: Group, yaw: number): void {
+  object.rotation.y = yaw;
+  const pennant = object.userData.pennant as Object3D | undefined;
+  if (pennant !== undefined) pennant.rotation.y = -yaw;
 }
 
 export function blacken(figurine: Object3D): void {
@@ -1582,7 +1598,7 @@ export class StandingLayer implements SequenceHost {
               : { from: object.rotation.y, to, since: performance.now() };
         else entry.turn = { ...entry.turn!, to };
         entry.turning = false;
-      } else object.rotation.y = yaw;
+      } else turnPile(object, yaw);
     }
   }
 
@@ -1593,8 +1609,10 @@ export class StandingLayer implements SequenceHost {
       const { turn } = entry;
       if (turn === null) continue;
       const k = this.motion === 'full' ? (now - turn.since) / PIVOT_MS : 1;
-      entry.object.rotation.y =
-        k >= 1 ? turn.to : turn.from + (turn.to - turn.from) * (k * k * (3 - 2 * k));
+      turnPile(
+        entry.object,
+        k >= 1 ? turn.to : turn.from + (turn.to - turn.from) * (k * k * (3 - 2 * k)),
+      );
       if (k >= 1) entry.turn = null;
       moved = true;
     }
@@ -1924,7 +1942,7 @@ export class StandingLayer implements SequenceHost {
               foot.at.z + foot.step[1] - aside * Math.sin(foot.facing),
             );
           }
-          object.rotation.y = at.quay === undefined ? foot.facing : 0;
+          turnPile(object, at.quay === undefined ? foot.facing : 0);
         } else if (at.from === undefined) {
           object.visible = false;
           continue;
