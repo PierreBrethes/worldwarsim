@@ -1842,6 +1842,10 @@ export function WorldMap({
       { liaisons: patrolled, ink: outpostZones?.ink ?? '' },
     );
   }, [readyEngine, outpostZones, zonesShown, patrolLines]);
+  // The beams are the lookouts' own, whatever the layer of the zones shows (#644).
+  useEffect(() => {
+    readyEngine?.showLookoutBeams(outpostZones?.points ?? []);
+  }, [readyEngine, outpostZones]);
   // A liaison born since the view before is traced once; nothing on the first view (#375).
   const liaisonsBefore = useRef<OutpostZonesView['liaisons'] | null>(null);
   useEffect(() => {
