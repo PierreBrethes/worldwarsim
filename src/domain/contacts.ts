@@ -36,19 +36,25 @@ const BEFORE_CITY_KM = 30;
 
 type Node = { readonly pinId: string; readonly at: LonLat };
 
+type Station = Node & {
+  readonly roles: UnitRole[];
+  readonly rangeKm: number;
+  /** Only a pile at a point is turned (`contactFacingsOf`): a garrison hangs from its site. */
+  readonly standing: boolean;
+};
+
 /**
- * My stations — piles posted, garrisons of outposts and buildings, counted from the troops that
- * stand there — and the camps still in sight, paired by distance within the station's detection
- * range (`detectionRangeOf`, the server's own), then gathered into connected pieces. Sites,
- * foreign outposts and movements, mine or theirs, never touch.
+ * **L'appariement** (#441, #641), la seule lecture de ce que mes forces touchent : mes stations
+ * et les camps encore en vue, appariés par la distance dans la portée de détection de la station
+ * (`detectionRangeOf`, celle du serveur), sans regard au milieu. `touching[c]` : les stations
+ * qui touchent le camp `c`. L'accrochage dessiné et le cap d'une pile parlent des mêmes camps.
  */
-export function contactsOf(
+export function pairingOf(
   view: Pick<PlayerView, 'me' | 'camps' | 'arcs' | 'mode' | 'theatre'>,
-  cities: ReadonlyArray<City>,
-): ReadonlyArray<Contact> {
+) {
   const theatre = playedTheatre(view);
   const marching = marchingTroopIds(view.arcs);
-  const stations = new Map<string, Node & { roles: UnitRole[] }>();
+  const stations = new Map<string, Omit<Station, 'rangeKm'>>();
   for (const troop of view.me.troops) {
     const station = troop.stationedAt;
     if (marching.has(troop.id) || station.kind === 'home') continue;
@@ -66,9 +72,9 @@ export function contactsOf(
         : station.kind === 'outpost'
           ? outpostPinId(station.outpostId)
           : buildingLabelId(view.me.buildings.find(({ id }) => id === station.buildingId)!);
-    stations.set(key, { pinId, at, roles: [troop.role] });
+    stations.set(key, { pinId, at, roles: [troop.role], standing: station.kind === 'point' });
   }
-  const mine = [...stations.values()].map((station) => ({
+  const mine: Station[] = [...stations.values()].map((station) => ({
     ...station,
     rangeKm: detectionRangeOf(station.roles, theatre),
   }));
@@ -79,6 +85,46 @@ export function contactsOf(
       distanceKm(station.at, camp.point) <= station.rangeKm ? [k] : [],
     ),
   );
+  return { mine, camps, touching };
+}
+
+/**
+ * **Le cap de contact** (#641) : la pile posée en un point se tourne vers le camp relevé le plus
+ * proche de ceux qui sont à portée de sa détection ; à égale distance, le plus petit `id`, pour
+ * que le cap ne flotte pas d'une vue à l'autre. En degrés depuis le nord, comme `facing`, par
+ * identifiant d'étiquette de la pile ; une pile sans camp à portée n'y est pas.
+ */
+export function contactFacingsOf(
+  view: Pick<PlayerView, 'me' | 'camps' | 'arcs' | 'mode' | 'theatre'>,
+  pairing: ReturnType<typeof pairingOf> = pairingOf(view),
+): ReadonlyMap<string, number> {
+  const { mine, camps, touching } = pairing;
+  const best = new Map<number, { km: number; id: string; point: LonLat }>();
+  camps.forEach((camp, c) => {
+    for (const k of touching[c]!) {
+      if (!mine[k]!.standing) continue;
+      const km = distanceKm(mine[k]!.at, camp.point);
+      const held = best.get(k);
+      if (held === undefined || km < held.km || (km === held.km && camp.id < held.id))
+        best.set(k, { km, id: camp.id, point: camp.point });
+    }
+  });
+  return new Map(
+    [...best].map(([k, { point }]) => [mine[k]!.pinId, bearingDegrees(mine[k]!.at, point)]),
+  );
+}
+
+/**
+ * My stations — piles posted, garrisons of outposts and buildings, counted from the troops that
+ * stand there — and the camps still in sight, paired (`pairingOf`), then gathered into connected
+ * pieces. Sites, foreign outposts and movements, mine or theirs, never touch.
+ */
+export function contactsOf(
+  view: Pick<PlayerView, 'me' | 'camps' | 'arcs' | 'mode' | 'theatre'>,
+  cities: ReadonlyArray<City>,
+  pairing: ReturnType<typeof pairingOf> = pairingOf(view),
+): ReadonlyArray<Contact> {
+  const { mine, camps, touching } = pairing;
   const pieces: Array<{ mine: Set<number>; camps: Set<number> }> = [];
   const pieceOfStation = new Map<number, (typeof pieces)[number]>();
   camps.forEach((_, c) => {
