@@ -381,6 +381,8 @@ export function standingPilesOf(
   markers: ReadonlyArray<MapMarker>,
   marching: ReadonlySet<string>,
   blitz: boolean,
+  /** The bearing of a pile's contact (`contactFacingsOf`), by pile id: it wins over the arrival. */
+  contactFacings: ReadonlyMap<string, number> = new Map(),
 ): ReadonlyArray<StandingPile> {
   const headings = headingsOf(me.troops);
   return [
@@ -390,7 +392,7 @@ export function standingPilesOf(
         : [],
     ),
     ...garrisonPiles(me, marching),
-  ].map((pile) => withFacing(blitz ? blitzPile(pile, me.troops) : pile, headings));
+  ].map((pile) => withFacing(blitz ? blitzPile(pile, me.troops) : pile, headings, contactFacings));
 }
 
 export const campsOf = (markers: ReadonlyArray<MapMarker>) =>
@@ -561,13 +563,16 @@ export function marchingPiecesOf(
   );
 }
 
-/** **Le cap de la pile** (#362) : celui de ses troupes, qu'une arrivée leur donne à toutes ; une
- *  pile de point seulement — une garnison d'avant-poste pend à son étiquette et ne se tourne pas. */
+/** **Le cap de la pile** (#362) : celui du camp relevé qu'elle touche (#641), sinon celui de ses
+ *  troupes, qu'une arrivée leur donne à toutes ; une pile de point seulement — une garnison d'avant-poste pend à son étiquette et ne se tourne pas. */
 function withFacing(
   pile: StandingPile,
   headings: ReadonlyMap<string, { readonly rank: number; readonly facing: number }>,
+  contactFacings: ReadonlyMap<string, number>,
 ): StandingPile {
   if (!('lonLat' in pile.at) || pile.label !== undefined) return pile;
+  const toward = contactFacings.get(pile.id);
+  if (toward !== undefined) return { ...pile, facing: toward };
   let first: { readonly rank: number; readonly facing: number } | undefined;
   for (const id of pile.pieces.troopIds) {
     const heading = headings.get(id);
