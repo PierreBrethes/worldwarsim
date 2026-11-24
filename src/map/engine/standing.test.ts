@@ -305,6 +305,23 @@ describe('a standing pile turning to its contact', () => {
     expect(at(layer, 16)).toBe(false);
   });
 
+  it('turns the short way from where it is when a new bearing comes in mid-pivot', async () => {
+    const layer = await dressed(0);
+    layer.display([pile(170)]);
+    at(layer, 300);
+    layer.display([pile(190)]);
+    let travelled = 0;
+    let last = yaw(layer);
+    for (let t = 0; t < 700; t += 50) {
+      at(layer, 50);
+      travelled += Math.abs(yaw(layer) - last);
+      last = yaw(layer);
+    }
+    expect(travelled).toBeLessThan(Math.PI);
+    expect(Math.cos(last)).toBeCloseTo(Math.cos(-0.17), 1);
+    expect(Math.sin(last)).toBeLessThan(0);
+  });
+
   it('keeps one pivot when the same bearing is shown again on the way (a column steps)', async () => {
     const reference = await dressed(90);
     reference.display([pile(180)]);

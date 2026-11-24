@@ -1571,7 +1571,8 @@ export class StandingLayer implements SequenceHost {
       const yaw = ahead === null ? 0 : Math.atan2(ahead.x, ahead.z);
       // The short way round, and the same target again keeps the pivot it has (`display` is
       // called at every step of any column).
-      const from = entry.turn?.from ?? object.rotation.y;
+      // A new bearing mid-pivot starts from where the pile is; the same one keeps its `from`.
+      const from = entry.turning ? object.rotation.y : (entry.turn?.from ?? object.rotation.y);
       const to = from + Math.atan2(Math.sin(yaw - from), Math.cos(yaw - from));
       if (entry.turning || entry.turn !== null) {
         if (entry.turning)
