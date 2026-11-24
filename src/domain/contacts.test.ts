@@ -287,4 +287,20 @@ describe('contactFacingsOf — the way a pile at a point turns toward what it to
     expect(ringed).not.toContain(pileId(east(500)));
     expect([...facingsOf(v).keys()]).toEqual([pileId(METZ)]);
   });
+
+  it('pairs a thousand piles with a few hundred camps in one view, with no spatial index (#641)', () => {
+    // 1000 piles on a 40 x 25 grid, 0.5° apart; 300 camps on their own grid between them.
+    const piles = Array.from({ length: 1000 }, (_, k) =>
+      troop('infantry', point([(k % 40) * 0.5, 40 + Math.floor(k / 40) * 0.5])),
+    );
+    const camps = Array.from({ length: 300 }, (_, k) =>
+      camp(`c${k}`, [(k % 20) + 0.25, 40.25 + Math.floor(k / 20) * 0.5]),
+    );
+    const world = view({ troops: piles, camps });
+    const started = performance.now();
+    const facings = contactFacingsOf(world);
+    const elapsed = performance.now() - started;
+    expect(facings.size).toBeGreaterThan(0);
+    expect(elapsed).toBeLessThan(250);
+  });
 });
