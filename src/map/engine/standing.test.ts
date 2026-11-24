@@ -26,6 +26,7 @@ import {
   pileObject,
   pickedIn,
   StandingLayer,
+  type StandingPile,
   takenCopies,
   targetGrowth,
 } from './standing';
@@ -231,6 +232,231 @@ describe('the piece in hand answering a click', () => {
   it('takes the copy set down under a rose, and the one on its way home', () => {
     expect(takenCopies(setDown, homeward)).toEqual([setDown, homeward]);
     expect(takenCopies(null, homeward)).toEqual([homeward]);
+  });
+});
+
+/** **Une pile se tourne vers son contact** (#641) : le pivot est du moteur, 600 ms au plus. */
+describe('a standing pile turning to its contact', () => {
+  const flat = {
+    projectLonLat: ([lon, lat]: readonly [number, number]) => new Vector3(lon, 0, -lat),
+  } as unknown as WorldFrame;
+  const eye = new Vector3(2, 3, -45);
+  let now = 1000;
+  const pile = (facing: number | undefined) => ({
+    id: 'p',
+    at: { lonLat: [2, 48] as const },
+    pieces: pilePieces([troop('infantry')]),
+    ...(facing === undefined ? {} : { facing }),
+  });
+  const dressed = async (facing: number, motion: MapMotion = 'full') => {
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const layer = new StandingLayer(
+      flat,
+      () => {},
+      () => null,
+    );
+    layer.motion = motion;
+    layer.setNation('france');
+    layer.display([pile(facing)]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    layer.orient(eye);
+    return layer;
+  };
+  const yaw = (layer: StandingLayer) => layer.group.children[0]!.rotation.y;
+  const at = (layer: StandingLayer, ms: number) => {
+    now += ms;
+    return layer.orient(eye);
+  };
+
+  it('stands a pile posed at its bearing at once, and one that is new does not pivot', async () => {
+    const layer = await dressed(90);
+    expect(yaw(layer)).toBeCloseTo(Math.PI / 2, 2);
+    expect(at(layer, 16)).toBe(false);
+    // Not yet stood by an `orient`: a bearing that changes first is the one it is placed at.
+    const fresh = new StandingLayer(
+      flat,
+      () => {},
+      () => null,
+    );
+    fresh.setNation('france');
+    fresh.display([pile(90)]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fresh.display([pile(180)]);
+    expect(yaw(fresh)).toBeCloseTo(0, 2);
+    expect(fresh.orient(eye)).toBe(false);
+  });
+
+  it('turns a standing pile to its new bearing in 600 ms, the short way, and says it moves', async () => {
+    const layer = await dressed(350);
+    const from = yaw(layer);
+    layer.display([pile(10)]);
+    expect(yaw(layer)).toBeCloseTo(from, 2);
+    const seen: number[] = [];
+    let moving = true;
+    for (let t = 0; t < 600; t += 100) {
+      moving &&= at(layer, 100);
+      seen.push(yaw(layer));
+    }
+    expect(moving).toBe(true);
+    // Through the south of the dial, past ±π, never round by the north.
+    expect(seen.slice(0, -1).every((angle) => Math.cos(angle) < -0.9)).toBe(true);
+    expect(seen.slice(0, -1)).not.toContain(seen.at(-1));
+    expect(Math.cos(yaw(layer))).toBeCloseTo(Math.cos(2.88), 1);
+    expect(Math.sin(yaw(layer))).toBeGreaterThan(0);
+    expect(at(layer, 16)).toBe(false);
+  });
+
+  it('turns the short way from where it is when a new bearing comes in mid-pivot', async () => {
+    const layer = await dressed(0);
+    layer.display([pile(170)]);
+    at(layer, 300);
+    layer.display([pile(190)]);
+    let travelled = 0;
+    let last = yaw(layer);
+    for (let t = 0; t < 700; t += 50) {
+      at(layer, 50);
+      travelled += Math.abs(yaw(layer) - last);
+      last = yaw(layer);
+    }
+    expect(travelled).toBeLessThan(Math.PI);
+    expect(Math.cos(last)).toBeCloseTo(Math.cos(-0.17), 1);
+    expect(Math.sin(last)).toBeLessThan(0);
+  });
+
+  it('keeps the cloth of the pennant as a pile at no bearing has it, at every bearing and through the pivot (#645)', async () => {
+    const squad = (facing: number) => ({
+      ...pile(facing),
+      pieces: pilePieces([troop('infantry'), troop('armor')]),
+    });
+    const cloth = (layer: StandingLayer) => {
+      const object = layer.group.children[0]!;
+      object.updateMatrixWorld(true);
+      const pennant = object.userData.pennant as Object3D;
+      // The cloth runs along the pennant's x, from its pole.
+      return new Vector3(1, 0, 0).transformDirection(pennant.matrixWorld);
+    };
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const layer = new StandingLayer(
+      flat,
+      () => {},
+      () => null,
+    );
+    layer.setNation('france');
+    layer.display([squad(0)]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    layer.orient(eye);
+    const bare = cloth(layer);
+    for (const facing of [90, 123, 200, 300]) {
+      layer.display([squad(facing)]);
+      // Through the pivot, then once it ends.
+      for (let t = 0; t <= 700; t += 100) {
+        expect(cloth(layer).distanceTo(bare)).toBeLessThan(1e-6);
+        at(layer, 100);
+      }
+    }
+    // The pole stays at its corner of the pile, which turns with it.
+    const object = layer.group.children[0]!;
+    expect(object.rotation.y).not.toBeCloseTo(0, 1);
+  });
+
+  it('keeps the cloth as a pile at no bearing has it on the copy in hand, and on a squad of a maquette’s yard (#645)', async () => {
+    const squad = (id: string, at: StandingPile['at'], facing?: number): StandingPile => ({
+      id,
+      at,
+      pieces: pilePieces([troop('infantry'), troop('armor')]),
+      ...(facing === undefined ? {} : { facing }),
+    });
+    const clothOf = (object: Object3D) => {
+      object.updateMatrixWorld(true);
+      const pennant = object.userData.pennant as Object3D;
+      return new Vector3(1, 0, 0).transformDirection(pennant.matrixWorld);
+    };
+    const upright = new Vector3(1, 0, 0);
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const layer = new StandingLayer(
+      flat,
+      () => {},
+      () => null,
+    );
+    layer.setNation('france');
+    layer.display([squad('p', { lonLat: [2, 48] }, 123)]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    layer.orient(eye);
+    layer.hold({ pileId: 'p', troopIds: ['infantry', 'armor'] });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const held = (layer as unknown as { carried: { piece: Group } }).carried.piece.children[0]!;
+    expect(held.rotation.y).not.toBeCloseTo(0, 1);
+    expect(clothOf(held).distanceTo(upright)).toBeLessThan(1e-6);
+
+    const yard = new StandingLayer(
+      flat,
+      () => {},
+      () => ({
+        at: new Vector3(0, 0, 0),
+        step: [0, 0],
+        facing: 1,
+        rank: false,
+        width: 1,
+        deep: [0, 1],
+        scale: 1,
+        toBoard: (point: Vector3) => point,
+      }),
+    );
+    yard.setNation('france');
+    yard.display([squad('g', { beside: 'building-hq' })]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    yard.orient(eye);
+    const garrison = yard.group.children[0]!;
+    expect(garrison.rotation.y).toBeCloseTo(1, 6);
+    // Far from the eye its scale is nil, so the yaw is read rather than a direction.
+    const pennant = garrison.userData.pennant as Object3D;
+    expect(garrison.rotation.y + pennant.rotation.y).toBeCloseTo(0, 9);
+  });
+
+  it('keeps one pivot when the same bearing is shown again on the way (a column steps)', async () => {
+    const reference = await dressed(90);
+    reference.display([pile(180)]);
+    at(reference, 300);
+    const half = yaw(reference);
+    const layer = await dressed(90);
+    layer.display([pile(180)]);
+    at(layer, 300);
+    layer.display([pile(180)]);
+    expect(yaw(layer)).toBeCloseTo(half, 2);
+    at(layer, 300);
+    expect(yaw(layer)).toBeCloseTo(0, 2);
+  });
+
+  it('does not pivot a pile on a shore, which keeps the axes of the board (#362)', async () => {
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const layer = new StandingLayer(
+      flat,
+      () => {},
+      () => null,
+      () => [0, 1],
+    );
+    layer.setNation('france');
+    layer.display([pile(90)]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    layer.orient(eye);
+    layer.display([pile(180)]);
+    expect(at(layer, 16)).toBe(false);
+    expect(yaw(layer)).toBe(0);
+  });
+
+  it('ends the pivot at once when motion goes reduced, and pivots not at all out of full motion', async () => {
+    const layer = await dressed(90);
+    layer.display([pile(180)]);
+    at(layer, 100);
+    expect(yaw(layer)).not.toBeCloseTo(0, 2);
+    layer.motion = 'reduced';
+    layer.orient(eye);
+    expect(yaw(layer)).toBeCloseTo(0, 2);
+    for (const motion of ['reduced', 'off'] as const) {
+      const still = await dressed(90, motion);
+      still.display([pile(180)]);
+      expect(yaw(still)).toBeCloseTo(0, 2);
+    }
   });
 });
 

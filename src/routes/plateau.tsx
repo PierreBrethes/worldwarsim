@@ -1,5 +1,5 @@
 import { campPinId, outpostPinId, pinsOf } from '@/domain/pins';
-import { contactsOf } from '@/domain/contacts';
+import { contactFacingsOf, contactsOf, pairingOf, stableFacings } from '@/domain/contacts';
 import { PIN_APPROACH_DISTANCE } from '@/map/engine/pins';
 import { DISPATCH_VIEW_DISTANCE, HOME_VIEW_DISTANCE } from './-plateau/view-distance';
 import { useTokenDrag } from '@/map/TokenDrag';
@@ -2568,8 +2568,33 @@ function BoardContent({
    *  déploie — la pièce est déjà l'unité. */
   /** **La flotte reprise en mer** (#449) se tient, le temps du geste, à sa position : c'est elle
    *  que la main soulève, et son ombre qui reste sur le fil. */
+  /** **Ce que mes forces touchent** (#441, #641) : un seul appariement par vue, lu par les
+   *  accrochages du cercle et par le cap de contact des piles. */
+  // Les champs que lit `pairingOf`, pas la vue entière : elle se réinvalide sans cesse, et un cap
+  // neuf redresserait toutes les piles (`displayStanding`). `me` change de bonne heure : seule
+  // l'égalité du contenu garde la même carte de caps.
+  const contactView = useMemo(
+    () => ({
+      me: view.me,
+      arcs: view.arcs,
+      mode: view.mode,
+      theatre: view.theatre,
+      camps: campsShown(view, toggles),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [view.me, view.arcs, view.mode, view.theatre, view.camps, view.objectives, toggles.objectives],
+  );
+  const pairing = useMemo(() => pairingOf(contactView), [contactView]);
+  const facingsKept = useRef<ReadonlyMap<string, number>>(new Map());
+  const contactFacings = useMemo(() => {
+    facingsKept.current = stableFacings(
+      facingsKept.current,
+      contactFacingsOf(contactView, pairing),
+    );
+    return facingsKept.current;
+  }, [contactView, pairing]);
   const standing = useMemo(() => {
-    const piles = standingPilesOf(view.me, markers, marching, blitz);
+    const piles = standingPilesOf(view.me, markers, marching, blitz, contactFacings);
     /** Comme elle, la colonne d'une Guerre éclair entre ses deux cibles se tient à la première. */
     if (
       hand.kind !== 'held' ||
@@ -2586,7 +2611,7 @@ function BoardContent({
         pieces: pilePieces(troops),
       },
     ];
-  }, [markers, view.me, marching, blitz, hand, chain]);
+  }, [markers, view.me, marching, blitz, hand, chain, contactFacings]);
   const maquettes = useMemo(() => {
     const keyOf = new Map(view.objectives.map((objective) => [objective.id, objective.key]));
     return withVitrine(
@@ -2606,8 +2631,8 @@ function BoardContent({
   );
   /** **Les accrochages** (#441), nommés d'après toutes les villes de l'atlas. */
   const contacts = useMemo(
-    () => contactsOf({ ...view, camps: campsShown(view, toggles) }, atlas.cities()),
-    [view, toggles, atlas],
+    () => contactsOf(contactView, atlas.cities(), pairing),
+    [contactView, atlas, pairing],
   );
   const pins = useMemo(
     () =>

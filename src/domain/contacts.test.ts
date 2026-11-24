@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { City } from './atlas';
-import { contactsOf } from './contacts';
+import { contactFacingsOf, contactsOf, stableFacings } from './contacts';
+import { bearingDegrees } from './geo';
+import { stackLabelId } from './force-highlight';
 import type { LonLat } from './geo';
 import type { CampView, PlayerView, TroopView } from './player-view';
 
@@ -184,5 +186,135 @@ describe('contactsOf — where my forces touch what I surveyed', () => {
 
   it('draws no contact once nothing is surveyed', () => {
     expect(contactsOf(view({ troops: [troop('infantry', point(METZ))] }), cities)).toEqual([]);
+  });
+});
+
+describe('contactFacingsOf — the way a pile at a point turns toward what it touches (#641)', () => {
+  const pileId = (at: LonLat) => stackLabelId(point(at));
+  const facingsOf = (v: PlayerView) => contactFacingsOf(v);
+
+  it('turns a pile toward the one camp in its detection range, as the bearing says', () => {
+    const camp1 = east(40);
+    const facings = facingsOf(
+      view({ troops: [troop('infantry', point(METZ))], camps: [camp('c', camp1)] }),
+    );
+    expect(facings.get(pileId(METZ))).toBeCloseTo(bearingDegrees(METZ, camp1), 6);
+    expect(facings.size).toBe(1);
+  });
+
+  it('turns it toward the nearer of two camps, then the smaller id at equal distance', () => {
+    const far = east(60);
+    const near: LonLat = [METZ[0] - 20 / 73, METZ[1]];
+    const nearest = facingsOf(
+      view({
+        troops: [troop('infantry', point(METZ))],
+        camps: [camp('a', far), camp('b', near)],
+      }),
+    );
+    expect(nearest.get(pileId(METZ))).toBeCloseTo(270, 0);
+    // Mirrored about the pile's meridian, the two distances are the same to the bit.
+    const origin: LonLat = [0, 49];
+    const tie = (ids: [string, string]) =>
+      facingsOf(
+        view({
+          troops: [troop('infantry', point(origin))],
+          camps: [camp(ids[0], [0.5, 49]), camp(ids[1], [-0.5, 49])],
+        }),
+      ).get(pileId(origin));
+    expect(tie(['a', 'b'])).toBeCloseTo(90, 0);
+    expect(tie(['b', 'a'])).toBeCloseTo(270, 0);
+  });
+
+  it('ignores a last known position, a camp out of range, and takes a camp of the sea as it is', () => {
+    expect(
+      facingsOf(
+        view({
+          troops: [troop('infantry', point(METZ))],
+          camps: [camp('lost', east(10), { lastKnown: true }), camp('far', east(400))],
+        }),
+      ).size,
+    ).toBe(0);
+    expect(
+      facingsOf(
+        view({
+          troops: [troop('infantry', point(METZ))],
+          camps: [camp('boat', east(30), { medium: 'sea' })],
+        }),
+      ).get(pileId(METZ)),
+    ).toBeCloseTo(90, 0);
+  });
+
+  it('leaves a marching column and the garrisons alone, a column that joined takes the pile’s', () => {
+    const marching = troop('infantry', point(METZ));
+    const joined = troop('armor', point(east(30)));
+    const facings = facingsOf(
+      view({
+        troops: [
+          marching,
+          joined,
+          troop('infantry', { kind: 'outpost', outpostId: 'o1' }),
+          troop('infantry', { kind: 'building', buildingId: 'b1' }),
+        ],
+        arcs: [{ state: 'mine', troopIds: [marching.id] }],
+        outposts: [{ id: 'o1', lonLat: east(20) }],
+        buildings: [{ id: 'b1', key: 'barracks', point: east(20) }],
+        camps: [camp('c', east(50))],
+      }),
+    );
+    expect([...facings.keys()]).toEqual([pileId(east(30))]);
+  });
+
+  it('reads the range off the theatre in a Blitz', () => {
+    const tokyo: LonLat = [139.7, 35.7];
+    const at: LonLat = [tokyo[0] + 150 / 90, tokyo[1]];
+    const blitz = (theatre: string | null) =>
+      ({
+        ...view({ troops: [troop('infantry', point(tokyo))], camps: [camp('c', at)] }),
+        mode: theatre === null ? 'mondiale' : 'blitz',
+        theatre,
+      }) as PlayerView;
+    expect(facingsOf(blitz(null)).size).toBe(0);
+    expect(facingsOf(blitz('pacific')).size).toBe(1);
+  });
+
+  it('says the same camps as contactsOf: a pile is turned exactly when it is ringed', () => {
+    const v = view({
+      troops: [troop('infantry', point(METZ)), troop('infantry', point(east(500)))],
+      camps: [camp('c', east(40))],
+    });
+    const ringed = contactsOf(v, cities).flatMap(({ pinIds }) => pinIds);
+    expect(ringed).toContain(pileId(METZ));
+    expect(ringed).not.toContain(pileId(east(500)));
+    expect([...facingsOf(v).keys()]).toEqual([pileId(METZ)]);
+  });
+
+  it('pairs a thousand piles with a few hundred camps in one view, with no spatial index (#641)', () => {
+    // 1000 piles on a 40 x 25 grid, 0.5° apart; 300 camps on their own grid between them.
+    const piles = Array.from({ length: 1000 }, (_, k) =>
+      troop('infantry', point([(k % 40) * 0.5, 40 + Math.floor(k / 40) * 0.5])),
+    );
+    const camps = Array.from({ length: 300 }, (_, k) =>
+      camp(`c${k}`, [(k % 20) + 0.25, 40.25 + Math.floor(k / 20) * 0.5]),
+    );
+    const world = view({ troops: piles, camps });
+    const started = performance.now();
+    const facings = contactFacingsOf(world);
+    const elapsed = performance.now() - started;
+    expect(facings.size).toBeGreaterThan(0);
+    expect(elapsed).toBeLessThan(250);
+  });
+
+  it('hands back the same map while its content is the same, so a served view does not redraw the piles', () => {
+    const world = () =>
+      view({ troops: [troop('infantry', point(METZ))], camps: [camp('c', east(40))] });
+    const first = contactFacingsOf(world());
+    const again = contactFacingsOf(world());
+    expect(again).not.toBe(first);
+    expect(stableFacings(first, again)).toBe(first);
+    const moved = contactFacingsOf(
+      view({ troops: [troop('infantry', point(METZ))], camps: [camp('c', east(-40))] }),
+    );
+    expect(stableFacings(first, moved)).toBe(moved);
+    expect(stableFacings(first, new Map())).not.toBe(first);
   });
 });

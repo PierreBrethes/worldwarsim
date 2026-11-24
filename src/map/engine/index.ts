@@ -82,6 +82,7 @@ import {
 import { articulatedOf, type Cue, type Sequence, SequenceLayer } from './sequences';
 import { type PlaneFile, planeFileOf } from './figurines/plane-rig';
 import { FlagWindLayer } from './flag-wind';
+import { type BeamPoint, LookoutBeams, MAX_BEAMS } from './lookout-beams';
 import { MAX_LIVING, SiteLoopLayer } from './site-loops';
 import { departureOf, touchOf } from './mooring';
 import { Moorings } from './moorings';
@@ -730,6 +731,7 @@ export class MapEngine {
   private readonly maquettes: MaquetteLayer;
   /** My sites at work, alive at rest (#273): an ambience that borrows their copies. */
   private readonly loops: SiteLoopLayer;
+  private readonly beams: LookoutBeams;
   /** **The hawsers of the hulls at a port** (#500). */
   private readonly moorings: Moorings;
   /** The pieces' articulated copies, for the length of a sequence (ADR 0036). */
@@ -1336,6 +1338,15 @@ export class MapEngine {
         (box, px) => this.seenBig(box, px),
       ),
     );
+    this.beams = new LookoutBeams(
+      this.frame,
+      () => this.boardNow(),
+      (box, px) => this.seenBig(box, px),
+      () => this.eye.position,
+      this.touch ? MAX_BEAMS.touch : MAX_BEAMS.desk,
+    );
+    this.scene.add(this.beams.object);
+    this.ambience.add(this.beams);
     this.moorings = new Moorings({
       hulls: () => this.standing.mooredHulls(),
       frameOf: (id) => {
@@ -2726,6 +2737,12 @@ export class MapEngine {
     this.zones.show(points, liaisons, linesOnly, patrol);
   }
 
+  /** **Les vigies qui guettent balaient le sol la nuit** (#644), calque des zones ou non. */
+  showLookoutBeams(points: ReadonlyArray<BeamPoint>): void {
+    this.invalidate();
+    this.beams.show(points);
+  }
+
   /** **La liaison tracée sous le pointeur** (#376), par les clés de ses deux points, ou `null`. */
   liaisonAt(clientX: number, clientY: number): readonly [string, string] | null {
     if (!this.castAt(clientX, clientY)) return null;
@@ -2843,6 +2860,7 @@ export class MapEngine {
     this.sea?.dispose();
     this.veil.dispose();
     this.halos.dispose();
+    this.beams.dispose();
     this.scene.traverse(disposeNode);
     this.scene.clear();
 
@@ -5618,6 +5636,11 @@ export class MapEngine {
       this.doors.set(siteId, { since, passing });
   }
 
+  /** The instant the board's sun is read at: the forced one (`?instant`), else the cycle's. */
+  private boardNow(): number {
+    return this.forcedInstant ?? boardInstant(Date.now(), this.dayCycle);
+  }
+
   /** In the eye's field, and at least `px` tall on the 900 px reference window. */
   private seenBig(box: Box3, px: number): boolean {
     this.eyeFrustum.setFromProjectionMatrix(
@@ -6447,7 +6470,7 @@ export class MapEngine {
     const distance = this.camera.position.distanceTo(this.controls.target);
     setNearFloor(distance);
     const looked = this.controls.target;
-    const instant = this.forcedInstant ?? boardInstant(Date.now(), this.dayCycle);
+    const instant = this.boardNow();
     const lookedAt = this.frame.lonLatAt(
       looked.x + this.frame.centerX,
       looked.z + this.frame.centerY,

@@ -107,6 +107,28 @@ describe('standingPilesOf', () => {
     expect(piles.map((pile) => pile.facing)).toEqual([270]);
   });
 
+  it('prefers the bearing of a contact to the heading of arrival, for a pile on a point only (#641)', () => {
+    const at = { kind: 'point', lonLat: [1, 2] } as const;
+    const station = { kind: 'outpost', outpostId: 'o1' } as const;
+    const stack = {
+      kind: 'stack',
+      id: 'p',
+      lonLat: [1, 2],
+      pieces: { groups: [], troopIds: ['b'], squad: false },
+    } as never;
+    const me = meWith([{ ...troop('b', at), facing: 90 }, troop('a', station)]);
+    const toward = new Map([
+      ['p', 200],
+      [stationKeyOf(station), 10],
+    ]);
+    const piles = standingPilesOf(me, [stack], new Set(), false, toward);
+    expect(piles.map((pile) => pile.facing)).toEqual([200, undefined]);
+    expect(standingPilesOf(me, [stack], new Set(), false).map((pile) => pile.facing)).toEqual([
+      90,
+      undefined,
+    ]);
+  });
+
   it('leaves a pile alone when no troop of the list is in it, or when it holds none (#560)', () => {
     const at = { kind: 'point', lonLat: [1, 2] } as const;
     const stack = (troopIds: string[]) =>

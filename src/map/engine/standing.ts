@@ -429,7 +429,11 @@ export function pileObject(
       if (group.wear === 'burning') blacken(model);
     });
   });
-  if (pieces.squad && placed.length > 0) object.add(squadMarks(placed, nation, pieces.count));
+  if (pieces.squad && placed.length > 0) {
+    const marks = squadMarks(placed, nation, pieces.count);
+    object.add(marks);
+    object.userData.pennant = marks.userData.pennant;
+  }
   const margin = GROUP_SPACING * 0.62;
   const xs = placed.length === 0 ? [0] : placed.map(({ x }) => x);
   const zs = placed.length === 0 ? [0] : placed.map(({ z }) => z);
@@ -553,7 +557,19 @@ function squadMarks(
   pennant.position.set(-rx * Math.SQRT1_2, 0, -rz * Math.SQRT1_2);
   pennant.traverse((part) => (part.castShadow = true));
   marks.add(pennant);
+  marks.userData.pennant = pennant;
   return marks;
+}
+
+/**
+ * **Where a pile's `rotation.y` is written** (#645): its pole turns with it, at its corner, but
+ * the cloth keeps the orientation of a pile at no bearing, so it reads whichever way the pile
+ * faces. The one writer, so no path (pivot, rebuild, garrison) forgets the pennant.
+ */
+function turnPile(object: Group, yaw: number): void {
+  object.rotation.y = yaw;
+  const pennant = object.userData.pennant as Object3D | undefined;
+  if (pennant !== undefined) pennant.rotation.y = -yaw;
 }
 
 export function blacken(figurine: Object3D): void {
@@ -592,6 +608,10 @@ type Dressed = {
   /** **The size of its site it is drawn at** (#433): a port's, at its quay; 1 anywhere else. */
   sized: number;
   ready: boolean;
+  /** **Its pivot to a new bearing** (#641), `from` to `to` in `rotation.y`, until `PIVOT_MS`. */
+  turn: { readonly from: number; readonly to: number; readonly since: number } | null;
+  /** Its bearing changed while it stood, at full motion: the next `rebuild` starts the pivot. */
+  turning: boolean;
   /** How much of it stands rather than its pin, at the last `orient`. */
   near: number;
   /** Its first `orient` has run: before, it stands at the size of its models, not the board's. */
@@ -664,6 +684,9 @@ const PROTOTYPE_UNIT = 0.3;
 const RETURN_HOP = CARRIED_LIFT * 0.67;
 /** A set-down piece slides onto its point while it drops: a moment more to arrive there. */
 const SETTLE_TAIL = 0.2;
+/** How long a pile takes to turn to its contact (#641), well under `SETTLE_MS` of the frame
+ *  `displayStanding` asks for. @a-mesurer */
+const PIVOT_MS = 600;
 
 /**
  * **The piece in hand** (ADR 0026 §6, the prototype's `lp`). It hangs `lift` above the board,
@@ -940,6 +963,7 @@ export class StandingLayer implements SequenceHost {
         this.grown.add(pile.id);
       if (kept?.key === key) {
         kept.at = pile.at;
+        kept.turning ||= this.motion === 'full' && kept.placed && kept.facing !== pile.facing;
         kept.facing = pile.facing;
         kept.pieces = pile.pieces;
         this.dressed.delete(pile.id);
@@ -967,6 +991,8 @@ export class StandingLayer implements SequenceHost {
         floorSpan: built.floorSpan,
         sized: 1,
         ready: false,
+        turn: null,
+        turning: false,
         near: 0,
         placed: false,
         stood: false,
@@ -1374,7 +1400,7 @@ export class StandingLayer implements SequenceHost {
     const object = new Group();
     object.add(piece, shadow.object, marks.reticle, marks.plumb);
     object.position.copy(entry.object.position);
-    copy.object.rotation.y = entry.object.rotation.y;
+    turnPile(copy.object, entry.object.rotation.y);
     object.visible = false;
     for (const smoke of copy.smokes) smoke.frame(this.time);
     const now = performance.now();
@@ -1548,7 +1574,8 @@ export class StandingLayer implements SequenceHost {
    *  axes: land on one side, water on the other (#362); a garrison is set at its maquette's foot
    *  by `orient`. */
   rebuild(): void {
-    for (const { at, facing, object } of this.dressed.values()) {
+    for (const entry of this.dressed.values()) {
+      const { at, facing, object } = entry;
       if (!('lonLat' in at)) continue;
       object.position.copy(this.frame.projectLonLat(at.lonLat, COUNTRY_THICKNESS));
       const ahead =
@@ -1557,8 +1584,39 @@ export class StandingLayer implements SequenceHost {
           : this.frame
               .projectLonLat(destinationPoint(at.lonLat, FACING_KM, facing), COUNTRY_THICKNESS)
               .sub(object.position);
-      object.rotation.y = ahead === null ? 0 : Math.atan2(ahead.x, ahead.z);
+      const yaw = ahead === null ? 0 : Math.atan2(ahead.x, ahead.z);
+      // The short way round, and the same target again keeps the pivot it has (`display` is
+      // called at every step of any column).
+      // A new bearing mid-pivot starts from where the pile is; the same one keeps its `from`.
+      const from = entry.turning ? object.rotation.y : (entry.turn?.from ?? object.rotation.y);
+      const to = from + Math.atan2(Math.sin(yaw - from), Math.cos(yaw - from));
+      if (entry.turning || entry.turn !== null) {
+        if (entry.turning)
+          entry.turn =
+            to === object.rotation.y
+              ? null
+              : { from: object.rotation.y, to, since: performance.now() };
+        else entry.turn = { ...entry.turn!, to };
+        entry.turning = false;
+      } else turnPile(object, yaw);
     }
+  }
+
+  /** Each pivot one step on, `PIVOT_MS` in all; out of full motion it ends at once. */
+  private pivot(now: number): boolean {
+    let moved = false;
+    for (const entry of this.dressed.values()) {
+      const { turn } = entry;
+      if (turn === null) continue;
+      const k = this.motion === 'full' ? (now - turn.since) / PIVOT_MS : 1;
+      turnPile(
+        entry.object,
+        k >= 1 ? turn.to : turn.from + (turn.to - turn.from) * (k * k * (3 - 2 * k)),
+      );
+      if (k >= 1) entry.turn = null;
+      moved = true;
+    }
+    return moved;
   }
 
   /** Where the night lays a lamp's glow: under each dressed pile that stands, with its share of figurine. */
@@ -1800,7 +1858,7 @@ export class StandingLayer implements SequenceHost {
   /** Says whether it moved pieces of its own — held ones let go, an effect running: nothing else
    *  asks for the frame they move in, and their shadows must follow them (`loop`). */
   orient(cameraPosition: Vector3): boolean {
-    let moved = this.effects.length > 0;
+    let moved = this.pivot(performance.now()) || this.effects.length > 0;
     // What no walk claimed by the frame after its pile first stood stands at once (`arrive`).
     for (const [id, entry] of this.dressed) {
       if (!entry.stood) continue;
@@ -1884,7 +1942,7 @@ export class StandingLayer implements SequenceHost {
               foot.at.z + foot.step[1] - aside * Math.sin(foot.facing),
             );
           }
-          object.rotation.y = at.quay === undefined ? foot.facing : 0;
+          turnPile(object, at.quay === undefined ? foot.facing : 0);
         } else if (at.from === undefined) {
           object.visible = false;
           continue;

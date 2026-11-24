@@ -63,7 +63,7 @@
  * niveau 2 à Luxembourg (`@luxembourg`), un Magasin qui change pour Guet à Trèves (`@treves`) et
  * un Guet à Sarrebruck (`@sarrebruck`) ; `@metiers` les cadre tous. `--zones` (#375) pose pour la
  * France un réseau lorrain (Luxembourg, Metz, Nancy, un Guet à Sarrebruck), Strasbourg désactivé et
- * une pile à Thionville (`@zones`, `@metz`, `@thionville`). `--ronde` (#376) pose pour la France
+ * une pile à Thionville (`@zones`, `@metz`, `@thionville`) ; avec `--sans-charbon`, le charbon national tombe à zéro (#644 : ses faisceaux s'éteignent). `--ronde` (#376) pose pour la France
  * une étoile autour de Metz (Luxembourg, Nancy, Sarrebruck), un blindé en ronde de Luxembourg vers
  * Metz, une infanterie en halte à Nancy, une infanterie seule à Metz et une dépêche de fin
  * (`@ronde`, `@metz`, `@nancy`, `@luxembourg`). `--ligne` (#377) pose pour la France une ronde en
@@ -89,7 +89,7 @@
  * piles françaises à Metz et Thionville face à une colonne sur la Moselle, deux escorteurs en
  * Manche face à deux autres, une pile devant Francfort (que `--guet` lit) et une à Alexandrie, hors
  * champ depuis la France (`@accrochages`, `@accrochage-metz`, `@accrochage-manche`,
- * `@accrochage-loin`).
+ * `@accrochage-loin`). Les piles de point s'y tournent vers le camp relevé le plus proche (#641).
  * `--epingles [N]` (#234) sème N piles sur la France (1000 par défaut, une sur deux en Lorraine),
  * pose en face trois camps britanniques relevés en Sarre et en Alsace, un quatrième perdu de vue près de
  * Metz et un entrepôt relevé en Belgique, puis fait marcher une pile française vers Madrid et une
@@ -2112,10 +2112,11 @@ if (conclusion !== null)
     await concludeDemo({ client, cli, pause, tokens, seasonId, ...conclusion }),
   );
 
-if (shortStock) {
+if (shortStock)
   cli(['run', 'dev:fillStocks', JSON.stringify({ seasonId, stock: 20, only: 'steel' })]);
+// `--zones --sans-charbon` (#644) : le réseau lorrain, ses vigies aveugles faute de charbon.
+if (shortStock || (zones && dryCoal))
   cli(['run', 'dev:fillStocks', JSON.stringify({ seasonId, stock: 0, only: 'coal' })]);
-}
 
 writeFileSync(
   accountsFile,
