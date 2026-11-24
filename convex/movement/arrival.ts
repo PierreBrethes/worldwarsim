@@ -95,6 +95,7 @@ export async function forgetMovements(
   movementIds: ReadonlyArray<Id<'movements'>>,
   now: number,
 ): Promise<void> {
+  if (movementIds.length === 0) return;
   for (const movementId of movementIds) await dropMovement(ctx, movementId, now);
   await restampServed(ctx, seasonId, movementIds);
 }

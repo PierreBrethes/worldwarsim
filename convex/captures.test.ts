@@ -1044,6 +1044,18 @@ describe('a Mondiale headquarters', () => {
     expect((await t.run((ctx) => ctx.db.get(outpostId)))!.servedBy).toEqual([theirs]);
   });
 
+  it('does not read the outposts of the season when the fallen has no column', async () => {
+    const t = boot();
+    const { guest } = await threeAtTable(t);
+    const loser = await playerOf(t, guest);
+    const seasonReads = await t.run(async (ctx) => {
+      const query = vi.spyOn(ctx.db, 'query');
+      await forgetMovements(ctx, loser.seasonId, [], MIDDAY);
+      return query.mock.calls.filter(([table]) => table === 'outposts').length;
+    });
+    expect(seasonReads).toBe(0);
+  });
+
   it('writes the heap of an exploitation of the fallen onto the irregulars that inherit it', async () => {
     const t = boot();
     const { seat, guest } = await threeAtTable(t);
