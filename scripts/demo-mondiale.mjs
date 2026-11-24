@@ -89,7 +89,7 @@
  * piles françaises à Metz et Thionville face à une colonne sur la Moselle, deux escorteurs en
  * Manche face à deux autres, une pile devant Francfort (que `--guet` lit) et une à Alexandrie, hors
  * champ depuis la France (`@accrochages`, `@accrochage-metz`, `@accrochage-manche`,
- * `@accrochage-loin`).
+ * `@accrochage-loin`). Les piles de point s'y tournent vers le camp relevé le plus proche (#641).
  * `--epingles [N]` (#234) sème N piles sur la France (1000 par défaut, une sur deux en Lorraine),
  * pose en face trois camps britanniques relevés en Sarre et en Alsace, un quatrième perdu de vue près de
  * Metz et un entrepôt relevé en Belgique, puis fait marcher une pile française vers Madrid et une

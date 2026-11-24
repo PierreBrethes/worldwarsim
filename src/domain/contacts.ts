@@ -49,9 +49,7 @@ type Station = Node & {
  * (`detectionRangeOf`, celle du serveur), sans regard au milieu. `touching[c]` : les stations
  * qui touchent le camp `c`. L'accrochage dessiné et le cap d'une pile parlent des mêmes camps.
  */
-export function pairingOf(
-  view: Pick<PlayerView, 'me' | 'camps' | 'arcs' | 'mode' | 'theatre'>,
-) {
+export function pairingOf(view: Pick<PlayerView, 'me' | 'camps' | 'arcs' | 'mode' | 'theatre'>) {
   const theatre = playedTheatre(view);
   const marching = marchingTroopIds(view.arcs);
   const stations = new Map<string, Omit<Station, 'rangeKm'>>();
