@@ -23,7 +23,7 @@ import { LIVE_PX } from './site-loops';
  *  point, hors du `MAX_LIVING` des sites. `@a-mesurer` */
 export const MAX_BEAMS = { desk: 6, touch: 3 } as const;
 /** Le fondu d'un faisceau qui s'allume ou s'éteint (panne de charbon comprise), comme `FADE_MS`. */
-export const BEAM_FADE_MS = 180;
+const BEAM_FADE_MS = 180;
 /** Ce qu'une image peut avancer le fondu : après un long repos, il s'étale sur les images de la
  *  fenêtre de l'`invalidate()` au lieu de sauter. */
 export const BEAM_STEP_MS = 50;
