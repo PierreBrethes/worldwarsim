@@ -4,6 +4,7 @@ import {
   abbreviateStack,
   buildLabels,
   cartoucheShown,
+  chasedArcOf,
   NEUTRAL_FLAG,
   ownerFlags,
   type MapLabel,
@@ -937,5 +938,22 @@ describe('the second target of a blitzkrieg', () => {
     expect(stayed!.lines).toContainEqual({ role: 'alarm', text: stood.text });
     expect(stayed!.lines).toContainEqual({ role: 'mention', text: stood.reread });
     expect(texts(other!.lines)).not.toContain(stood.text);
+  });
+});
+
+/** #655 : la Mondiale vise aussi une colonne adverse en vue, et l'attaque la poursuit. */
+describe('the column under the aim', () => {
+  const arcs = [
+    { id: 'seen', state: 'enemyDetected' },
+    { id: 'mine', state: 'own' },
+  ] as const;
+
+  it('is the enemy arc in sight under a moving head, whatever the mode', () => {
+    expect(chasedArcOf({ kind: 'movementHead', arc: 'seen' }, arcs)?.id).toBe('seen');
+  });
+
+  it('is never one of mine, nor the ground', () => {
+    expect(chasedArcOf({ kind: 'movementHead', arc: 'mine' }, arcs)).toBeNull();
+    expect(chasedArcOf({ kind: 'ground', lonLat: [0, 0] }, arcs)).toBeNull();
   });
 });
