@@ -1,5 +1,6 @@
 import { withinTheatre } from './blitz';
 import type { Theatre } from './theatres';
+import type { SeasonMode } from './season-mode';
 import { captureRefusalOf, type CaptureRefusal } from './capture';
 import { produces } from './economy';
 import { bombardsWith } from './indirect-fire';
@@ -46,7 +47,7 @@ export type MovementAim =
    * **Un camp adverse relevé** (ADR 0024 §4) : le seul objet mobile qu'un ordre puisse viser, et
    * il est visé comme une **position**. La colonne marche au point relevé ; à l'arrivée elle
    * engage ce qui s'y tient à `contactKm(théâtre)`, et si le camp est parti elle est bredouille.
-   * La poursuite est l'intention « intercepter » de la V1, pas celle-ci.
+   * En Mondiale, c'est le fil d'une colonne en vue (`track`) qu'une attaque poursuit (#655).
    */
   | {
       readonly kind: 'camp';
@@ -154,9 +155,9 @@ export type MovementAim =
       readonly key: BuildingKey;
     }
   /**
-   * **Une colonne adverse en vue**, visée en Blitz seulement (B18) : l'attaquant la poursuit et
-   * frappe au contact. Le relevé du fil répond — sa position à l'instant de l'ordre —, jamais la
-   * colonne vraie ; ailleurs qu'en Blitz il n'y a rien à poursuivre.
+   * **Une colonne adverse en vue** (B18, portée en Mondiale par #655) : l'attaquant la poursuit
+   * et frappe au contact. Le relevé du fil répond — sa position à l'instant de l'ordre —, jamais
+   * la colonne vraie (`pursues`).
    */
   | {
       readonly kind: 'track';
@@ -598,6 +599,17 @@ export const objectiveSpentRefusalOf = (aim: MovementAim): 'OBJECTIVE_SPENT' | n
   aim.kind === 'objective' && aim.spent ? 'OBJECTIVE_SPENT' : null;
 
 /**
+ * **Une attaque poursuit ce qui marche** (B18, #655) : un fil en vue, dans les deux modes ; un
+ * camp en Blitz seulement, où l'on vise une unité. En Mondiale un camp posé se vise comme une
+ * position (ADR 0024 §4) : la poursuite ne lit que ce qu'on voit, jamais où va la cible (4a, 13/09).
+ */
+export const pursues = <Target extends { readonly kind: string }>(
+  mode: SeasonMode,
+  target: Target,
+): target is Extract<Target, { readonly kind: 'camp' | 'track' }> =>
+  target.kind === 'track' || (mode === 'blitz' && target.kind === 'camp');
+
+/**
  * A point is **never mine**, and that is the same refusal to resolve it: saying "those are your
  * own" about a coordinate would mean matching it against my regions, which is the resolution the
  * aim declines to perform. One walks at one's own ground by naming the region, deliberately.
@@ -613,8 +625,9 @@ const nothingToAttack = (aim: MovementAim): OrderRefusal | null => {
     case 'objective':
     case 'strategic':
       return null;
+    /** Le fil *est* le relevé : le serveur relit qu'il est encore en vue (`quarryOf`). */
     case 'track':
-      return 'NOTHING_TO_ATTACK';
+      return null;
     case 'point':
     case 'region':
       return aim.surveyed ? null : 'NOTHING_TO_ATTACK';

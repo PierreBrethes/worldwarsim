@@ -1,6 +1,6 @@
 /**
- * **La poursuite d'une Blitz** (B18, lot 5) : l'attaque vise une unité, la colonne la suit et
- * frappe au contact. Aucune horloge globale : chaque poursuite tient **un** rendez-vous daté
+ * **La poursuite** (B18, lot 5 ; portée en Mondiale par #655) : l'attaque vise une unité, la
+ * colonne la suit et frappe au contact. Aucune horloge globale : chaque poursuite tient **un** rendez-vous daté
  * (`movements.pursuit.checkAt`) — le contact prévu s'il tombe avant le pas, sinon le pas — et à
  * chaque regard elle frappe, abandonne, ou recourbe sa route vers la position de la cible.
  */
@@ -13,13 +13,21 @@ import { distanceKm, type LonLat } from '../../src/domain/geo';
 import { positionAt, type MarchingForce } from '../../src/domain/interception';
 import { windowAt, windowsOf } from '../../src/domain/sighting-windows';
 import { landCostOf, routeModeOf } from '../../src/domain/movement-orders';
-import { contactKm, PURSUIT_STEP_SECONDS, RELOAD_SECONDS_BY_ROLE } from '../constants';
+import { contactKm, pursuitStepSecondsOf, RELOAD_SECONDS_BY_ROLE } from '../constants';
 import { resolveContact } from '../combat';
 import { fail } from '../errors';
 import { hostAtPoint, routeBetween } from '../routes';
-import { forgetMovement, standAt, walkHome } from './arrival';
+import { forgetMovement, retainStandingDefence, standAt, walkHome } from './arrival';
 import { marchingForce, reassessDetection } from './detection';
-import { asPoint, movementsOf, pointOf, restampServed, stanceOf, troopsCarriedBy } from './forces';
+import {
+  asPoint,
+  movementsOf,
+  pointOf,
+  restampServed,
+  stanceOf,
+  standingPile,
+  troopsCarriedBy,
+} from './forces';
 import { pacedMinutes } from './pace';
 import { blitzTheatreOf } from './theatre';
 
@@ -142,8 +150,9 @@ export async function schedulePursuit(
 ): Promise<void> {
   if (movement.pursuit === undefined) return;
   const quarry = await quarryNow(ctx, movement.pursuit.troopId, now);
-  const step = Math.min(movement.arrivesAt, now + PURSUIT_STEP_SECONDS * 1000);
-  const reachKm = contactKm(await blitzTheatreOf(ctx, movement.playerId));
+  const theatre = await blitzTheatreOf(ctx, movement.playerId);
+  const step = Math.min(movement.arrivesAt, now + pursuitStepSecondsOf(theatre) * 1000);
+  const reachKm = contactKm(theatre);
   const contact =
     quarry === null
       ? null
@@ -179,14 +188,21 @@ export async function pursue(
    *  présente des détecteurs et toujours en entier — d'où `changed` vide (#418). */
   await reassessDetection(ctx, movement.seasonId, now, []);
   const seen = quarry !== null && (await inSight(ctx, movement.playerId, quarry, now));
-  const reachKm = contactKm(await blitzTheatreOf(ctx, movement.playerId));
+  const theatre = await blitzTheatreOf(ctx, movement.playerId);
+  const reachKm = contactKm(theatre);
   const verdict = quarry === null ? 'lost' : pursuitVerdict({ gapKm, seen, reachKm });
 
-  if (verdict === 'strike') await strike(ctx, movement, hunters, quarry!, at, now);
-  /** Une cible tombée sous d'autres coups n'est pas « perdue de vue » : la colonne finit sa
-   *  route sans dépêche, et son arrivée le dit. */
-  else if (verdict === 'lost') await loseSight(ctx, movement, now, quarry !== null);
-  else {
+  if (verdict === 'strike') {
+    if (theatre === null) await assault(ctx, movement, hunters, quarry!, at, now);
+    else await strike(ctx, movement, hunters, quarry!, at, now);
+  } else if (verdict === 'lost') {
+    /** **En Mondiale, la colonne s'arrête là où elle est** (#655) : la dernière position connue
+     *  peut être à des heures de marche, et y aller serait suivre ce qu'on ne voit plus. */
+    if (quarry !== null && theatre === null) await stopHere(ctx, movement, at, now);
+    /** Une cible tombée sous d'autres coups n'est pas « perdue de vue » : la colonne finit sa
+     *  route sans dépêche, et son arrivée le dit. */ else
+      await loseSight(ctx, movement, now, quarry !== null);
+  } else {
     /** **Au bout de sa route sans contact, elle repart** : la grille arrête une route au centre
      *  d'une cellule, parfois au-delà de l'allonge, et attendre sur place se réveillerait sans
      *  fin. Une route qui n'avance plus s'arrête. */
@@ -235,6 +251,28 @@ async function bendTowards(
   return true;
 }
 
+/** **Perdue de vue en Mondiale** (#655) : la colonne se pose où elle est, et la dépêche le dit. */
+async function stopHere(
+  ctx: MutationCtx,
+  movement: Doc<'movements'>,
+  at: LonLat,
+  now: number,
+): Promise<void> {
+  await standAt(ctx, movement, asPoint(at));
+  await forgetMovement(ctx, movement._id, now);
+  await lostNotice(ctx, movement, now);
+  await reassessDetection(ctx, movement.seasonId, now, movement.playerId);
+}
+
+const lostNotice = (ctx: MutationCtx, movement: Doc<'movements'>, now: number) =>
+  ctx.db.insert('notices', {
+    playerId: movement.playerId,
+    at: now,
+    kind: 'pursuitLost',
+    hostCountry: movement.hostCountry,
+    point: movement.to,
+  });
+
 /** **Perdue de vue** : la colonne finit sa route jusqu'à la dernière position connue, et s'y
  *  pose comme une marche. */
 async function loseSight(
@@ -247,14 +285,46 @@ async function loseSight(
   await ctx.scheduler.runAt(Math.max(now, movement.arrivesAt), internal.movements.arrive, {
     movementId: movement._id,
   });
-  if (!outOfSight) return;
-  await ctx.db.insert('notices', {
-    playerId: movement.playerId,
+  if (outOfSight) await lostNotice(ctx, movement, now);
+}
+
+/**
+ * **Au contact en Mondiale, un assaut comme les autres** (#655, `engageAt`) : toute la force
+ * visée se défend — sa colonne, ou la pile où elle s'est posée —, ses repliés rentrent, ses
+ * debout poursuivent leur route ; les poursuivants debout rentrent, venus se battre et pas rester.
+ */
+async function assault(
+  ctx: MutationCtx,
+  movement: Doc<'movements'>,
+  hunters: ReadonlyArray<Doc<'troops'>>,
+  quarry: Quarry,
+  at: LonLat,
+  now: number,
+): Promise<void> {
+  const defenders =
+    quarry.movement !== null
+      ? await troopsCarriedBy(ctx, quarry.movement)
+      : await standingPile(ctx, quarry.troop.playerId, quarry.troop.stationedAt);
+  const { engagement, routed, routedCargo } = await resolveContact(ctx, {
+    seasonId: movement.seasonId,
+    attacker: { playerId: movement.playerId, troops: hunters },
+    defender: { playerId: quarry.troop.playerId, troops: defenders },
+    cause: 'arrival',
+    point: asPoint(at),
+    hostCountry: hostAtPoint(at),
+    outpostId: null,
+    disabledUntil: null,
     at: now,
-    kind: 'pursuitLost',
-    hostCountry: movement.hostCountry,
-    point: movement.to,
   });
+  await retainStandingDefence(ctx, quarry.movement?._id ?? null, engagement);
+  await forgetMovement(ctx, movement._id, now);
+  const survivors = hunters.filter((troop) =>
+    engagement.outcomes.some(
+      (outcome) => outcome.id === troop._id && outcome.state !== 'destroyed',
+    ),
+  );
+  await walkHome(ctx, { winners: survivors, beaten: routed }, at, now, routedCargo);
+  await reassessDetection(ctx, movement.seasonId, now, [movement.playerId, quarry.troop.playerId]);
 }
 
 /**
