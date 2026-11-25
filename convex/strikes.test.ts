@@ -9,6 +9,7 @@ import {
   DAMAGED_HOURS,
   nominalStrength,
 } from './constants';
+import { push } from '../src/domain/push';
 import { sparedPerResourceOf } from '../src/domain/loot';
 import { pointOfRegion, regionFacts } from './regions';
 import schema from './schema';
@@ -205,6 +206,30 @@ describe('a disabled barracks', () => {
         tier: 1,
       }),
     ).rejects.toThrow('BUILDING_DISABLED');
+  });
+});
+
+describe('the owner struck is warned on his device', () => {
+  it('with a phrase that names no building and no country, once a bomber has held', async () => {
+    const t = boot();
+    const { order, guest } = await strikeScene(t, 'mine');
+    await t.mutation(api.notifications.subscribe, {
+      token: guest.token,
+      endpoint: 'https://fcm.googleapis.com/lea',
+      p256dh: 'p256dh',
+      auth: 'auth',
+      userAgent: 'Mozilla/5.0',
+    });
+    const player = await playerOf(t, guest);
+
+    await strikeAndArrive(t, order);
+
+    const rows = await t.run(async (ctx) =>
+      (await ctx.db.query('pushQueue').collect()).filter(
+        (row) => row.accountId === player.accountId,
+      ),
+    );
+    expect(rows.map((row) => row.phrase)).toEqual([push.buildingStruck('damaged')]);
   });
 });
 

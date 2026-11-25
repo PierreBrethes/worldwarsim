@@ -11,6 +11,8 @@ import { clipToStorage } from './resources';
 import { scheduleRestore, settleBeforeChange } from './production';
 import { takeHeap } from './heaps';
 import { freezeQueue } from './troops';
+import { notifyPlayer } from './notifications';
+import { journalUrl, push } from '../src/domain/push';
 import { dakarSparedAt } from './strategicPoints';
 
 /**
@@ -89,7 +91,14 @@ export async function arriveForStrike(
     destroyed: troops.length - survivors.length,
     combatId,
   });
-  if (struck !== null)
+  if (struck !== null) {
+    /** **Le défenseur seul** : il a le choix de riposter ou de se rétablir, l'attaquant a donné l'ordre. */
+    await notifyPlayer(ctx, target.playerId, {
+      type: 'attack',
+      phrase: push.buildingStruck(struck.integrity),
+      url: journalUrl,
+      at: now,
+    });
     await ctx.db.insert('notices', {
       playerId: target.playerId,
       at: now,
@@ -100,6 +109,7 @@ export async function arriveForStrike(
       restoresAt: struck.restoresAt,
       ...(struck.storageLost === null ? {} : { storageLost: struck.storageLost }),
     });
+  }
 
   await flyHome(
     ctx,
