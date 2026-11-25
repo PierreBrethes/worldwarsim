@@ -88,6 +88,11 @@ export function submitBotOrder(
       });
     case 'movements.disembark':
       return run(api.movements.disembark, { ...seat, troopIds: ids(order.args.troopIds) });
+    case 'tours.recall':
+      return run(api.tours.recall, {
+        ...seat,
+        troopId: order.args.troopId as Id<'troops'>,
+      });
     case 'tours.start':
       return run(api.tours.start, {
         ...seat,
