@@ -21,13 +21,7 @@ import { modeOf } from '../src/domain/season-mode';
 import { LON_LAT, STRATEGIC_POINT_KEY, UNIT_ROLE, UNIT_TIER, RESEARCH_CARD } from './validators';
 import { aimOf, march } from './movement/orders';
 import { quarryOf } from './movement/pursuit';
-import {
-  insertMovement,
-  restampServed,
-  seasonMovements,
-  seasonOutposts,
-  servedOver,
-} from './movement/forces';
+import { insertMovement, restampOutpost, restampServed, seasonMovements } from './movement/forces';
 import { planCargoReturn } from './movement/cargoReturn';
 import { chainSecondTarget } from './movement/blitzkrieg';
 import { nominalStrength, outpostReachKm, PLUNDER_DISABLED_HOURS } from './constants';
@@ -94,6 +88,7 @@ export const GAME_TABLES = [
   'stationedLoot',
   'movements',
   'outposts',
+  'outpostServing',
   'objectives',
   'strategicPoints',
   'troops',
@@ -347,13 +342,16 @@ export const backfillListeningSilent = internalMutation({
 });
 
 /**
- * **Les avant-postes desservis, écrits sur ceux d'avant le champ** (#633) : `outposts.servedBy`
- * est lu « aucun » quand il manque, et un point sous une colonne déjà en route se démantèlerait
- * jusqu'à l'arrivée de celle-ci. Planifie une saison par mutation (`backfillOutpostServingOf`),
- * qui relit ses mouvements en route comme le faisait la vue. Idempotente.
+ * **Les avant-postes desservis, sortis de leur ligne** (#640, après #633) : chaque point relit les
+ * colonnes en route qui le desservent dans `outpostServing`, et `outposts.servedBy` est vidé.
+ * Relu sur les mouvements, et non recopié de la liste : un mouvement relu par `restampServed`
+ * depuis la poussée a déjà ses lignes, et la liste d'avant peut le nommer à tort. Sans la
+ * migration, un point d'avant la poussée sous une colonne déjà partie se démantèlerait jusqu'à
+ * l'arrivée de celle-ci. Idempotente.
  *
  * Une page de saisons par appel, la suivante planifiée par lui : une mutation ne planifie pas plus
- * de 1000 fonctions, et une base de démo dépasse les 1000 saisons.
+ * de 1000 fonctions, et une base de démo dépasse les 1000 saisons. Chaque saison se lit par pages
+ * de points (`backfillOutpostServingOf`) : la liste pesait jusqu'à 6 Ko par point sur le banc.
  *
  * `npx convex run dev:backfillOutpostServing`
  */
@@ -375,16 +373,26 @@ export const backfillOutpostServing = internalMutation({
   },
 });
 
+/** @a-mesurer Points relus par mutation : cent points à 6 Ko (le banc, #640) tiennent sous la limite. */
+export const OUTPOSTS_PAGE = 100;
+
 export const backfillOutpostServingOf = internalMutation({
-  args: { seasonId: v.id('seasons') },
-  handler: async (ctx, { seasonId }) => {
-    const movements = await seasonMovements(ctx, seasonId);
-    for (const outpost of await seasonOutposts(ctx, seasonId)) {
-      const servedBy = movements
-        .filter((movement) => servedOver(outpost, [movement]))
-        .map((movement) => movement._id);
-      await ctx.db.patch(outpost._id, { servedBy });
+  args: { seasonId: v.id('seasons'), cursor: v.optional(v.string()) },
+  handler: async (ctx, { seasonId, cursor }) => {
+    const page = await ctx.db
+      .query('outposts')
+      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
+      .paginate({ cursor: cursor ?? null, numItems: OUTPOSTS_PAGE });
+    const movements = page.page.length === 0 ? [] : await seasonMovements(ctx, seasonId);
+    for (const outpost of page.page) {
+      await restampOutpost(ctx, outpost._id, movements);
+      if (outpost.servedBy !== undefined) await ctx.db.patch(outpost._id, { servedBy: undefined });
     }
+    if (!page.isDone)
+      await ctx.scheduler.runAfter(0, internal.dev.backfillOutpostServingOf, {
+        seasonId,
+        cursor: page.continueCursor,
+      });
   },
 });
 

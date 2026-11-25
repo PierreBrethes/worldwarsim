@@ -1005,12 +1005,30 @@ export default defineSchema({
     /** **Le dépôt d'avant-poste** (ADR 0028 §4) : munitions, pétrole et charbon, une seule charge
      *  maximale partagée (`depotCapacity`). Il se capture avec le point. Absent, vide. */
     depot: v.optional(SUPPLY_LOAD),
-    /** **Les mouvements en route qui le desservent** (ADR 0037 §7, précisé le 23/11, #633),
-     *  écrits par `restampServed` et `restampOutpost` : la vue lit ici, et non la table des
-     *  mouvements, dont chaque départ relançait la vue de toute la table. Absent, aucun. */
+    /** **Ancien « desservi »** (#633), sorti dans `outpostServing` (#640) : plus lu ni écrit,
+     *  vidé par `dev:backfillOutpostServing`. Le champ se retire du schéma une fois la migration
+     *  passée sur chaque déploiement : un document qui le porte encore ferait refuser la poussée. */
     servedBy: v.optional(v.array(v.id('movements'))),
   })
     .index('byPlayer', ['playerId'])
+    .index('bySeason', ['seasonId']),
+
+  /**
+   * **Un mouvement en route dessert un avant-poste** (ADR 0037 §7, précisé le 23/11) : une ligne
+   * par couple, écrite par `restampServed` et `restampOutpost` (`convex/movement/forces.ts`), lue
+   * par `isServed`. Hors de la ligne de l'avant-poste (#640) : portée par elle, la liste pesait
+   * sur toute lecture des points de la saison, chute d'un QG et règlements compris.
+   *
+   * Ni joueur ni nation : le couple ne dit que deux identifiants déjà à la saison, et la vue n'en
+   * sert qu'un booléen sur les points du joueur.
+   */
+  outpostServing: defineTable({
+    seasonId: v.id('seasons'),
+    outpostId: v.id('outposts'),
+    movementId: v.id('movements'),
+  })
+    .index('byOutpost', ['outpostId'])
+    .index('byMovement', ['movementId'])
     .index('bySeason', ['seasonId']),
 
   /**

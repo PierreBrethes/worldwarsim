@@ -216,6 +216,11 @@ couvre, quelle que soit sa spécialisation (ADR 0019 §4).
 > partie avant elle. La vue la lit là, sans relire la table des mouvements, dont chaque départ
 > relançait la vue de toute la table.
 
+> **Précisé le 25/11/2026 (#640)** : la réponse ne s'écrit plus sur le point mais dans sa propre
+> table, `outpostServing` (un couple avant-poste, mouvement), aux mêmes instants. Portée par la
+> ligne, la liste pesait sur toute lecture des points de la saison (environ 6 Ko par point sur le
+> banc à 8, la chute d'un QG comprise). La règle et ce que voit le joueur ne changent pas.
+
 ### 8. Les liaisons : des rayons qui se touchent se relient d'eux-mêmes
 
 - **Deux avant-postes d'un même joueur dont les rayons de contrôle se touchent** (distance ≤ somme

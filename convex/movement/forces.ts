@@ -356,18 +356,34 @@ export async function recognises(
  * **Une colonne en route s'appuie-t-elle sur ce point ?** — un mouvement parti à la fondation ou
  * après, dont la route passe à portée (ADR 0037 §7, précisé le 23/11). Tant que oui, le point ne se
  * démantèle pas (`OUTPOST_SERVING`) : on ne retire pas la liaison sous une colonne qui l'a
- * chiffrée. La réponse est écrite sur le point (`servedBy`), lue ici sans relire les mouvements.
+ * chiffrée. La réponse est écrite dans `outpostServing`, lue ici sans relire les mouvements.
  */
-export const isServed = (outpost: Doc<'outposts'>): boolean => (outpost.servedBy ?? []).length > 0;
+export async function isServed(ctx: QueryCtx, outpostId: Id<'outposts'>): Promise<boolean> {
+  const row = await ctx.db
+    .query('outpostServing')
+    .withIndex('byOutpost', (q) => q.eq('outpostId', outpostId))
+    .first();
+  return row !== null;
+}
+
+/** Les mouvements qui desservent un point : ce qu'écrivent les deux relectures ci-dessous. */
+export async function servingOf(
+  ctx: QueryCtx,
+  outpostId: Id<'outposts'>,
+): Promise<Array<Doc<'outpostServing'>>> {
+  return ctx.db
+    .query('outpostServing')
+    .withIndex('byOutpost', (q) => q.eq('outpostId', outpostId))
+    .collect();
+}
 
 /**
- * **Un mouvement parti, réécrit ou effacé** : chaque point de la saison qu'il dessert le porte,
+ * **Un mouvement parti, réécrit ou effacé** : chaque point de la saison qu'il dessert a sa ligne,
  * les autres non. Appelée après l'insertion, après tout changement de sa route ou de son départ,
  * et après l'effacement (le mouvement absent ne dessert plus rien).
  *
- * **Plusieurs à la fois, en une lecture des points** (#638) : un point porte toutes les colonnes
- * qui le desservent, donc relire la saison par colonne effacée coûtait les points fois les
- * colonnes, par colonne. La chute d'un QG qui en efface vingt-quatre dépassait les 16 Mo.
+ * **Plusieurs à la fois, en une lecture des points** (#638) : la chute d'un QG en efface
+ * vingt-quatre, et relire la saison par colonne effacée coûtait les points fois les colonnes.
  */
 export async function restampServed(
   ctx: MutationCtx,
@@ -378,14 +394,20 @@ export async function restampServed(
   const movements = (await Promise.all(ids.map((id) => ctx.db.get(id)))).flatMap((movement) =>
     movement === null ? [] : [movement],
   );
-  for (const outpost of await seasonOutposts(ctx, seasonId)) {
-    const listed = outpost.servedBy ?? [];
-    const servedBy = [
-      ...listed.filter((id) => !ids.includes(id)),
-      ...movements.flatMap((movement) => (servedOver(outpost, [movement]) ? [movement._id] : [])),
-    ];
-    if (servedBy.length === listed.length && servedBy.every((id) => listed.includes(id))) continue;
-    await ctx.db.patch(outpost._id, { servedBy });
+  const served = new Map(ids.map((id) => [id, new Set<Id<'outposts'>>()]));
+  if (movements.length > 0)
+    for (const outpost of await seasonOutposts(ctx, seasonId))
+      for (const movement of movements)
+        if (servedOver(outpost, [movement])) served.get(movement._id)!.add(outpost._id);
+  for (const [movementId, outposts] of served) {
+    for (const row of await ctx.db
+      .query('outpostServing')
+      .withIndex('byMovement', (q) => q.eq('movementId', movementId))
+      .collect()) {
+      if (!outposts.delete(row.outpostId)) await ctx.db.delete(row._id);
+    }
+    for (const outpostId of outposts)
+      await ctx.db.insert('outpostServing', { seasonId, outpostId, movementId });
   }
 }
 
@@ -403,15 +425,31 @@ export async function insertMovement(
 /**
  * **Un point élevé** relit les colonnes déjà en route : le rayon d'un niveau de plus
  * en atteint qui ne passaient pas à portée (invariant « Échéance »). La fondation n'a rien à
- * relire : une colonne déjà en route est partie avant elle.
+ * relire : une colonne déjà en route est partie avant elle. `movements`, quand l'appelant tient
+ * déjà ceux de la saison (la migration, page par page).
  */
-export async function restampOutpost(ctx: MutationCtx, outpostId: Id<'outposts'>): Promise<void> {
+export async function restampOutpost(
+  ctx: MutationCtx,
+  outpostId: Id<'outposts'>,
+  movements?: ReadonlyArray<Doc<'movements'>>,
+): Promise<void> {
   const outpost = await ctx.db.get(outpostId);
   if (outpost === null) return;
-  const servedBy = (await seasonMovements(ctx, outpost.seasonId))
-    .filter((movement) => servedOver(outpost, [movement]))
-    .map((movement) => movement._id);
-  await ctx.db.patch(outpostId, { servedBy });
+  const serving = new Set(
+    (movements ?? (await seasonMovements(ctx, outpost.seasonId)))
+      .filter((movement) => servedOver(outpost, [movement]))
+      .map((movement) => movement._id),
+  );
+  for (const row of await servingOf(ctx, outpostId))
+    if (!serving.delete(row.movementId)) await ctx.db.delete(row._id);
+  for (const movementId of serving)
+    await ctx.db.insert('outpostServing', { seasonId: outpost.seasonId, outpostId, movementId });
+}
+
+/** **Un point qui disparaît** emporte ses lignes : la ligne de l'avant-poste les emportait avec
+ *  elle quand la liste y vivait. */
+export async function forgetServing(ctx: MutationCtx, outpostId: Id<'outposts'>): Promise<void> {
+  for (const row of await servingOf(ctx, outpostId)) await ctx.db.delete(row._id);
 }
 
 /** Le critère, sur une liste de mouvements : l'écriture le pose, la migration et le test
