@@ -451,7 +451,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
 
   const marks = await readMarksOf(ctx, player);
   // Placeholders, listed so they are not mistaken for served data. Each one waits on a
-  // schema slice that is not written (see `WWS/docs/RESTE-A-CODER.md`):
+  // schema slice that is not written:
   //   `number: 1`      — a season is unique and never renumbered; a season history would.
   //   `progress: 0`    — victory progress waits on the share of the map (ADR 0020),
   //                      surface 4.8.
