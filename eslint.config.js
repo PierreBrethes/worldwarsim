@@ -8,6 +8,7 @@ export default tseslint.config(
   {
     ignores: [
       'dist',
+      'dist-e2e',
       'coverage',
       '.tanstack',
       'src/routeTree.gen.ts',
@@ -44,7 +45,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['convex/**/*.ts', 'scripts/**/*.mjs', '*.config.{ts,js}'],
+    files: ['convex/**/*.ts', 'scripts/**/*.mjs', 'e2e/**/*.ts', '*.config.{ts,js}'],
     languageOptions: {
       globals: globals.node,
     },
