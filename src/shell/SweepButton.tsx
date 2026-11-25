@@ -10,10 +10,11 @@ const SPECIES: ReadonlyArray<DepositKey> = ['coal', 'iron', 'food', 'oil'];
 
 /**
  * **« Sonder · espèce »** (#249, maquette `radar-gisements/choisie.html`) : au pied des boutons de
- * carte, au bureau (#670) comme au téléphone (#621), l'icône de l'espèce qui lance l'onde pour la
- * dernière, 44 × 44 px, et son chevron en pastille qui ouvre la liste (à sa gauche au téléphone, au-dessus au bureau, où le dock tient le bord). S relance, 1 à 4
- * choisissent dans la liste ouverte ; son nom se lit au `title`. La liste s'ouvre vers la gauche et
- * le haut (la pile tient le bord droit). Pas d'appui long : le chevron est la seule entrée de la liste.
+ * carte (#621, #670), l'icône de l'espèce qui lance l'onde pour la dernière, 44 × 44 px, et son
+ * chevron en pastille qui ouvre la liste. S relance, 1 à 4 choisissent dans la liste ouverte ; son
+ * nom se lit au `title`. Au téléphone le chevron est à gauche et la liste s'ouvre vers le haut ; au
+ * bureau le chevron est au-dessus (le dock tient le bord) et la liste s'ouvre vers la gauche, au
+ * pied de la pile, sans couvrir les autres boutons. Pas d'appui long.
  */
 export function SweepButton({
   species,
@@ -61,7 +62,7 @@ export function SweepButton({
   const menu = (
     <div
       role="menu"
-      className={`hud paper-grain absolute z-[var(--z-band)] min-w-[210px] border border-[var(--ink)] py-[4px] shadow-[0_10px_24px_rgb(0_0_0/40%)] ${'right-0 bottom-[calc(100%+8px)]'}`}
+      className={`hud paper-grain absolute z-[var(--z-band)] min-w-[210px] border border-[var(--ink)] py-[4px] shadow-[0_10px_24px_rgb(0_0_0/40%)] right-0 bottom-[calc(100%+8px)] md:right-[calc(100%+8px)] md:bottom-0`}
     >
       <p className="mx-[10px] mt-[2px] mb-[4px] text-[9.5px] font-semibold tracking-[.14em] text-[var(--ink-soft)] uppercase">
         {fr.sweep.menu}

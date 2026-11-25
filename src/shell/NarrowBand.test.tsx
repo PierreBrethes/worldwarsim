@@ -103,7 +103,7 @@ describe('the narrow band', () => {
       season: { ...view.season, race: { leaderNation: 'germany', endsAt } },
     } as unknown as PlayerView);
     const touch = screen.getByTitle(new RegExp(`^${fr.points.race.title}`));
-    expect(touch.textContent).toMatch(/^2 \/ 4\s*12 min \d\d s$/);
+    expect(touch.textContent).toMatch(/^2 \/ 4\s*12 min$/);
     expect(touch.getAttribute('href')).toContain(encodeURIComponent('["press"]'));
   });
 
