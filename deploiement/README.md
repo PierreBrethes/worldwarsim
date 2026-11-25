@@ -81,18 +81,21 @@ npx convex run dev:commissionHeapFull
 Elle rend `{ "players": N }` et planifie un `heapFull.commission` par belligérant : un tas déjà
 plein est marqué dit, **sans dépêche rétroactive** ; les autres planifient leur plein. **Idempotente**.
 
-### Avant-postes desservis — après le déploiement de #633
+### Avant-postes desservis — après le déploiement de #640
 
-Un avant-poste porte les colonnes en route qui le desservent (`outposts.servedBy`), lu « aucune »
-quand il manque : sans la migration, un point sous une colonne déjà partie se démantèlerait
-jusqu'à son arrivée. Une fois, juste après la poussée, sur chaque déploiement qui a des saisons :
+Les colonnes en route qui desservent un avant-poste vivent dans `outpostServing` (#640), et non
+plus sur la ligne du point (`outposts.servedBy`, #633). Sans la migration, un point d'avant la
+poussée sous une colonne déjà partie se démantèlerait jusqu'à son arrivée. Elle relit les
+mouvements en route et vide l'ancienne liste. Une fois, juste après la poussée, sur chaque
+déploiement qui a des saisons (elle remplace celle de #633, qu'il n'est plus utile de lancer) :
 
 ```bash
 npx convex run dev:backfillOutpostServing
 ```
 
-Elle rend `{ "seasons": N, "more": … }` et planifie une relecture des mouvements en route par
-saison, puis la page de saisons suivante tant que `more` vaut `true`.
+Elle rend `{ "seasons": N, "more": … }` et planifie une relecture par saison, page de points par
+page de points, puis la page de saisons suivante tant que `more` vaut `true`. Une fois passée
+partout, `servedBy` peut sortir du schéma : tant qu'un document le porte, la poussée est refusée.
 **Idempotente**.
 
 ### Comptes — récupération administrateur

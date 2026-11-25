@@ -872,6 +872,11 @@ describe('scrapping a season', () => {
           rest: null,
           completesAt: Date.now() + 3_600_000,
         });
+        await ctx.db.insert('outpostServing', {
+          seasonId: player.seasonId,
+          outpostId: (await ctx.db.query('outposts').first())!._id,
+          movementId: (await ctx.db.query('movements').first())!._id,
+        });
         const recoveryId = await ctx.db.insert('lootRecoveries', {
           seasonId: player.seasonId,
           engagementId: engagement._id,

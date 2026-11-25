@@ -1,7 +1,7 @@
 import { convexTest } from 'convex-test';
 import { describe, expect, it, vi } from 'vitest';
 import { internal } from './_generated/api';
-import { GAME_TABLES } from './dev';
+import { GAME_TABLES, OUTPOSTS_PAGE } from './dev';
 import schema from './schema';
 import { modules } from './test.setup';
 import { foundSeat, joinSeat, placeHq, seatIn } from './seats.fixture';
@@ -521,23 +521,16 @@ describe('dev.backfillListeningSilent', () => {
 });
 
 describe('dev.backfillOutpostServing', () => {
-  /** Une base d'avant le champ : une colonne en route près d'un point qui ne la porte pas. */
-  it('writes on each outpost the columns on the road that serve it, and only those', async () => {
+  /**
+   * **Une base d'avant la table** (#640) : un point porte encore sa liste, à tort des deux côtés —
+   * l'un ne nomme pas la colonne qui le dessert, l'autre en nomme une qui passe loin. La migration
+   * relit les mouvements, écrit les lignes et vide la liste, sur plus d'une page de points.
+   */
+  it('moves serving out of the outposts, read again off the columns on the road', async () => {
     vi.useFakeTimers();
     const { t, playerId } = await twoNations();
     const { near, far, served } = await t.run(async (ctx) => {
       const player = (await ctx.db.get(playerId))!;
-      const outpost = (lon: number) =>
-        ctx.db.insert('outposts', {
-          seasonId: player.seasonId,
-          playerId,
-          point: { lon, lat: 45 },
-          hostCountry: 'ROU',
-          level: 1,
-          foundedAt: Date.now() - 2,
-          disabledUntil: null,
-          immuneUntil: null,
-        });
       const served = await ctx.db.insert('movements', {
         seasonId: player.seasonId,
         playerId,
@@ -558,21 +551,41 @@ describe('dev.backfillOutpostServing', () => {
         departedAt: Date.now() - 1,
         arrivesAt: Date.now() + 3_600_000,
       });
-      return { near: await outpost(26), far: await outpost(40), served };
+      const outpost = (lon: number, servedBy: Array<Id<'movements'>>) =>
+        ctx.db.insert('outposts', {
+          seasonId: player.seasonId,
+          playerId,
+          point: { lon, lat: 45 },
+          hostCountry: 'ROU',
+          level: 1,
+          foundedAt: Date.now() - 2,
+          disabledUntil: null,
+          immuneUntil: null,
+          servedBy,
+        });
+      const near = await outpost(26, []);
+      for (let i = 0; i < OUTPOSTS_PAGE; i += 1) await outpost(40, [served]);
+      return { near, far: await outpost(40, [served]), served };
     });
 
     expect(await t.mutation(internal.dev.backfillOutpostServing, {})).toEqual({
       seasons: 1,
       more: false,
     });
-    vi.runOnlyPendingTimers();
-    await t.finishInProgressScheduledFunctions();
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
 
-    const [nearRow, farRow] = await t.run((ctx) =>
-      Promise.all([ctx.db.get(near), ctx.db.get(far)]),
-    );
-    expect(nearRow!.servedBy).toEqual([served]);
-    expect(farRow!.servedBy).toEqual([]);
+    const { rows, listed } = await t.run(async (ctx) => ({
+      rows: (await ctx.db.query('outpostServing').collect()).map((row) => [
+        row.outpostId,
+        row.movementId,
+      ]),
+      listed: (await ctx.db.query('outposts').collect()).filter(
+        (outpost) => outpost.servedBy !== undefined,
+      ),
+    }));
+    expect(rows).toEqual([[near, served]]);
+    expect(rows.some(([outpostId]) => outpostId === far)).toBe(false);
+    expect(listed).toEqual([]);
     vi.useRealTimers();
   });
 });
