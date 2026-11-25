@@ -458,6 +458,12 @@ export default defineSchema({
     /** A warehouse or production site can be temporarily put out of service. Absent means the
      * row predates building disruption and is active. */
     disabledUntil: v.optional(v.number()),
+    /** **Endommagé jusqu'à** (ADR 0046) : frappé une fois, il revient intact à cette date. Absent :
+     *  jamais frappé. `integrityOf` lit cette date avec `disabledUntil`, et rien d'autre ne la lit. */
+    damagedUntil: v.optional(v.number()),
+    /** **À l'abri jusqu'à** (ADR 0046 §5), posé par la frappe et le sabotage : rétabli, il ne se
+     *  frappe plus avant cette date (`shelteredFromStrike`). */
+    immuneUntil: v.optional(v.number()),
     /** **L'heure où il a été capturé** (décision M8 du 14/10) : un bâtiment capturé colore sa
      *  région pour son tenant, sol national compris (`heldRegions`, `occupations`), et n'occupe
      *  aucun emplacement. Absent : bâti par celui qui le tient. */

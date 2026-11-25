@@ -1041,6 +1041,22 @@ export const PLUNDER_HOURS_PRESENT = 2;
 export const BUILDING_DISABLED_HOURS = 12;
 
 /**
+ * **Endommagé** (ADR 0046 §5) : le temps qu'un bâtiment frappé une fois met à revenir intact, sans
+ * ordre ni coût. Il ne sert qu'à ce qu'un second coup le désactive.
+ *
+ * @a-mesurer 24 h de l'ADR 0046, jamais joué
+ */
+export const DAMAGED_HOURS = 24;
+
+/**
+ * **À l'abri** (ADR 0046 §5) : rétabli, un bâtiment ne se frappe plus pendant ce temps, comme
+ * l'avant-poste après un raid. Sans lui, un joueur riche tient l'économie d'un autre éteinte.
+ *
+ * @a-mesurer 6 h de l'ADR 0046, jamais joué
+ */
+export const BUILDING_IMMUNITY_HOURS = 6;
+
+/**
  * **Le temps qu'une infanterie à pleine force met à capturer**, par mode et par cible (décision du
  * 14/10). Une troupe entamée va au prorata de sa force (`captureRate`), et en Mondiale la plage de
  * repos du défenseur ne compte pas. Le QG ne se capture qu'en Blitz.
