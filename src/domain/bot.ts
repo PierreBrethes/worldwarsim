@@ -5,7 +5,11 @@ import {
   depositCalls,
   foundationHold,
   nearestDeposit,
+  outpostRaiseHold,
+  pledgedOutposts,
   pledgedWork,
+  raiseChoosesSpecialty,
+  upgradeHold,
   reachesOf,
   tileBillOf,
   type Aim,
@@ -21,7 +25,15 @@ import {
   type CoastAsset,
 } from './coast';
 import { destinationPoint, distanceKm, type LonLat } from './geo';
-import { RESOURCES, type BuildingKey, type ResourceKey, type UnitRole, type UnitTier } from './ids';
+import {
+  CHOSEN_SPECIALTIES,
+  RESOURCES,
+  type BuildingKey,
+  type ChosenSpecialty,
+  type ResourceKey,
+  type UnitRole,
+  type UnitTier,
+} from './ids';
 import {
   deliverRefusalOf,
   loadCapacityOf,
@@ -43,7 +55,7 @@ import {
 } from './movement-orders';
 import type { MovementAim } from './movement-orders';
 import { ADM0_BY_NATION, isNation } from './nations';
-import { currentStock, type PlayerView, type TroopView } from './player-view';
+import { currentStock, type Building, type PlayerView, type TroopView } from './player-view';
 import { decodeRegionRaster, type RegionRasterAsset } from './region-raster';
 import {
   computeRoute,
@@ -81,6 +93,10 @@ export type BotOrder =
         readonly regionId: string;
         readonly point: { readonly lon: number; readonly lat: number };
       };
+    }
+  | {
+      readonly fn: 'constructions.raiseOutpost';
+      readonly args: { readonly outpostId: string; readonly specialty?: ChosenSpecialty };
     }
   | {
       readonly fn: 'troops.recruit';
@@ -265,6 +281,18 @@ export const BOT_POINT_COLUMN = 9;
  * laquelle le bot cesse de recruter : une colonne, un camion, et deux fantassins que l'avance laisse.
  */
 export const BOT_ARMY_TARGET = BOT_POINT_COLUMN + 3;
+/**
+ * @a-mesurer : le bot nourrit son armée (#652) quand ses vivres tomberont à zéro dans moins de ces
+ * heures, ou quand ils sont bas sans rien qui rentre : la série de bots montrait toutes les
+ * nations affamées avant H48, captures suspendues (ADR 0044).
+ */
+const BOT_FOOD_HORIZON_HOURS = 12;
+const BOT_FOOD_LOW = 60;
+/**
+ * @a-mesurer : la part de son plafond d'acier que le bot garde après une élévation. Il n'élève
+ * qu'avec de l'acier qui dort, pour que l'élévation ne prenne pas le prix d'une fondation (#652).
+ */
+const BOT_RAISE_RESERVE = 0.5;
 /** @a-mesurer : les points neutres essayés par escouade, du plus proche ; chaque essai coûte une route. */
 const BOT_POINT_CANDIDATES = 3;
 
@@ -303,6 +331,8 @@ const WANT_CARGO = 85;
 const WANT_BARRACKS = 100;
 const WANT_ADVANCE = 90;
 const WANT_RECRUIT = 80;
+const WANT_FEED = 140;
+const WANT_RAISE = 70;
 
 const pointArg = ([lon, lat]: LonLat) => ({ lon, lat });
 
@@ -370,6 +400,128 @@ const placeFoundation = ({ view }: BotContext): Desire[] => {
     });
   }
   return desires;
+};
+
+/** Rien en chantier ni en file : une pose ou une élévation de plus attendrait derrière, payée d'avance. */
+const workIdle = (view: PlayerView): boolean =>
+  view.me.construction === null && view.me.constructionQueue.length === 0;
+
+const stocksAt = (view: PlayerView, now: number) =>
+  Object.fromEntries(
+    RESOURCES.map((key) => [key, currentStock(view.me.resources[key], view.loadedAt, now)]),
+  ) as Record<ResourceKey, number>;
+
+/** Les vivres baissent ou manquent : la famine suspend les captures (ADR 0044). */
+const hungry = (view: PlayerView, now: number): boolean => {
+  const food = view.me.resources.food;
+  const stock = currentStock(food, view.loadedAt, now);
+  if (food.ratePerHour >= 0) return stock < BOT_FOOD_LOW && food.ratePerHour === 0;
+  return stock / -food.ratePerHour < BOT_FOOD_HORIZON_HOURS;
+};
+
+/** Monter un bâtiment debout : `constructions.start` sur son propre point. */
+const raiseBuilding = (building: Building): Desire => ({
+  want: WANT_FEED,
+  order: {
+    fn: 'constructions.start',
+    args: {
+      building: building.key,
+      regionId: building.regionId,
+      point: pointArg(building.point),
+    },
+  },
+});
+
+/**
+ * **Nourrir l'armée** (#652) : monter une ferme, sinon en poser une sur un gisement de vivres libre,
+ * sinon monter le QG qui plafonne les fermes. Chaque geste par la règle du joueur (`upgradeHold`,
+ * `depositCalls`).
+ */
+const feedArmy = ({ view, now }: BotContext): Desire[] => {
+  const { me } = view;
+  if (me.hqLevel === 0 || me.foundation.length > 0 || !workIdle(view)) return [];
+  if (!hungry(view, now)) return [];
+  const farms = me.buildings.filter((building) => building.key === 'farm' && !building.captured);
+  const raisable = farms.find((farm) => upgradeHold(farm, view, now) === null);
+  if (raisable !== undefined) return [raiseBuilding(raisable)];
+
+  const bill = tileBillOf(
+    view.buildCatalog.farm.cost,
+    (resource) => me.resources[resource],
+    view.loadedAt,
+    now,
+  );
+  if (me.capitalPoint !== null && !bill.some((line) => line.missing > 0)) {
+    const open = depositCalls(
+      view,
+      'farm',
+      ['food'],
+      reachesOf(view, () => 0),
+    ).filter((call) => call.refusal === null);
+    const nearest = nearestDeposit(open, me.capitalPoint);
+    if (nearest !== null) {
+      const { deposit } = nearest.call;
+      return [
+        {
+          want: WANT_FEED,
+          order: {
+            fn: 'constructions.start',
+            args: { building: 'farm', regionId: deposit.regionId, point: pointArg(deposit.lonLat) },
+          },
+        },
+      ];
+    }
+  }
+
+  if (farms.some((farm) => upgradeHold(farm, view, now)?.kind === 'cappedByHq')) {
+    const hq = me.buildings.find((building) => building.key === 'hq' && !building.captured);
+    if (hq !== undefined && upgradeHold(hq, view, now) === null) return [raiseBuilding(hq)];
+  }
+  return [];
+};
+
+/**
+ * **Élever un avant-poste** (#652) : le plus bas d'abord, avec de l'acier qui dort
+ * (`BOT_RAISE_RESERVE`), jamais en famine, par `outpostRaiseHold`. La spécialisation tourne sur
+ * les trois, dans l'ordre des points : le bot n'a pas d'avis, il ne mesure que le prix.
+ */
+const raiseOutpost = ({ view, now }: BotContext): Desire[] => {
+  const { me } = view;
+  if (me.hqLevel === 0 || me.foundation.length > 0 || !workIdle(view) || hungry(view, now))
+    return [];
+  const stocks = stocksAt(view, now);
+  const pledged = pledgedOutposts(view);
+  const standing = me.outposts.filter(
+    (outpost) => outpost.isMine && outpost.standsAt === null && !outpost.atMaxLevel,
+  );
+  for (const outpost of [...standing].sort((a, b) => a.level - b.level)) {
+    const hold = outpostRaiseHold(
+      {
+        level: outpost.level,
+        disabled: outpost.disabledMinutesLeft !== null,
+        queued: pledged.has(outpost.id),
+        stocks,
+      },
+      outpost.nextLevelCost,
+      outpost.level + 1,
+    );
+    if (hold !== null) continue;
+    const left = stocks.steel - (outpost.nextLevelCost.steel ?? 0);
+    if (left < me.resources.steel.cap * BOT_RAISE_RESERVE) continue;
+    const specialty = raiseChoosesSpecialty(outpost.level)
+      ? CHOSEN_SPECIALTIES[standing.indexOf(outpost) % CHOSEN_SPECIALTIES.length]
+      : undefined;
+    return [
+      {
+        want: WANT_RAISE,
+        order: {
+          fn: 'constructions.raiseOutpost',
+          args: { outpostId: outpost.id, ...(specialty === undefined ? {} : { specialty }) },
+        },
+      },
+    ];
+  }
+  return [];
 };
 
 const buildBarracks = ({ view, world, now }: BotContext): Desire[] => {
@@ -1179,6 +1331,8 @@ const RULES: ReadonlyArray<(context: BotContext) => Desire[]> = [
   placeHq,
   placeFoundation,
   buildBarracks,
+  feedArmy,
+  raiseOutpost,
   recruit,
   defendHq,
   foundOutpost,
@@ -1231,17 +1385,52 @@ export function decideTurn(context: BotContext): BotOrder[] {
   const chosen: BotOrder[] = [];
   const engaged = new Set<string>();
   let slots = freeSlotsOf(context.view.me.slots);
+  const budget = stocksAt(context.view, context.now);
   const desires = RULES.flatMap((rule) => rule(context)).sort((a, b) => b.want - a.want);
   for (const { order } of desires) {
     if (chosen.length === BOT_ORDERS_PER_TURN) break;
     const troops = troopsOf(order);
     if (troops.some((id) => engaged.has(id))) continue;
+    // Chaque règle lit le stock entier : le second ordre d'un passage paie sur ce qui reste.
+    const bill = billOf(context, order);
+    if (RESOURCES.some((key) => (bill[key] ?? 0) > budget[key])) continue;
     if (claimsSlot(context, order)) {
       if (slots <= 0) continue;
       slots -= 1;
     }
+    for (const key of RESOURCES) budget[key] -= bill[key] ?? 0;
     for (const id of troops) engaged.add(id);
     chosen.push(order);
   }
   return chosen;
+}
+
+/** Ce qu'un ordre prend au stock national : la facture que le serveur débitera. */
+function billOf(
+  { view, workshop }: BotContext,
+  order: BotOrder,
+): Partial<Record<ResourceKey, number>> {
+  const { me } = view;
+  switch (order.fn) {
+    case 'constructions.start': {
+      const { building, point } = order.args;
+      if (me.foundation.some((due) => due.key === building)) return {};
+      const standing = me.buildings.find(
+        (b) => b.key === building && b.point[0] === point.lon && b.point[1] === point.lat,
+      );
+      return standing?.nextLevelCost ?? view.buildCatalog[building].cost;
+    }
+    case 'constructions.raiseOutpost':
+      return (
+        me.outposts.find((outpost) => outpost.id === order.args.outpostId)?.nextLevelCost ?? {}
+      );
+    case 'movements.foundOutpostHere':
+      return view.outpostFoundation.cost;
+    case 'troops.recruit':
+      return workshop.grid.find((line) => line.role === order.args.role)?.unit.costs ?? {};
+    case 'logistics.load':
+      return { [order.args.resource]: order.args.amount };
+    default:
+      return {};
+  }
 }

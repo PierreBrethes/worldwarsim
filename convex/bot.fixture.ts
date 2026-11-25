@@ -34,6 +34,12 @@ export async function submit(t: Bench, seat: Seat, order: BotOrder): Promise<unk
   switch (order.fn) {
     case 'constructions.start':
       return t.mutation(api.constructions.start, { ...seat, ...order.args });
+    case 'constructions.raiseOutpost':
+      return t.mutation(api.constructions.raiseOutpost, {
+        ...seat,
+        ...order.args,
+        outpostId: order.args.outpostId as Id<'outposts'>,
+      });
     case 'troops.recruit':
       return t.mutation(api.troops.recruit, {
         ...seat,
