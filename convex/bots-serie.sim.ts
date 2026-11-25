@@ -278,7 +278,10 @@ it(
         })),
       })),
     };
-    writeFileSync(`${options.out}.md`, `${markdown}\n${samplesOf(summary.samples)}`);
+    writeFileSync(
+      `${options.out}.md`,
+      `${markdown}\n${samplesOf(summary.samples)}\n${stocksOf(economy)}`,
+    );
     writeFileSync(`${options.out}.json`, `${JSON.stringify(summary, null, 2)}\n`);
     expect(season.status).toBe('concluded');
   },
@@ -317,6 +320,38 @@ function samplesOf(
       [...head, ...row((p) => String(p.largest))].join('\n'),
       `### Charge (pièces + file, borne ${MONDIALE_TROOP_BOUND})`,
       [...head, ...row((p) => String(p.load))].join('\n'),
+    ].join('\n\n') + '\n'
+  );
+}
+
+/** Vivres et acier de chaque nation à chaque relevé : stock (débit horaire) / plafond. */
+function stocksOf(
+  economy: ReadonlyArray<{ hour: number; nations: Record<string, Record<string, number[]>> }>,
+): string {
+  const nations = options.nations;
+  const head = [
+    `| Heure | ${nations.join(' | ')} |`,
+    `|---|${nations.map(() => '---').join('|')}|`,
+  ];
+  const table = (key: string) =>
+    [
+      ...head,
+      ...economy.map(({ hour, nations: at }) => {
+        const cell = (nation: string) => {
+          const [stock, rate, cap] = at[nation]?.[key] ?? [];
+          return stock === undefined ? '—' : `${stock} (${rate}/h) / ${cap}`;
+        };
+        return `| ${Math.round(hour)} h | ${nations.map(cell).join(' | ')} |`;
+      }),
+    ].join('\n');
+  return (
+    [
+      '## 10. Stocks',
+      'Stock (débit horaire) / plafond, à chaque relevé. Une famine (vivres à zéro, débit négatif) suspend les captures (ADR 0044).',
+      '### Vivres',
+      table('food'),
+      '### Acier',
+      table('steel'),
     ].join('\n\n') + '\n'
   );
 }
