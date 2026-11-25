@@ -1548,6 +1548,7 @@ function BoardContent({
          *  la main l'a déjà dit, il n'y a plus de carte à confirmer. */
         case 'aim':
         case 'plunder':
+        case 'strike':
         case 'capture':
         case 'collect': {
           if (grouped) {

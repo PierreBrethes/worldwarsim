@@ -355,6 +355,21 @@ export type CompassAction =
       readonly aim: PlunderAim;
     }
   /**
+   * **Frapper** (ADR 0046) : des bombardiers, escortés de chasseurs, sur un bâtiment adverse relevé.
+   * Un ordre comme le pillage — même cible, même `aim` — dont la branche ne paraît que si
+   * `strikeRefusalOf` la laisse passer, la fonction que `movements.strike` relit. Elle ne dit rien
+   * de l'état du bâtiment : le relevé ne le porte pas.
+   */
+  | {
+      readonly key: 'strike';
+      readonly pictogram: CompassPictogram;
+      readonly label: string;
+      readonly cost: string | null;
+      readonly consequence: string;
+      readonly buildingId: string;
+      readonly aim: PlunderAim;
+    }
+  /**
    * **Capturer** (décision du 14/10) : un bâtiment ou un avant-poste adverse, par l'infanterie.
    * La branche ne paraît que si `captureOrderRefusalOf` la laisse passer — la fonction même que
    * `movements.capture` relit — et elle annonce la durée à la force de la pile.
@@ -521,12 +536,13 @@ export type CompassAction =
  *  téléphone offre en onglets (refonte mobile, 1c). */
 export type OrderAction = Extract<
   CompassAction,
-  { readonly key: 'aim' | 'plunder' | 'capture' | 'collect' | 'airdrop' | 'deliver' }
+  { readonly key: 'aim' | 'plunder' | 'strike' | 'capture' | 'collect' | 'airdrop' | 'deliver' }
 >;
 
 export const isOrder = (action: CompassAction): action is OrderAction =>
   action.key === 'aim' ||
   action.key === 'plunder' ||
+  action.key === 'strike' ||
   action.key === 'capture' ||
   action.key === 'collect' ||
   action.key === 'airdrop' ||

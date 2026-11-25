@@ -142,12 +142,15 @@ export function maquettesOf(
 const depositUnder = (lonLat: LonLat | null) =>
   lonLat === null ? null : (depositAt(lonLat)?.deposit ?? null);
 
-/** **Les sites hors service que je sais** (#279) : les miens (`disabled`), et ceux que j'ai mis
+/** **Les sites hors service que je sais** (#279) : les miens (`integrity`), et ceux que j'ai mis
  *  hors service, lus dans mes propres rapports (`sealedUntil`) tant qu'ils le restent. */
 export const sealedSites = (
   view: {
     readonly me: {
-      readonly buildings: ReadonlyArray<{ readonly id: string; readonly disabled?: true }>;
+      readonly buildings: ReadonlyArray<{
+        readonly id: string;
+        readonly integrity?: 'damaged' | 'disabled';
+      }>;
     };
     readonly surveyedInstallations: ReadonlyArray<{
       readonly id: string;
@@ -157,7 +160,9 @@ export const sealedSites = (
   now: number,
 ): ReadonlySet<string> =>
   new Set([
-    ...view.me.buildings.filter((building) => building.disabled).map(({ id }) => id),
+    ...view.me.buildings
+      .filter((building) => building.integrity === 'disabled')
+      .map(({ id }) => id),
     ...view.surveyedInstallations
       .filter(({ sealedUntil }) => sealedUntil !== undefined && !inService(sealedUntil, now))
       .map(({ id }) => id),

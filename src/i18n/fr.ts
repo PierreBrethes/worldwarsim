@@ -222,7 +222,16 @@ const combatBeats = (
   mineLost: number,
   theirsLost: number,
   shock = false,
+  defence = false,
 ): string => {
+  /** **Une frappe de bâtiment** (ADR 0046) : la garnison tire la première, les bombardiers répondent. */
+  if (defence) {
+    const [first, second] = attacking ? [mineLost, theirsLost] : [theirsLost, mineLost];
+    const garrison = attacking ? 'leur garnison' : 'notre garnison';
+    const answer =
+      second > 0 ? `${attacking ? 'notre' : 'leur'} riposte en abat ${second}` : 'aucune riposte';
+    return `${garrison} tire la première et en abat ${first}, ${answer}`;
+  }
   /** **Un choc** (B17) : charge contre charge, personne n'a frappé le premier. */
   if (shock)
     return `choc, les deux camps ont tiré ensemble : nous en perdons ${mineLost}, eux ${theirsLost}`;
@@ -584,6 +593,7 @@ export const fr = {
     },
     missions: {
       plunderOutbound: 'expédition vers le site',
+      strike: 'frappe vers le bâtiment',
       plunderPresence: (until: string) => `présence sur site · jusqu’à ${until}`,
       collection: 'vers le dernier relevé',
       cargoReturn: 'retour chargé',
@@ -1027,6 +1037,14 @@ export const fr = {
         : `${aRoleName(d.role)} ne fonde pas — seule l’infanterie plante un point`,
     INFANTRY_REQUIRED: () => 'il faut au moins une troupe d’infanterie pour rapporter la charge',
     WAREHOUSE_TARGET_ONLY: () => 'seuls un entrepôt ou un site producteur se pillent',
+    /** **La frappe** (ADR 0046 §3). */
+    STRIKE_NEEDS_BOMBER: () => 'seul un bombardier frappe un bâtiment : il en faut au moins un',
+    STRIKE_ESCORT_FIGHTERS_ONLY: () =>
+      'une frappe ne part qu’avec des bombardiers et leurs chasseurs d’escorte',
+    NOT_A_STRIKE_TARGET: () =>
+      'ce bâtiment ne se frappe pas : ni un poste d’écoute, ni un QG, ni un centre de recherche',
+    STRIKE_NOT_IN_BLITZ: () => 'la Blitz n’a pas de frappe : on y capture',
+    BUILDING_DISABLED: () => 'ce bâtiment est désactivé : il ne forme rien et rien n’en part',
     CAPTURE_NEEDS_INFANTRY: () => 'seule l’infanterie capture : il en faut au moins une troupe',
     CAPTURE_STARVING: () => 'l’armée a faim : elle ne capture plus avant d’être nourrie',
     CAPTURE_ON_FOOT: () => 'l’infanterie capture à pied : débarquez-la d’abord',
@@ -2558,6 +2576,7 @@ export const fr = {
       theirs,
       outpostDisabled,
       shock = false,
+      defence = false,
       faced,
       atSea = false,
     }: {
@@ -2569,6 +2588,7 @@ export const fr = {
       theirs: { troops: number; lost: number; routed: number; destroyed: number };
       outpostDisabled: boolean;
       shock?: boolean;
+      defence?: boolean;
       faced?: Faced | undefined;
       atSea?: boolean;
     }) => {
@@ -2597,7 +2617,7 @@ export const fr = {
             ? `engagement ${where}`
             : `attaque reçue ${where}`;
       const forces = `${mine.troops} contre ${theirs.troops}${faced ? ` — en face, ${facedWords(faced)} —` : ','}`;
-      const toll = combatBeats(attacking, mine.lost, theirs.lost, shock);
+      const toll = combatBeats(attacking, mine.lost, theirs.lost, shock, defence);
       const after = [
         atSea ? (won ? 'eaux tenues' : 'eaux perdues') : won ? 'terrain tenu' : 'terrain perdu',
         mine.routed > 0 ? `${mine.routed} déroute${plural(mine.routed, '', 's')} chez moi` : null,
@@ -2688,6 +2708,8 @@ export const fr = {
       lootTaken: 'butin pris',
       sitePlundered: 'site pillé',
       siteSabotaged: 'site saboté',
+      buildingStruck: 'bâtiment frappé',
+      strikeDelivered: 'frappe',
       lootLost: 'charge perdue',
       lootRecovered: 'charge reprise',
       lootCollected: 'caisse ramassée',
@@ -2707,6 +2729,12 @@ export const fr = {
     /** **Un état, jamais une action** (ADR 0020 §6) : le bâtiment est debout, entier, et il ne
      *  rend rien parce que sa région a changé de couleur. Rien à cliquer sur le site. */
     unlinked: 'hors réseau',
+    /** **Un bâtiment frappé** (ADR 0046), à son propriétaire : le tampon, puis ce que l'état change. */
+    struck: { damaged: 'endommagé', disabled: 'désactivé' },
+    struckWhy: (integrity: 'damaged' | 'disabled', back: string) =>
+      integrity === 'disabled'
+        ? `hors service : ni production, ni formation, ni départ jusqu’à ${back}`
+        : `fonctionne encore ; un second coup le désactiverait — intact vers ${back}`,
     /** Le teneur de Narvik : coupé, le site produit encore une part (`outputShareOf`) ; zéro, le
      *  tampon commun. La seule lecture : site, affiche. */
     unlinkedBy: (share: number) =>
@@ -2866,6 +2894,44 @@ export const fr = {
           : reason === 'sealed'
             ? `Expédition bredouille — ${region} : ${building} était scellé par Dakar (ancienne règle). La colonne rentre à vide.`
             : `Expédition bredouille — ${region} : ${building} était déjà à l’arrêt. La colonne rentre à vide.`,
+      /** **La frappe** (ADR 0046 §7). */
+      buildingStruck: (
+        building: BuildingKey,
+        region: string,
+        integrity: 'damaged' | 'disabled',
+      ) => {
+        const e = fr.buildingGender[building] === 'f' ? 'e' : '';
+        return integrity === 'disabled'
+          ? `${fr.buildings[building]} de ${region} frappé${e} — désactivé${e} : ni production, ni formation, ni départ jusqu’à son rétablissement.`
+          : `${fr.buildings[building]} de ${region} frappé${e} — endommagé${e} : un second coup le désactiverait.`;
+      },
+      strikeDelivered: (
+        building: BuildingKey,
+        region: string,
+        notch: 'damaged' | 'disabled' | null,
+        destroyed: number,
+      ) => {
+        const e = fr.buildingGender[building] === 'f' ? 'e' : '';
+        const losses =
+          destroyed === 0 ? '' : ` Pertes : ${destroyed} troupe${destroyed > 1 ? 's' : ''}.`;
+        return notch === null
+          ? `Frappe repoussée — ${fr.buildings[building]} de ${region} : aucun bombardier n’a passé la garnison.${losses}`
+          : `Frappe portée — ${fr.buildings[building]} de ${region} ${notch === 'disabled' ? `désactivé${e}` : `endommagé${e}`}.${losses}`;
+      },
+      strikeFoundNothing: (
+        building: BuildingKey,
+        region: string,
+        reason: 'gone' | 'disabled' | 'immune',
+      ) => {
+        const e = fr.buildingGender[building] === 'f' ? 'e' : '';
+        return `Frappe sans objet — ${region} : ${fr.buildings[building]} ${
+          reason === 'gone'
+            ? 'n’est plus là'
+            : reason === 'disabled'
+              ? `était déjà désactivé${e}`
+              : 'venait de se rétablir et reste à l’abri'
+        }. Les bombardiers rentrent.`;
+      },
       lootLost: (loot: string) => `Charge perdue : ${loot}.`,
       lootRecovered: (country: string, loot: string) =>
         `Charge récupérée après combat — ${country} : ${loot}.`,
@@ -5166,6 +5232,10 @@ export const fr = {
     plunderConsequence: (verb: string, spared?: number) =>
       `Trace l’arc réel et propose l’envoi : ${verb}. La colonne tient le site, puis rentre.` +
       (spared === undefined ? '' : ` ${sparedAtDakarWords(spared)}, seul le surplus se prend.`),
+    /** **Frapper** (ADR 0046) : un cran de moins au bâtiment si un bombardier passe la garnison. */
+    strike: 'frapper',
+    strikeConsequence:
+      'Trace l’arc réel et propose l’envoi : frapper. La garnison tire la première ; si un bombardier tient, le bâtiment perd un cran, puis la colonne rentre.',
     installation: 'installation relevée',
     /** **Capturer** (14/10) : la durée à la force de la pile, lue sur la fonction que le serveur date. */
     capture: 'capturer',
@@ -5368,6 +5438,13 @@ export const fr = {
     building: (name: string, level: number) => `${name}, niv. ${level}`,
     network: 'réseau',
     linked: 'relié',
+    /** **Un bâtiment frappé** (ADR 0046) : l'état, et l'heure de son retour — désactivé, il est
+     *  « rétabli » ; endommagé, il redevient « intact ». */
+    state: 'état',
+    struck: (integrity: 'damaged' | 'disabled', back: string) =>
+      integrity === 'disabled'
+        ? `désactivé · rétabli vers ${back}`
+        : `endommagé · intact vers ${back}`,
     /** **Le mode chantier** : le nom, le niveau, le reste et la barre ne se lisent qu'ici. */
     worksSite: (region: string) => `chantier · ${region}`,
     raisingSite: (region: string) => `élévation · ${region}`,

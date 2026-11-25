@@ -35,7 +35,7 @@ Ce que la partie doit juger, ce qu'on y fait, ce qu'on note. Une partie ne prouv
   chiffre qui dit si l'attaque paie.
 - Visites par jour et durée ; ce qui a déclenché chaque visite (une dépêche ? une rumeur ? rien).
 - Chaque `@a-mesurer` rencontré, avec le verdict à la main : `PLUNDER_HOURS_PRESENT` 2 h ·
-  `PLUNDER_DISABLED_HOURS` 12 h · `LOOT_CRATE_HOURS` 2 h · `LOOT_RUMOR_DELAY_MINUTES` 10 ·
+  `BUILDING_DISABLED_HOURS` 12 h · `LOOT_CRATE_HOURS` 2 h · `LOOT_RUMOR_DELAY_MINUTES` 10 ·
   `LOOT_RUMOR_RADIUS_KM` 200 · `REGISTRATION_WINDOW_HOURS` 2 · `DETECTION_RANGE_KM` par rôle ·
   `OUTPOST_DISABLED_HOURS` 6. Trop long, trop court, indifférent.
 - Les bugs, avec le geste exact — et la distinction : règle voulue, règle mal dite, bug.

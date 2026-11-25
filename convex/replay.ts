@@ -41,6 +41,7 @@ export const replayOf = query({
       mine: kindsOf(engagement.troops.filter((troop) => troop.side === side)),
       theirs: tallyOf(engagement.troops.filter((troop) => troop.side !== side)),
       ...facedOf(engagement, side),
+      ...(engagement.defence === true ? { defence: true as const } : {}),
       /** **Ce que mon camp a perdu au large**, et jamais ce que l'autre a perdu : qui voit couler
        *  voit la scène (décision 8 du 05/11 sur #280). */
       ...(engagement.drowned?.[side] === undefined ? {} : { drowned: engagement.drowned[side] }),

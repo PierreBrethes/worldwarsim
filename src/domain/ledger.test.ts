@@ -153,7 +153,7 @@ describe('the ledger', () => {
       me: {
         ...view.me,
         buildings: [
-          { key: 'listening', regionId: 'r1', disabled: true },
+          { key: 'listening', regionId: 'r1', integrity: 'disabled' },
           ...view.me.buildings.slice(1),
         ],
       },

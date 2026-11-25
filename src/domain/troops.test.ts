@@ -414,6 +414,15 @@ describe('what a projection site refuses to form (the reserve of pieces, ADR 002
     });
   });
 
+  /** ADR 0046 §6 : une caserne désactivée ne lance plus de formation. */
+  it('forms nothing in a disabled barracks', () => {
+    expect(
+      recruitRefusalOf('infantry', 1, { key: 'barracks', integrity: 'disabled' }, at()),
+    ).toEqual({
+      code: 'BUILDING_DISABLED',
+    });
+  });
+
   it('waits for the research card that opens the role at this tier, and names it', () => {
     expect(recruitRefusalOf('armor', 1, { key: 'barracks' }, at())).toEqual({
       code: 'RESEARCH_REQUIRED',

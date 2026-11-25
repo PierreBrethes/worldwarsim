@@ -16,6 +16,7 @@ import {
   landCostOf,
   plunderRefusalOf,
   refusalOf,
+  strikeRefusalOf,
   routeModeOf,
   type MovementAim,
 } from '../src/domain/movement-orders';
@@ -43,7 +44,7 @@ import {
 } from './cargo';
 import {
   CARRY_CAPACITY_BY_ROLE,
-  PLUNDER_DISABLED_HOURS,
+  BUILDING_DISABLED_HOURS,
   PLUNDER_HOURS_PRESENT,
   buildCost,
   routeMinutes,
@@ -80,6 +81,7 @@ import {
   namesATroopTwice,
   plunderAimOf,
   surveyedPlunderTarget,
+  surveyedTarget,
   troopsAmong,
   fuelBill,
 } from './movement/orders';
@@ -102,6 +104,7 @@ import { surveyAlongRoute } from './surveys';
 import { hostAtPoint, landAtPoint, reachedOverGround, routeBetween } from './routes';
 import { playerOf, requirePlayable, seasonStillPlays } from './seats';
 import { arriveForPlunder, completeLootDelivery, completePresence } from './plunder';
+import { arriveForStrike } from './strikes';
 import { resolveLootCollectionArrivals, startLootCollectionMission } from './lootCollections';
 import { restHold } from './movement/rest';
 import { holdAtFort as holdAtFortEntry } from './movement/fort';
@@ -717,6 +720,35 @@ export const plunder = mutation({
 });
 
 /**
+ * **Frapper** (ADR 0046 §3) : des bombardiers partis d'un aérodrome, sur un bâtiment adverse
+ * relevé. Le refus est celui de la rose (`strikeRefusalOf`), Blitz comprise ; l'état de la cible
+ * ne se lit qu'à l'arrivée (`convex/strikes.ts`).
+ */
+export const strike = mutation({
+  args: {
+    token: v.string(),
+    seasonId: v.id('seasons'),
+    origin: MOVEMENT_ORIGIN,
+    troopIds: v.array(v.id('troops')),
+    buildingId: v.id('buildings'),
+  },
+  handler: async (ctx, { token, seasonId, origin, troopIds, buildingId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    requirePlayable(player, season);
+    const target = await surveyedTarget(ctx, player, buildingId);
+    return march(ctx, {
+      playerId: player._id,
+      season,
+      type: 'march',
+      origin,
+      troopIds,
+      aim: plunderAimOf(target),
+      strike: { buildingId, surveyed: { key: target.key, regionId: target.regionId } },
+    });
+  },
+});
+
+/**
  * **Capturer** (décision du 14/10) : un bâtiment adverse relevé, ou un avant-poste adverse. La
  * colonne y marche comme à une attaque ; l'arrivée engage, puis l'infanterie debout capture
  * (`captures.ts`). Le refus est celui de la rose (`captureOrderRefusalOf`).
@@ -998,6 +1030,45 @@ const fuelFacts = async (
   return { gauge, short, km, roundTrip, eased, resupply };
 };
 
+/** La route, l'heure et le plein d'une colonne partie vers un bâtiment relevé : ce que l'aperçu du
+ *  pillage et celui de la frappe disent de pareil. `null` : pas de route. */
+async function expeditionLeg(
+  ctx: QueryCtx,
+  player: Doc<'players'>,
+  departure: NonNullable<Awaited<ReturnType<typeof departureOf>>>,
+  troops: ReadonlyArray<Doc<'troops'>>,
+  column: Awaited<ReturnType<typeof columnOf>>,
+  target: Awaited<ReturnType<typeof surveyedTarget>>,
+) {
+  const point = target.point;
+  const region = regionFacts(target.regionId);
+  if (point === null || region === null) return null;
+  const route = routeBetween(
+    departure.point,
+    point,
+    routeModeOf(column.roles),
+    landCostOf(column.roles),
+  );
+  if (route === null) return null;
+  const now = Date.now();
+  const minutes = await pacedMinutes(ctx, player._id, route, now);
+  const arrivesAt = now + minutes * 60_000;
+  return {
+    minutes,
+    arrivesAt,
+    relayed: relayedMinutes(route, minutes, column),
+    holdUntil: await restHold(ctx, player._id, region.country, arrivesAt),
+    destinationName: region.name,
+    originName: departure.name,
+    route: routeFacts(route),
+    fuel: await fuelFacts(ctx, player, troops, route, column, false, {
+      departedAt: now,
+      arrivesAt,
+    }),
+    cargo: await cargoPreviewOf(ctx, player, departure, troops),
+  };
+}
+
 /** L'aperçu de l'expédition. Il ne refuse rien : la rose n'a offert la branche que si
  *  `plunderOrderRefusalOf` l'a laissée passer, la même fonction que la mutation relit. */
 export const previewPlunder = query({
@@ -1026,44 +1097,47 @@ export const previewPlunder = query({
     ) {
       return null;
     }
-    const point = target.point;
-    const region = regionFacts(target.regionId);
-    if (point === null || region === null) return null;
-    const route = routeBetween(
-      departure.point,
-      point,
-      routeModeOf(column.roles),
-      landCostOf(column.roles),
-    );
-    if (route === null) return null;
-    const now = Date.now();
-    const minutes = await pacedMinutes(ctx, player._id, route, now);
-    const arrivesAt = now + minutes * 60_000;
+    const leg = await expeditionLeg(ctx, player, departure, troops, column, target);
+    if (leg === null) return null;
     return {
-      minutes,
-      arrivesAt,
-      relayed: relayedMinutes(route, minutes, column),
-      holdUntil: await restHold(ctx, player._id, region.country, arrivesAt),
-      destinationName: region.name,
-      originName: departure.name,
-      route: routeFacts(route),
-      fuel: await fuelFacts(ctx, player, troops, route, column, false, {
-        departedAt: now,
-        arrivesAt,
-      }),
-      cargo: await cargoPreviewOf(ctx, player, departure, troops),
+      ...leg,
       effect:
         canonicalBuildingKey(target.key) === 'warehouse'
           ? ('loot' as const)
           : ('sabotage' as const),
       presenceHours: PLUNDER_HOURS_PRESENT,
-      disabledHours: PLUNDER_DISABLED_HOURS,
+      disabledHours: BUILDING_DISABLED_HOURS,
       /** **Dakar** : ce que le pillage laisse par ressource chez son teneur, la fonction même que
        *  `completePresence` applique ; `null` hors Dakar ou pour un site qui ne se vide pas. */
       spared: await ctx.db
         .get(target._id)
         .then((row) => (row === null ? null : dakarSparedAt(ctx, row))),
     };
+  },
+});
+
+/** L'aperçu de la frappe (ADR 0046) : la route et l'heure d'arrivée, rien de l'état du bâtiment,
+ *  que le relevé ne porte pas. Comme le pillage, il ne refuse rien que `strikeRefusalOf` n'ait
+ *  déjà dit à la rose. */
+export const previewStrike = query({
+  args: {
+    token: v.string(),
+    seasonId: v.id('seasons'),
+    origin: MOVEMENT_ORIGIN,
+    troopIds: v.array(v.id('troops')),
+    buildingId: v.id('buildings'),
+  },
+  handler: async (ctx, { token, seasonId, origin, troopIds, buildingId }) => {
+    const { player } = await playerOf(ctx, token, seasonId);
+    const departure = await departureOf(ctx, player._id, origin);
+    if (departure === null) return null;
+    const topped = await previewTroopsAt(ctx, player._id, troopIds, departure);
+    if (topped === null) return null;
+    const column = await columnOf(ctx, player._id, topped.troops, departure);
+    const target = await surveyedTarget(ctx, player, buildingId);
+    const aim = { kind: 'building' as const, buildingId: target._id, key: target.key };
+    if (strikeRefusalOf(aim, column, false) !== null) return null;
+    return expeditionLeg(ctx, player, departure, topped.troops, column, target);
   },
 });
 
@@ -1255,6 +1329,13 @@ export const arrive = internalMutation({
     if (movement.plunder?.phase === 'outbound') {
       await surveyAlongRoute(ctx, movement, now);
       const fought = await arriveForPlunder(ctx, movement, now);
+      await reassessDetection(ctx, movement.seasonId, now, [movement.playerId, ...fought]);
+      return;
+    }
+
+    if (movement.strike !== undefined) {
+      await surveyAlongRoute(ctx, movement, now);
+      const fought = await arriveForStrike(ctx, movement, now);
       await reassessDetection(ctx, movement.seasonId, now, [movement.playerId, ...fought]);
       return;
     }

@@ -458,6 +458,12 @@ export default defineSchema({
     /** A warehouse or production site can be temporarily put out of service. Absent means the
      * row predates building disruption and is active. */
     disabledUntil: v.optional(v.number()),
+    /** **Endommagé jusqu'à** (ADR 0046) : frappé une fois, il revient intact à cette date. Absent :
+     *  jamais frappé. `integrityOf` lit cette date avec `disabledUntil`, et rien d'autre ne la lit. */
+    damagedUntil: v.optional(v.number()),
+    /** **À l'abri jusqu'à** (ADR 0046 §5), posé par la frappe et le sabotage : rétabli, il ne se
+     *  frappe plus avant cette date (`shelteredFromStrike`). */
+    immuneUntil: v.optional(v.number()),
     /** **L'heure où il a été capturé** (décision M8 du 14/10) : un bâtiment capturé colore sa
      *  région pour son tenant, sol national compris (`heldRegions`, `occupations`), et n'occupe
      *  aucun emplacement. Absent : bâti par celui qui le tient. */
@@ -630,6 +636,9 @@ export default defineSchema({
     tier: UNIT_TIER,
     rank: v.number(),
     finishesAt: v.union(v.number(), v.null()),
+    /** **Ce qu'il restait au lot quand sa caserne a été frappée** (ADR 0046 §6) : la file se fige,
+     *  le lot n'est plus daté, et son réveil le date de ce reste. Absent, il se date de sa durée pleine. */
+    frozenMs: v.optional(v.number()),
   })
     .index('byPlayer', ['playerId'])
     .index('byBuilding', ['buildingId']),
@@ -733,6 +742,14 @@ export default defineSchema({
      * belongs to this movement. Its optional return region is the automatic plan fixed before
      * the return; absence keeps pre-S6a documents readable. */
     plunder: v.optional(PLUNDER_MISSION),
+    /** **La frappe** (ADR 0046 §3) : des bombardiers venus retirer un cran à ce bâtiment. Le relevé
+     *  du départ nomme la cible si elle n'est plus là à l'arrivée (`strikeFoundNothing`). */
+    strike: v.optional(
+      v.object({
+        buildingId: v.id('buildings'),
+        surveyed: v.object({ key: BUILDING_KEY, regionId: v.string() }),
+      }),
+    ),
     /** Cargo on a stamped return is delivered at its frontier; an unstamped load stays legacy. */
     loot: v.optional(RESOURCE_AMOUNTS),
     /** Several recovered or regrouped loads keep their own report without duplicating totals. */
@@ -1127,6 +1144,9 @@ export default defineSchema({
     /** **Un choc** (B17) : charge contre charge, les deux camps ont tiré ensemble. Absent, une
      *  passe à l'initiative. */
     shock: v.optional(v.boolean()),
+    /** **Une riposte de garnison** (ADR 0046 §4) : la défense a tiré la première, sur une frappe de
+     *  bâtiment. Absent, une passe à l'initiative de l'attaquant. */
+    defence: v.optional(v.boolean()),
     /**
      * **Au feu, on voit l'ennemi** (F1, 14/10/2026) : la nation de chaque camp au moment de la
      * passe — ses rôles et effectifs sont déjà dans `troops`. Servie à l'autre participant

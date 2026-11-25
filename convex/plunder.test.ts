@@ -6,10 +6,11 @@ import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import { RESOURCES, type ResourceKey } from '../src/domain/ids';
 import {
   BASE_CAP,
+  BUILDING_IMMUNITY_HOURS,
   EXTRACTION_PER_HOUR,
   HEAP_CAP_HOURS,
   nominalStrength,
-  PLUNDER_DISABLED_HOURS,
+  BUILDING_DISABLED_HOURS,
   PLUNDER_HOURS_PRESENT,
 } from './constants';
 import { regionFacts, pointOfRegion } from './regions';
@@ -825,12 +826,18 @@ describe('plunder presence', () => {
     const transport = await troop(t, seat, 'landTransport', barracks);
     const warehouseId = await building(t, guest, 'warehouse');
     await setStocks(t, guest, { food: 702, steel: 500 });
+    await t.run((ctx) => ctx.db.patch(warehouseId, { damagedUntil: MIDDAY + 30 * HOUR }));
     const movementId = await plunderArrival(t, seat, warehouseId, [infantry, transport], barracks);
 
     const takenAt = await completePresence(t, movementId);
 
     const target = await t.run((ctx) => ctx.db.get(warehouseId));
-    expect(target?.disabledUntil).toBe(takenAt + PLUNDER_DISABLED_HOURS * HOUR);
+    expect(target?.disabledUntil).toBe(takenAt + BUILDING_DISABLED_HOURS * HOUR);
+    /** ADR 0046 §5 : le sabotage pose le même désactivé, et l'abri derrière lui. */
+    expect(target?.immuneUntil).toBe(
+      takenAt + (BUILDING_DISABLED_HOURS + BUILDING_IMMUNITY_HOURS) * HOUR,
+    );
+    expect(target?.damagedUntil).toBeUndefined();
     const stocks = await stocksOf(t, guest);
     expect(stocks.food).toBe(BASE_CAP);
     expect(stocks.steel).toBe(BASE_CAP);
@@ -916,7 +923,7 @@ describe('plunder presence', () => {
     const held = (await t.query(api.view.playerView, guest)).me.buildings.find(
       (site) => site.id === mineId,
     );
-    expect(held?.disabled).toBe(true);
+    expect(held?.integrity).toBe('disabled');
     expect(
       (await t.query(api.view.playerView, guest)).surveyedInstallations.every(
         (installation) => installation.sealedUntil === undefined,
@@ -1112,7 +1119,7 @@ describe('plunder presence', () => {
     );
     expect(served?.heap?.amount).toBeCloseTo(amount!, 4);
 
-    const back = at + PLUNDER_DISABLED_HOURS * HOUR;
+    const back = at + BUILDING_DISABLED_HOURS * HOUR;
     vi.setSystemTime(back + 2 * HOUR);
     await t.mutation(internal.production.restoreAfterDisabling, {
       seasonId: owner.seasonId,
@@ -1208,7 +1215,7 @@ describe('a raid on an exploitation carries its heap off (ADR 0041 §4)', () => 
     });
     expect(owner.find((notice) => notice.kind === 'siteSabotaged')).toBeUndefined();
     expect((await t.run((ctx) => ctx.db.get(wellId)))?.disabledUntil).toBe(
-      at + PLUNDER_DISABLED_HOURS * HOUR,
+      at + BUILDING_DISABLED_HOURS * HOUR,
     );
   });
 

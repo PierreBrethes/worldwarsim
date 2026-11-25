@@ -42,6 +42,7 @@ import { fuelGaugeOf, fuelRefusalOf, suppliesOf } from '../../src/domain/supplie
 /** **Ce qu'une mission accroche à un mouvement** : il garde alors son cap (décision du 04/11). */
 export const onMission = (movement: Doc<'movements'>): boolean =>
   movement.plunder !== undefined ||
+  movement.strike !== undefined ||
   movement.capture !== undefined ||
   movement.delivery !== undefined ||
   movement.airdrop !== undefined ||
