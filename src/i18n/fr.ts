@@ -584,6 +584,7 @@ export const fr = {
     },
     missions: {
       plunderOutbound: 'expédition vers le site',
+      strike: 'frappe vers le bâtiment',
       plunderPresence: (until: string) => `présence sur site · jusqu’à ${until}`,
       collection: 'vers le dernier relevé',
       cargoReturn: 'retour chargé',
@@ -1033,6 +1034,7 @@ export const fr = {
       'une frappe ne part qu’avec des bombardiers et leurs chasseurs d’escorte',
     NOT_A_STRIKE_TARGET: () =>
       'ce bâtiment ne se frappe pas : ni un poste d’écoute, ni un QG, ni un centre de recherche',
+    STRIKE_NOT_IN_BLITZ: () => 'la Blitz n’a pas de frappe : on y capture',
     BUILDING_DISABLED: () => 'ce bâtiment est désactivé : il ne forme rien et rien n’en part',
     CAPTURE_NEEDS_INFANTRY: () => 'seule l’infanterie capture : il en faut au moins une troupe',
     CAPTURE_STARVING: () => 'l’armée a faim : elle ne capture plus avant d’être nourrie',
@@ -5211,6 +5213,10 @@ export const fr = {
     plunderConsequence: (verb: string, spared?: number) =>
       `Trace l’arc réel et propose l’envoi : ${verb}. La colonne tient le site, puis rentre.` +
       (spared === undefined ? '' : ` ${sparedAtDakarWords(spared)}, seul le surplus se prend.`),
+    /** **Frapper** (ADR 0046) : un cran de moins au bâtiment si un bombardier passe la garnison. */
+    strike: 'frapper',
+    strikeConsequence:
+      'Trace l’arc réel et propose l’envoi : frapper. La garnison tire la première ; si un bombardier tient, le bâtiment perd un cran, puis la colonne rentre.',
     installation: 'installation relevée',
     /** **Capturer** (14/10) : la durée à la force de la pile, lue sur la fonction que le serveur date. */
     capture: 'capturer',

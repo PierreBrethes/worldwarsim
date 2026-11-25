@@ -47,6 +47,8 @@ type OwnMovementMission =
       readonly buildingId: string;
       readonly presenceEndsAt: number | null;
     }
+  /** **La frappe** (ADR 0046) : la colonne va retirer un cran à un bâtiment, puis rentre. */
+  | { readonly kind: 'strike'; readonly buildingId: string }
   | { readonly kind: 'collection'; readonly sightingId: string }
   | { readonly kind: 'cargoReturn'; readonly regionId: string }
   /** Blitz (B18) : la colonne poursuit une unité, et sa route se recourbe sur elle. */

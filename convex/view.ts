@@ -1005,7 +1005,9 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
                   presenceEndsAt:
                     movement.plunder.phase === 'presence' ? movement.plunder.until : null,
                 }
-              : movement.lootCollection !== undefined
+              : movement.strike !== undefined
+                ? { kind: 'strike' as const, buildingId: movement.strike.buildingId }
+                : movement.lootCollection !== undefined
                 ? {
                     kind: 'collection' as const,
                     sightingId: movement.lootCollection.sightingId,

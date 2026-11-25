@@ -1213,7 +1213,7 @@ describe('the strike order', () => {
         occupiedBuildingIds: new Set(),
       },
     });
-    expect(strikeRefusalOf(barracks, blitz, false)).toBe('NOT_IN_BLITZ');
+    expect(strikeRefusalOf(barracks, blitz, false)).toBe('STRIKE_NOT_IN_BLITZ');
   });
 });
 

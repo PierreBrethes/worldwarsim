@@ -835,6 +835,69 @@ describe('in aim', () => {
     expect(producer?.actions[0]).toMatchObject({ key: 'plunder', label: 'saboter' });
   });
 
+  /** **Frapper** (ADR 0046) : la branche des bombardiers sur un bâtiment relevé, refus du serveur. */
+  describe('strike', () => {
+    const airfield = new Set<BuildingKey>(['airfield']);
+    const bombers = {
+      ...column,
+      roles: ['bomber' as const, 'fighter' as const],
+      departureBuildings: airfield,
+    };
+    const mine = {
+      kind: 'installation' as const,
+      id: 'mine-enemy',
+      key: 'mine' as const,
+      regionId: 'ROU-310',
+      name: 'Mine',
+    };
+
+    it('offers a strike to bombers on a surveyed building, and nothing of plunder', () => {
+      const fan = compassOf(mine, view, bombers);
+      expect(fan?.actions).toEqual([
+        expect.objectContaining({
+          key: 'strike',
+          label: fr.compass.strike,
+          buildingId: 'mine-enemy',
+          aim: { kind: 'building', buildingId: 'mine-enemy', key: 'mine' },
+        }),
+      ]);
+    });
+
+    it('strikes a barracks, an airfield and a port too — where plunder stops', () => {
+      for (const key of ['barracks', 'airfield', 'port'] as const) {
+        const fan = compassOf({ ...mine, key }, view, bombers);
+        expect(fan?.actions.map((action) => action.key)).toContain('strike');
+      }
+    });
+
+    it('says the server refusal when the departure holds no aerodrome', () => {
+      const fan = compassOf(mine, view, { ...bombers, departureBuildings: new Set() });
+      expect(fan?.actions).toEqual([]);
+      expect(fan?.refusal).toBe(fr.errors.NO_AIRFIELD_AT_DEPARTURE());
+    });
+
+    it('says a disabled aerodrome lets nothing leave', () => {
+      const fan = compassOf(mine, view, { ...bombers, disabledDoors: airfield });
+      expect(fan?.refusal).toBe(fr.errors.BUILDING_DISABLED());
+    });
+
+    it('says an escort of anything but fighters is refused', () => {
+      const fan = compassOf(mine, view, { ...bombers, roles: ['bomber', 'infantry'] });
+      expect(fan?.actions.map((action) => action.key)).not.toContain('strike');
+    });
+
+    it('does not tell a column without bombers about strikes', () => {
+      const fan = compassOf(mine, view, { ...column, roles: ['fighter'] });
+      expect(fan?.actions).toEqual([]);
+      expect(fan?.refusal).not.toBe(fr.errors.STRIKE_NEEDS_BOMBER());
+    });
+
+    it('offers no strike in a Blitz', () => {
+      const fan = compassOf(mine, { ...view, mode: 'blitz' }, bombers);
+      expect(fan?.actions.map((action) => action.key)).not.toContain('strike');
+    });
+  });
+
   it('tells the plunderer what the warehouse of the holder of Dakar spares', () => {
     const dakar = {
       ...view,

@@ -360,7 +360,7 @@ export const disabledDoorsOf = (
 };
 
 export type StrikeRefusal =
-  | 'NOT_IN_BLITZ'
+  | 'STRIKE_NOT_IN_BLITZ'
   | 'EMPTY_MOVEMENT'
   | 'STRIKE_NEEDS_BOMBER'
   | 'STRIKE_ESCORT_FIGHTERS_ONLY'
@@ -386,7 +386,7 @@ export function strikeRefusalOf(
   column: Column,
   isMine: boolean,
 ): StrikeRefusal | OrderRefusal | null {
-  if (column.blitz !== undefined) return 'NOT_IN_BLITZ';
+  if (column.blitz !== undefined) return 'STRIKE_NOT_IN_BLITZ';
   if (column.roles.length === 0) return 'EMPTY_MOVEMENT';
   if (!column.roles.includes('bomber')) return 'STRIKE_NEEDS_BOMBER';
   if (column.roles.some((role) => role !== 'bomber' && role !== 'fighter'))

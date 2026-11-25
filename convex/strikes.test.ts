@@ -12,6 +12,7 @@ import {
 import { pointOfRegion, regionFacts } from './regions';
 import schema from './schema';
 import { fileSurvey } from './surveys';
+import { onMission } from './movement/course';
 import { modules } from './test.setup';
 import { foundSeat, joinSeat, placeHq, seatIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
@@ -146,6 +147,15 @@ describe('filing a strike', () => {
       strike: { buildingId: target, surveyed: { key: 'barracks', regionId: RUHR } },
       troopIds: [bomber],
     });
+  });
+
+  it('keeps its course: a strike is a mission, which a carrier doctrine cannot steer away', async () => {
+    const t = boot();
+    const { order } = await strikeScene(t);
+    const { movementId } = await fileStrike(t, order);
+
+    const filed = await t.run((ctx) => ctx.db.get(movementId));
+    expect(onMission(filed!)).toBe(true);
   });
 
   it('refuses a column without a bomber, and files nothing', async () => {

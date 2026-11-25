@@ -140,6 +140,7 @@ export type ErrorCode =
   | 'STRIKE_NEEDS_BOMBER'
   | 'STRIKE_ESCORT_FIGHTERS_ONLY'
   | 'NOT_A_STRIKE_TARGET'
+  | 'STRIKE_NOT_IN_BLITZ'
   | 'BUILDING_DISABLED'
   /** La capture (14/10) : seule l'infanterie capture, et le QG attend son lot. */
   | 'CAPTURE_NEEDS_INFANTRY'
