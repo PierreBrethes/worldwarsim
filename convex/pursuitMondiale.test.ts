@@ -178,6 +178,32 @@ describe('a pursuit in a Mondiale (#655)', () => {
     expect((await noticesOf(t, seat)).some((notice) => notice.kind === 'pursuitLost')).toBe(true);
   });
 
+  it('arms a pursuit on the bench, one rendezvous each', async () => {
+    const t = boot();
+    const { seat, guest } = await mondiale(t);
+    const from = { lon: 6.0, lat: 50.6 };
+    const theirs = await troop(t, guest, from);
+    const at = { lon: 6.2, lat: 50.9 };
+    const ours = await troop(t, seat, at);
+    await t.mutation(api.movements.marchTo, {
+      ...guest,
+      origin: { kind: 'point', point: from },
+      troopIds: [theirs],
+      point: { lon: 9.0, lat: 50.6 },
+    });
+    const player = await t.run((ctx) => seatIn(ctx, seat));
+    const armed = await t.mutation(internal.dev.benchPursuits, {
+      playerId: player._id,
+      from: at,
+      ids: [ours],
+    });
+    expect(armed).toHaveLength(1);
+    const jobs = await t.run((ctx) => ctx.db.system.query('_scheduled_functions').collect());
+    expect(
+      jobs.filter((job) => job.name.includes('pursue') && job.state.kind === 'pending'),
+    ).toHaveLength(1);
+  });
+
   it('aims at a camp posed in sight as at a position, as before', async () => {
     const t = boot();
     const { seat, guest } = await mondiale(t);
