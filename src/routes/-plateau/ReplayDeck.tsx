@@ -216,7 +216,13 @@ export function ReplayAccount({ view, said }: { view: ReplayView; said: string }
         />
       </div>
       <p className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
-        {fr.combat.beats(view.side === 'attacker', mineLost, view.theirs.lost)}
+        {fr.combat.beats(
+          view.side === 'attacker',
+          mineLost,
+          view.theirs.lost,
+          false,
+          view.defence === true,
+        )}
       </p>
       {mineDry + (view.theirs.dry ?? 0) > 0 && (
         <p className="font-(family-name:--font-mono) text-[11.5px] text-[var(--critical)]">

@@ -106,6 +106,26 @@ describe('replayAt', () => {
     expect(replayAt(view, stepBounds('pose').start + 1).firing).toBeNull();
   });
 
+  /** **Une frappe de bâtiment** (ADR 0046 §4) : la garnison tire la première, les bombardiers
+   *  répondent — l'initiative retournée, et les pertes avec elle. */
+  it('has the garrison fire first in a pass of defence, and fells the struck side after it', () => {
+    const strike = { ...view, defence: true as const };
+    const at = (step: 'frappe' | 'riposte') => replayAt(strike, stepBounds(step).start + 1).firing;
+    expect(at('frappe')).toBe('theirs');
+    expect(at('riposte')).toBe('mine');
+    const garrison = { ...strike, side: 'defender' as const };
+    expect(replayAt(garrison, stepBounds('frappe').start + 1).firing).toBe('mine');
+
+    const order: string[] = [];
+    let fallen = 0;
+    for (let t = stepBounds('frappe').start; t < stepBounds('riposte').end; t += 10) {
+      const now = replayAt(strike, t).pieces.filter((p) => p.fate === 'fallen');
+      if (now.length > fallen) order.push(now.find((p) => p.progress < 0.5)?.side ?? '?');
+      fallen = now.length;
+    }
+    expect(order).toEqual(['mine', 'mine', 'theirs', 'theirs']);
+  });
+
   it('lets nobody fall while the shots are still flying', () => {
     const { start, end } = stepBounds('frappe');
     const { pieces } = replayAt(view, start + VOLLEY_SHARE * (end - start) - 1);

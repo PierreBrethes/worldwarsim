@@ -222,7 +222,16 @@ const combatBeats = (
   mineLost: number,
   theirsLost: number,
   shock = false,
+  defence = false,
 ): string => {
+  /** **Une frappe de bâtiment** (ADR 0046) : la garnison tire la première, les bombardiers répondent. */
+  if (defence) {
+    const [first, second] = attacking ? [mineLost, theirsLost] : [theirsLost, mineLost];
+    const garrison = attacking ? 'leur garnison' : 'notre garnison';
+    const answer =
+      second > 0 ? `${attacking ? 'notre' : 'leur'} riposte en abat ${second}` : 'aucune riposte';
+    return `${garrison} tire la première et en abat ${first}, ${answer}`;
+  }
   /** **Un choc** (B17) : charge contre charge, personne n'a frappé le premier. */
   if (shock)
     return `choc, les deux camps ont tiré ensemble : nous en perdons ${mineLost}, eux ${theirsLost}`;
@@ -2567,6 +2576,7 @@ export const fr = {
       theirs,
       outpostDisabled,
       shock = false,
+      defence = false,
       faced,
       atSea = false,
     }: {
@@ -2578,6 +2588,7 @@ export const fr = {
       theirs: { troops: number; lost: number; routed: number; destroyed: number };
       outpostDisabled: boolean;
       shock?: boolean;
+      defence?: boolean;
       faced?: Faced | undefined;
       atSea?: boolean;
     }) => {
@@ -2606,7 +2617,7 @@ export const fr = {
             ? `engagement ${where}`
             : `attaque reçue ${where}`;
       const forces = `${mine.troops} contre ${theirs.troops}${faced ? ` — en face, ${facedWords(faced)} —` : ','}`;
-      const toll = combatBeats(attacking, mine.lost, theirs.lost, shock);
+      const toll = combatBeats(attacking, mine.lost, theirs.lost, shock, defence);
       const after = [
         atSea ? (won ? 'eaux tenues' : 'eaux perdues') : won ? 'terrain tenu' : 'terrain perdu',
         mine.routed > 0 ? `${mine.routed} déroute${plural(mine.routed, '', 's')} chez moi` : null,

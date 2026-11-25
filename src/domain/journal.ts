@@ -965,6 +965,7 @@ const fromCombat = (report: CombatReport): Written => ({
     theirs: report.theirs,
     outpostDisabled: report.outpostDisabled,
     shock: report.shock === true,
+    defence: report.defence === true,
     faced: report.faced,
     atSea: report.atSea === true,
   }),

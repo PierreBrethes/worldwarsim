@@ -296,7 +296,15 @@ describe('the strike at its arrival', () => {
     ).toMatchObject([{ notch: null }]);
     expect((await noticesOf(t, guest)).some((one) => one.kind === 'buildingStruck')).toBe(false);
     const [engagement] = await t.run((ctx) => ctx.db.query('engagements').collect());
-    expect(engagement).toMatchObject({ defenderId: (await playerOf(t, guest))._id });
+    expect(engagement).toMatchObject({
+      defenderId: (await playerOf(t, guest))._id,
+      defence: true,
+    });
+    /** Le rejeu le sait : il raconte la garnison qui tire la première, aux deux camps. */
+    const replay = (who: Seat) =>
+      t.query(api.replay.replayOf, { ...who, combatId: engagement!._id });
+    expect(await replay(seat)).toMatchObject({ side: 'attacker', defence: true });
+    expect(await replay(guest)).toMatchObject({ side: 'defender', defence: true });
   });
 
   it('meets only the troops posted on the building, not a column that left it', async () => {

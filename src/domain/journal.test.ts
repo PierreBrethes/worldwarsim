@@ -788,3 +788,14 @@ describe('a lifted capture', () => {
     expect(lifted('defender', 'starving')).toContain('est levée');
   });
 });
+
+describe('the account of a pass of defence (ADR 0046)', () => {
+  it('says the garrison fired first, from either camp', () => {
+    expect(fr.combat.beats(true, 40, 100, false, true)).toBe(
+      'leur garnison tire la première et en abat 40, notre riposte en abat 100',
+    );
+    expect(fr.combat.beats(false, 100, 40, false, true)).toBe(
+      'notre garnison tire la première et en abat 40, leur riposte en abat 100',
+    );
+  });
+});

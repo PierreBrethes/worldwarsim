@@ -490,6 +490,8 @@ export type CombatReport = {
   readonly outpostDisabled: boolean;
   /** **Un choc** (B17) : charge contre charge, les deux camps ont tiré ensemble. */
   readonly shock?: boolean;
+  /** **Une frappe de bâtiment** (ADR 0046) : la garnison a tiré la première, l'initiative retournée. */
+  readonly defence?: boolean;
   readonly mine: CombatTally;
   readonly theirs: CombatTally;
   /** **Ce qu'on a eu en face au feu** (F1) — absent sur un engagement d'avant le 14/10, et chez
@@ -549,6 +551,8 @@ export type ReplayView = {
   readonly bombardment?: { readonly from?: { readonly lon: number; readonly lat: number } };
   /** Aux mêmes conditions que `CombatReport.atSea`. */
   readonly atSea?: true;
+  /** Aux mêmes conditions que `CombatReport.defence` : la garnison tire la première. */
+  readonly defence?: true;
   /** **Ce que les coques coulées de mon camp emportaient** (#513) : hommes, machines et places à
    *  bord. Servi au seul camp qui le perd — l'autre voit couler et ne sait rien de la cargaison. */
   readonly drowned?: { readonly men: number; readonly machines: number; readonly seats: number };

@@ -931,6 +931,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         outpostId: engagement.outpostId,
         outpostDisabled: engagement.disabledUntil !== null,
         shock: engagement.shock === true,
+        defence: engagement.defence === true,
         mine: tally(side),
         theirs: tally(side === 'attacker' ? 'defender' : 'attacker'),
         ...facedOf(engagement, side),

@@ -232,6 +232,7 @@ export async function resolveContact(
     outpostId,
     disabledUntil,
     ...(mode === 'shock' ? { shock: true } : {}),
+    ...(mode === 'defence' ? { defence: true } : {}),
     nations: {
       attacker: (await ctx.db.get(attacker.playerId))?.nation ?? null,
       defender: (await ctx.db.get(defender.playerId))?.nation ?? null,

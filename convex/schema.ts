@@ -1123,6 +1123,9 @@ export default defineSchema({
     /** **Un choc** (B17) : charge contre charge, les deux camps ont tiré ensemble. Absent, une
      *  passe à l'initiative. */
     shock: v.optional(v.boolean()),
+    /** **Une riposte de garnison** (ADR 0046 §4) : la défense a tiré la première, sur une frappe de
+     *  bâtiment. Absent, une passe à l'initiative de l'attaquant. */
+    defence: v.optional(v.boolean()),
     /**
      * **Au feu, on voit l'ennemi** (F1, 14/10/2026) : la nation de chaque camp au moment de la
      * passe — ses rôles et effectifs sont déjà dans `troops`. Servie à l'autre participant
