@@ -50,8 +50,10 @@ Décision de Pierre du 25/11 : une intégrité simple à deux ou trois états, p
 5. **Le rétablissement est seul** 🟠. Endommagé dure `DAMAGED_HOURS` (24, `@a-mesurer`) ;
    désactivé dure `BUILDING_DISABLED_HOURS` (12, l'actuel `PLUNDER_DISABLED_HOURS` renommé), puis
    le bâtiment revient **intact**. Ni ordre ni coût. Un bâtiment qui se rétablit est **à l'abri**
-   `BUILDING_IMMUNITY_HOURS` (6, `@a-mesurer`, comme l'avant-poste) 🟠 : une frappe sur lui est
-   refusée (`STRIKE_TARGET_IMMUNE`). Sans abri, un joueur riche maintient l'économie d'un autre
+   `BUILDING_IMMUNITY_HOURS` (6, `@a-mesurer`, comme l'avant-poste) 🟠 : une frappe qui arrive sur
+   lui ne porte pas, la colonne rentre et `strikeFoundNothing` le dit (motif `immune`). L'abri se
+   lit à l'arrivée, jamais à l'ordre : un refus à l'ordre apprendrait à l'attaquant un état que
+   son relevé ne montre pas (ADR 0005, point 7). Sans abri, un joueur riche maintient l'économie d'un autre
    éteinte à perpétuité.
 6. **Ce que perd un désactivé** (même lecture `integrityOf`, à l'écran par son refus) :
    - les quatre extracteurs, les chaînes, l'entrepôt : ce que le sabotage fait déjà (ne produit
