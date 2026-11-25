@@ -14,8 +14,8 @@ sept).
 
 ## 1. Lire avant d'écrire
 
-Lis le code qui existe et la source du besoin (retour de Pierre, ADR, `WWS/docs/RESTE-A-CODER.md`,
-`WWS/QUESTIONS.md`). Le constat du **Pourquoi** cite ce que le code fait aujourd'hui, avec le fichier.
+Lis le code qui existe et la source du besoin (retour de Pierre, ADR, issues liées, la réserve
+#659). Le constat du **Pourquoi** cite ce que le code fait aujourd'hui, avec le fichier.
 Une issue tirée d'un storyboard ou d'une maquette en reprend chaque ligne de mode (réduites,
 coupées, Blitz, adversaire, nuit) telle que la source l'écrit, avec le fichier ; ce que la source
 tait reste hors de l'issue (06/11 : des gerbes d'accostage inventées, des feux allumés en
