@@ -999,6 +999,8 @@ const ALARMS: ReadonlyArray<DispatchKind> = [
   'captureThreat',
   'siteLost',
   'sitePlundered',
+  /** Un bâtiment frappé : son propriétaire a une décision à prendre (riposter, se garder du second coup). */
+  'buildingStruck',
   'lootLost',
   /** Une cargaison coulée est une perte sèche, et la seule que la passe ne raconte pas. */
   'drownedAtSea',

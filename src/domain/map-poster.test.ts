@@ -114,6 +114,39 @@ const capture = (side: 'capturer' | 'defender', id: string): PlayerView['capture
   stoppedAt: null,
 });
 
+describe('a struck building on the poster of its owner (ADR 0046)', () => {
+  const struck = (integrity: 'damaged' | 'disabled', id = 'b-arsenal') =>
+    view({
+      me: {
+        ...me,
+        buildings: me.buildings.map((one) =>
+          one.id === id ? { ...one, integrity, restoresAt: LOADED_AT + 3_600_000 } : one,
+        ),
+      } as PlayerView['me'],
+    });
+  const chipOf = (v: PlayerView) =>
+    posterFor(v, [building('b-arsenal', 'arsenal', 'r-plain')], 'm-b-arsenal')?.lines.find(
+      (line) => line.kind === 'chip' && line.label === 'état',
+    );
+
+  it('says damaged or disabled, and the hour it is back', () => {
+    const back = asClockTime(LOADED_AT + 3_600_000);
+    expect(chipOf(struck('damaged'))).toEqual({
+      kind: 'chip',
+      label: 'état',
+      chip: `endommagé · intact vers ${back}`,
+      tone: 'cut',
+    });
+    expect(chipOf(struck('disabled'))).toMatchObject({
+      chip: `désactivé · rétabli vers ${back}`,
+    });
+  });
+
+  it('says nothing of an intact building', () => {
+    expect(chipOf(view())).toBeUndefined();
+  });
+});
+
 describe('a capture on the poster', () => {
   it('tells the defender how far it went and when the site is lost', () => {
     const poster = posterFor(

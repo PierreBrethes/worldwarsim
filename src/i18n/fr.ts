@@ -2729,6 +2729,12 @@ export const fr = {
     /** **Un état, jamais une action** (ADR 0020 §6) : le bâtiment est debout, entier, et il ne
      *  rend rien parce que sa région a changé de couleur. Rien à cliquer sur le site. */
     unlinked: 'hors réseau',
+    /** **Un bâtiment frappé** (ADR 0046), à son propriétaire : le tampon, puis ce que l'état change. */
+    struck: { damaged: 'endommagé', disabled: 'désactivé' },
+    struckWhy: (integrity: 'damaged' | 'disabled', back: string) =>
+      integrity === 'disabled'
+        ? `hors service : ni production, ni formation, ni départ jusqu’à ${back}`
+        : `fonctionne encore ; un second coup le désactiverait — intact vers ${back}`,
     /** Le teneur de Narvik : coupé, le site produit encore une part (`outputShareOf`) ; zéro, le
      *  tampon commun. La seule lecture : site, affiche. */
     unlinkedBy: (share: number) =>
@@ -2916,14 +2922,16 @@ export const fr = {
         building: BuildingKey,
         region: string,
         reason: 'gone' | 'disabled' | 'immune',
-      ) =>
-        `Frappe sans objet — ${region} : ${fr.buildings[building]} ${
+      ) => {
+        const e = fr.buildingGender[building] === 'f' ? 'e' : '';
+        return `Frappe sans objet — ${region} : ${fr.buildings[building]} ${
           reason === 'gone'
-            ? 'relevé n’est plus là'
+            ? 'n’est plus là'
             : reason === 'disabled'
-              ? 'était déjà désactivé'
+              ? `était déjà désactivé${e}`
               : 'venait de se rétablir et reste à l’abri'
-        }. Les bombardiers rentrent.`,
+        }. Les bombardiers rentrent.`;
+      },
       lootLost: (loot: string) => `Charge perdue : ${loot}.`,
       lootRecovered: (country: string, loot: string) =>
         `Charge récupérée après combat — ${country} : ${loot}.`,
@@ -5430,6 +5438,13 @@ export const fr = {
     building: (name: string, level: number) => `${name}, niv. ${level}`,
     network: 'réseau',
     linked: 'relié',
+    /** **Un bâtiment frappé** (ADR 0046) : l'état, et l'heure de son retour — désactivé, il est
+     *  « rétabli » ; endommagé, il redevient « intact ». */
+    state: 'état',
+    struck: (integrity: 'damaged' | 'disabled', back: string) =>
+      integrity === 'disabled'
+        ? `désactivé · rétabli vers ${back}`
+        : `endommagé · intact vers ${back}`,
     /** **Le mode chantier** : le nom, le niveau, le reste et la barre ne se lisent qu'ici. */
     worksSite: (region: string) => `chantier · ${region}`,
     raisingSite: (region: string) => `élévation · ${region}`,

@@ -789,6 +789,83 @@ describe('a lifted capture', () => {
   });
 });
 
+describe('the dispatches of a strike on a building (ADR 0046)', () => {
+  const read = (notice: Notice) => journalDispatches([], null, [notice])[0]!;
+
+  it('tells the owner what was struck, the notch it took and when it is back, and alarms', () => {
+    const damaged = read({
+      kind: 'buildingStruck',
+      at: NOON,
+      building: 'airfield',
+      regionName: 'Marne',
+      integrity: 'damaged',
+      restoresAt: NOON + 3_600_000,
+    });
+    expect(damaged.text).toBe(
+      'Aérodrome de Marne frappé — endommagé : un second coup le désactiverait.',
+    );
+    expect(isAlarm(damaged.kind)).toBe(true);
+    expect(damaged.severity).toBe('notable');
+    const disabled = read({
+      kind: 'buildingStruck',
+      at: NOON,
+      building: 'barracks',
+      regionName: 'Marne',
+      integrity: 'disabled',
+      restoresAt: NOON + 3_600_000,
+    });
+    expect(disabled.text).toContain('frappée — désactivée');
+    expect(disabled.severity).toBe('critical');
+    expect(disabled.resolutionAt).toBeDefined();
+  });
+
+  it('tells the striker the notch he landed, or that the garrison held him off, with his losses', () => {
+    const landed = read({
+      kind: 'strikeDelivered',
+      at: NOON,
+      building: 'warehouse',
+      regionName: 'Ruhr',
+      notch: 'disabled',
+      destroyed: 2,
+      combatId: null,
+    });
+    expect(landed.text).toBe('Frappe portée — Entrepôt de Ruhr désactivé. Pertes : 2 troupes.');
+    const repelled = read({
+      kind: 'strikeDelivered',
+      at: NOON,
+      building: 'warehouse',
+      regionName: 'Ruhr',
+      notch: null,
+      destroyed: 1,
+      combatId: null,
+    });
+    expect(repelled.text).toContain('aucun bombardier n’a passé la garnison');
+    expect(repelled.text).toContain('Pertes : 1 troupe.');
+  });
+
+  it('tells the striker why he found nothing', () => {
+    const said = (reason: 'gone' | 'disabled' | 'immune') =>
+      read({
+        kind: 'strikeFoundNothing',
+        at: NOON,
+        building: 'port',
+        regionName: 'Ruhr',
+        reason,
+      }).text;
+    expect(said('immune')).toContain('venait de se rétablir et reste à l’abri');
+    expect(said('disabled')).toContain('Port était déjà désactivé');
+    expect(said('gone')).toContain('Port n’est plus là');
+    const barracks = read({
+      kind: 'strikeFoundNothing',
+      at: NOON,
+      building: 'barracks',
+      regionName: 'Ruhr',
+      reason: 'disabled',
+    });
+    expect(barracks.text).toContain('Caserne était déjà désactivée');
+  });
+});
+
 describe('the account of a pass of defence (ADR 0046)', () => {
   it('says the garrison fired first, from either camp', () => {
     expect(fr.combat.beats(true, 40, 100, false, true)).toBe(
