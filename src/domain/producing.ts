@@ -14,7 +14,7 @@ export function producingSites(me: {
     readonly id: string;
     readonly key: BuildingKey;
     readonly regionId: string;
-    /** Out of service (`PLUNDER_DISABLED_HOURS`): the served rate is its neighbours', not its own. */
+    /** Out of service (`BUILDING_DISABLED_HOURS`): the served rate is its neighbours', not its own. */
     readonly disabled?: true;
     /** Its heap, when it is an exploitation: a full one takes nothing more (`heapAt`). */
     readonly heap?: { readonly amount: number; readonly cap: number };

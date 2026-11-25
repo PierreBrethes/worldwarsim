@@ -43,7 +43,7 @@ import {
 } from './cargo';
 import {
   CARRY_CAPACITY_BY_ROLE,
-  PLUNDER_DISABLED_HOURS,
+  BUILDING_DISABLED_HOURS,
   PLUNDER_HOURS_PRESENT,
   buildCost,
   routeMinutes,
@@ -1057,7 +1057,7 @@ export const previewPlunder = query({
           ? ('loot' as const)
           : ('sabotage' as const),
       presenceHours: PLUNDER_HOURS_PRESENT,
-      disabledHours: PLUNDER_DISABLED_HOURS,
+      disabledHours: BUILDING_DISABLED_HOURS,
       /** **Dakar** : ce que le pillage laisse par ressource chez son teneur, la fonction même que
        *  `completePresence` applique ; `null` hors Dakar ou pour un site qui ne se vide pas. */
       spared: await ctx.db

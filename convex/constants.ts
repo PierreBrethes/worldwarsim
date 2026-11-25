@@ -1033,12 +1033,12 @@ export const OUTPOST_IMMUNITY_HOURS = 3;
 /**
  * First playable values for the warehouse expedition. They establish the two separate waits —
  * holding the site, then keeping it out of service — but no simulation or game has balanced
- * either one.
+ * either one. The second is any building's **désactivé**, by sabotage or by strike (ADR 0046 §5).
  *
  * @a-mesurer starting points only; no simulation models plunder presence or warehouse downtime
  */
 export const PLUNDER_HOURS_PRESENT = 2;
-export const PLUNDER_DISABLED_HOURS = 12;
+export const BUILDING_DISABLED_HOURS = 12;
 
 /**
  * **Le temps qu'une infanterie à pleine force met à capturer**, par mode et par cible (décision du

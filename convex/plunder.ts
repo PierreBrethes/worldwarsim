@@ -11,7 +11,7 @@ import {
   raidsStock,
   sparedPerResourceOf,
 } from '../src/domain/loot';
-import { CARRY_CAPACITY_BY_ROLE, PLUNDER_DISABLED_HOURS, PLUNDER_HOURS_PRESENT } from './constants';
+import { CARRY_CAPACITY_BY_ROLE, BUILDING_DISABLED_HOURS, PLUNDER_HOURS_PRESENT } from './constants';
 import { resolveContact } from './combat';
 import { heldOver } from './holding';
 import { plunderTargetAt } from './movement/orders';
@@ -276,7 +276,7 @@ export async function completePresence(
       : emptyStocks();
   if (isWarehouse) await debit(ctx, target.playerId, taken, now);
 
-  const disabledUntil = now + PLUNDER_DISABLED_HOURS * 3_600_000;
+  const disabledUntil = now + BUILDING_DISABLED_HOURS * 3_600_000;
   /** Hors service, son tas ne monte plus : réglé à l'heure du raid, au débit qui l'a fait, moins
    *  ce que la colonne emporte (le reste du tas y reste). */
   if (heap !== undefined) await takeHeap(ctx, target, heap, loots ? taken[heap.resource] : 0, now);

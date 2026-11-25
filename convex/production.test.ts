@@ -12,7 +12,7 @@ import {
   EXTRACTION_PER_HOUR,
   NARVIK_UNLINKED_SHARE,
   OUTPOST_DISABLED_HOURS,
-  PLUNDER_DISABLED_HOURS,
+  BUILDING_DISABLED_HOURS,
   STORAGE_CAP_PER_LEVEL,
   buildCost,
   buildMinutes,
@@ -562,7 +562,7 @@ describe('a building only produces when its region carries its colour', () => {
     const { seat } = await launchedSeason(t);
     const warehouseId = await raise(t, seat, 'warehouse', MARNE);
     const player = await seatOf(t, seat);
-    const disabledUntil = MIDDAY + PLUNDER_DISABLED_HOURS * HOUR;
+    const disabledUntil = MIDDAY + BUILDING_DISABLED_HOURS * HOUR;
     await t.run((ctx) => ctx.db.patch(warehouseId, { disabledUntil }));
 
     expect((await t.run((ctx) => economyOf(ctx, player._id, MIDDAY))).cap.food).toBe(BASE_CAP);

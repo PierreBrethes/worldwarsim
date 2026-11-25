@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 96def20 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 394776a -->
 
 # Les constantes à mesurer
 
@@ -70,7 +70,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `OUTPOST_DISABLED_HOURS` | `6` | `convex/constants.ts:1030` | neither figure is in the design; shaped only so the pair reads on a 48-hour season |
 | `OUTPOST_IMMUNITY_HOURS` | `3` | `convex/constants.ts:1031` | neither figure is in the design; shaped only so the pair reads on a 48-hour season |
 | `PLUNDER_HOURS_PRESENT` | `2` | `convex/constants.ts:1040` | starting points only; no simulation models plunder presence or warehouse downtime |
-| `PLUNDER_DISABLED_HOURS` | `12` | `convex/constants.ts:1041` | starting points only; no simulation models plunder presence or warehouse downtime |
+| `BUILDING_DISABLED_HOURS` | `12` | `convex/constants.ts:1041` | starting points only; no simulation models plunder presence or warehouse downtime |
 | `CAPTURE_MINUTES` | `{ /** Un point stratégique se prend comme un bâtiment : six heures (P1), à mesurer comme le reste. */ mondiale: { building: 360, outpost: 360, point: 360 }, /** Le QG de la Blitz, deux fois un bâtiment : sa chute élimine (B10), et le défenseur doit * avoir le temps de revenir. */ blitz: { building: 2.4, outpost: 2.4, hq: 4.8 } } as const satisfies Record<SeasonMode, Record<'building' \| 'outpost', number>> & { mondiale: { point: number }; blitz: { hq: number }; }` | `convex/constants.ts:1051` | « ≈ 6 h » et « ≈ 3 min » du grilling du 14/10, « ≈ 6 min » pour le QG (lot 6), jamais |
 | `LAST_KNOWN_HOURS` | `24` | `convex/constants.ts:1073` | une journée, choisie pour qu'un relevé du soir serve encore au matin sur une saison |
 | `LOOT_CRATE_HOURS` | `24` | `convex/constants.ts:1082` | provisional lifetime; no season simulation models crate discovery or collection |

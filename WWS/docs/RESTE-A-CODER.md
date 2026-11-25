@@ -224,7 +224,7 @@ La table ci-dessus garde une ligne par lot, son état et sa preuve.
 
 **Limite S9 assumée** : le contrôle de l'expédition à deux joueurs sur une partie réelle n'a pas
 été fait — la preuve tient au scénario public complet de `convex/plunder.test.ts` et au miroir
-local. `PLUNDER_HOURS_PRESENT` et `PLUNDER_DISABLED_HOURS` restent `@a-mesurer`.
+local. `PLUNDER_HOURS_PRESENT` et `BUILDING_DISABLED_HOURS` restent `@a-mesurer`.
 
 La séquence a été tenue dans cet ordre et pour cette raison : S5 scindé parce que les relevés ne
 donnaient pas encore de cibles bâtiment adverses ; S5b arrêté sur des fixtures internes, sans

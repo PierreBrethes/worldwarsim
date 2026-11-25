@@ -9,7 +9,7 @@ import {
   EXTRACTION_PER_HOUR,
   HEAP_CAP_HOURS,
   nominalStrength,
-  PLUNDER_DISABLED_HOURS,
+  BUILDING_DISABLED_HOURS,
   PLUNDER_HOURS_PRESENT,
 } from './constants';
 import { regionFacts, pointOfRegion } from './regions';
@@ -830,7 +830,7 @@ describe('plunder presence', () => {
     const takenAt = await completePresence(t, movementId);
 
     const target = await t.run((ctx) => ctx.db.get(warehouseId));
-    expect(target?.disabledUntil).toBe(takenAt + PLUNDER_DISABLED_HOURS * HOUR);
+    expect(target?.disabledUntil).toBe(takenAt + BUILDING_DISABLED_HOURS * HOUR);
     const stocks = await stocksOf(t, guest);
     expect(stocks.food).toBe(BASE_CAP);
     expect(stocks.steel).toBe(BASE_CAP);
@@ -1112,7 +1112,7 @@ describe('plunder presence', () => {
     );
     expect(served?.heap?.amount).toBeCloseTo(amount!, 4);
 
-    const back = at + PLUNDER_DISABLED_HOURS * HOUR;
+    const back = at + BUILDING_DISABLED_HOURS * HOUR;
     vi.setSystemTime(back + 2 * HOUR);
     await t.mutation(internal.production.restoreAfterDisabling, {
       seasonId: owner.seasonId,
@@ -1208,7 +1208,7 @@ describe('a raid on an exploitation carries its heap off (ADR 0041 §4)', () => 
     });
     expect(owner.find((notice) => notice.kind === 'siteSabotaged')).toBeUndefined();
     expect((await t.run((ctx) => ctx.db.get(wellId)))?.disabledUntil).toBe(
-      at + PLUNDER_DISABLED_HOURS * HOUR,
+      at + BUILDING_DISABLED_HOURS * HOUR,
     );
   });
 
