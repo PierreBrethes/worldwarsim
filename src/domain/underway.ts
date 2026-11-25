@@ -52,7 +52,20 @@ export type Underway = {
   readonly span?: number;
   /** **Une ronde qu'on peut rappeler** (#376) : sa troupe. */
   readonly recall?: string;
+  /** **Figé** sous son QG désactivé (ADR 0046 §8) : son reste, en ms, qui ne décompte pas. */
+  readonly frozenMs?: number;
 };
+
+/** **Ce qui reste à une ligne à `now`** : figée, son reste ne bouge pas. La colonne et le tiroir. */
+export const underwayLeftMs = (line: Underway, now: number): number =>
+  line.frozenMs ?? line.endsAt - now;
+
+const frozenLabel = (work: { readonly frozen?: true }, label: string): string =>
+  work.frozen === true ? fr.underway.frozen(label) : label;
+
+/** La tête de file figée : son reste fixe, et le mot qui le dit. */
+const frozenOf = (work: { readonly minutesLeft: number; readonly frozen?: true }) =>
+  work.frozen === true ? { frozenMs: work.minutesLeft * 60_000 } : {};
 
 /** Un lot de recrutement commencé, tel que l'atelier le date (`troops.workshop`) : il n'est pas
  *  dans la vue, qui ne sert que la liste des casernes occupées. */
@@ -121,13 +134,17 @@ export function underwayOf(
         lines.push({
           id: `construction-${work.id}`,
           endsAt: at(work.minutesLeft),
+          ...frozenOf(work),
           ...(work.minutes === undefined ? {} : { span: work.minutes * 60_000 }),
-          label: work.respecialize
-            ? fr.underway.respecialize(fr.specialties[work.specialty ?? 'general'])
-            : fr.underway.raise(
-                outpost.level + 1,
-                work.specialty === null ? undefined : fr.specialties[work.specialty],
-              ),
+          label: frozenLabel(
+            work,
+            work.respecialize
+              ? fr.underway.respecialize(fr.specialties[work.specialty ?? 'general'])
+              : fr.underway.raise(
+                  outpost.level + 1,
+                  work.specialty === null ? undefined : fr.specialties[work.specialty],
+                ),
+          ),
           face: { kind: 'outpost' },
           place: { kind: 'outpost', outpostId: outpost.id },
           moving: false,
@@ -147,14 +164,18 @@ export function underwayOf(
       lines.push({
         id: `construction-${work.id}`,
         endsAt: at(work.minutesLeft),
+        ...frozenOf(work),
         ...(work.minutes === undefined ? {} : { span: work.minutes * 60_000 }),
-        label: fr.underway.construction(
-          work.name,
-          standing !== undefined
-            ? standing.level + 1
-            : work.kept === undefined
-              ? 1
-              : keptLevelOf(work.kept, view.me.hqLevel),
+        label: frozenLabel(
+          work,
+          fr.underway.construction(
+            work.name,
+            standing !== undefined
+              ? standing.level + 1
+              : work.kept === undefined
+                ? 1
+                : keptLevelOf(work.kept, view.me.hqLevel),
+          ),
         ),
         face: { kind: 'building', key: work.key },
         place: { kind: 'building', regionId: work.regionId, key: work.key, point: work.point },

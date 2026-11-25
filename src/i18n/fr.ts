@@ -310,6 +310,15 @@ const longDate = (date: string, options: Intl.DateTimeFormatOptions): string =>
     .replace(/^1 /, '1er ')
     .replace(/ 1 /, ' 1er ');
 
+/** **Ce qu'un bâtiment désactivé ne fait plus** (ADR 0046 §6, §8) : la phrase du tampon et celle de
+ *  la dépêche. Le QG garde ses mouvements, le Centre sa carte en cours, qui attend. */
+const disabledLossOf = (key: BuildingKey): string =>
+  key === 'hq'
+    ? 'ni chantier ni recherche, ses chantiers attendent'
+    : key === 'researchCenter'
+      ? 'aucune carte, la recherche attend'
+      : 'ni production, ni formation, ni départ';
+
 export const fr = {
   nations: {
     france: 'France',
@@ -1042,9 +1051,14 @@ export const fr = {
     STRIKE_ESCORT_FIGHTERS_ONLY: () =>
       'une frappe ne part qu’avec des bombardiers et leurs chasseurs d’escorte',
     NOT_A_STRIKE_TARGET: () =>
-      'ce bâtiment ne se frappe pas : ni un poste d’écoute, ni un QG, ni un centre de recherche',
+      'un poste d’écoute ne se frappe pas : sa portée est le brouillard, pas une cible',
     STRIKE_NOT_IN_BLITZ: () => 'la Blitz n’a pas de frappe : on y capture',
-    BUILDING_DISABLED: () => 'ce bâtiment est désactivé : il ne forme rien et rien n’en part',
+    BUILDING_DISABLED: (d) =>
+      d.building === 'hq'
+        ? 'le QG est désactivé : il ne lance ni chantier ni recherche avant son retour'
+        : d.building === 'researchCenter'
+          ? 'le Centre de recherche est désactivé : aucune carte ne se pose avant son retour'
+          : 'ce bâtiment est désactivé : il ne forme rien et rien n’en part',
     CAPTURE_NEEDS_INFANTRY: () => 'seule l’infanterie capture : il en faut au moins une troupe',
     CAPTURE_STARVING: () => 'l’armée a faim : elle ne capture plus avant d’être nourrie',
     CAPTURE_ON_FOOT: () => 'l’infanterie capture à pied : débarquez-la d’abord',
@@ -2474,6 +2488,8 @@ export const fr = {
    * proche au plus lointain. Les libellés sont en capitales par la feuille de style.
    */
   underway: {
+    /** Son QG désactivé (ADR 0046 §8) : le chantier attend, son reste ne décompte pas. */
+    frozen: (label: string) => `${label} · figé`,
     header: 'en cours',
     fold: 'replier la colonne « en cours »',
     unfold: 'déplier la colonne « en cours »',
@@ -2731,9 +2747,9 @@ export const fr = {
     unlinked: 'hors réseau',
     /** **Un bâtiment frappé** (ADR 0046), à son propriétaire : le tampon, puis ce que l'état change. */
     struck: { damaged: 'endommagé', disabled: 'désactivé' },
-    struckWhy: (integrity: 'damaged' | 'disabled', back: string) =>
+    struckWhy: (integrity: 'damaged' | 'disabled', back: string, key: BuildingKey) =>
       integrity === 'disabled'
-        ? `hors service : ni production, ni formation, ni départ jusqu’à ${back}`
+        ? `hors service : ${disabledLossOf(key)} jusqu’à ${back}`
         : `fonctionne encore ; un second coup le désactiverait — intact vers ${back}`,
     /** Le teneur de Narvik : coupé, le site produit encore une part (`outputShareOf`) ; zéro, le
      *  tampon commun. La seule lecture : site, affiche. */
@@ -2902,7 +2918,7 @@ export const fr = {
       ) => {
         const e = fr.buildingGender[building] === 'f' ? 'e' : '';
         return integrity === 'disabled'
-          ? `${fr.buildings[building]} de ${region} frappé${e} — désactivé${e} : ni production, ni formation, ni départ jusqu’à son rétablissement.`
+          ? `${fr.buildings[building]} de ${region} frappé${e} — désactivé${e} : ${disabledLossOf(building)} jusqu’à son rétablissement.`
           : `${fr.buildings[building]} de ${region} frappé${e} — endommagé${e} : un second coup le désactiverait.`;
       },
       strikeDelivered: (
@@ -4232,6 +4248,8 @@ export const fr = {
     raiseTitle: (name: string, level: number) =>
       `mettre ${lowerFirst(name)} en file pour le niveau ${level}`,
     underway: (time: string) => `en chantier · ${time}`,
+    /** Son QG désactivé (ADR 0046 §8) : le chantier attend son retour. */
+    frozen: (time: string) => `figé, QG désactivé · reste ${time}`,
     queued: (rank: number) => `en file · ${rank}ᵉ`,
     lacking: (amount: number, resource: string) => `il manque ${num(amount)} ${resource}`,
   },
@@ -4362,6 +4380,7 @@ export const fr = {
     workRank: (rank: number, work: string) => `${rank}. ${work}`,
     /** Le volet coupe la région, jamais la durée : ce qui suit le lieu, seul. */
     runningTail: (time: string) => ` · reste ${time}`,
+    frozenTail: (time: string) => ` · figé, reste ${time}`,
     queuedTail: (time: string) => ` · ${time}`,
     /** Une tuile dont la pareille est debout : elle l'élève, au prix de l'élévation. */
     raiseTo: (from: number, to: number) => `niv.\u00a0${from} → ${to}`,
@@ -4412,6 +4431,9 @@ export const fr = {
     running: (percent: number, time: string) => `en cours · ${percent} % · reste ${time}`,
     waiting: 'attend un Centre de recherche',
     waitingAt: (percent: number) => `${percent} % · attend un Centre de recherche`,
+    /** Son Centre désactivé (ADR 0046 §8) : la carte reprend à son retour. */
+    waitingBack: (percent: number, back: string) =>
+      `${percent} % · Centre désactivé, reprend vers ${back}`,
     left: (time: string) => `reste ${time}`,
     missing: (cards: string) => `il manque ${cards}`,
     inProgress: ' (en cours)',
@@ -5584,6 +5606,8 @@ export function upgradeHoldText(hold: UpgradeHold): string {
       });
     case 'hqFirst':
       return fr.errors.HQ_FIRST();
+    case 'hqDisabled':
+      return fr.errors.BUILDING_DISABLED({ building: 'hq' });
     case 'alreadyQueued':
       return fr.upgrade.alreadyQueued;
     case 'cappedByHq':
@@ -5640,6 +5664,8 @@ export function raiseHoldText(hold: OutpostRaiseHold): string {
       return fr.garrison.raiseAtMaximum(hold.maximum);
     case 'disabled':
       return fr.garrison.raiseDisabled;
+    case 'hqDisabled':
+      return fr.errors.BUILDING_DISABLED({ building: 'hq' });
     case 'alreadyQueued':
       return fr.garrison.raiseQueued;
     case 'materials':
@@ -5698,6 +5724,8 @@ export function aimRefusalText(
       return errors.RESEARCH_REQUIRED({ card: lockedBy });
     case 'ALREADY_BUILT':
       return key === 'hq' ? fr.placing.hqUnique : errors.ALREADY_BUILT({ building: key });
+    case 'BUILDING_DISABLED':
+      return errors.BUILDING_DISABLED({ building: 'hq' });
     case 'HQ_FIRST':
     case 'DEPOSIT_TAKEN':
     case 'NOT_ON_LAND':
@@ -5723,6 +5751,8 @@ export function aimRefusalShort(refusal: NonNullable<AimVerdict['refusal']>): st
       return 'recherche requise';
     case 'HQ_FIRST':
       return 'le QG d’abord';
+    case 'BUILDING_DISABLED':
+      return 'QG désactivé';
     case 'ALREADY_BUILT':
       return 'déjà bâti';
     default:

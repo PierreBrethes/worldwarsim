@@ -5,7 +5,7 @@ import { isOutpostWork } from '@/domain/ids';
 import { slotCardsOf } from '@/domain/research';
 import { halifaxNoteOf } from '@/domain/movement-orders';
 import { HalifaxMark } from './HalifaxMark';
-import { currentMinutes, currentStock, type PlayerView } from '@/domain/player-view';
+import { currentStock, workMinutesLeft, type PlayerView } from '@/domain/player-view';
 import { displayedStock } from '@/domain/reserve-counter';
 import { useMapMotion } from '@/data/mapMotion';
 import { asClockTime, asDuration } from '@/domain/duration';
@@ -249,7 +249,7 @@ function SiteCell({ view, now }: { view: PlayerView; now: number }) {
         {site.name}
       </span>
       <span className="font-(family-name:--font-mono) text-[11.5px] text-[var(--ink-soft)]">
-        {asDuration(currentMinutes(site.minutesLeft, view.loadedAt, now))}
+        {asDuration(workMinutesLeft(site, view.loadedAt, now))}
       </span>
     </div>
   );

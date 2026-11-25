@@ -10,6 +10,7 @@ import {
   depositHolders,
   PLACING_SNAP_KM,
   riseOf,
+  siteRiseAt,
   snapTo,
   raiseChoosesSpecialty,
   specialtyRefusalOf,
@@ -56,12 +57,13 @@ describe('what holds a raise back', () => {
     queue?: PlayerView['me']['constructionQueue'];
     hqLevel?: number;
     outposts?: PlayerView['me']['outposts'];
+    buildings?: ReadonlyArray<Building>;
   }): PlayerView =>
     ({
       me: {
         construction: overrides.construction ?? null,
         constructionQueue: overrides.queue ?? [],
-        buildings: [],
+        buildings: overrides.buildings ?? [],
         hqLevel: overrides.hqLevel ?? 1,
         outposts: overrides.outposts ?? [],
         resources: Object.fromEntries(
@@ -138,6 +140,25 @@ describe('what holds a raise back', () => {
     });
   });
 
+  /** ADR 0046 §8 (#648) : son QG désactivé, lu sur sa vue ; revenu, il ne retient plus rien. */
+  it('holds a raise while his headquarters is disabled, and lets it through once it is back', () => {
+    const hq = (restoresAt: number) =>
+      building({ id: 'hq-1', key: 'hq', integrity: 'disabled', restoresAt });
+    expect(
+      upgradeHold(building(), viewWith({ buildings: [hq(LOADED_AT + 60_000)] }), LOADED_AT),
+    ).toEqual({ kind: 'hqDisabled' });
+    expect(
+      upgradeHold(building(), viewWith({ buildings: [hq(LOADED_AT - 1)] }), LOADED_AT),
+    ).toBeNull();
+    expect(
+      upgradeHold(
+        building(),
+        viewWith({ buildings: [{ ...hq(LOADED_AT + 60_000), captured: true }] }),
+        LOADED_AT,
+      ),
+    ).toBeNull();
+  });
+
   /** The whole point of anticipating the refusal: the shortfall is named, never "impossible". */
   it('names the resource that is short, and by how much', () => {
     const hold = upgradeHold(building(), viewWith({ stocks: { coal: 12 } }), LOADED_AT);
@@ -169,22 +190,36 @@ describe('what holds a raise back', () => {
  * refus même de `constructions.start`, lu sur les faits que la vue et la carte portent.
  */
 describe('raiseRefusalOf', () => {
-  const free = { reached: true, hqLevel: 1, queued: false, cappedByHq: false };
+  const free = { reached: true, hqLevel: 1, hqDisabled: false, queued: false, cappedByHq: false };
 
   it('lets a reached, queue-free, uncapped raise through', () => {
     expect(raiseRefusalOf(free)).toBeNull();
   });
 
   it('refuses ground nothing reaches, before anything else', () => {
-    expect(raiseRefusalOf({ reached: false, hqLevel: 0, queued: true, cappedByHq: true })).toBe(
-      'OUT_OF_OUTPOST_REACH',
-    );
+    expect(
+      raiseRefusalOf({
+        reached: false,
+        hqLevel: 0,
+        hqDisabled: true,
+        queued: true,
+        cappedByHq: true,
+      }),
+    ).toBe('OUT_OF_OUTPOST_REACH');
   });
 
   it('refuses until the headquarters stands, then the point already queued, then the ceiling', () => {
     expect(raiseRefusalOf({ ...free, hqLevel: 0, queued: true })).toBe('HQ_FIRST');
     expect(raiseRefusalOf({ ...free, queued: true, cappedByHq: true })).toBe('ALREADY_QUEUED_HERE');
     expect(raiseRefusalOf({ ...free, cappedByHq: true })).toBe('CAPPED_BY_HQ');
+  });
+
+  /** ADR 0046 §8 (#648) : un QG désactivé ne lance plus de chantier, le sien compris. */
+  it('refuses a raise while the headquarters is disabled, ahead of the queue and the ceiling', () => {
+    expect(raiseRefusalOf({ ...free, hqDisabled: true, queued: true, cappedByHq: true })).toBe(
+      'BUILDING_DISABLED',
+    );
+    expect(raiseRefusalOf({ ...free, hqLevel: 0, hqDisabled: true })).toBe('HQ_FIRST');
   });
 });
 
@@ -254,6 +289,19 @@ describe('the point aimed at', () => {
 
   it('takes a point on national soil, and says nothing', () => {
     expect(refusalOf(view({}), 'barracks', aim(PARIS))).toBeNull();
+  });
+
+  /** ADR 0046 §8 (#648) : le fantôme dit le refus du serveur sous un QG désactivé. */
+  it('refuses any point while his headquarters is disabled', () => {
+    const struck = {
+      ...view({
+        buildings: [
+          { key: 'hq', point: [-4.5, 48.4], integrity: 'disabled', restoresAt: 2 } as never,
+        ],
+      }),
+      loadedAt: 1,
+    } as PlayerView;
+    expect(refusalOf(struck, 'barracks', aim(PARIS))).toEqual({ code: 'BUILDING_DISABLED' });
   });
 
   it('says the sea, or a map not yet drawn, is no ground', () => {
@@ -467,6 +515,7 @@ describe('raising an outpost', () => {
   const point = (over: Partial<OutpostRaise> = {}): OutpostRaise => ({
     level: 1,
     disabled: false,
+    hqDisabled: false,
     queued: false,
     stocks: STOCKED,
     ...over,
@@ -488,6 +537,13 @@ describe('raising an outpost', () => {
   /** **On ne rénove pas sous le feu** (décision 3a) : l'état, pas une perte — le point revient. */
   it('refuses a point a raid has put out of service', () => {
     expect(outpostRaiseHold(point({ disabled: true }), COST, 3)).toEqual({ kind: 'disabled' });
+  });
+
+  /** ADR 0046 §8 (#648) : la file des chantiers est celle du QG ; désactivé, il n'en lance plus. */
+  it('refuses a raise while the headquarters is disabled', () => {
+    expect(outpostRaiseHold(point({ hqDisabled: true, queued: true }), COST, 3)).toEqual({
+      kind: 'hqDisabled',
+    });
   });
 
   /** Une seconde élévation attendrait un niveau que la première n'a pas atteint, donc tarifé
@@ -532,6 +588,7 @@ describe('choosing an outpost’s specialty', () => {
     level: 2,
     specialty: 'store',
     disabled: false,
+    hqDisabled: false,
     queued: false,
     stocks: STOCKED,
     ...over,
@@ -550,6 +607,17 @@ describe('choosing an outpost’s specialty', () => {
 
   it('lets a payable change through', () => {
     expect(specialtyRefusalOf(point(), 'fort', BILL)).toBeNull();
+  });
+
+  /** ADR 0046 §8 (#648) : un changement est un chantier, que le QG désactivé ne lance pas ; le
+   *  choix gratuit n'en est pas un. */
+  it('refuses a change while the headquarters is disabled, never the free choice', () => {
+    expect(specialtyRefusalOf(point({ hqDisabled: true }), 'fort', BILL)).toEqual({
+      kind: 'hqDisabled',
+    });
+    expect(
+      specialtyRefusalOf(point({ hqDisabled: true, specialty: 'general' }), 'fort', BILL),
+    ).toBeNull();
   });
 
   it('chooses at level 2, never before', () => {
@@ -676,6 +744,20 @@ describe('workSitesOf', () => {
         minutes: 90,
       }),
     ]);
+  });
+
+  /** Revue de #648 : figé sous son QG désactivé, le chantier ne monte plus, à aucune heure. */
+  it('carries a frozen head with what it has left, and its rise holds at any hour', () => {
+    const [site] = workSitesOf(
+      me({ construction: { ...head('farm', 'r-a', 10), frozen: true } }),
+      CATALOG,
+      LOADED,
+    );
+    expect(site).toMatchObject({ phase: 'rising', frozenMinutesLeft: 10 });
+    expect(siteRiseAt(site!, LOADED)).toBeCloseTo(riseOf(10, 30));
+    expect(siteRiseAt(site!, LOADED + 86_400_000)).toBeCloseTo(riseOf(10, 30));
+    const [running] = workSitesOf(me({ construction: head('farm', 'r-a', 10) }), CATALOG, LOADED);
+    expect(siteRiseAt(running!, LOADED + 86_400_000)).toBe(1);
   });
 
   it('plans a queued first level by its rank and leaves it undated; a queued raise draws nothing', () => {

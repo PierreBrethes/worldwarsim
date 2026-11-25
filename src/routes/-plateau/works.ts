@@ -6,7 +6,7 @@ import { handleError } from '@/data/errors';
 import type { Seat } from '@/data/session';
 import { keptLevelOf } from '@/domain/construction';
 import { worksMinutes } from '@/domain/level-speed';
-import { currentMinutes, type PlayerView } from '@/domain/player-view';
+import { workMinutesLeft, type PlayerView } from '@/domain/player-view';
 import { fr } from '@/i18n/fr';
 
 /** Le chantier en tête puis la file, avec ce qui reste à chacun : le temps de la tête se lit
@@ -23,7 +23,9 @@ export function worksOf(view: PlayerView, now: number) {
       work,
       running,
       total,
-      left: running ? currentMinutes(work.minutesLeft, view.loadedAt, now) : total,
+      left: running ? workMinutesLeft(work, view.loadedAt, now) : total,
+      /** Figé sous son QG désactivé (ADR 0046 §8) : il a commencé, mais ne décompte pas. */
+      frozen: running && 'frozen' in work && work.frozen === true,
       name: fr.personalBoard.work(
         work.name,
         work.kept === undefined ? work.level : keptLevelOf(work.kept, view.me.hqLevel),

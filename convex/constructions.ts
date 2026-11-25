@@ -19,6 +19,7 @@ import {
 } from '../src/domain/economy';
 import {
   cancelWorkRefusalOf,
+  workStarted,
   outpostRaiseHold,
   raiseRefusalOf,
   specialtyRefusalOf,
@@ -36,6 +37,7 @@ import {
   buildingAt,
   buildingCostKey,
   cappedByHq,
+  hqDisabledIn,
   levelOf,
   playerBuildings,
   queueOf,
@@ -257,6 +259,7 @@ export const raiseOutpost = mutation({
       {
         level: outpost.level,
         disabled: disabledAt(outpost, now),
+        hqDisabled: hqDisabledIn(await playerBuildings(ctx, player._id), now),
         queued: queue.some((entry) => entry.outpostId === outpostId),
         stocks: (await economyOf(ctx, player._id, now)).stocks,
       },
@@ -319,6 +322,7 @@ export const respecializeOutpost = mutation({
         level: outpost.level,
         specialty: current,
         disabled: disabledAt(outpost, now),
+        hqDisabled: hqDisabledIn(await playerBuildings(ctx, player._id), now),
         queued: queue.some((entry) => entry.outpostId === outpostId),
         stocks: (await economyOf(ctx, player._id, now)).stocks,
       },
@@ -369,6 +373,7 @@ const disabledAt = (outpost: Doc<'outposts'>, now: number): boolean =>
 function refuseRaise(hold: OutpostRaiseHold): never {
   if (hold.kind === 'maxLevel') fail('MAX_LEVEL_REACHED', { maximum: hold.maximum });
   if (hold.kind === 'disabled') fail('OUTPOST_DISABLED');
+  if (hold.kind === 'hqDisabled') fail('BUILDING_DISABLED', { building: 'hq' });
   if (hold.kind === 'alreadyQueued') fail('OUTPOST_WORK_QUEUED');
   fail('INSUFFICIENT_RESOURCE', {
     resource: hold.resource,
@@ -416,7 +421,7 @@ export const cancel = mutation({
     requirePlayable(player, season);
     const entry = await ctx.db.get(constructionId);
     if (!entry || entry.playerId !== player._id) fail('UNKNOWN_CONSTRUCTION');
-    const refusal = cancelWorkRefusalOf({ started: entry.finishesAt !== null });
+    const refusal = cancelWorkRefusalOf({ started: workStarted(entry) });
     if (refusal !== null) fail(refusal);
 
     const refunded = billOfWork(entry);
@@ -647,6 +652,10 @@ async function startHead(ctx: MutationCtx, playerId: Id<'players'>, now: number)
   const season = await ctx.db.get(player.seasonId);
   if (!season) return;
 
+  /** **Un QG désactivé ne lance rien** (ADR 0046 §8) : la file attend, sans se relire — sa règle
+   *  refuserait ce qui est payé. `restoreAfterDisabling` la réveille à son retour. */
+  if (hqDisabledIn(await playerBuildings(ctx, playerId), now)) return;
+
   /** Une élévation qui attend la fin d'une désactivation ne tient pas de voie : la suite passe. */
   const waitingOut = new Set<Id<'constructions'>>();
 
@@ -716,8 +725,9 @@ async function runHead(ctx: MutationCtx, head: Doc<'constructions'>, now: number
    *  gain vaut pour la suite (ADR 0031). */
   const hqLevel = levelOf(await playerBuildings(ctx, head.playerId), 'hq');
   const minutes = worksMinutes(head.building, head.level, hqLevel);
-  const finishesAt = now + minutes * 60_000;
-  await ctx.db.patch(head._id, { finishesAt, minutes });
+  /** Un chantier figé (ADR 0046 §8) reprend de ce qu'il lui restait. */
+  const finishesAt = now + (head.frozenMs ?? minutes * 60_000);
+  await ctx.db.patch(head._id, { finishesAt, minutes, frozenMs: undefined });
   await ctx.scheduler.runAt(finishesAt, internal.constructions.finish, {
     constructionId: head._id,
   });
@@ -817,6 +827,7 @@ async function refusalFor(
    * a radius in kilometres from the outpost to the point, never a count of regions.
    */
   const reached = isReached(lonLat, region, sites);
+  const hqDisabled = hqDisabledIn(buildings, Date.now());
 
   if (building === 'hq' && buildings.some((held) => held.key === 'hq' && held !== standing)) {
     return { code: 'HQ_ALREADY_BUILT' };
@@ -835,12 +846,14 @@ async function refusalFor(
     const refusal = raiseRefusalOf({
       reached,
       hqLevel: building === 'hq' ? 1 : hqLevel,
+      hqDisabled,
       queued: queuedHere,
       cappedByHq: cappedByHq(building, standing.level, hqLevel),
     });
     if (refusal === 'OUT_OF_OUTPOST_REACH') {
       return { code: refusal, details: outOfReachDetails(sites.outposts) };
     }
+    if (refusal === 'BUILDING_DISABLED') return { code: refusal, details: { building: 'hq' } };
     if (refusal !== null) return { code: refusal };
   } else {
     if (building !== 'hq' && hqLevel === 0) return { code: 'HQ_FIRST' };
@@ -854,6 +867,7 @@ async function refusalFor(
       await spotAt(ctx, player, building, lonLat, regionId, reached, buildings, pledged),
       hqLevel,
       lockedBy,
+      hqDisabled,
     );
     if (refusal !== null)
       return placementRefusalOf(refusal, {
@@ -1035,6 +1049,8 @@ function placementRefusalOf(
       return { code: refusal, details: { building } };
     case 'HQ_FIRST':
       return { code: refusal };
+    case 'BUILDING_DISABLED':
+      return { code: refusal, details: { building: 'hq' } };
     // The refusal names its card: « demande la recherche Aviation » is a plan, « impossible » a wall.
     case 'RESEARCH_REQUIRED':
       return { code: refusal, details: { card: lockedBy } };

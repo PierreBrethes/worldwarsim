@@ -20,6 +20,7 @@ import {
 import {
   availabilityOf,
   choosesFreely,
+  hqDisabledOf,
   outpostRaiseHold,
   raiseChoosesSpecialty,
   specialtyRefusalOf,
@@ -535,6 +536,7 @@ function OutpostRaise({
     {
       level: outpost.level,
       disabled: outpost.disabledMinutesLeft !== null,
+      hqDisabled: hqDisabledOf(view, now),
       queued: pledgedOutposts(view).has(outpost.id),
       stocks,
     },
@@ -729,6 +731,7 @@ function OutpostSpecialty({
     level: outpost.level,
     specialty: outpost.specialty,
     disabled: outpost.disabledMinutesLeft !== null,
+    hqDisabled: hqDisabledOf(view, now),
     queued: pledgedOutposts(view).has(outpost.id),
     stocks,
   };

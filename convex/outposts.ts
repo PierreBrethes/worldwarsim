@@ -8,7 +8,7 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from './_generated/server';
-import { besieged, outpostDismantleRefusalOf } from '../src/domain/construction';
+import { besieged, outpostDismantleRefusalOf, workStarted } from '../src/domain/construction';
 import { isStanding } from '../src/domain/outposts';
 import { razeBuilding, siegesOf, siegeTargetsOf } from './buildings';
 import { billOfWork, playerBuildings } from './buildingReads';
@@ -316,7 +316,7 @@ export async function cancelRaisesOf(
     .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
     .collect()) {
     if (entry.outpostId !== outpost._id) continue;
-    if (entry.finishesAt === null) {
+    if (!workStarted(entry)) {
       for (const [key, amount] of Object.entries(billOfWork(entry))) {
         refunded[key] = (refunded[key] ?? 0) + amount;
       }

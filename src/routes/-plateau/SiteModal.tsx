@@ -713,7 +713,7 @@ export function StruckState({ building }: { building: Building }) {
       <span
         className={`text-[12.5px] ${disabled ? 'text-[var(--critical)]' : 'text-[var(--ink)]'}`}
       >
-        {fr.stamps.struckWhy(building.integrity, asLocalTime(building.restoresAt))}
+        {fr.stamps.struckWhy(building.integrity, asLocalTime(building.restoresAt), building.key)}
       </span>
     </div>
   );

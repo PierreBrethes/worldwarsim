@@ -1,6 +1,6 @@
 import { fr } from '@/i18n/fr';
 import { asDuration } from '@/domain/duration';
-import { slotsRefusalOf, type Underway } from '@/domain/underway';
+import { slotsRefusalOf, underwayLeftMs, type Underway } from '@/domain/underway';
 import { Face } from '@/routes/-plateau/UnderwayColumn';
 import { useClock } from './clock';
 
@@ -129,7 +129,7 @@ function Row({
   now: number;
   onLocate: (line: Underway) => void;
 }) {
-  const left = line.endsAt - now;
+  const left = underwayLeftMs(line, now);
   const done = line.span === undefined ? null : Math.min(1, Math.max(0, 1 - left / line.span));
   return (
     <button

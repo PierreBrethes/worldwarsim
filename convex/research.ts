@@ -4,7 +4,9 @@ import type { Id } from './_generated/dataModel';
 import { internalMutation, mutation } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
 import {
+  researchHaltOf,
   researchMs,
+  researchRunsOf,
   researchRefusalOf,
   researchUnqueueRefusalOf,
   searcherLevel,
@@ -19,15 +21,20 @@ import { playerOf, requirePlayable, seasonStillPlays } from './seats';
 import { RESEARCH_CARD } from './validators';
 import { modeOf } from '../src/domain/season-mode';
 
+/** Les bâtiments du joueur tels que `searcherOf` et `researchHaltOf` les lisent. */
+const searchersOf = async (ctx: MutationCtx, playerId: Id<'players'>) =>
+  (await playerBuildings(ctx, playerId)).map((building) => ({
+    ...building,
+    captured: building.capturedAt !== undefined,
+  }));
+
 /** Le niveau du Centre de recherche du joueur, tel que `searcherLevel` le lit. */
 const centerLevelOf = async (ctx: MutationCtx, playerId: Id<'players'>) =>
-  searcherLevel(
-    (await playerBuildings(ctx, playerId)).map((building) => ({
-      key: building.key,
-      level: building.level,
-      captured: building.capturedAt !== undefined,
-    })),
-  );
+  searcherLevel(await searchersOf(ctx, playerId));
+
+/** **La carte court** (`researchRunsOf`) : `begun`, elle a déjà couru. */
+const runs = async (ctx: MutationCtx, playerId: Id<'players'>, now: number, begun: boolean) =>
+  researchRunsOf(await searchersOf(ctx, playerId), now, begun);
 
 /** La carte suivante prend le Centre : sa durée se fixe ici, au niveau du Centre de ce moment. */
 async function runCard(
@@ -38,7 +45,7 @@ async function runCard(
 ): Promise<number> {
   const level = await centerLevelOf(ctx, playerId);
   const remainingMs = researchMs(card, level ?? 1);
-  const standing = level !== null;
+  const standing = await runs(ctx, playerId, now, false);
   await ctx.db.patch(playerId, {
     research: { card, totalMs: remainingMs, remainingMs, since: standing ? now : null },
   });
@@ -64,13 +71,14 @@ export const start = mutation({
     refuseInBlitz(season);
     const now = Date.now();
     const { stocks } = await economyOf(ctx, player._id, now, { mode: modeOf(season.mode) });
-    const centerLevel = await centerLevelOf(ctx, player._id);
+    const buildings = await searchersOf(ctx, player._id);
     const queued = player.researchQueue ?? [];
     const refusal = researchRefusalOf(card, {
       researched: player.researched ?? [],
       running: player.research?.card ?? null,
       queued,
-      centerLevel,
+      centerLevel: searcherLevel(buildings),
+      halted: researchHaltOf(buildings, now),
       stocks,
     });
     if (refusal !== null) {
@@ -139,9 +147,10 @@ export const finish = internalMutation({
 });
 
 /**
- * **La carte suit son Centre de recherche** (#123) : sans Centre à soi — rasé, pris, jamais bâti —
- * elle s'arrête, et ce qu'elle a couru reste couru ; un Centre de nouveau debout la relance.
- * Appelée partout où un Centre paraît ou disparaît.
+ * **La carte suit son Centre de recherche** (#123) : sans Centre à soi — rasé, pris, jamais bâti,
+ * ou désactivé (ADR 0046 §8) — elle s'arrête, et ce qu'elle a couru reste couru ; un Centre de
+ * nouveau debout ou rétabli la relance. Appelée partout où un Centre paraît, disparaît, s'éteint
+ * ou revient.
  */
 export async function followCenter(
   ctx: MutationCtx,
@@ -150,7 +159,9 @@ export async function followCenter(
 ): Promise<void> {
   const running = (await ctx.db.get(playerId))?.research;
   if (running === undefined) return;
-  const standing = (await centerLevelOf(ctx, playerId)) !== null;
+  /** Une carte qui n'a pas couru (`totalMs` entier) attend aussi son QG ; celle qui court, non. */
+  const begun = running.since !== null || running.remainingMs !== running.totalMs;
+  const standing = await runs(ctx, playerId, now, begun);
   if (!standing && running.since !== null) {
     await ctx.db.patch(playerId, {
       research: {

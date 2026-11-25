@@ -143,7 +143,7 @@ function WorksColumn({
                 : undefined
             }
           >
-            {works.map(({ work, running, total, left, name }, index) => (
+            {works.map(({ work, running, frozen, total, left, name }, index) => (
               <li
                 key={work.id}
                 className="mat-line grid grid-cols-[minmax(0,1fr)_auto] items-center gap-[8px] border-b border-(color:--ink)/14 py-[1px]"
@@ -159,7 +159,9 @@ function WorksColumn({
                     <span className="truncate">{work.regionName}</span>
                     <span className="shrink-0">
                       {running
-                        ? fr.personalBoard.runningTail(countdownLabel(left * 60_000))
+                        ? (frozen ? fr.personalBoard.frozenTail : fr.personalBoard.runningTail)(
+                            countdownLabel(left * 60_000),
+                          )
                         : fr.personalBoard.queuedTail(countdownLabel(total * 60_000))}
                     </span>
                   </small>

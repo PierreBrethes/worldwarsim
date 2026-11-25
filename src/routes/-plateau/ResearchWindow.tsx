@@ -6,12 +6,14 @@ import { cardName, fr } from '@/i18n/fr';
 import { handleError } from '@/data/errors';
 import type { Seat } from '@/data/session';
 import { RESEARCH_CARDS, RESOURCES, type ResearchCard, type ResourceKey } from '@/domain/ids';
-import { asDayAndTime } from '@/domain/duration';
+import { asDayAndTime, asLocalTime } from '@/domain/duration';
+import { servedBuildings } from '@/domain/integrity';
 import { currentStock, type PlayerView } from '@/domain/player-view';
 import {
   RESEARCH_TREE,
   counterOf,
   countersOf,
+  researchHaltOf,
   researchMs,
   researchProgressOf,
   researchRefusalOf,
@@ -114,6 +116,7 @@ export function ResearchWindow({
     running: view.me.research.running?.card ?? null,
     queued: view.me.research.queue,
     centerLevel: level,
+    halted: researchHaltOf(servedBuildings(view.me.buildings), now),
     stocks: stocksOf(view, now),
   };
   const pose =
@@ -296,7 +299,7 @@ export function Margin({
                 color: progress.finishesAt === null ? 'var(--critical)' : 'var(--ink-soft)',
               }}
             >
-              {progressText(progress, now)}
+              {progressText(progress, now, view)}
             </span>
           </>
         ) : (
@@ -370,11 +373,19 @@ export function Margin({
 const progressText = (
   progress: { readonly share: number; readonly finishesAt: number | null },
   now: number,
+  view: PlayerView,
 ) => {
   const percent = Math.round(progress.share * 100);
-  return progress.finishesAt === null
+  if (progress.finishesAt !== null)
+    return fr.research.running(percent, fr.research.time(progress.finishesAt - now));
+  /** **Son Centre désactivé** (ADR 0046 §8) : la carte attend son retour, à son heure. */
+  const back =
+    researchHaltOf(servedBuildings(view.me.buildings), now) === 'researchCenter'
+      ? searcherOf(view.me.buildings)?.restoresAt
+      : undefined;
+  return back === undefined
     ? fr.research.waitingAt(percent)
-    : fr.research.running(percent, fr.research.time(progress.finishesAt - now));
+    : fr.research.waitingBack(percent, asLocalTime(back));
 };
 
 function Bar({ share }: { share: number }) {
@@ -393,7 +404,9 @@ type Refusal = ReturnType<typeof researchRefusalOf>;
 /** A refusal that holds for every card alike (no Centre, a full queue): said once above the tree
  *  (#607), the cards only fall to half-tone. The others (a card first, a price) stay on their card. */
 const sharedRefusal = (refusal: Refusal): boolean =>
-  refusal?.code === 'RESEARCH_NEEDS_CENTER' || refusal?.code === 'RESEARCH_FULL';
+  refusal?.code === 'RESEARCH_NEEDS_CENTER' ||
+  refusal?.code === 'RESEARCH_FULL' ||
+  refusal?.code === 'BUILDING_DISABLED';
 
 /**
  * **L'arbre, de haut en bas** : une grille où chaque carte tient sa place (`PLACE`), et par-dessus
@@ -642,7 +655,7 @@ function ResearchCardView({
           <>
             <Bar share={progress.share} />
             <span style={progress.finishesAt === null ? { color: 'var(--critical)' } : undefined}>
-              {progressText(progress, now)}
+              {progressText(progress, now, view)}
             </span>
           </>
         ) : rank >= 0 ? (

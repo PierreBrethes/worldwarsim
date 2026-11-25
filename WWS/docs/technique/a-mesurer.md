@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 6de06ee -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 1786efb -->
 
 # Les constantes à mesurer
 
@@ -107,29 +107,29 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `TOUR_HOLD_MS` | `2200` | `src/domain/absence-tour.ts:29` | le maintien d'un tampon du rejeu, et l'écart du second (« terrain tenu »). |
 | `SECOND_STAMP_MS` | `800` | `src/domain/absence-tour.ts:30` | le maintien d'un tampon du rejeu, et l'écart du second (« terrain tenu »). |
 | `BLITZ_CROSSING_MINUTES` | `14.4` | `src/domain/blitz.ts:152` | the decision says 15 to 20 minutes, sped up by a quarter; nothing has played one yet |
-| `BOT_ORDERS_PER_TURN` | `2` | `src/domain/bot.ts:276` | combien d'ordres un passage garde ; peu, pour qu'un bot reste facile (ADR 0042 §5). |
-| `BOT_POINT_COLUMN` | `9` | `src/domain/bot.ts:282` | les infanteries d'une colonne qui prend un point neutre. Au banc de `convex` (ADR 0043), |
-| `BOT_ARMY_TARGET` | `BOT_POINT_COLUMN + 3` | `src/domain/bot.ts:287` | l'armée libre (sans la garnison des avant-postes), debout et en file, à partir de |
-| `BOT_FOOD_HORIZON_HOURS` | `12` | `src/domain/bot.ts:293` | le bot nourrit son armée (#652) quand ses vivres tomberont à zéro dans moins de ces |
-| `BOT_HARVEST_MIN` | `40` | `src/domain/bot.ts:295` | sous ce tas, un camion ne part pas le ramasser (ADR 0041) : le trajet coûterait plus. |
-| `BOT_FOOD_LOW` | `60` | `src/domain/bot.ts:296` | sous ce tas, un camion ne part pas le ramasser (ADR 0041) : le trajet coûterait plus. |
-| `BOT_RAISE_RESERVE` | `0.5` | `src/domain/bot.ts:301` | la part de son plafond d'acier que le bot garde après une élévation. Il n'élève |
-| `BOT_POINT_CANDIDATES` | `3` | `src/domain/bot.ts:303` | les points neutres essayés par escouade, du plus proche ; chaque essai coûte une route. |
-| `BOT_HQ_ALERT_KM` | `400` | `src/domain/bot.ts:306` | à moins de ce rayon du QG, un camp relevé est une menace (ADR 0042 §2, urgence). |
-| `BOT_SQUAD_SIZE` | `2` | `src/domain/bot.ts:308` | l'escouade qui avance ; le reste de la garnison tient le QG. |
-| `BOT_ADVANCE_CANDIDATES` | `5` | `src/domain/bot.ts:310` | les régions étrangères essayées par passage, de la plus proche ; chaque essai coûte une route. |
-| `BOT_CONVOY_LOAD` | `100` | `src/domain/bot.ts:312` | ce qu'un camion charge d'un coup, sous sa capacité et le stock. |
-| `BOT_PORT_KM` | `300` | `src/domain/bot.ts:315` | le port se cherche dans les régions nationales à ce rayon du QG, et sur leur côte à ce rayon de leur pôle. |
-| `BOT_LANDING_KM` | `200` | `src/domain/bot.ts:317` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
-| `BOT_LANDING_STEP_KM` | `12.5` | `src/domain/bot.ts:318` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
-| `BOT_LANDING_BEARINGS` | `16` | `src/domain/bot.ts:319` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
-| `BOT_LANDING_CANDIDATES` | `80` | `src/domain/bot.ts:321` | les plages essayées par point neutre, de la plus proche : la plus proche est souvent hors de portée du plein du cargo. |
-| `BOT_LANDING_FOOT_TRIES` | `6` | `src/domain/bot.ts:323` | les routes à pied cherchées par point neutre ; un échec explore toute la grille. |
+| `BOT_ORDERS_PER_TURN` | `2` | `src/domain/bot.ts:277` | combien d'ordres un passage garde ; peu, pour qu'un bot reste facile (ADR 0042 §5). |
+| `BOT_POINT_COLUMN` | `9` | `src/domain/bot.ts:283` | les infanteries d'une colonne qui prend un point neutre. Au banc de `convex` (ADR 0043), |
+| `BOT_ARMY_TARGET` | `BOT_POINT_COLUMN + 3` | `src/domain/bot.ts:288` | l'armée libre (sans la garnison des avant-postes), debout et en file, à partir de |
+| `BOT_FOOD_HORIZON_HOURS` | `12` | `src/domain/bot.ts:294` | le bot nourrit son armée (#652) quand ses vivres tomberont à zéro dans moins de ces |
+| `BOT_HARVEST_MIN` | `40` | `src/domain/bot.ts:296` | sous ce tas, un camion ne part pas le ramasser (ADR 0041) : le trajet coûterait plus. |
+| `BOT_FOOD_LOW` | `60` | `src/domain/bot.ts:297` | sous ce tas, un camion ne part pas le ramasser (ADR 0041) : le trajet coûterait plus. |
+| `BOT_RAISE_RESERVE` | `0.5` | `src/domain/bot.ts:302` | la part de son plafond d'acier que le bot garde après une élévation. Il n'élève |
+| `BOT_POINT_CANDIDATES` | `3` | `src/domain/bot.ts:304` | les points neutres essayés par escouade, du plus proche ; chaque essai coûte une route. |
+| `BOT_HQ_ALERT_KM` | `400` | `src/domain/bot.ts:307` | à moins de ce rayon du QG, un camp relevé est une menace (ADR 0042 §2, urgence). |
+| `BOT_SQUAD_SIZE` | `2` | `src/domain/bot.ts:309` | l'escouade qui avance ; le reste de la garnison tient le QG. |
+| `BOT_ADVANCE_CANDIDATES` | `5` | `src/domain/bot.ts:311` | les régions étrangères essayées par passage, de la plus proche ; chaque essai coûte une route. |
+| `BOT_CONVOY_LOAD` | `100` | `src/domain/bot.ts:313` | ce qu'un camion charge d'un coup, sous sa capacité et le stock. |
+| `BOT_PORT_KM` | `300` | `src/domain/bot.ts:316` | le port se cherche dans les régions nationales à ce rayon du QG, et sur leur côte à ce rayon de leur pôle. |
+| `BOT_LANDING_KM` | `200` | `src/domain/bot.ts:318` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
+| `BOT_LANDING_STEP_KM` | `12.5` | `src/domain/bot.ts:319` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
+| `BOT_LANDING_BEARINGS` | `16` | `src/domain/bot.ts:320` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
+| `BOT_LANDING_CANDIDATES` | `80` | `src/domain/bot.ts:322` | les plages essayées par point neutre, de la plus proche : la plus proche est souvent hors de portée du plein du cargo. |
+| `BOT_LANDING_FOOT_TRIES` | `6` | `src/domain/bot.ts:324` | les routes à pied cherchées par point neutre ; un échec explore toute la grille. |
 | `STALE_MARGIN_MS` | `30_000` | `src/domain/combat-on-map.ts:28` | un |
 | `FINAL_POSE_MS` | `STEP_MS['compte-rendu']` | `src/domain/combat-on-map.ts:32` | le temps du compte-rendu, assez pour lire qui reste debout ? |
 | `REPORT_HOLD_MS` | `STEP_MS['compte-rendu'] + 6000` | `src/domain/combat-on-map.ts:200` | le temps de lire « nos pièces » et de l'ouvrir. |
 | `STAMP_NEAR_SHARE` | `0.5` | `src/domain/combat-on-map.ts:272` | « voir » |
-| `PLACING_SNAP_KM` | `60` | `src/domain/construction.ts:74` | choisi à l'œil pour qu'un gisement se prenne sans viser au pixel |
+| `PLACING_SNAP_KM` | `60` | `src/domain/construction.ts:77` | choisi à l'œil pour qu'un gisement se prenne sans viser au pixel |
 | `BEFORE_CITY_KM` | `30` | `src/domain/contacts.ts:35` | la maquette C le pose à 0,35 unité, environ 30 km |
 | `MOON_AZIMUTH_DEG` | `315` | `src/domain/daylight.ts:102` | posée à l'œil sur la maquette ; rien ne mesure d'où la lune éclaire le mieux les pièces |
 | `MOON_ELEVATION_DEG` | `53` | `src/domain/daylight.ts:103` | posée à l'œil sur la maquette ; rien ne mesure d'où la lune éclaire le mieux les pièces |
@@ -159,8 +159,8 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `BIG_AFTER_MS` | `{ full: 1400, reduced: 300 } as const` | `src/domain/moments.ts:102` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
 | `SEPIA_AFTER_MS` | `600` | `src/domain/moments.ts:103` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
 | `OPEN_AFTER_MS` | `1600` | `src/domain/moments.ts:104` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
-| `STARTING_MOVEMENT_SLOTS` | `2` | `src/domain/movement-orders.ts:418` | deux, d'après la décision du 19/10, jamais joué |
-| `DISBAND_RING_SPANS` | `2.1` | `src/domain/movement-orders.ts:999` | assez pour que les pièces se lisent à part, assez peu pour rester à portée de soutien ; plafonné au camion, une coque y chevauche ses voisines |
+| `STARTING_MOVEMENT_SLOTS` | `2` | `src/domain/movement-orders.ts:425` | deux, d'après la décision du 19/10, jamais joué |
+| `DISBAND_RING_SPANS` | `2.1` | `src/domain/movement-orders.ts:1006` | assez pour que les pièces se lisent à part, assez peu pour rester à portée de soutien ; plafonné au camion, une coque y chevauche ses voisines |
 | `NEIGHBOR_REACH_KM` | `3500` | `src/domain/nation-brief.ts:7` | placeholders for the lobby sheet, not game rules. |
 | `NEAR_POINT_REACH_KM` | `3000` | `src/domain/nation-brief.ts:8` | placeholders for the lobby sheet, not game rules. |
 | `MAX_NEIGHBORS` | `3` | `src/domain/nation-brief.ts:9` | placeholders for the lobby sheet, not game rules. |

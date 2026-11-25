@@ -13,6 +13,7 @@ import { recordLinkage } from './holding';
 import { holdsPoint } from './strategicPoints';
 import { restampChanged, type Heaps } from './heaps';
 import { startLanes } from './troops';
+import { followCenter } from './research';
 
 /**
  * **La production reliée, du côté de l'horloge qu'il n'y a pas** (ADR 0020 §6).
@@ -153,11 +154,20 @@ export const restoreAfterDisabling = internalMutation({
       .filter((one) => one.disabledUntil === at)
       .map((one) => one.playerId);
     await reassessDetection(ctx, seasonId, Date.now(), restored);
-    /** **Une caserne qui revient forme de nouveau** (ADR 0046 §6) : la file que la frappe a figée
-     *  reprend de ce qu'il lui restait. */
-    for (const building of await seasonBuildings(ctx, seasonId))
-      if (building.key === 'barracks' && building.disabledUntil === at)
-        await startLanes(ctx, building._id, Math.max(Date.now(), at + 1));
+    /** **Ce qui revient reprend de ce qu'il lui restait** (ADR 0046 §6, §8) : la file de la caserne,
+     *  les chantiers du QG, la carte du Centre. `at` est encore dans l'absence (`inService`) : le
+     *  chantier et la carte se relisent juste après. */
+    const back = Math.max(Date.now(), at + 1);
+    for (const building of await seasonBuildings(ctx, seasonId)) {
+      if (building.disabledUntil !== at) continue;
+      if (building.key === 'barracks') await startLanes(ctx, building._id, back);
+      if (building.key === 'hq')
+        await ctx.scheduler.runAt(back, internal.constructions.resume, {
+          playerId: building.playerId,
+        });
+      if (building.key === 'researchCenter' || building.key === 'hq')
+        await followCenter(ctx, building.playerId, back);
+    }
   },
 });
 

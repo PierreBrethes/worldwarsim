@@ -11,12 +11,13 @@ import {
 } from './constants';
 import { push } from '../src/domain/push';
 import { sparedPerResourceOf } from '../src/domain/loot';
-import { pointOfRegion, regionFacts } from './regions';
+import { capitalRegionOf, pointOfRegion, regionFacts } from './regions';
 import schema from './schema';
 import { fileSurvey } from './surveys';
 import { onMission } from './movement/course';
+import { cancelRaisesOf } from './outposts';
 import { modules } from './test.setup';
-import { foundSeat, holdPoint, joinSeat, placeHq, seatIn } from './seats.fixture';
+import { foundSeat, holdPoint, joinSeat, placeHq, pointIn, seatIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
@@ -548,5 +549,451 @@ describe('the strike at its arrival', () => {
       (await noticesOf(t, seat)).filter((one) => one.kind === 'strikeFoundNothing'),
     ).toMatchObject([{ reason: 'immune' }]);
     expect((await t.run((ctx) => ctx.db.get(target)))?.damagedUntil).toBeUndefined();
+  });
+});
+
+/**
+ * **Le QG et le centre de recherche frappés** (ADR 0046 §8, #648) : la France est frappée cette
+ * fois, par des bombardiers soviétiques partis de la Ruhr sur Paris.
+ */
+const PARIS = capitalRegionOf('france');
+const ARDENNES = 'FRA-5268';
+
+async function fillAll(t: ReturnType<typeof boot>, seat: Seat) {
+  const player = await playerOf(t, seat);
+  await t.run(async (ctx) => {
+    for (const row of await ctx.db
+      .query('resources')
+      .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+      .collect())
+      await ctx.db.patch(row._id, { stock: 350, updatedAt: Date.now() });
+  });
+}
+
+const hqOf = async (t: ReturnType<typeof boot>, seat: Seat) => {
+  const player = await playerOf(t, seat);
+  return t.run(async (ctx) =>
+    (
+      await ctx.db
+        .query('buildings')
+        .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+        .collect()
+    ).find((one) => one.key === 'hq')!,
+  );
+};
+
+async function centerOf(t: ReturnType<typeof boot>, seat: Seat) {
+  const player = await playerOf(t, seat);
+  const { lon, lat } = pointOfRegion(PARIS);
+  return t.run((ctx) =>
+    ctx.db.insert('buildings', {
+      seasonId: player.seasonId,
+      playerId: player._id,
+      key: 'researchCenter',
+      regionId: PARIS,
+      point: { lon: lon + 0.6, lat },
+      level: 1,
+    }),
+  );
+}
+
+/** Le bombardier soviétique de la Ruhr, et la cible française déjà endommagée : le coup désactive. */
+async function hqStrikeScene(t: ReturnType<typeof boot>, key: 'hq' | 'researchCenter' = 'hq') {
+  const { seat, guest } = await launchedSeason(t);
+  const airfield = await building(t, guest, 'airfield', RUHR);
+  const bomber = await troop(t, guest, 'bomber', airfield);
+  const hq = await hqOf(t, seat);
+  const target = key === 'hq' ? hq._id : await centerOf(t, seat);
+  await t.run((ctx) => ctx.db.patch(target, { damagedUntil: MIDDAY + 30 * HOUR }));
+  const raider = await playerOf(t, guest);
+  await t.run((ctx) =>
+    fileSurvey(ctx, raider._id, [{ point: regionFacts(PARIS)!.point, radiusKm: 120 }], Date.now()),
+  );
+  const order = {
+    ...guest,
+    origin: { kind: 'building' as const, buildingId: airfield },
+    troopIds: [bomber],
+    buildingId: target,
+  };
+  return { seat, guest, hq, target, order };
+}
+
+const restore = async (t: ReturnType<typeof boot>, seat: Seat, at: number) =>
+  t.mutation(internal.production.restoreAfterDisabling, {
+    seasonId: (await playerOf(t, seat)).seasonId,
+    at,
+  });
+
+const worksOf = async (t: ReturnType<typeof boot>, seat: Seat) => {
+  const player = await playerOf(t, seat);
+  return t.run((ctx) =>
+    ctx.db
+      .query('constructions')
+      .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+      .collect(),
+  );
+};
+
+describe('a headquarters struck', () => {
+  it('is disabled, never razed: its level holds, and its owner plays on', async () => {
+    const t = boot();
+    const { order, seat, hq } = await hqStrikeScene(t);
+
+    const at = await strikeAndArrive(t, order);
+
+    expect(await ownBuilding(t, seat, hq._id)).toMatchObject({
+      integrity: 'disabled',
+      restoresAt: at + BUILDING_DISABLED_HOURS * HOUR,
+      level: hq.level,
+    });
+    expect((await noticesOf(t, seat)).filter((one) => one.kind === 'buildingStruck')).toMatchObject(
+      [{ building: 'hq', integrity: 'disabled' }],
+    );
+    expect((await t.query(api.view.playerView, seat)).me.defeated).toBe(false);
+  });
+
+  it('launches no construction, no raise and no research while it is out, and says why', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const hq = await hqOf(t, seat);
+    await centerOf(t, seat);
+    await fillAll(t, seat);
+    const player = await playerOf(t, seat);
+    const outpost = (specialty: 'general' | 'store', level: number) =>
+      t.run((ctx) =>
+        ctx.db.insert('outposts', {
+          seasonId: player.seasonId,
+          playerId: player._id,
+          point: pointIn(ARDENNES),
+          hostCountry: 'FRA',
+          level,
+          specialty,
+          foundedAt: Date.now() - 1,
+          disabledUntil: null,
+          immuneUntil: null,
+        }),
+      );
+    const low = await outpost('general', 1);
+    const stored = await outpost('store', 2);
+    await t.run((ctx) => ctx.db.patch(hq._id, { disabledUntil: MIDDAY + HOUR }));
+
+    const refused = 'BUILDING_DISABLED';
+    await expect(
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'hq',
+        regionId: PARIS,
+        point: hq.point,
+      }),
+    ).rejects.toThrow(refused);
+    await expect(
+      t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'barracks',
+        regionId: ARDENNES,
+        point: pointIn(ARDENNES),
+      }),
+    ).rejects.toThrow(refused);
+    await expect(
+      t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId: low, specialty: 'fort' }),
+    ).rejects.toThrow(refused);
+    await expect(
+      t.mutation(api.constructions.respecializeOutpost, {
+        ...seat,
+        outpostId: stored,
+        specialty: 'fort',
+      }),
+    ).rejects.toThrow(refused);
+    await expect(t.mutation(api.research.start, { ...seat, card: 'infantryMk2' })).rejects.toThrow(
+      refused,
+    );
+    expect(await worksOf(t, seat)).toEqual([]);
+  });
+
+  it('still lets its troops march out: a player struck answers back', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const hq = await hqOf(t, seat);
+    const infantry = await troop(t, seat, 'infantry', hq._id);
+    await t.run((ctx) => ctx.db.patch(hq._id, { disabledUntil: MIDDAY + HOUR }));
+
+    await expect(
+      t.mutation(api.movements.marchTo, {
+        ...seat,
+        origin: { kind: 'building', buildingId: hq._id },
+        troopIds: [infantry],
+        point: pointIn(ARDENNES),
+      }),
+    ).resolves.toBeDefined();
+  });
+
+  it('freezes the running construction until it is back, then runs what was left of it', async () => {
+    const t = boot();
+    const { order, seat, hq } = await hqStrikeScene(t);
+    const { movementId, arrivesAt: at } = await fileStrike(t, order);
+    vi.setSystemTime(at - 10 * 60_000);
+    await fillAll(t, seat);
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'hq',
+      regionId: PARIS,
+      point: hq.point,
+    });
+    const [work] = await worksOf(t, seat);
+    const dated = work!.finishesAt!;
+    expect(dated).toBeGreaterThan(at);
+
+    vi.setSystemTime(at);
+    await t.mutation(internal.movements.arrive, { movementId });
+    const left = dated - at;
+    expect(await worksOf(t, seat)).toMatchObject([{ finishesAt: null, frozenMs: left }]);
+    expect((await t.query(api.view.playerView, seat)).me.construction).toMatchObject({
+      id: work!._id,
+      frozen: true,
+      minutesLeft: left / 60_000,
+    });
+    await expect(
+      t.mutation(api.constructions.cancel, { ...seat, constructionId: work!._id }),
+    ).rejects.toThrow('CONSTRUCTION_ALREADY_STARTED');
+
+    /** Son ancienne date passe, et tout réveil de la file pendant l'absence : rien ne bouge. */
+    vi.setSystemTime(dated + 1);
+    await t.mutation(internal.constructions.finish, { constructionId: work!._id });
+    await t.mutation(internal.constructions.resume, { playerId: (await playerOf(t, seat))._id });
+    expect(await worksOf(t, seat)).toMatchObject([{ finishesAt: null, frozenMs: left }]);
+    expect((await hqOf(t, seat)).level).toBe(hq.level);
+
+    const back = at + BUILDING_DISABLED_HOURS * HOUR;
+    vi.setSystemTime(back);
+    await restore(t, seat, back);
+    const jobs = await t.run((ctx) => ctx.db.system.query('_scheduled_functions').collect());
+    expect(
+      jobs.some(
+        (job) =>
+          job.name.includes('constructions') &&
+          job.name.includes('resume') &&
+          job.scheduledTime === back + 1,
+      ),
+    ).toBe(true);
+    vi.setSystemTime(back + 1);
+    await t.mutation(internal.constructions.resume, { playerId: (await playerOf(t, seat))._id });
+    const [woken] = await worksOf(t, seat);
+    expect(woken?.finishesAt).toBe(back + 1 + left);
+    expect(woken?.frozenMs).toBeUndefined();
+  });
+
+  /** L'invariant Échéance : à son retour, la tête figée relit sa règle comme toute tête de file. */
+  it('rereads the rule of a frozen work at its return, and refunds one whose right is gone', async () => {
+    const t = boot();
+    const { order, seat } = await hqStrikeScene(t);
+    const { movementId, arrivesAt: at } = await fileStrike(t, order);
+    vi.setSystemTime(at - 10 * 60_000);
+    await fillAll(t, seat);
+    await t.mutation(api.constructions.start, {
+      ...seat,
+      building: 'barracks',
+      regionId: ARDENNES,
+      point: pointIn(ARDENNES),
+    });
+    vi.setSystemTime(at);
+    await t.mutation(internal.movements.arrive, { movementId });
+    expect(await worksOf(t, seat)).toMatchObject([{ finishesAt: null }]);
+    /** Pendant l'absence, une mine se pose sur ce point : la caserne n'y a plus sa place. */
+    await building(t, seat, 'mine', ARDENNES);
+    await t.run(async (ctx) => {
+      const player = await seatIn(ctx, seat);
+      const mine = (
+        await ctx.db
+          .query('buildings')
+          .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+          .collect()
+      ).find((one) => one.key === 'mine' && one.regionId === ARDENNES)!;
+      await ctx.db.patch(mine._id, { point: pointIn(ARDENNES) });
+    });
+
+    const back = at + BUILDING_DISABLED_HOURS * HOUR + 1;
+    vi.setSystemTime(back);
+    await t.mutation(internal.constructions.resume, { playerId: (await playerOf(t, seat))._id });
+
+    expect(await worksOf(t, seat)).toEqual([]);
+    expect(
+      (await noticesOf(t, seat)).filter((one) => one.kind === 'constructionCancelled'),
+    ).toMatchObject([{ building: 'barracks' }]);
+  });
+});
+
+describe('a research centre struck', () => {
+  it('suspends the running card until it is back, and its old date researches nothing', async () => {
+    const t = boot();
+    const { order, seat, target } = await hqStrikeScene(t, 'researchCenter');
+    await fillAll(t, seat);
+    const { finishesAt } = await t.mutation(api.research.start, { ...seat, card: 'infantryMk2' });
+    const started = Date.now();
+    const total = finishesAt! - started;
+
+    const at = await strikeAndArrive(t, order);
+
+    const player = await playerOf(t, seat);
+    expect(player.research).toMatchObject({
+      card: 'infantryMk2',
+      since: null,
+      remainingMs: total - (at - started),
+    });
+    expect((await ownBuilding(t, seat, target))?.integrity).toBe('disabled');
+    await expect(t.mutation(api.research.start, { ...seat, card: 'escort' })).rejects.toThrow(
+      'BUILDING_DISABLED',
+    );
+
+    vi.setSystemTime(finishesAt! + 1);
+    await t.mutation(internal.research.finish, { playerId: player._id, finishesAt: finishesAt! });
+    expect((await playerOf(t, seat)).researched ?? []).not.toContain('infantryMk2');
+
+    /** Le retour se réveille à la milliseconde de sa date, encore incluse dans l'absence. */
+    const back = at + BUILDING_DISABLED_HOURS * HOUR;
+    vi.setSystemTime(back);
+    await restore(t, seat, back);
+    expect((await playerOf(t, seat)).research).toMatchObject({
+      since: back + 1,
+      remainingMs: total - (at - started),
+    });
+  });
+});
+
+/** Revue de #648 : un chantier figé a commencé, partout où l'on rembourse ce qui n'a pas commencé. */
+describe('a frozen work, razed or dismantled with its site', () => {
+  const frozenWork = async (
+    t: ReturnType<typeof boot>,
+    seat: Seat,
+    over: {
+      building: 'barracks' | 'outpost';
+      point?: { lon: number; lat: number };
+      outpostId?: Id<'outposts'>;
+    },
+  ) => {
+    const player = await playerOf(t, seat);
+    return t.run((ctx) =>
+      ctx.db.insert('constructions', {
+        playerId: player._id,
+        regionId: ARDENNES,
+        level: 2,
+        rank: 0,
+        finishesAt: null,
+        frozenMs: HOUR,
+        ...over,
+      }),
+    );
+  };
+
+  it('refunds nothing of a frozen raise when its building is razed', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const barracks = await building(t, seat, 'barracks', ARDENNES);
+    const { point } = (await t.run((ctx) => ctx.db.get(barracks)))!;
+    await frozenWork(t, seat, { building: 'barracks', point });
+
+    const { refunded } = await t.mutation(api.buildings.demolish, {
+      ...seat,
+      buildingId: barracks,
+    });
+
+    expect(refunded).toEqual({});
+  });
+
+  it('refunds nothing of a frozen raise when its outpost is dismantled', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    const player = await playerOf(t, seat);
+    const outpostId = await t.run((ctx) =>
+      ctx.db.insert('outposts', {
+        seasonId: player.seasonId,
+        playerId: player._id,
+        point: pointIn(ARDENNES),
+        hostCountry: 'FRA',
+        level: 1,
+        specialty: 'general',
+        foundedAt: Date.now() - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+      }),
+    );
+    await frozenWork(t, seat, { building: 'outpost', outpostId });
+
+    const refunded = await t.run(async (ctx) =>
+      cancelRaisesOf(ctx, player._id, (await ctx.db.get(outpostId))!, Date.now()),
+    );
+
+    expect(refunded).toEqual({});
+  });
+});
+
+/** Revue de #648 : un QG désactivé ne laisse commencer aucune carte, la suivante payée comprise. */
+describe('a headquarters disabled while a card runs', () => {
+  it('lets the running card finish, holds the next one until it is back', async () => {
+    const t = boot();
+    const { order, seat, hq } = await hqStrikeScene(t);
+    await centerOf(t, seat);
+    await fillAll(t, seat);
+    await t.mutation(api.research.start, { ...seat, card: 'escort' });
+    await t.mutation(api.research.start, { ...seat, card: 'artillery' });
+
+    const at = await strikeAndArrive(t, order);
+    expect((await ownBuilding(t, seat, hq._id))?.integrity).toBe('disabled');
+    const running = (await playerOf(t, seat)).research!;
+    expect(running).toMatchObject({ card: 'escort' });
+    expect(running.since).not.toBeNull();
+
+    const done = running.since! + running.remainingMs;
+    vi.setSystemTime(done);
+    await t.mutation(internal.research.finish, {
+      playerId: (await playerOf(t, seat))._id,
+      finishesAt: done,
+    });
+    const after = await playerOf(t, seat);
+    expect(after.researched).toContain('escort');
+    expect(after.research).toMatchObject({ card: 'artillery', since: null });
+
+    const back = at + BUILDING_DISABLED_HOURS * HOUR;
+    expect(done).toBeLessThan(back);
+    vi.setSystemTime(back);
+    await restore(t, seat, back);
+    expect((await playerOf(t, seat)).research).toMatchObject({
+      card: 'artillery',
+      since: back + 1,
+    });
+  });
+});
+
+describe('a research centre back while its headquarters is still out', () => {
+  /** La carte qui avait couru reprend avec son Centre ; celle qui n'a jamais couru attend le QG. */
+  it('resumes a card it had begun, and holds one it never ran', async () => {
+    for (const [ran, since] of [
+      [true, MIDDAY + HOUR + 1],
+      [false, null],
+    ] as const) {
+      const t = boot();
+      const { seat } = await launchedSeason(t);
+      const hq = await hqOf(t, seat);
+      const center = await centerOf(t, seat);
+      const back = MIDDAY + HOUR;
+      const total = 10 * HOUR;
+      const player = await playerOf(t, seat);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(hq._id, { disabledUntil: MIDDAY + 20 * HOUR });
+        await ctx.db.patch(center, { disabledUntil: back });
+        await ctx.db.patch(player._id, {
+          research: {
+            card: 'escort',
+            totalMs: total,
+            remainingMs: ran ? total - HOUR : total,
+            since: null,
+          },
+        });
+      });
+
+      vi.setSystemTime(back);
+      await restore(t, seat, back);
+
+      expect((await playerOf(t, seat)).research?.since).toBe(since);
+    }
   });
 });

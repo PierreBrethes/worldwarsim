@@ -1,6 +1,7 @@
 import { DAMAGE_TABLE, RESEARCH_SPEC, type LineKey } from '../../convex/constants';
 import { profileOf } from './combat';
 import { shortfallOf } from './economy';
+import { hqDisabledAt, integrityOf, type IntegrityDates } from './integrity';
 import { levelSpeed } from './level-speed';
 import {
   RESEARCH_CARDS,
@@ -130,6 +131,7 @@ export type ResearchRefusal =
     }
   | { readonly code: 'RESEARCH_FULL' }
   | { readonly code: 'RESEARCH_NEEDS_CENTER' }
+  | { readonly code: 'BUILDING_DISABLED'; readonly building: ResearchHalt }
   | {
       readonly code: 'INSUFFICIENT_RESOURCE';
       readonly resource: ResourceKey;
@@ -145,6 +147,8 @@ export type ResearchSituation = {
   readonly queued: ReadonlyArray<ResearchCard>;
   /** Le niveau de son Centre de recherche (`searcherLevel`), `null` sans Centre. */
   readonly centerLevel: number | null;
+  /** Le bâtiment désactivé qui retient toute carte (`researchHaltOf`), `null` sans lui. */
+  readonly halted: ResearchHalt | null;
   readonly stocks: Readonly<Record<ResourceKey, number>>;
 };
 
@@ -167,6 +171,7 @@ export function researchRefusalOf(
   if (missing !== undefined) return { code: 'RESEARCH_AFTER', card: missing };
   if (inFile.length >= RESEARCH_QUEUE_MAX) return { code: 'RESEARCH_FULL' };
   if (situation.centerLevel === null) return { code: 'RESEARCH_NEEDS_CENTER' };
+  if (situation.halted !== null) return { code: 'BUILDING_DISABLED', building: situation.halted };
   const short = shortfallOf(RESEARCH_SPEC[card].cost, (resource) => situation.stocks[resource]);
   if (short === null) return null;
   const available = situation.stocks[short.resource];
@@ -316,7 +321,11 @@ export const countersOf = (card: ResearchCard): ReadonlyArray<ResearchCard> =>
  * cherche pas pour son preneur. La seule lecture, de l'écran comme du serveur.
  */
 export const searcherOf = <
-  B extends { readonly key: BuildingKey; readonly level: number; readonly captured?: boolean },
+  B extends {
+    readonly key: BuildingKey;
+    readonly level: number;
+    readonly captured?: boolean | undefined;
+  },
 >(
   buildings: ReadonlyArray<B>,
 ): B | null =>
@@ -332,6 +341,42 @@ export const searcherLevel = (
   buildings: ReadonlyArray<{
     readonly key: BuildingKey;
     readonly level: number;
-    readonly captured?: boolean;
+    readonly captured?: boolean | undefined;
   }>,
 ): number | null => searcherOf(buildings)?.level ?? null;
+
+type ResearchHalt = 'researchCenter' | 'hq';
+
+/**
+ * **Ce qui retient la recherche** (ADR 0046 §8) : son Centre désactivé, qui suspend aussi la carte
+ * qui court (`followCenter`), ou son QG désactivé, qui ne lance plus de carte. La seule lecture, de
+ * l'écran (sur `servedDates`) comme du serveur.
+ */
+export function researchHaltOf<
+  B extends IntegrityDates & {
+    readonly key: BuildingKey;
+    readonly level: number;
+    readonly captured?: boolean | undefined;
+  },
+>(buildings: ReadonlyArray<B>, now: number): ResearchHalt | null {
+  const center = searcherOf(buildings);
+  if (center !== null && integrityOf(center, now) === 'disabled') return 'researchCenter';
+  return hqDisabledAt(buildings, now) ? 'hq' : null;
+}
+
+/**
+ * **La carte court-elle ?** (ADR 0046 §8) Son Centre doit chercher : debout, à soi, en service. Un
+ * QG désactivé ne laisse commencer aucune carte, la suivante déjà payée comprise ; celle qui a
+ * déjà couru continue. La seule lecture de `runCard` et de `followCenter`.
+ */
+export function researchRunsOf<
+  B extends IntegrityDates & {
+    readonly key: BuildingKey;
+    readonly level: number;
+    readonly captured?: boolean | undefined;
+  },
+>(buildings: ReadonlyArray<B>, now: number, begun: boolean): boolean {
+  if (searcherLevel(buildings) === null) return false;
+  const halt = researchHaltOf(buildings, now);
+  return halt === null || (halt === 'hq' && begun);
+}

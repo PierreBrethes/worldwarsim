@@ -1,4 +1,4 @@
-import { Box3, Quaternion, Vector3 } from 'three';
+import { Box3, Plane, Quaternion, Vector3 } from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { SOCLE_TOP, WorksDressing, worksGround, type Works } from './works';
 
@@ -52,5 +52,30 @@ describe('worksGround', () => {
     expect(stake[0]).toBeLessThanOrEqual(46 - 2);
     expect(stake[1]).toBeLessThanOrEqual(33 - 2);
     expect(stake[0]).toBeGreaterThan(barracks.max.x);
+  });
+});
+
+/** Revue de #648 : un chantier figé sous son QG désactivé ne monte plus, quelle que soit l'heure. */
+describe('WorksDressing rising', () => {
+  const box = new Box3(new Vector3(-10, 0, -10), new Vector3(10, 20, 10));
+  const rising: Works = {
+    phase: 'rising',
+    level: 1,
+    finishesAt: 30 * 60_000,
+    minutes: 60,
+    pennant: null,
+    stamp: null,
+  };
+  const cutAt = (works: Works, now: number) => {
+    const dressing = new WorksDressing(works, box, [], null);
+    dressing.place(new Vector3(), new Quaternion(), 1, now);
+    return (dressing as unknown as { cut: Plane }).cut.constant;
+  };
+
+  it('rises with the clock, and holds where it froze', () => {
+    expect(cutAt(rising, 0)).toBeLessThan(cutAt(rising, 20 * 60_000));
+    const frozen = { ...rising, frozenMinutesLeft: 30 };
+    expect(cutAt(frozen, 20 * 60_000)).toBe(cutAt(frozen, 0));
+    expect(cutAt(frozen, 10 ** 9)).toBe(cutAt(rising, 0));
   });
 });

@@ -62,7 +62,7 @@ Décision de Pierre du 25/11 : une intégrité simple à deux ou trois états, p
      en cours se fige jusqu'au retour, par la suspension de la famine ;
    - l'aérodrome et le port : rien n'en part (porte de départ → `BUILDING_DISABLED`) ; on y
      rentre et on y atterrit toujours ;
-   - le centre de recherche et le QG : #648, point 8 ;
+   - le centre de recherche et le QG : point 8 ;
    - le poste d'écoute : **hors V1**, il porte une portée et donc le brouillard
      (`reassessDetection`) ; il n'est pas une cible.
 7. **Lecture et dépêches.** La vue sert `integrity: 'damaged' | 'disabled'` et l'heure de retour
@@ -75,6 +75,19 @@ Décision de Pierre du 25/11 : une intégrité simple à deux ou trois états, p
    les mouvements partent toujours (règle n° 3 : un joueur frappé riposte). Son niveau ne bouge
    pas ; capture et élimination ne changent pas (ADR 0027 §4). Le centre de recherche désactivé
    suspend de même la recherche.
+
+   > **Précisée le 25/11 (#648, recommandation (a)).** « Lancer un chantier », c'est poser, élever
+   > un bâtiment, élever ou respécialiser un avant-poste : tous refusés par `BUILDING_DISABLED`
+   > (`placementRefusal`, `raiseRefusalOf`, `outpostRaiseHold`, `specialtyRefusalOf`, lus sur
+   > `hqDisabledAt`), le choix gratuit d'un point d'avant la refonte excepté. Le chantier qui court
+   > se fige (`constructions.frozenMs`, comme la file de la caserne) : il a commencé
+   > (`workStarted`), donc ni annuler, ni raser, ni démanteler ne le rembourse ; à son retour, la
+   > tête relit sa règle comme toute tête de file. Le QG désactivé ne laisse commencer aucune
+   > carte, la suivante déjà payée en file comprise, et celle-ci attend son retour ; la carte qui
+   > court continue (`researchRunsOf`). Seul le Centre désactivé suspend celle qui court
+   > (`followCenter`). Seul son propre QG compte, jamais un QG pris à un autre. Un QG désactivé
+   > ne change ni la couleur, ni les plafonds, ni la production : rien ne le lisait dans
+   > `activeBuildings`.
 9. **Hors périmètre.** Le porte-avions ne frappe pas en V1 🟠 ; la DCA (63a) attend le test ; la
    Blitz n'a pas de frappe.
 

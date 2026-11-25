@@ -512,6 +512,12 @@ describe('posterOf', () => {
       lines: [{ kind: 'row', label: 'reste', value: '00:24:00' }],
       bar: 0.6,
     });
+    /** Revue de #648 : figé, il dit son reste fixe et sa barre ne bouge pas. */
+    const frozen = { ...rising, frozenMinutesLeft: 24 };
+    expect(posterFor(view(), [site(frozen)], 'm-x')).toMatchObject({
+      lines: [{ kind: 'text', text: fr.works.frozen('00:24:00') }],
+      bar: 0.6,
+    });
     const queued = { ...rising, phase: 'queued', rank: 2, finishesAt: null } as const;
     expect(posterFor(view(), [site(queued)], 'm-x')).toMatchObject({
       eyebrow: 'en file · Meuse',

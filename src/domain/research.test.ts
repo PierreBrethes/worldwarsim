@@ -16,12 +16,20 @@ import {
   researchProgressOf,
   searcherLevel,
   researchRefusalOf,
+  researchRunsOf,
   roleLockOf,
   slotCardsOf,
 } from './research';
 
 const stocks = { food: 500, steel: 500, coal: 500, oil: 500, ammunition: 0 };
-const ready = { researched: [], running: null, queued: [], centerLevel: 1, stocks } as const;
+const ready = {
+  researched: [],
+  running: null,
+  queued: [],
+  centerLevel: 1,
+  halted: null,
+  stocks,
+} as const;
 
 describe('the research tree', () => {
   /**
@@ -121,6 +129,19 @@ describe('the research tree', () => {
 describe('putting a card on the research centre', () => {
   it('takes a card whose prerequisites stand', () => {
     expect(researchRefusalOf('infantryMk2', ready)).toBeNull();
+  });
+
+  /** ADR 0046 §8 (#648) : un Centre ou un QG désactivé ne lance aucune carte, et le dit. */
+  it('refuses any card while its centre or the headquarters is disabled, before the price', () => {
+    const broke = { ...stocks, coal: 0 };
+    for (const building of ['researchCenter', 'hq'] as const)
+      expect(researchRefusalOf('escort', { ...ready, halted: building, stocks: broke })).toEqual({
+        code: 'BUILDING_DISABLED',
+        building,
+      });
+    expect(researchRefusalOf('escort', { ...ready, halted: 'hq', centerLevel: null })).toEqual({
+      code: 'RESEARCH_NEEDS_CENTER',
+    });
   });
 
   it('names the card to research first', () => {
@@ -244,5 +265,27 @@ describe('the Transmissions cards', () => {
     for (const card of ['transmissions1', 'transmissions2', 'transmissions3'] as const) {
       expect(counterOf(card), card).toBeNull();
     }
+  });
+});
+
+/** Revue de #648 : le QG désactivé retient la carte qui n'a pas commencé, jamais celle qui court. */
+describe('researchRunsOf', () => {
+  const NOW = 1_000_000;
+  const center = { key: 'researchCenter' as const, level: 1 };
+  const hq = { key: 'hq' as const, level: 1 };
+  const out = { disabledUntil: NOW + 1 };
+
+  it('runs a card on a centre in service, and on none without one', () => {
+    expect(researchRunsOf([center, hq], NOW, false)).toBe(true);
+    expect(researchRunsOf([hq], NOW, true)).toBe(false);
+  });
+
+  it('holds every card under a disabled centre', () => {
+    expect(researchRunsOf([{ ...center, ...out }, hq], NOW, true)).toBe(false);
+  });
+
+  it('lets a begun card run under a disabled headquarters, and holds a fresh one', () => {
+    expect(researchRunsOf([center, { ...hq, ...out }], NOW, true)).toBe(true);
+    expect(researchRunsOf([center, { ...hq, ...out }], NOW, false)).toBe(false);
   });
 });

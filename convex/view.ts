@@ -57,7 +57,7 @@ import {
   totalLevelOf,
 } from './buildingReads';
 import { siegesOf, siegeTargetsOf } from './buildings';
-import { besieged } from '../src/domain/construction';
+import { besieged, workStarted } from '../src/domain/construction';
 import {
   FOUNDER_ABSENCE_NOTICE_HOURS,
   MAX_PLAYERS,
@@ -226,7 +226,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   const queue = await queueOf(ctx, player._id);
   /** The first dated entry is the one the banner counts down; the others wait in
    *  `constructionQueue`. */
-  const construction = queue.find((entry) => entry.finishesAt !== null) ?? null;
+  const construction = queue.find(workStarted) ?? null;
 
   const recruiting = await recruitmentsOf(ctx, player._id);
 
@@ -674,7 +674,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
       // The region and the key travel with it because the map plants the crane on the
       // ground: a region name is a caption, not an anchor.
       construction:
-        construction !== null && construction.finishesAt !== null
+        construction !== null
           ? {
               id: construction._id,
               name: construction.building,
@@ -690,7 +690,12 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
                 construction.point === undefined
                   ? null
                   : ([construction.point.lon, construction.point.lat] as [number, number]),
-              minutesLeft: Math.max(0, (construction.finishesAt - now) / 60_000),
+              /** **Figé** sous un QG désactivé (ADR 0046 §8) : ce reste ne décompte pas. */
+              ...(construction.finishesAt === null ? { frozen: true as const } : {}),
+              minutesLeft:
+                construction.finishesAt === null
+                  ? (construction.frozenMs ?? 0) / 60_000
+                  : Math.max(0, (construction.finishesAt - now) / 60_000),
               minutes: construction.minutes,
               level: construction.level,
               kept: construction.kept,

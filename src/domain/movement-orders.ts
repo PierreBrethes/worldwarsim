@@ -369,12 +369,19 @@ export type StrikeRefusal =
   | 'NOT_A_STRIKE_TARGET';
 
 /**
- * **Ce qu'un bombardier frappe** (ADR 0046 §3, §6) : ce que le pillage vise, plus la caserne,
- * l'aérodrome et le port. Ni le poste d'écoute (sa portée est le brouillard), ni le QG et le centre
- * de recherche tant que #648 n'a pas dit ce qu'ils perdent.
+ * **Ce qu'un bombardier frappe** (ADR 0046 §3, §6, §8) : ce que le pillage vise, plus la caserne,
+ * l'aérodrome, le port, le QG et le centre de recherche. Jamais le poste d'écoute : sa portée est
+ * le brouillard. Le QG frappé se désactive, il ne se rase pas.
  */
+const STRUCK_BEYOND_PLUNDER: ReadonlySet<BuildingKey> = new Set([
+  'barracks',
+  'airfield',
+  'port',
+  'hq',
+  'researchCenter',
+]);
 const isStrikeTarget = (key: BuildingKey): boolean =>
-  isPlunderTarget(key) || key === 'barracks' || key === 'airfield' || key === 'port';
+  isPlunderTarget(key) || STRUCK_BEYOND_PLUNDER.has(key);
 
 /**
  * **Frapper** (ADR 0046 §3) : des bombardiers, escortés de chasseurs et de rien d'autre, sur un

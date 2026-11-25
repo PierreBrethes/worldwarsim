@@ -81,10 +81,14 @@ export function maquettesOf(
                 finishesAt:
                   marker.works.finishesAt === null ? null : Math.round(marker.works.finishesAt),
                 minutes: marker.works.minutes,
+                ...(marker.works.frozenMinutesLeft === undefined
+                  ? {}
+                  : { frozenMinutesLeft: marker.works.frozenMinutesLeft }),
                 pennant:
                   marker.works.phase === 'raising' ? fr.labels.pennant(marker.works.level) : null,
+                /** Figé, il n'a pas d'heure de fin à promettre. */
                 stamp:
-                  marker.works.finishesAt === null
+                  marker.works.finishesAt === null || marker.works.frozenMinutesLeft !== undefined
                     ? null
                     : { word: fr.stamps.finished, hour: asClockTime(marker.works.finishesAt) },
               },

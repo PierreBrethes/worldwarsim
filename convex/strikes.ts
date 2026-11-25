@@ -11,6 +11,8 @@ import { clipToStorage } from './resources';
 import { scheduleRestore, settleBeforeChange } from './production';
 import { takeHeap } from './heaps';
 import { freezeQueue } from './troops';
+import { followCenter } from './research';
+import { hqDisabledIn, playerBuildings, queueOf } from './buildingReads';
 import { notifyPlayer } from './notifications';
 import { journalUrl, push } from '../src/domain/push';
 import { dakarSparedAt } from './strategicPoints';
@@ -182,12 +184,28 @@ async function strikeBuilding(
     ? await clipToStorage(ctx, target.playerId, now, spared)
     : emptyStocks();
   if (target.key === 'barracks') await freezeQueue(ctx, target._id, now);
+  /** **Le QG et le Centre désactivés** (ADR 0046 §8) : ses chantiers attendent, sa carte aussi. */
+  if (target.key === 'hq' && hqDisabledIn(await playerBuildings(ctx, target.playerId), now))
+    await freezeWorks(ctx, target.playerId, now);
+  if (target.key === 'researchCenter') await followCenter(ctx, target.playerId, now);
   await scheduleRestore(ctx, target.seasonId, dates.disabledUntil);
   return {
     integrity: 'disabled',
     restoresAt: dates.disabledUntil,
     storageLost: RESOURCES.some((key) => storageLost[key] > 0) ? storageLost : null,
   };
+}
+
+/**
+ * **Les chantiers d'un QG désactivé attendent son retour** (ADR 0046 §8) : la tête qui court perd sa
+ * date et garde ce qu'il lui restait, comme la file d'une caserne (`freezeQueue`). Son rendez-vous,
+ * resté au planning, s'écarte de lui-même (`constructions.finish`) ; le retour la relance
+ * (`restoreAfterDisabling`), et elle relit alors sa règle comme toute tête de file.
+ */
+async function freezeWorks(ctx: MutationCtx, playerId: Id<'players'>, now: number): Promise<void> {
+  const head = (await queueOf(ctx, playerId)).find((entry) => entry.finishesAt !== null);
+  if (head?.finishesAt == null) return;
+  await ctx.db.patch(head._id, { finishesAt: null, frozenMs: Math.max(0, head.finishesAt - now) });
 }
 
 async function flyHome(

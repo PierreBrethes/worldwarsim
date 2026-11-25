@@ -1253,6 +1253,9 @@ export default defineSchema({
      *  sa barre sans la recalculer au niveau d'aujourd'hui. Absent tant qu'il attend, et sur les
      *  lignes d'avant le champ. */
     minutes: v.optional(v.number()),
+    /** **Ce qu'il restait au chantier quand son QG a été désactivé** (ADR 0046 §8) : il n'est plus
+     *  daté, et son réveil le date de ce reste. Absent, il se date de sa durée pleine. */
+    frozenMs: v.optional(v.number()),
     /** **Le niveau gardé** qu'une pose soviétique a pris à la réserve (ADR 0039 §5) : `level`
      *  vaut 1, son prix et sa durée ; `finish` le pose à ce niveau. Revient à la réserve avec le
      *  remboursement. */
