@@ -135,24 +135,27 @@ export const STORAGE_CAP_PER_LEVEL = 600;
  *
  * @a-mesurer the second figure of the three extractors is new; set by eye against their steel,
  * and the research centre (#123) is set near the barracks
+ *
+ * @a-mesurer les durées du premier niveau sont le tiers de l'ancien barème (mesure du 25/11, #672) ;
+ * jamais joué
  */
 export const BUILDING_SPEC: Readonly<
   Record<BuildingKey, { readonly cost: Costs; readonly minutes: number }>
 > = {
-  hq: { cost: { steel: 60, coal: 40 }, minutes: 45 },
-  farm: { cost: { steel: 20, coal: 8 }, minutes: 20 },
-  mine: { cost: { steel: 30, coal: 10 }, minutes: 30 },
-  oilWell: { cost: { steel: 45, coal: 12 }, minutes: 40 },
-  arsenal: { cost: { steel: 60, coal: 20 }, minutes: 55 },
-  barracks: { cost: { steel: 40, food: 30 }, minutes: 40 },
-  airfield: { cost: { steel: 70, oil: 20 }, minutes: 70 },
-  port: { cost: { steel: 65, coal: 20 }, minutes: 65 },
-  listening: { cost: { steel: 35, coal: 15 }, minutes: 40 },
+  hq: { cost: { steel: 60, coal: 40 }, minutes: 15 },
+  farm: { cost: { steel: 20, coal: 8 }, minutes: 7 },
+  mine: { cost: { steel: 30, coal: 10 }, minutes: 10 },
+  oilWell: { cost: { steel: 45, coal: 12 }, minutes: 13 },
+  arsenal: { cost: { steel: 60, coal: 20 }, minutes: 18 },
+  barracks: { cost: { steel: 40, food: 30 }, minutes: 13 },
+  airfield: { cost: { steel: 70, oil: 20 }, minutes: 23 },
+  port: { cost: { steel: 65, coal: 20 }, minutes: 22 },
+  listening: { cost: { steel: 35, coal: 15 }, minutes: 13 },
   // De l'ordre de la caserne (#123), à mesurer comme le reste du barème.
-  researchCenter: { cost: { steel: 45, coal: 30 }, minutes: 45 },
-  warehouse: { cost: { steel: 30, coal: 10 }, minutes: 25 },
+  researchCenter: { cost: { steel: 45, coal: 30 }, minutes: 15 },
+  warehouse: { cost: { steel: 30, coal: 10 }, minutes: 8 },
   // Legacy tariffs still price queued work, refunds and industry.
-  depot: { cost: { steel: 40, coal: 15 }, minutes: 30 },
+  depot: { cost: { steel: 40, coal: 15 }, minutes: 10 },
   // La ville de la Blitz ne se bâtit pas (`BUILDABLE_BUILDINGS`) : le barème l'exige, rien ne le lit.
   city: { cost: {}, minutes: 0 },
 };
@@ -245,9 +248,9 @@ export const foundationFor = (deposits: ReadonlySet<DepositKey>): ReadonlyArray<
  * **Ce qu'un niveau de plus coûte, en prix comme en durée** : chaque niveau multiplie ceux du
  * précédent (`buildCost`, `buildMinutes`).
  *
- * @a-mesurer 2,0 depuis le modèle de #158, jamais joué
+ * @a-mesurer 1,5 : mesure du 25/11 (#672), un niveau de plus reste à portée toute la semaine ; jamais joué
  */
-export const LEVEL_COST_FACTOR = 2.0;
+export const LEVEL_COST_FACTOR = 1.5;
 
 /**
  * **Monter un avant-poste se tarife comme un bâtiment de projection du même niveau** (précision
@@ -267,7 +270,7 @@ export const LEVEL_COST_FACTOR = 2.0;
  */
 export const OUTPOST_RAISE_SPEC: { readonly cost: Costs; readonly minutes: number } = {
   cost: { steel: 65, food: 20 },
-  minutes: 65,
+  minutes: 22,
 };
 
 /** Les quinze bâtiments et l'élévation d'un avant-poste, au même barème de niveaux. */
