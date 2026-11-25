@@ -584,10 +584,9 @@ function BoardContent({
   );
   const endSweep = useCallback(() => setSweep(null), []);
   const [sweepStatus, setSweepStatus] = useState<string | null>(null);
-  const sweepButton = (icon: boolean) =>
-    blitz ? null : (
-      <SweepButton species={sweepSpecies} onSweep={launchSweep} status={sweepStatus} icon={icon} />
-    );
+  const sweepButton = blitz ? null : (
+    <SweepButton species={sweepSpecies} onSweep={launchSweep} status={sweepStatus} />
+  );
   /** Les cases cochées du panneau de garnison ouvert — remontées pour la seule mise en avant :
    *  la composition reste au panneau, qui seul la soumet. */
   const [garrisonPicked, setGarrisonPicked] = useState<ReadonlyArray<string>>([]);
@@ -3509,7 +3508,6 @@ function BoardContent({
       todo={narrow ? nextActions('sheet') : replay === null && nextActions('card')}
       onShowBriefing={showBriefing}
       onResumeSteps={resumeSteps}
-      sweep={replay === null ? sweepButton(false) : null}
       underway={underway}
       onLocate={locateUnderway}
       covered={coversUnderway}
@@ -3972,6 +3970,7 @@ function BoardContent({
                           layers={view.mode !== 'blitz'}
                           onRecenter={recenterOnHome}
                           onCorner={setCorner}
+                          sweep={sweepButton}
                         />
                       )}
                     </div>
@@ -3991,7 +3990,7 @@ function BoardContent({
                       layers={view.mode !== 'blitz'}
                       onRecenter={recenterOnHome}
                       onCorner={setCorner}
-                      sweep={sweepButton(true)}
+                      sweep={sweepButton}
                     />
                   </div>
                 )}

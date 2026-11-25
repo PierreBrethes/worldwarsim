@@ -32,7 +32,14 @@ afterEach(cleanup);
 
 const view = {
   loadedAt: Date.now(),
-  season: { number: 1, elapsedHours: 460, durationHours: 168 * 4 },
+  strategicPoints: [],
+  season: {
+    number: 1,
+    elapsedHours: 460,
+    durationHours: 168 * 4,
+    outcome: { concludedAt: null },
+    race: null,
+  },
   press: { mine: { rank: 2, nickname: 'Théo' } },
   me: {
     nation: 'france',
@@ -78,6 +85,26 @@ describe('the narrow band', () => {
     expect(screen.getByText(fr.banner.slotsCount(1, 3))).toBeTruthy();
     expect(screen.getByText('15:00')).toBeTruthy();
     expect(screen.queryByTitle(fr.resources.coal)).toBeNull();
+  });
+
+  it('says my points of the Sept and, once the race runs, the time left; a touch opens the press (#670)', async () => {
+    const point = (id: string, mine: boolean) => ({
+      id,
+      key: 'tangier',
+      holder: { nation: mine ? 'france' : 'germany', heldMs: 0 },
+      mine,
+      contested: false,
+    });
+    const points = [point('a', true), point('b', true), point('c', false)];
+    const endsAt = Date.now() + 12 * 60_000 + 30_000;
+    await mount(() => {}, {
+      ...view,
+      strategicPoints: points,
+      season: { ...view.season, race: { leaderNation: 'germany', endsAt } },
+    } as unknown as PlayerView);
+    const touch = screen.getByTitle(new RegExp(`^${fr.points.race.title}`));
+    expect(touch.textContent).toMatch(/^2 \/ 4\s*12 min \d\d s$/);
+    expect(touch.getAttribute('href')).toContain(encodeURIComponent('["press"]'));
   });
 
   it('opens the nation’s dossier from its flag, one line per door', async () => {
