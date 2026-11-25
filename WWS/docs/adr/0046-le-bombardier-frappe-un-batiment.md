@@ -57,9 +57,9 @@ Décision de Pierre du 25/11 : une intégrité simple à deux ou trois états, p
    éteinte à perpétuité.
 6. **Ce que perd un désactivé** (même lecture `integrityOf`, à l'écran par son refus) :
    - les quatre extracteurs, les chaînes, l'entrepôt : ce que le sabotage fait déjà (ne produit
-     ni ne stocke) ;
+     ni ne stocke ; le teneur de Dakar garde ce que le pillage lui laisse) ;
    - la caserne : ne lance plus de formation (`recruitRefusalOf` → `BUILDING_DISABLED`), la file
-     en cours attend l'échéance ;
+     en cours se fige jusqu'au retour, par la suspension de la famine ;
    - l'aérodrome et le port : rien n'en part (porte de départ → `BUILDING_DISABLED`) ; on y
      rentre et on y atterrit toujours ;
    - le centre de recherche et le QG : #648, point 8 ;
