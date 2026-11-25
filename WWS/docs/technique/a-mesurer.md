@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 9bce704 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 2df5cd5 -->
 
 # Les constantes à mesurer
 
@@ -123,7 +123,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `FINAL_POSE_MS` | `STEP_MS['compte-rendu']` | `src/domain/combat-on-map.ts:32` | le temps du compte-rendu, assez pour lire qui reste debout ? |
 | `REPORT_HOLD_MS` | `STEP_MS['compte-rendu'] + 6000` | `src/domain/combat-on-map.ts:200` | le temps de lire « nos pièces » et de l'ouvrir. |
 | `STAMP_NEAR_SHARE` | `0.5` | `src/domain/combat-on-map.ts:272` | « voir » |
-| `PLACING_SNAP_KM` | `60` | `src/domain/construction.ts:74` | choisi à l'œil pour qu'un gisement se prenne sans viser au pixel |
+| `PLACING_SNAP_KM` | `60` | `src/domain/construction.ts:77` | choisi à l'œil pour qu'un gisement se prenne sans viser au pixel |
 | `BEFORE_CITY_KM` | `30` | `src/domain/contacts.ts:35` | la maquette C le pose à 0,35 unité, environ 30 km |
 | `MOON_AZIMUTH_DEG` | `315` | `src/domain/daylight.ts:102` | posée à l'œil sur la maquette ; rien ne mesure d'où la lune éclaire le mieux les pièces |
 | `MOON_ELEVATION_DEG` | `53` | `src/domain/daylight.ts:103` | posée à l'œil sur la maquette ; rien ne mesure d'où la lune éclaire le mieux les pièces |
@@ -153,8 +153,8 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `BIG_AFTER_MS` | `{ full: 1400, reduced: 300 } as const` | `src/domain/moments.ts:102` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
 | `SEPIA_AFTER_MS` | `600` | `src/domain/moments.ts:103` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
 | `OPEN_AFTER_MS` | `1600` | `src/domain/moments.ts:104` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
-| `STARTING_MOVEMENT_SLOTS` | `2` | `src/domain/movement-orders.ts:417` | deux, d'après la décision du 19/10, jamais joué |
-| `DISBAND_RING_SPANS` | `2.1` | `src/domain/movement-orders.ts:986` | assez pour que les pièces se lisent à part, assez peu pour rester à portée de soutien ; plafonné au camion, une coque y chevauche ses voisines |
+| `STARTING_MOVEMENT_SLOTS` | `2` | `src/domain/movement-orders.ts:424` | deux, d'après la décision du 19/10, jamais joué |
+| `DISBAND_RING_SPANS` | `2.1` | `src/domain/movement-orders.ts:993` | assez pour que les pièces se lisent à part, assez peu pour rester à portée de soutien ; plafonné au camion, une coque y chevauche ses voisines |
 | `NEIGHBOR_REACH_KM` | `3500` | `src/domain/nation-brief.ts:7` | placeholders for the lobby sheet, not game rules. |
 | `NEAR_POINT_REACH_KM` | `3000` | `src/domain/nation-brief.ts:8` | placeholders for the lobby sheet, not game rules. |
 | `MAX_NEIGHBORS` | `3` | `src/domain/nation-brief.ts:9` | placeholders for the lobby sheet, not game rules. |
