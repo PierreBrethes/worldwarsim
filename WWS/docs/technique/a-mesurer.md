@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 372cb98 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 1786efb -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ Les issues portent les questions, les prompts portent le travail. Quand le simul
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-184 valeurs marquées dans `convex/` et `src/domain/`.
+185 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `FACTORY_LINES` et leurs voisines : l'en-tête de `convex/constants.ts` les
@@ -59,39 +59,40 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `INDIRECT_FIRE` | `{ emplaceSeconds: 30 } as const` | `convex/constants.ts:915` | rien n'a encore joué une soirée |
 | `MONDIALE_FIRE_REACH` | `{ rangeKm: 150, deadZoneKm: 30 } as const` | `convex/constants.ts:924` | rien n'a encore tiré dans une Mondiale |
 | `PURSUIT_STEP_SECONDS` | `15` | `convex/constants.ts:933` | à 200 km/min, quinze secondes font cinquante kilomètres |
-| `LISTENING_STATION_RADIUS_KM` | `120` | `convex/constants.ts:947` | a rank in the ordering the design asks for, and nothing more |
-| `UPKEEP_STEPS` | `[ { upTo: 10, rate: 1 }, { upTo: 25, rate: 2 }, { upTo: Number.POSITIVE_INFINITY, rate: 3 }, ]` | `convex/constants.ts:961` | the three rates and the two thresholds are set by eye against a farm at level one |
-| `OUTPOST_FOOD_PER_HOUR_PER_LEVEL` | `3` | `convex/constants.ts:974` | set by eye: a level-one point against the twelve of a farm |
-| `LISTENING_COAL_PER_HOUR` | `1` | `convex/constants.ts:983` | set by eye: a post against the twelve an hour of a coal mine at level one |
-| `LOOKOUT_COAL_PER_HOUR_PER_LEVEL` | `1` | `convex/constants.ts:991` | 1, 2, 3 par heure : un point contre les douze d'une mine de charbon au niveau 1 |
-| `LOOKOUT_REACH_SHARE` | `0.5` | `convex/constants.ts:999` | la moitié : ce que le POC a montré lisible, une vigie qui ne couvre pas tout ce qu'elle tient |
-| `FORT_SLOWDOWN_MULTIPLIER` | `1.5` | `convex/constants.ts:1007` | ×1,5 : le pendant de l'accélération des liaisons, aucune partie ne l'a joué |
-| `UPKEEP_UNSUPPLIED_MULTIPLIER` | `2` | `convex/constants.ts:1020` | assumed; at ×2 the surcharge may drown in an economy where steel is the bottleneck |
-| `OUTPOST_DISABLED_HOURS` | `6` | `convex/constants.ts:1030` | neither figure is in the design; shaped only so the pair reads on a 48-hour season |
-| `OUTPOST_IMMUNITY_HOURS` | `3` | `convex/constants.ts:1031` | neither figure is in the design; shaped only so the pair reads on a 48-hour season |
-| `PLUNDER_HOURS_PRESENT` | `2` | `convex/constants.ts:1040` | starting points only; no simulation models plunder presence or warehouse downtime |
-| `BUILDING_DISABLED_HOURS` | `12` | `convex/constants.ts:1041` | starting points only; no simulation models plunder presence or warehouse downtime |
-| `DAMAGED_HOURS` | `24` | `convex/constants.ts:1049` | 24 h de l'ADR 0046, jamais joué |
-| `BUILDING_IMMUNITY_HOURS` | `6` | `convex/constants.ts:1057` | 6 h de l'ADR 0046, jamais joué |
-| `CAPTURE_MINUTES` | `{ /** Un point stratégique se prend comme un bâtiment : six heures (P1), à mesurer comme le reste. */ mondiale: { building: 360, outpost: 360, point: 360 }, /** Le QG de la Blitz, deux fois un bâtiment : sa chute élimine (B10), et le défenseur doit * avoir le temps de revenir. */ blitz: { building: 2.4, outpost: 2.4, hq: 4.8 } } as const satisfies Record<SeasonMode, Record<'building' \| 'outpost', number>> & { mondiale: { point: number }; blitz: { hq: number }; }` | `convex/constants.ts:1067` | « ≈ 6 h » et « ≈ 3 min » du grilling du 14/10, « ≈ 6 min » pour le QG (lot 6), jamais |
-| `LAST_KNOWN_HOURS` | `24` | `convex/constants.ts:1089` | une journée, choisie pour qu'un relevé du soir serve encore au matin sur une saison |
-| `LOOT_CRATE_HOURS` | `24` | `convex/constants.ts:1098` | provisional lifetime; no season simulation models crate discovery or collection |
-| `LOOT_RUMOR_DELAY_MINUTES` | `10` | `convex/constants.ts:1106` | provisional disclosure delay and search radius; no season simulation models them |
-| `LOOT_RUMOR_RADIUS_KM` | `200` | `convex/constants.ts:1107` | provisional disclosure delay and search radius; no season simulation models them |
-| `OUTPOST_REACH_KM_BY_LEVEL` | `{ 1: 120, 2: 180, 3: 240 }` | `convex/constants.ts:1121` | placeholders assumés : mesurés sur ce qu'ils couvrent d'une carte, jamais sur une partie qu'ils auraient changée |
-| `RELAY_SPEED_MULTIPLIER` | `1.5` | `convex/constants.ts:1153` | shaped so the relay reads as a decision rather than a rounding |
-| `MONDIALE_PACE` | `12` | `convex/constants.ts:1175` | posé par la fiche pour la saison test, jamais joué |
-| `SURVEY_REFRESH_HOURS` | `1` | `convex/constants.ts:1209` | une durée lisible, rien de plus |
-| `FOUNDER_ABSENCE_HOURS` | `48` | `convex/constants.ts:1223` | choisi sur la cadence de visite d'un jeu asynchrone, jamais mesuré en partie |
-| `OBJECTIVE_ARCHETYPES` | `[ { key: 'abandonedStores', tier: 'easy', garrison: [ { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, ], depot: { steel: 180, oil: 60 } }, { key: 'stalledConvoy', tier: 'medium', garrison: [ { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, ], depot: { steel: 450, ammunition: 120, oil: 120 } }, { key: 'fuelDump', tier: 'medium', garrison: [ { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, ], depot: { steel: 450, oil: 180 } }, { key: 'irregularArsenal', tier: 'hard', garrison: [ { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, { role: 'armor', tier: 1 }, ], depot: { steel: 900, ammunition: 240, oil: 240 } }, ]` | `convex/constants.ts:1284` | toute la table : par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
-| `OBJECTIVE_NEAR_KM` | `1_500` | `convex/constants.ts:1358` | les quatre : mesure attendue — par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
-| `OBJECTIVE_SPREAD_KM` | `300` | `convex/constants.ts:1359` | les quatre : mesure attendue — par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
-| `OBJECTIVE_HARD_MIN_KM` | `800` | `convex/constants.ts:1360` | les quatre : mesure attendue — par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
-| `OBJECTIVE_HARD_FAIRNESS` | `0.75` | `convex/constants.ts:1361` | les quatre : mesure attendue — par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
-| `OBJECTIVE_AMMUNITION_PER_TROOP` | `200` | `convex/constants.ts:1378` | un stock de plateau que rien ne dépense au combat ; sa valeur ne règle aucune garnison |
-| `POINT_GARRISON` | `[ { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, ]` | `convex/constants.ts:1388` | à combien de colonnes un point tient avant la première recherche, au banc |
-| `BLITZ` | `{ startingFunds: 200, fundsPerMinute: { hq: 30, city: 15 } as Readonly<Partial<Record<BuildingKey, number>>>, rolePrice: { infantry: 60, landTransport: 90, armor: 180, artillery: 160, fighter: 200, bomber: 260, airTransport: 150, escort: 200, cargo: 140, carrier: 320 } as Readonly<Record<UnitRole, number>>, recruitMinutes: 0.8, /** La borne technique, jamais affichée (R10b) : le frein est l'économie. */ troopBound: 80, mend: { stepMinutes: 0.8, /** La part de la force nominale rendue à chaque pas. */ sharePerStep: 0.1, /** Ce que coûte une remise à neuf entière, en part du prix du rôle. */ priceShare: 0.5 }, map: { /** Le cercle des QG, posé sur la terre (A2) : son rayon en part du théâtre — 950 km en * Europe —, et l'écart cible entre QG en est la corde. */ hqRadius: 0.225, hqRadiusSpread: 0.5, /** Combien de tablées on tire au plus, chacune d'une région au hasard. */ hqDraws: 1000, /** Combien de tablées régulières on éprouve en entier (E6 : une douzaine) avant de refuser. */ hqTries: 12, /** Le plus court écart de route entre QG, en part du plus long, sous lequel on refuse. */ hqEvenness: 0.6, /** L'écart permis, à pied, autour de la distance cible d'une caserne ou d'un neutre proche. */ tolerance: 0.35, /** La caserne de départ, à soi, à cette part du théâtre (A2) en route depuis le QG — 120 km * en Europe. */ starting: [{ key: 'barracks', share: 0.0284 }], /** Les neutres proches de chaque QG, chacun à la même distance de route pour tous : 250, 450, * 350 et 400 km en Europe. */ near: [ { key: 'city', share: 0.0592 }, { key: 'city', share: 0.1065 }, { key: 'port', share: 0.0828 }, { key: 'airfield', share: 0.0947 }, ], /** Les neutres disputés, par paire de voisins, au milieu de la route qui les sépare. */ disputed: ['city', 'airfield'], /** Le plus court écart à vol d'oiseau entre deux bâtiments posés — 80 km en Europe. */ spread: 0.0189, fairness: 0.8 } as const } as const` | `convex/constants.ts:1403` | toutes, posées pour qu'une partie de deux heures se lise sur le papier : le pécule |
-| `OUTPOSTS_PAGE` | `100` | `convex/dev.ts:376` | Points relus par mutation : cent points à 6 Ko (le banc, #640) tiennent sous la limite. |
+| `MONDIALE_PURSUIT_STEP_SECONDS` | `600` | `convex/constants.ts:942` | rien n'a encore poursuivi dans une Mondiale |
+| `LISTENING_STATION_RADIUS_KM` | `120` | `convex/constants.ts:960` | a rank in the ordering the design asks for, and nothing more |
+| `UPKEEP_STEPS` | `[ { upTo: 10, rate: 1 }, { upTo: 25, rate: 2 }, { upTo: Number.POSITIVE_INFINITY, rate: 3 }, ]` | `convex/constants.ts:974` | the three rates and the two thresholds are set by eye against a farm at level one |
+| `OUTPOST_FOOD_PER_HOUR_PER_LEVEL` | `3` | `convex/constants.ts:987` | set by eye: a level-one point against the twelve of a farm |
+| `LISTENING_COAL_PER_HOUR` | `1` | `convex/constants.ts:996` | set by eye: a post against the twelve an hour of a coal mine at level one |
+| `LOOKOUT_COAL_PER_HOUR_PER_LEVEL` | `1` | `convex/constants.ts:1004` | 1, 2, 3 par heure : un point contre les douze d'une mine de charbon au niveau 1 |
+| `LOOKOUT_REACH_SHARE` | `0.5` | `convex/constants.ts:1012` | la moitié : ce que le POC a montré lisible, une vigie qui ne couvre pas tout ce qu'elle tient |
+| `FORT_SLOWDOWN_MULTIPLIER` | `1.5` | `convex/constants.ts:1020` | ×1,5 : le pendant de l'accélération des liaisons, aucune partie ne l'a joué |
+| `UPKEEP_UNSUPPLIED_MULTIPLIER` | `2` | `convex/constants.ts:1033` | assumed; at ×2 the surcharge may drown in an economy where steel is the bottleneck |
+| `OUTPOST_DISABLED_HOURS` | `6` | `convex/constants.ts:1043` | neither figure is in the design; shaped only so the pair reads on a 48-hour season |
+| `OUTPOST_IMMUNITY_HOURS` | `3` | `convex/constants.ts:1044` | neither figure is in the design; shaped only so the pair reads on a 48-hour season |
+| `PLUNDER_HOURS_PRESENT` | `2` | `convex/constants.ts:1053` | starting points only; no simulation models plunder presence or warehouse downtime |
+| `BUILDING_DISABLED_HOURS` | `12` | `convex/constants.ts:1054` | starting points only; no simulation models plunder presence or warehouse downtime |
+| `DAMAGED_HOURS` | `24` | `convex/constants.ts:1062` | 24 h de l'ADR 0046, jamais joué |
+| `BUILDING_IMMUNITY_HOURS` | `6` | `convex/constants.ts:1070` | 6 h de l'ADR 0046, jamais joué |
+| `CAPTURE_MINUTES` | `{ /** Un point stratégique se prend comme un bâtiment : six heures (P1), à mesurer comme le reste. */ mondiale: { building: 360, outpost: 360, point: 360 }, /** Le QG de la Blitz, deux fois un bâtiment : sa chute élimine (B10), et le défenseur doit * avoir le temps de revenir. */ blitz: { building: 2.4, outpost: 2.4, hq: 4.8 } } as const satisfies Record<SeasonMode, Record<'building' \| 'outpost', number>> & { mondiale: { point: number }; blitz: { hq: number }; }` | `convex/constants.ts:1080` | « ≈ 6 h » et « ≈ 3 min » du grilling du 14/10, « ≈ 6 min » pour le QG (lot 6), jamais |
+| `LAST_KNOWN_HOURS` | `24` | `convex/constants.ts:1102` | une journée, choisie pour qu'un relevé du soir serve encore au matin sur une saison |
+| `LOOT_CRATE_HOURS` | `24` | `convex/constants.ts:1111` | provisional lifetime; no season simulation models crate discovery or collection |
+| `LOOT_RUMOR_DELAY_MINUTES` | `10` | `convex/constants.ts:1119` | provisional disclosure delay and search radius; no season simulation models them |
+| `LOOT_RUMOR_RADIUS_KM` | `200` | `convex/constants.ts:1120` | provisional disclosure delay and search radius; no season simulation models them |
+| `OUTPOST_REACH_KM_BY_LEVEL` | `{ 1: 120, 2: 180, 3: 240 }` | `convex/constants.ts:1134` | placeholders assumés : mesurés sur ce qu'ils couvrent d'une carte, jamais sur une partie qu'ils auraient changée |
+| `RELAY_SPEED_MULTIPLIER` | `1.5` | `convex/constants.ts:1166` | shaped so the relay reads as a decision rather than a rounding |
+| `MONDIALE_PACE` | `12` | `convex/constants.ts:1188` | posé par la fiche pour la saison test, jamais joué |
+| `SURVEY_REFRESH_HOURS` | `1` | `convex/constants.ts:1222` | une durée lisible, rien de plus |
+| `FOUNDER_ABSENCE_HOURS` | `48` | `convex/constants.ts:1236` | choisi sur la cadence de visite d'un jeu asynchrone, jamais mesuré en partie |
+| `OBJECTIVE_ARCHETYPES` | `[ { key: 'abandonedStores', tier: 'easy', garrison: [ { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, ], depot: { steel: 180, oil: 60 } }, { key: 'stalledConvoy', tier: 'medium', garrison: [ { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, ], depot: { steel: 450, ammunition: 120, oil: 120 } }, { key: 'fuelDump', tier: 'medium', garrison: [ { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, ], depot: { steel: 450, oil: 180 } }, { key: 'irregularArsenal', tier: 'hard', garrison: [ { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, { role: 'armor', tier: 1 }, ], depot: { steel: 900, ammunition: 240, oil: 240 } }, ]` | `convex/constants.ts:1297` | toute la table : par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
+| `OBJECTIVE_NEAR_KM` | `1_500` | `convex/constants.ts:1371` | les quatre : mesure attendue — par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
+| `OBJECTIVE_SPREAD_KM` | `300` | `convex/constants.ts:1372` | les quatre : mesure attendue — par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
+| `OBJECTIVE_HARD_MIN_KM` | `800` | `convex/constants.ts:1373` | les quatre : mesure attendue — par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
+| `OBJECTIVE_HARD_FAIRNESS` | `0.75` | `convex/constants.ts:1374` | les quatre : mesure attendue — par archétype, combien réduits au jour 7 et combien ont vu deux joueurs en 24 h |
+| `OBJECTIVE_AMMUNITION_PER_TROOP` | `200` | `convex/constants.ts:1391` | un stock de plateau que rien ne dépense au combat ; sa valeur ne règle aucune garnison |
+| `POINT_GARRISON` | `[ { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, { role: 'infantry', tier: 1 }, ]` | `convex/constants.ts:1401` | à combien de colonnes un point tient avant la première recherche, au banc |
+| `BLITZ` | `{ startingFunds: 200, fundsPerMinute: { hq: 30, city: 15 } as Readonly<Partial<Record<BuildingKey, number>>>, rolePrice: { infantry: 60, landTransport: 90, armor: 180, artillery: 160, fighter: 200, bomber: 260, airTransport: 150, escort: 200, cargo: 140, carrier: 320 } as Readonly<Record<UnitRole, number>>, recruitMinutes: 0.8, /** La borne technique, jamais affichée (R10b) : le frein est l'économie. */ troopBound: 80, mend: { stepMinutes: 0.8, /** La part de la force nominale rendue à chaque pas. */ sharePerStep: 0.1, /** Ce que coûte une remise à neuf entière, en part du prix du rôle. */ priceShare: 0.5 }, map: { /** Le cercle des QG, posé sur la terre (A2) : son rayon en part du théâtre — 950 km en * Europe —, et l'écart cible entre QG en est la corde. */ hqRadius: 0.225, hqRadiusSpread: 0.5, /** Combien de tablées on tire au plus, chacune d'une région au hasard. */ hqDraws: 1000, /** Combien de tablées régulières on éprouve en entier (E6 : une douzaine) avant de refuser. */ hqTries: 12, /** Le plus court écart de route entre QG, en part du plus long, sous lequel on refuse. */ hqEvenness: 0.6, /** L'écart permis, à pied, autour de la distance cible d'une caserne ou d'un neutre proche. */ tolerance: 0.35, /** La caserne de départ, à soi, à cette part du théâtre (A2) en route depuis le QG — 120 km * en Europe. */ starting: [{ key: 'barracks', share: 0.0284 }], /** Les neutres proches de chaque QG, chacun à la même distance de route pour tous : 250, 450, * 350 et 400 km en Europe. */ near: [ { key: 'city', share: 0.0592 }, { key: 'city', share: 0.1065 }, { key: 'port', share: 0.0828 }, { key: 'airfield', share: 0.0947 }, ], /** Les neutres disputés, par paire de voisins, au milieu de la route qui les sépare. */ disputed: ['city', 'airfield'], /** Le plus court écart à vol d'oiseau entre deux bâtiments posés — 80 km en Europe. */ spread: 0.0189, fairness: 0.8 } as const } as const` | `convex/constants.ts:1416` | toutes, posées pour qu'une partie de deux heures se lise sur le papier : le pécule |
+| `OUTPOSTS_PAGE` | `100` | `convex/dev.ts:377` | Points relus par mutation : cent points à 6 Ko (le banc, #640) tiennent sous la limite. |
 | `MESSAGES_PAGE` | `2000` | `convex/finalEdition.ts:42` | posés à l'œil, sans banc sur une saison de huit joueurs |
 | `NOTICES_PAGE` | `2000` | `convex/finalEdition.ts:43` | posés à l'œil, sans banc sur une saison de huit joueurs |
 | `PASSES_PAGE` | `100` | `convex/finalEdition.ts:44` | posés à l'œil, sans banc sur une saison de huit joueurs |
@@ -106,24 +107,24 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `TOUR_HOLD_MS` | `2200` | `src/domain/absence-tour.ts:29` | le maintien d'un tampon du rejeu, et l'écart du second (« terrain tenu »). |
 | `SECOND_STAMP_MS` | `800` | `src/domain/absence-tour.ts:30` | le maintien d'un tampon du rejeu, et l'écart du second (« terrain tenu »). |
 | `BLITZ_CROSSING_MINUTES` | `14.4` | `src/domain/blitz.ts:152` | the decision says 15 to 20 minutes, sped up by a quarter; nothing has played one yet |
-| `BOT_ORDERS_PER_TURN` | `2` | `src/domain/bot.ts:276` | combien d'ordres un passage garde ; peu, pour qu'un bot reste facile (ADR 0042 §5). |
-| `BOT_POINT_COLUMN` | `9` | `src/domain/bot.ts:282` | les infanteries d'une colonne qui prend un point neutre. Au banc de `convex` (ADR 0043), |
-| `BOT_ARMY_TARGET` | `BOT_POINT_COLUMN + 3` | `src/domain/bot.ts:287` | l'armée libre (sans la garnison des avant-postes), debout et en file, à partir de |
-| `BOT_FOOD_HORIZON_HOURS` | `12` | `src/domain/bot.ts:293` | le bot nourrit son armée (#652) quand ses vivres tomberont à zéro dans moins de ces |
-| `BOT_HARVEST_MIN` | `40` | `src/domain/bot.ts:295` | sous ce tas, un camion ne part pas le ramasser (ADR 0041) : le trajet coûterait plus. |
-| `BOT_FOOD_LOW` | `60` | `src/domain/bot.ts:296` | sous ce tas, un camion ne part pas le ramasser (ADR 0041) : le trajet coûterait plus. |
-| `BOT_RAISE_RESERVE` | `0.5` | `src/domain/bot.ts:301` | la part de son plafond d'acier que le bot garde après une élévation. Il n'élève |
-| `BOT_POINT_CANDIDATES` | `3` | `src/domain/bot.ts:303` | les points neutres essayés par escouade, du plus proche ; chaque essai coûte une route. |
-| `BOT_HQ_ALERT_KM` | `400` | `src/domain/bot.ts:306` | à moins de ce rayon du QG, un camp relevé est une menace (ADR 0042 §2, urgence). |
-| `BOT_SQUAD_SIZE` | `2` | `src/domain/bot.ts:308` | l'escouade qui avance ; le reste de la garnison tient le QG. |
-| `BOT_ADVANCE_CANDIDATES` | `5` | `src/domain/bot.ts:310` | les régions étrangères essayées par passage, de la plus proche ; chaque essai coûte une route. |
-| `BOT_CONVOY_LOAD` | `100` | `src/domain/bot.ts:312` | ce qu'un camion charge d'un coup, sous sa capacité et le stock. |
-| `BOT_PORT_KM` | `300` | `src/domain/bot.ts:315` | le port se cherche dans les régions nationales à ce rayon du QG, et sur leur côte à ce rayon de leur pôle. |
-| `BOT_LANDING_KM` | `200` | `src/domain/bot.ts:317` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
-| `BOT_LANDING_STEP_KM` | `12.5` | `src/domain/bot.ts:318` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
-| `BOT_LANDING_BEARINGS` | `16` | `src/domain/bot.ts:319` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
-| `BOT_LANDING_CANDIDATES` | `80` | `src/domain/bot.ts:321` | les plages essayées par point neutre, de la plus proche : la plus proche est souvent hors de portée du plein du cargo. |
-| `BOT_LANDING_FOOT_TRIES` | `6` | `src/domain/bot.ts:323` | les routes à pied cherchées par point neutre ; un échec explore toute la grille. |
+| `BOT_ORDERS_PER_TURN` | `2` | `src/domain/bot.ts:277` | combien d'ordres un passage garde ; peu, pour qu'un bot reste facile (ADR 0042 §5). |
+| `BOT_POINT_COLUMN` | `9` | `src/domain/bot.ts:283` | les infanteries d'une colonne qui prend un point neutre. Au banc de `convex` (ADR 0043), |
+| `BOT_ARMY_TARGET` | `BOT_POINT_COLUMN + 3` | `src/domain/bot.ts:288` | l'armée libre (sans la garnison des avant-postes), debout et en file, à partir de |
+| `BOT_FOOD_HORIZON_HOURS` | `12` | `src/domain/bot.ts:294` | le bot nourrit son armée (#652) quand ses vivres tomberont à zéro dans moins de ces |
+| `BOT_HARVEST_MIN` | `40` | `src/domain/bot.ts:296` | sous ce tas, un camion ne part pas le ramasser (ADR 0041) : le trajet coûterait plus. |
+| `BOT_FOOD_LOW` | `60` | `src/domain/bot.ts:297` | sous ce tas, un camion ne part pas le ramasser (ADR 0041) : le trajet coûterait plus. |
+| `BOT_RAISE_RESERVE` | `0.5` | `src/domain/bot.ts:302` | la part de son plafond d'acier que le bot garde après une élévation. Il n'élève |
+| `BOT_POINT_CANDIDATES` | `3` | `src/domain/bot.ts:304` | les points neutres essayés par escouade, du plus proche ; chaque essai coûte une route. |
+| `BOT_HQ_ALERT_KM` | `400` | `src/domain/bot.ts:307` | à moins de ce rayon du QG, un camp relevé est une menace (ADR 0042 §2, urgence). |
+| `BOT_SQUAD_SIZE` | `2` | `src/domain/bot.ts:309` | l'escouade qui avance ; le reste de la garnison tient le QG. |
+| `BOT_ADVANCE_CANDIDATES` | `5` | `src/domain/bot.ts:311` | les régions étrangères essayées par passage, de la plus proche ; chaque essai coûte une route. |
+| `BOT_CONVOY_LOAD` | `100` | `src/domain/bot.ts:313` | ce qu'un camion charge d'un coup, sous sa capacité et le stock. |
+| `BOT_PORT_KM` | `300` | `src/domain/bot.ts:316` | le port se cherche dans les régions nationales à ce rayon du QG, et sur leur côte à ce rayon de leur pôle. |
+| `BOT_LANDING_KM` | `200` | `src/domain/bot.ts:318` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
+| `BOT_LANDING_STEP_KM` | `12.5` | `src/domain/bot.ts:319` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
+| `BOT_LANDING_BEARINGS` | `16` | `src/domain/bot.ts:320` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
+| `BOT_LANDING_CANDIDATES` | `80` | `src/domain/bot.ts:322` | les plages essayées par point neutre, de la plus proche : la plus proche est souvent hors de portée du plein du cargo. |
+| `BOT_LANDING_FOOT_TRIES` | `6` | `src/domain/bot.ts:324` | les routes à pied cherchées par point neutre ; un échec explore toute la grille. |
 | `STALE_MARGIN_MS` | `30_000` | `src/domain/combat-on-map.ts:28` | un |
 | `FINAL_POSE_MS` | `STEP_MS['compte-rendu']` | `src/domain/combat-on-map.ts:32` | le temps du compte-rendu, assez pour lire qui reste debout ? |
 | `REPORT_HOLD_MS` | `STEP_MS['compte-rendu'] + 6000` | `src/domain/combat-on-map.ts:200` | le temps de lire « nos pièces » et de l'ouvrir. |
@@ -158,8 +159,8 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `BIG_AFTER_MS` | `{ full: 1400, reduced: 300 } as const` | `src/domain/moments.ts:102` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
 | `SEPIA_AFTER_MS` | `600` | `src/domain/moments.ts:103` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
 | `OPEN_AFTER_MS` | `1600` | `src/domain/moments.ts:104` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
-| `STARTING_MOVEMENT_SLOTS` | `2` | `src/domain/movement-orders.ts:424` | deux, d'après la décision du 19/10, jamais joué |
-| `DISBAND_RING_SPANS` | `2.1` | `src/domain/movement-orders.ts:993` | assez pour que les pièces se lisent à part, assez peu pour rester à portée de soutien ; plafonné au camion, une coque y chevauche ses voisines |
+| `STARTING_MOVEMENT_SLOTS` | `2` | `src/domain/movement-orders.ts:425` | deux, d'après la décision du 19/10, jamais joué |
+| `DISBAND_RING_SPANS` | `2.1` | `src/domain/movement-orders.ts:1006` | assez pour que les pièces se lisent à part, assez peu pour rester à portée de soutien ; plafonné au camion, une coque y chevauche ses voisines |
 | `NEIGHBOR_REACH_KM` | `3500` | `src/domain/nation-brief.ts:7` | placeholders for the lobby sheet, not game rules. |
 | `NEAR_POINT_REACH_KM` | `3000` | `src/domain/nation-brief.ts:8` | placeholders for the lobby sheet, not game rules. |
 | `MAX_NEIGHBORS` | `3` | `src/domain/nation-brief.ts:9` | placeholders for the lobby sheet, not game rules. |

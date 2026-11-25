@@ -1,7 +1,8 @@
 /**
  * **Le banc de charge de la Mondiale** (#143) : huit joueurs, cent cinquante troupes chacun, une
  * centaine de mouvements en vol, des avant-postes aux dépôts entamés, une tournée et une ronde
- * par joueur (`--sans-rondes` les retire, pour comparer aux mesures d'avant #377), et
+ * par joueur (`--sans-rondes` les retire, pour comparer aux mesures d'avant #377), deux
+ * poursuites par joueur (#655), et
  * un brouillard qui se croise (tous les départs tiennent dans un même carré d'Europe). Puis il
  * mesure et imprime le tableau qui sert de référence « avant » aux optimisations.
  *
@@ -282,6 +283,27 @@ for (let round = 0; round < 10; round++)
       silent: playerOf(3),
     }),
   );
+/** **Des poursuites** (#655) : deux par joueur, chacune sur un fil qu'il voit, puis trois regards
+ *  mesurés. Chacune ne tient qu'un rendez-vous : les jobs en attente le disent plus bas. */
+const PURSUERS = 2;
+const pursuits = [];
+for (let k = 0; k < PLAYERS; k++)
+  pursuits.push(
+    ...(await coldRetry(() =>
+      admin.mutation(internal('dev:benchPursuits'), {
+        playerId: playerOf(k),
+        from: scenes[k].reserve,
+        ids: scenes[k].reserveIds.slice(-PURSUERS),
+      }),
+    )),
+  );
+const looks = [];
+for (const { movementId, checkAt } of pursuits.slice(0, 3))
+  looks.push(
+    await measured('movements:pursue', () =>
+      admin.mutation(internal('movements:pursue'), { movementId, expectedAt: checkAt }),
+    ),
+  );
 const stats = await admin.query(internal('dev:benchStats'), { seasonId });
 /** Le joueur mesuré a deux slots : deux départs, deux chiffres. */
 const marches = [];
@@ -381,6 +403,10 @@ for (const [k, run] of arrivals.entries())
 console.log(
   `| seconde jambe de la Guerre éclair (\`pressOn\`, planifiée par l'arrivée) | ${cell(pressed)} | ${String(pressed.read)} | ${String(pressed.written)} |`,
 );
+for (const [k, run] of looks.entries())
+  console.log(
+    `| regard d'une poursuite n°${String(k + 1)} sur ${String(pursuits.length)} (\`pursue\`) | ${cell(run)} | ${String(run.read)} | ${String(run.written)} |`,
+  );
 console.log(`| Jobs planifiés en attente | ${String(stats.pendingJobs)} | | |`);
 for (const [name, count] of stats.pendingByName)
   console.log(`| ↳ \`${name}\` | ${String(count)} | | |`);

@@ -21,6 +21,7 @@ import {
   captureOrderRefusalOf,
   plunderOrderRefusalOf,
   refusalDetails,
+  pursues,
   strikeRefusalOf,
   refusalOf,
   routeModeOf,
@@ -1008,8 +1009,14 @@ describe('a Blitz order (lot 5)', () => {
     expect(refusalOf('attack', enemyCamp, column(['artillery', 'infantry']))).toBeNull();
   });
 
-  it('chases a column only in a Blitz', () => {
-    expect(refusalOf('attack', track, column(['infantry']))).toBe('NOTHING_TO_ATTACK');
+  /** #655 : la poursuite est portée en Mondiale ; un camp posé s'y vise toujours comme une position. */
+  it('chases a column in sight in a Mondiale too, and a camp only in a Blitz', () => {
+    expect(refusalOf('attack', track, column(['infantry']))).toBeNull();
+    expect(pursues('mondiale', { kind: 'track' })).toBe(true);
+    expect(pursues('blitz', { kind: 'track' })).toBe(true);
+    expect(pursues('blitz', { kind: 'camp' })).toBe(true);
+    expect(pursues('mondiale', { kind: 'camp' })).toBe(false);
+    expect(pursues('blitz', { kind: 'point' })).toBe(false);
   });
 
   it('moves while reloading, but does not attack', () => {

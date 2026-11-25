@@ -15,11 +15,12 @@ import { settle } from './resources';
 import { viewOf } from './view';
 import { marchingForce, reassessDetection } from './movement/detection';
 import { lineCrossingOf, positionAt } from '../src/domain/interception';
-import { windowsOf } from '../src/domain/sighting-windows';
+import { windowAt, windowsOf } from '../src/domain/sighting-windows';
 import { researchMs } from '../src/domain/research';
 import { modeOf } from '../src/domain/season-mode';
 import { LON_LAT, STRATEGIC_POINT_KEY, UNIT_ROLE, UNIT_TIER, RESEARCH_CARD } from './validators';
 import { aimOf, march } from './movement/orders';
+import { quarryOf } from './movement/pursuit';
 import { insertMovement, restampOutpost, restampServed, seasonMovements } from './movement/forces';
 import { planCargoReturn } from './movement/cargoReturn';
 import { chainSecondTarget } from './movement/blitzkrieg';
@@ -3036,6 +3037,51 @@ export const benchFlights = internalMutation({
     /** `keepsSlot` laisse la relecture à l'appelant, comme un pas de tournée. */
     await reassessDetection(ctx, season._id, Date.now(), playerId);
     return { filed: flights.length - failedAt.length, failedAt };
+  },
+});
+
+/**
+ * **Des poursuites au banc** (#655) : chaque troupe donnée attaque un fil adverse que son joueur
+ * voit à l'instant, sans slot comme `benchFlights`. Rend les mouvements armés et leur rendez-vous,
+ * que le banc mesure par `movements:pursue`.
+ */
+export const benchPursuits = internalMutation({
+  args: { playerId: v.id('players'), from: LON_LAT, ids: v.array(v.id('troops')) },
+  handler: async (ctx, { playerId, from, ids }) => {
+    const player = await ctx.db.get(playerId);
+    const season = player === null ? null : await ctx.db.get(player.seasonId);
+    if (season === null) throw new Error('no such season');
+    const now = Date.now();
+    const tracks = (
+      await ctx.db
+        .query('sightings')
+        .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
+        .collect()
+    ).filter((row) => row.frozen === undefined && windowAt(windowsOf(row), now) !== null);
+    const armed: Array<{ movementId: Id<'movements'>; checkAt: number }> = [];
+    for (const [k, troopId] of ids.entries()) {
+      const track = tracks[k % Math.max(1, tracks.length)];
+      if (track === undefined) break;
+      const target = { kind: 'track' as const, movementId: track.movementId };
+      try {
+        const { troopId: hunted } = await quarryOf(ctx, playerId, target, now);
+        const { movementId } = await march(ctx, {
+          playerId,
+          season,
+          type: 'attack',
+          origin: { kind: 'point', point: from },
+          troopIds: [troopId],
+          aim: await aimOf(ctx, playerId, target),
+          pursuit: { troopId: hunted },
+          keepsSlot: true,
+        });
+        armed.push({ movementId, checkAt: (await ctx.db.get(movementId))!.pursuit!.checkAt });
+      } catch {
+        /** Un fil hors d'allonge ou de route : le banc arme les autres. */
+      }
+    }
+    await reassessDetection(ctx, season._id, now, playerId);
+    return armed;
   },
 });
 

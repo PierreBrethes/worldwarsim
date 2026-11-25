@@ -42,6 +42,7 @@ import type { Foundation } from './engine/sea';
 import { loadNearAtlas } from '@/data/atlas';
 import type { Theatre } from '@/domain/theatres';
 import type { MapLabel, Reach } from '@/domain/labels';
+import { chasedArcOf } from '@/domain/labels';
 import type { IndicatorToggles } from '@/domain/indicators';
 import {
   isOrder,
@@ -1083,11 +1084,8 @@ export function WorldMap({
        */
       if (!aiming || map === null || (target !== null && target.kind !== 'country')) return target;
       const ground = map.pointAt(clientX, clientY);
-      const chased =
-        blitz !== null && label.anchor.kind === 'movementHead'
-          ? arcs.find((arc) => arc.id === (label.anchor as { arc: string }).arc)
-          : undefined;
-      if (chased?.state === 'enemyDetected' && ground !== null) {
+      const chased = chasedArcOf(label.anchor, arcs);
+      if (chased !== null && ground !== null) {
         return {
           kind: 'track',
           id: chased.id,
@@ -1109,7 +1107,7 @@ export function WorldMap({
         ground === null || walkableAt(ground),
       );
     },
-    [aiming, coastAt, groundAt, coastPendingAt, walkableAt, blitz, arcs],
+    [aiming, coastAt, groundAt, coastPendingAt, walkableAt, arcs],
   );
 
   const onLabelAct = useCallback(

@@ -15,6 +15,7 @@ import {
   isQuay,
   landCostOf,
   plunderRefusalOf,
+  pursues,
   refusalOf,
   strikeRefusalOf,
   routeModeOf,
@@ -109,7 +110,6 @@ import { resolveLootCollectionArrivals, startLootCollectionMission } from './loo
 import { restHold } from './movement/rest';
 import { holdAtFort as holdAtFortEntry } from './movement/fort';
 import { pursue as pursueStep, quarryOf } from './movement/pursuit';
-import { blitzTheatreOf } from './movement/theatre';
 import { bombard as bombardFrom } from './movement/bombard';
 import { firesIndirect } from '../src/domain/indirect-fire';
 import { arriveForCapture } from './captures';
@@ -539,11 +539,9 @@ export const attack = mutation({
           );
     if (gate !== null) fail(gate);
 
-    /** **En Blitz l'attaque vise une unité, et la poursuit** (B18). Hors Blitz, ou sur ce qui
-     *  n'est pas une unité, `refusalOf` dit le mot — la troupe n'est cherchée que si elle compte. */
-    const chasing =
-      (await blitzTheatreOf(ctx, player._id)) !== null &&
-      (target.kind === 'camp' || target.kind === 'track');
+    /** **L'attaque poursuit ce qui marche** (B18, #655) : la troupe n'est cherchée que si elle
+     *  compte ; sur ce qui n'est pas une unité, `refusalOf` dit le mot. */
+    const chasing = pursues(modeOf(season.mode), target);
     /** **On poursuit ce qu'on voit à l'instant** : les camps relus avant de les lire, comme à
      *  chaque regard de la poursuite. Ils se lisent à la position présente des détecteurs et se
      *  relisent toujours en entier ; aucun relevé de colonne n'a bougé, d'où `changed` vide
@@ -877,11 +875,8 @@ export const preview = query({
         departedAt: now,
         arrivesAt,
       }),
-      /** L'heure est celle d'un point : en Blitz une attaque poursuit, et la carte le dit. */
-      pursuit:
-        type === 'attack' &&
-        column.blitz !== undefined &&
-        (target.kind === 'camp' || target.kind === 'track'),
+      /** L'heure est celle d'un point : une attaque qui poursuit le dit, et la carte aussi. */
+      pursuit: type === 'attack' && pursues(modeOf(season.mode), target),
       /** Une marche ou un raid n'enchaîne pas : l'aperçu le dit par la règle même de l'ordre. */
       then:
         then === undefined
