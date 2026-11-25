@@ -16,7 +16,7 @@ const port = 5174;
 
 export default defineConfig({
   testDir: 'e2e',
-  timeout: 240_000,
+  timeout: 480_000,
   workers: 1,
   forbidOnly: !!process.env.CI,
   reporter: 'list',

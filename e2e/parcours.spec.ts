@@ -39,6 +39,11 @@ const tag = Math.random().toString(36).slice(2, 7);
 const founder = { nickname: `E2eA${tag}`, password: `pw-${tag}-founder` };
 const guest = { nickname: `E2eB${tag}`, password: `pw-${tag}-guest` };
 
+const began = Date.now();
+/** Le temps de chaque étape, dans le journal de la CI : la carte en SwiftShader est lente. */
+const mark = (step: string) =>
+  console.log(`[e2e] ${((Date.now() - began) / 1000).toFixed(1)} s · ${step}`);
+
 async function freshPage(browser: Browser): Promise<Page> {
   const page = await (await browser.newContext()).newPage();
   page.on('pageerror', (error) => console.log(`[pageerror] ${error.message}`));
@@ -113,6 +118,7 @@ test('fonder, rejoindre, poser le QG et envoyer un mouvement', async ({ browser 
   await a.waitForURL('**/fonder');
   await a.getByRole('button', { name: 'fonder une Mondiale — sept jours' }).click();
   await a.waitForURL('**/salon');
+  mark('salon fondé');
   const codeButton = a.getByRole('button', { name: /^Code de partie \S+ : le copier$/ });
   const code = (await codeButton.getAttribute('aria-label'))?.match(/^Code de partie (\S+) /)?.[1];
   expect(code, 'le salon ne montre pas son code').toBeTruthy();
@@ -128,10 +134,12 @@ test('fonder, rejoindre, poser le QG et envoyer un mouvement', async ({ browser 
   await b.getByRole('radio', { name: 'R.-Uni' }).click();
   await b.getByRole('button', { name: 'tamponner « prêt »' }).click();
 
+  mark('invité prêt');
   // Le fondateur lance : la séquence de lancement mène au plateau.
   await a.getByRole('button', { name: 'lancer la saison — irréversible' }).click();
   await a.waitForURL('**/plateau', { timeout: 60_000 });
   await a.waitForFunction(() => 'mapEngine' in globalThis, null, { timeout: 60_000 });
+  mark('plateau chargé');
   const understood = a.getByRole('button', { name: /compris/i }).first();
   if (await understood.isVisible({ timeout: 8000 }).catch(() => false)) await understood.click();
 
@@ -150,6 +158,7 @@ test('fonder, rejoindre, poser le QG et envoyer un mouvement', async ({ browser 
   expect(capital, 'la place neuve n’a pas de capitale').not.toBeNull();
   const at = capital as LonLat;
 
+  mark(`capitale ${at.join(', ')}`);
   // Poser le QG : sa tuile, du plateau personnel à la capitale.
   await frame(a, at, 4);
   const handle = a.getByRole('button', { name: /le plateau personnel$/ }).first();
@@ -163,11 +172,19 @@ test('fonder, rejoindre, poser le QG et envoyer un mouvement', async ({ browser 
     at,
   );
   expect(to, 'la capitale est hors de l’écran').not.toBeNull();
+  mark(`tuile en ${tileBox!.x}, ${tileBox!.y} · capitale à l'écran en ${to!.x}, ${to!.y}`);
   await carry(
     a,
     [tileBox!.x + tileBox!.width / 2, tileBox!.y + tileBox!.height / 2],
     [to!.x, to!.y],
   );
+  await expect
+    .poll(async () => (await query()).me.hqLevel, {
+      message: 'le serveur n’a pas reçu la pose du QG',
+      timeout: 15_000,
+    })
+    .toBeGreaterThan(0);
+  mark('QG posé au serveur');
   await a.waitForFunction(
     () =>
       [...(globalThis as unknown as { mapEngine: Engine }).mapEngine.maquettes.byId.keys()].some(
@@ -179,12 +196,14 @@ test('fonder, rejoindre, poser le QG et envoyer un mouvement', async ({ browser 
   if ((await handle.getAttribute('aria-expanded')) === 'true') await handle.click();
 
   // Envoyer un mouvement : la garnison offerte du QG, levée et posée plus loin.
+  mark('maquette du QG debout');
   const hq = (await query()).me.buildings.find((building) => building.key === 'hq');
   expect(hq, 'le serveur n’a pas de QG').toBeDefined();
   const pileId = `building:${hq!.id}`;
   await frame(a, hq!.point as LonLat, 3);
   const piece = await pieceOnScreen(a, pileId);
   const [x, y] = piece;
+  mark(`garnison à l'écran en ${x}, ${y}`);
   await carry(a, [x, y], [x - 220, y + 90]);
 
   // L'écran : le compteur des slots de la réglette, puis son volet, disent le mouvement en cours.

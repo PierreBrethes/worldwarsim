@@ -67,6 +67,10 @@ jobs:
           path: test-results/
           retention-days: 7
 
+      - name: L'écran à l'échec, en arbre d'accessibilité
+        if: failure()
+        run: cat test-results/*/error-context.md || true
+
       - name: Journal du backend
         if: failure()
         run: tail -n 200 "$RUNNER_TEMP/convex/backend.log"
