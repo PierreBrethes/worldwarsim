@@ -238,8 +238,17 @@ it(
         key: point.key,
         holder: point.holderId === null ? null : (nationOf.get(point.holderId) ?? null),
         hands: (point.hands ?? []).length,
+        // Ce que le teneur tient encore court depuis `heldSince` (`heldMsOn`, convex/strategicPoints.ts).
         heldHours: Object.fromEntries(
-          Object.entries(point.heldMs ?? {}).map(([id, ms]) => [nationOf.get(id) ?? id, ms / HOUR]),
+          Object.entries({
+            ...point.heldMs,
+            ...(point.holderId === null || point.heldSince === null
+              ? {}
+              : {
+                  [point.holderId]:
+                    (point.heldMs?.[point.holderId] ?? 0) + facts.now - point.heldSince,
+                }),
+          } as Record<string, number>).map(([id, ms]) => [nationOf.get(id) ?? id, ms / HOUR]),
         ),
       })),
     );
