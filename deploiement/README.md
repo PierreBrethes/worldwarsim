@@ -463,14 +463,117 @@ elle dérive d'`INSTANCE_SECRET`, donc la relancer ne casse pas les clés déjà
 `https://convex.pierrebrethes.cloud`, depuis le navigateur — normal, il n'y a pas d'appel
 serveur à serveur.
 
-## Sauvegardes
+## Sauvegardes (#650)
 
-Tout l'état vit dans le volume `convex-data` (SQLite). Un cron quotidien sur le VPS :
+Tout l'état vit dans le volume `convex-data` : la base SQLite et le stockage de fichiers du
+backend (les modules déployés y vivent). `deploiement/sauvegarde.sh` en tire chaque nuit une
+archive `wws-AAAA-MM-JJTHHMMZ.tar.gz` et son empreinte `.sha256` :
+
+- la base est copiée à chaud par `VACUUM INTO` (une seule transaction de lecture, que les
+  écritures du backend ne dérangent pas), puis relue en entier (`PRAGMA integrity_check`) ;
+- un `MANIFEST` dit la date et **l'image exacte du backend** (son digest) : restaurer sous une
+  autre version de Convex est un pari ;
+- la copie locale reste 14 jours dans `WWS_SAUVEGARDES_DIR` (`./sauvegardes`, ignoré par git),
+  et part **hors du VPS** par rclone si `WWS_DISTANT` est posé.
+
+Les outils (sqlite3, rclone) tournent dans le conteneur `outils`, sur le même volume que le
+backend : l'hôte n'a besoin que de Docker. Le cron d'avant (`sqlite3` dans le conteneur du
+backend, copies dans `~/sauvegardes`) est remplacé.
+
+### Mise en place sur le VPS (une fois)
+
+1. **Un stockage objet chez un autre fournisseur que l'hébergeur du VPS**, compatible S3
+   (Scaleway Object Storage, Backblaze B2…). Un bucket `wws-sauvegardes`, une **règle de cycle
+   de vie qui efface après 30 jours**, et une clé d'accès limitée à ce bucket, **sans droit
+   d'effacer** si le fournisseur le permet : un VPS compromis ne peut alors rien effacer
+   au-dehors.
+2. `sauvegardes/rclone/rclone.conf` (`chmod 600`), sur ce modèle :
+
+   ```ini
+   [stockage]
+   type = s3
+   provider = Scaleway
+   region = fr-par
+   endpoint = s3.fr-par.scw.cloud
+   access_key_id = <clé>
+   secret_access_key = <secret>
+
+   # Chiffrée avant de partir : la base porte les empreintes des mots de passe et les
+   # abonnements aux notifications.
+   [hors-vps]
+   type = crypt
+   remote = stockage:wws-sauvegardes
+   password = <sortie de : wws-compose --profile outils run --rm outils rclone obscure '<phrase>'>
+   ```
+
+3. Dans `.env` :
+
+   ```
+   WWS_DISTANT=hors-vps:
+   # Vide : le cycle de vie du bucket fait la rétention. `30d` si la clé a le droit d'effacer.
+   WWS_RETENTION_DISTANTE=
+   # Facultatif : un contrôle healthchecks.io, qui écrit si aucun ping n'arrive en 25 h.
+   WWS_PING_URL=https://hc-ping.com/<uuid>
+   ```
+
+4. Le cron (`crontab -e`), à la place de l'ancien :
+
+   ```
+   10 4 * * * /opt/worldwarsim/deploiement/sauvegarde.sh >> $HOME/wws-sauvegarde.log 2>&1
+   ```
+
+5. **Garder hors du VPS** (gestionnaire de mots de passe) le `.env` de production et
+   `rclone.conf` : sans la phrase du `crypt`, les copies distantes sont illisibles ; sans
+   `INSTANCE_SECRET`, la clé d'admin ne se régénère pas à l'identique.
+
+### Vérifier que la dernière copie distante est récente
 
 ```bash
-crontab -e
-# 04h10 tous les jours, 14 jours de rétention
-10 4 * * * cd /opt/worldwarsim && docker compose exec -T backend sqlite3 /convex/data/db.sqlite3 ".backup /convex/data/sauvegarde.sqlite3" && docker compose cp backend:/convex/data/sauvegarde.sqlite3 $HOME/sauvegardes/wws-$(date +\%F).sqlite3 && find $HOME/sauvegardes -name 'wws-*.sqlite3' -mtime +14 -delete
+wws-compose --profile outils run --rm outils fraicheur
+# dernière copie : hors-vps:/wws-2026-11-25T0410Z.tar.gz, il y a 6 h
 ```
 
-(`mkdir -p ~/sauvegardes` une fois. Le `.backup` SQLite est cohérent même à chaud.)
+Elle échoue au-delà de 26 h. Une archive sans son `.sha256` est un envoi interrompu : elle ne
+compte pas, ni ici ni pour `recuperer derniere`.
+
+### Essai de restauration
+
+À jouer après la mise en place, puis après chaque changement d'image du backend :
+
+```bash
+deploiement/restauration.sh derniere      # ou le nom d'une archive de WWS_SAUVEGARDES_DIR
+```
+
+Il ramène la copie distante, vérifie son empreinte et l'intégrité de la base, la remonte dans
+un projet compose à part (`wws-essai`, son propre volume) sous l'image du `MANIFEST`, puis
+imprime l'adresse (`127.0.0.1:3310`) et la clé d'admin. Le backend d'essai **n'a aucune sortie
+réseau** (`deploiement/compose.essai.yml`) : ses jobs planifiés tournent dès le démarrage, et
+une copie ne doit jamais envoyer une notification à un vrai joueur. Depuis le poste de dev :
+
+```bash
+ssh -L 3310:127.0.0.1:3310 <vps>          # dans un autre terminal
+CONVEX_SELF_HOSTED_URL=http://127.0.0.1:3310 CONVEX_SELF_HOSTED_ADMIN_KEY='<la clé imprimée>' \
+  npx convex data seasons                 # les saisons de la copie se relisent
+deploiement/restauration.sh --nettoyer    # sur le VPS : arrête l'essai, efface son volume
+```
+
+### Restaurer la production
+
+Base perdue ou abîmée, sur le VPS :
+
+```bash
+deploiement/sauvegarde.sh                                          # l'état présent, d'abord
+wws-compose --profile outils run --rm outils recuperer derniere    # imprime le nom de l'archive
+tar -xzOf sauvegardes/<archive> --wildcards '*/MANIFEST'           # relever image=…
+wws-compose stop backend
+wws-compose --profile outils run --rm -e WWS_ECRASER=1 outils restaurer <archive>
+# Si l'image relevée n'est pas celle qui tourne : WWS_BACKEND_IMAGE=<image> dans .env
+wws-compose up -d backend
+```
+
+Sur un VPS neuf : les étapes 0 à 2 de la mise en prod, le `.env` et le `rclone.conf` gardés
+hors du VPS remis en place, puis la même suite sans sa première ligne ; ensuite l'étape 5 (le
+front). Les fonctions déployées et les variables d'environnement Convex (clés VAPID) sont dans
+l'archive ; si une fonction manque malgré tout, `npx convex deploy` la repousse.
+
+Le port de l'essai se change par `WWS_ESSAI_PORT` s'il est pris sur le VPS.

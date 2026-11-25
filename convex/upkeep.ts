@@ -64,7 +64,7 @@ export function isAnchored(
  * la mer devant lui — nourrir et reconnaître sont deux questions, et c'est la couture que
  * `isAnchored` porte déjà en recevant ses ancres en paramètre.
  *
- * Le ravitaillement en mer par un port ami à portée reste ouvert (`QUESTIONS.md` 🟡) : il se
+ * Le ravitaillement en mer par un port ami à portée reste ouvert (#658) : il se
  * décidera, il ne se déduira pas d'un disque terrestre.
  */
 /**

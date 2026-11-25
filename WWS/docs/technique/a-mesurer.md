@@ -4,7 +4,7 @@
 
 Une ligne de ce registre est **une valeur en attente de son instrument** : posée pour que la
 règle existe et se lise, jamais pour équilibrer quoi que ce soit. Ni une dette, ni un TODO —
-`WWS/QUESTIONS.md` porte les questions, les prompts portent le travail. Quand le simulateur en
+Les issues portent les questions, les prompts portent le travail. Quand le simulateur en
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
