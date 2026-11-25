@@ -210,12 +210,15 @@ test('fonder, rejoindre, poser le QG et envoyer un mouvement', async ({ browser 
   await carry(a, [x, y], [x - 220, y + 90]);
 
   // L'écran : le compteur des slots de la réglette, puis son volet, disent le mouvement en cours.
+  // Le volet cède devant toute fenêtre (`coversUnderway`), le plateau personnel replié compris :
+  // le plateau se rouvre nu, et ce qu'il dit vient du serveur, pas de l'état du geste.
+  await expect(a.getByRole('button', { name: /mouvements/ }).first()).toContainText(/1 \/ \d+/, {
+    timeout: 15_000,
+  });
+  mark('mouvement compté');
+  await a.goto('/plateau');
   const slots = a.getByRole('button', { name: /mouvements/ }).first();
-  await expect(slots).toContainText(/1 \/ \d+/, { timeout: 15_000 });
-  // Le volet cède devant une fenêtre ouverte (`coversUnderway`) : le plateau personnel se replie.
-  const fold = a.getByRole('button', { name: 'replier le plateau personnel' });
-  if ((await fold.count()) > 0) await fold.first().click();
-  await expect(a).not.toHaveURL(/personalBoard/);
+  await expect(slots).toContainText(/1 \/ \d+/, { timeout: 60_000 });
   await slots.click();
   await expect(slots).toHaveAttribute('aria-expanded', 'true');
   await expect(a.getByText(/^slots 1 \/ \d+$/)).toBeVisible();
