@@ -98,7 +98,11 @@ export async function submit(t: Bench, seat: Seat, order: BotOrder): Promise<unk
       return t.mutation(api.tours.start, {
         ...seat,
         troopId: order.args.troopId as Id<'troops'>,
-        stops: order.args.stops as Array<Id<'outposts'>>,
+        stops: order.args.stops.map((stop) =>
+          typeof stop === 'string'
+            ? (stop as Id<'outposts'>)
+            : { kind: 'site' as const, id: stop.id as Id<'buildings'> },
+        ),
       });
   }
 }

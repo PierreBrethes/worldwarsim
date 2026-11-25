@@ -134,7 +134,8 @@ describe('le travail à l’import des modules de convex/', () => {
   it('ne dépasse jamais le budget d’un isolat de déploiement', async () => {
     const modules = import.meta.glob('./**/*.ts');
     const paths = Object.keys(modules).filter(
-      (path) => !path.includes('/_generated/') && !path.endsWith('.test.ts'),
+      // Une simulation (`*.sim.ts`, #652) est une suite vitest : l'importer la lancerait ici.
+      (path) => !path.includes('/_generated/') && !/\.(test|sim)\.ts$/.test(path),
     );
     expect(paths.length).toBeGreaterThan(0);
 

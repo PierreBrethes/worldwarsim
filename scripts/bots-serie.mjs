@@ -1,6 +1,6 @@
 /**
  * **Une série de Mondiales de bots, jouées jusqu'à leur fin** (#652). Chaque partie tourne en
- * mémoire (`convex/bots-serie.sim.ts`, sous `convex-test`) : l'horloge saute, les règles restent.
+ * mémoire (`convex/botsSerie.sim.ts`, sous `convex-test`) : l'horloge saute, les règles restent.
  * Ni backend ni réseau. Une partie par processus, `--jobs` à la fois ; la graine `--germe + k`
  * fixe la partie k (le germe de saison et le `Math.random` du serveur).
  *

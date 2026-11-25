@@ -150,7 +150,12 @@ it(
     /** Ordres acceptés par jour de saison : une partie qui s'arrête de jouer se voit ici. */
     const playedByDay: number[] = [];
     /** Stock, débit horaire et plafond de chaque ressource, par nation, à chaque relevé. */
-    const economy: Array<{ hour: number; nations: Record<string, Record<string, number[]>> }> = [];
+    const economy: Array<{
+      hour: number;
+      nations: Record<string, Record<string, number[]>>;
+      sites?: Record<string, string[]>;
+      lorries?: Record<string, number>;
+    }> = [];
     const samples: Sample[] = [];
     const startedAt = wallNow();
     let nextSample = launchedAt;
@@ -162,9 +167,19 @@ it(
         const hour = (Date.now() - launchedAt) / HOUR;
         samples.push(sampleOf(await factsOf(t, code), hour));
         const nations: Record<string, Record<string, number[]>> = {};
+        /** Les bâtiments de chaque nation : clé, niveau, et le tas qui attend son camion (ADR 0041). */
+        const sites: Record<string, string[]> = {};
+        const lorries: Record<string, number> = {};
         for (const [k, seat] of seats.entries()) {
           try {
             const { me } = adaptServerView(await t.query(api.view.playerView, seat));
+            sites[options.nations[k]!] = me.buildings.map(
+              (b) =>
+                `${b.key}${b.level}${b.heap === undefined ? '' : `:${b.heap.resource}=${Math.round(b.heap.amount)}`}`,
+            );
+            lorries[options.nations[k]!] = me.troops.filter(
+              (troop) => troop.role === 'landTransport',
+            ).length;
             nations[options.nations[k]!] = Object.fromEntries(
               Object.entries(me.resources).map(([key, r]) => [
                 key,
@@ -175,7 +190,7 @@ it(
             // une place défaite ne lit plus sa vue
           }
         }
-        economy.push({ hour, nations });
+        economy.push({ hour, nations, sites, lorries });
         nextSample += options.sampleHours * HOUR;
       }
       for (const [k, seat] of seats.entries()) {

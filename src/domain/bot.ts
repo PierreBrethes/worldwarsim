@@ -153,7 +153,11 @@ export type BotOrder =
     }
   | {
       readonly fn: 'tours.start';
-      readonly args: { readonly troopId: string; readonly stops: ReadonlyArray<string> };
+      readonly args: {
+        readonly troopId: string;
+        /** Un dépôt d'avant-poste par son id, une exploitation à ramasser par `{ kind: 'site' }`. */
+        readonly stops: ReadonlyArray<string | { readonly kind: 'site'; readonly id: string }>;
+      };
     };
 
 type BotPoint = { readonly lon: number; readonly lat: number };
@@ -287,6 +291,8 @@ export const BOT_ARMY_TARGET = BOT_POINT_COLUMN + 3;
  * nations affamées avant H48, captures suspendues (ADR 0044).
  */
 const BOT_FOOD_HORIZON_HOURS = 12;
+/** @a-mesurer : sous ce tas, un camion ne part pas le ramasser (ADR 0041) : le trajet coûterait plus. */
+const BOT_HARVEST_MIN = 40;
 const BOT_FOOD_LOW = 60;
 /**
  * @a-mesurer : la part de son plafond d'acier que le bot garde après une élévation. Il n'élève
@@ -332,6 +338,8 @@ const WANT_BARRACKS = 100;
 const WANT_ADVANCE = 90;
 const WANT_RECRUIT = 80;
 const WANT_FEED = 140;
+const WANT_HARVEST_HUNGRY = 135;
+const WANT_HARVEST = 75;
 const WANT_RAISE = 70;
 
 const pointArg = ([lon, lat]: LonLat) => ({ lon, lat });
@@ -1327,6 +1335,81 @@ const disembarkLanded = ({ view }: BotContext): Desire[] => {
 };
 
 /** Une règle : des envies et leurs ordres, du plus pressé au plus calme. */
+
+/**
+ * **Rapporter un tas** (ADR 0041, #652) : la production d'une exploitation hors du socle
+ * s'entasse à son pied et ne nourrit personne tant qu'un transport ne la rapporte pas. Un camion
+ * vide au QG part ramasser le tas le plus utile, les vivres d'abord quand l'armée a faim, par
+ * `tourRefusalOf`.
+ */
+const harvest = (context: BotContext): Desire[] => {
+  const { view, world, now } = context;
+  const hq = hqOf(view);
+  if (hq === undefined) return [];
+  const starving = hungry(view, now);
+  const heaps = view.me.buildings
+    .filter(
+      (building) =>
+        !building.captured &&
+        building.heap !== undefined &&
+        building.heap.amount >= BOT_HARVEST_MIN &&
+        world.landRoute(hq.point, building.point, ['landTransport']) !== null,
+    )
+    .sort(
+      (a, b) =>
+        Number(starving && b.heap!.resource === 'food') -
+          Number(starving && a.heap!.resource === 'food') || b.heap!.amount - a.heap!.amount,
+    );
+  const [heap] = heaps;
+  if (heap === undefined) return [];
+  const place = { kind: 'building', key: 'hq' } as const;
+  const sites = new Map([
+    [heap.id, { ours: true, exploitation: true, hasQuay: false, routed: true }],
+  ]);
+  for (const squad of squadsOf(view, 'landTransport')) {
+    if (squad.station.kind !== 'building' || squad.station.buildingId !== hq.id) continue;
+    for (const troop of squad.troops) {
+      // Un camion chargé pour un dépôt qui n'a plus faim dort au QG : il ramasse quand même.
+      const refusal = tourRefusalOf({
+        role: troop.role,
+        place,
+        busy: null,
+        load: troop.load,
+        stops: [{ kind: 'site', id: heap.id }],
+        sites,
+      });
+      if (refusal !== null) continue;
+      return [
+        {
+          want: starving ? WANT_HARVEST_HUNGRY : WANT_HARVEST,
+          order: {
+            fn: 'tours.start',
+            args: { troopId: troop.id, stops: [{ kind: 'site', id: heap.id }] },
+          },
+        },
+      ];
+    }
+  }
+  // Aucun camion au QG : un camion posé ailleurs (la caserne) y rentre.
+  const home: MovementAim = { kind: 'building', buildingId: hq.id, key: 'hq' };
+  for (const squad of squadsOf(view, 'landTransport')) {
+    if (squad.station.kind === 'building' && squad.station.buildingId === hq.id) continue;
+    const [troop] = squad.troops;
+    if (troop === undefined) continue;
+    if (marchRefused(context, squad, [troop], 'march', home, hq.point)) continue;
+    return [
+      {
+        want: starving ? WANT_HARVEST_HUNGRY : WANT_HARVEST,
+        order: {
+          fn: 'movements.enterGarrison',
+          args: { origin: originOf(squad.station), troopIds: [troop.id], buildingId: hq.id },
+        },
+      },
+    ];
+  }
+  return [];
+};
+
 const RULES: ReadonlyArray<(context: BotContext) => Desire[]> = [
   placeHq,
   placeFoundation,
@@ -1339,6 +1422,7 @@ const RULES: ReadonlyArray<(context: BotContext) => Desire[]> = [
   takePoint,
   advance,
   supply,
+  harvest,
   (context) => seaTurn(context).desires,
   disembarkLanded,
 ];
