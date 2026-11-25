@@ -105,8 +105,9 @@ export type Combatant = {
 };
 
 /** `initiative`: the attacker strikes, the defender ripostes with the rest. `shock`: together.
- *  `indirect`: the battery strikes from afar, and nobody answers (B20). */
-export type PassMode = 'initiative' | 'shock' | 'indirect';
+ *  `indirect`: the battery strikes from afar, and nobody answers (B20). `defence`: the initiative
+ *  turned round — the garrison fires first on a strike come for its building (ADR 0046 §4). */
+export type PassMode = 'initiative' | 'shock' | 'indirect' | 'defence';
 
 export type CombatSide = 'attacker' | 'defender';
 
@@ -210,8 +211,9 @@ export function resolveEngagement({
       });
     });
 
-  const struck = salvo(striking, holding, 'strike');
-  const strikes = [...struck, ...salvo(holding, striking, mode === 'shock' ? 'strike' : 'riposte')];
+  const [first, second] = mode === 'defence' ? [holding, striking] : [striking, holding];
+  const struck = salvo(first, second, 'strike');
+  const strikes = [...struck, ...salvo(second, first, mode === 'shock' ? 'strike' : 'riposte')];
 
   const outcomes = [...striking, ...holding].map((fighter) => ({
     id: fighter.combatant.id,
