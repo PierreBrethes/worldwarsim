@@ -16,7 +16,7 @@ import { outpostReachKm, type Costs } from './constants';
 import { fail } from './errors';
 import { homeGroundsOf, occupationsOf, recordLinkage, soleHoldOf } from './holding';
 import { reassessDetection } from './movement/detection';
-import { movementsOf, outpostsOf, pointOf, isServed } from './movement/forces';
+import { movementsOf, outpostsOf, pointOf, isServed, forgetServing } from './movement/forces';
 import { allRegions, regionFacts } from './regions';
 import { reportChange, settleBeforeChange } from './production';
 import { notifyPlayer } from './notifications';
@@ -114,6 +114,7 @@ export async function collapseIfAbandoned(
   if (outpost === null || isStanding(outpost, now)) return;
   if ((await remainingGarrison(ctx, outpost)).length > 0) return;
 
+  await forgetServing(ctx, outpost._id);
   await ctx.db.delete(outpost._id);
   await ctx.db.insert('notices', {
     playerId: outpost.playerId,
@@ -179,7 +180,7 @@ export const dismantle = mutation({
     const outpost = await ctx.db.get(outpostId);
     const refusal = outpostDismantleRefusalOf({
       mine: outpost !== null && outpost.playerId === player._id,
-      serving: outpost !== null && isServed(outpost),
+      serving: outpost !== null && (await isServed(ctx, outpost._id)),
       besieged:
         outpost !== null &&
         besieged(

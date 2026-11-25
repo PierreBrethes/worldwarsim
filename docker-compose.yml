@@ -1,6 +1,7 @@
 services:
   backend:
-    image: ghcr.io/get-convex/convex-backend:latest
+    # WWS_BACKEND_IMAGE (dans .env) épingle l'image : une restauration la reprend du MANIFEST.
+    image: ${WWS_BACKEND_IMAGE:-ghcr.io/get-convex/convex-backend:latest}
     restart: unless-stopped
     # SQLite derrière : le backend s'arrête proprement sur SIGINT, pas sur le SIGTERM par défaut.
     stop_signal: SIGINT
@@ -68,6 +69,25 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+
+  # La boîte à outils des sauvegardes (#650, deploiement/README.md « Sauvegardes ») : elle ne
+  # démarre jamais seule, on la lance par `run --rm outils <commande>`.
+  outils:
+    profiles: ['outils']
+    build:
+      context: .
+      dockerfile: deploiement/outils.Dockerfile
+    volumes:
+      - convex-data:/convex/data
+      - ${WWS_SAUVEGARDES_DIR:-./sauvegardes}:/sauvegardes
+      - ${WWS_RCLONE_DIR:-./sauvegardes/rclone}:/rclone:ro
+    environment:
+      - RCLONE_CONFIG=/rclone/rclone.conf
+      - WWS_DISTANT=${WWS_DISTANT:-}
+      - WWS_RETENTION_LOCALE=${WWS_RETENTION_LOCALE:-14}
+      - WWS_RETENTION_DISTANTE=${WWS_RETENTION_DISTANTE:-}
+      - WWS_PING_URL=${WWS_PING_URL:-}
+      - WWS_BACKEND_IMAGE=${WWS_BACKEND_IMAGE:-}
 
 volumes:
   convex-data:

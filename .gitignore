@@ -35,3 +35,4 @@ scripts/banc-mondiale.accounts.json
 test-results
 playwright-report
 dist-e2e
+sauvegardes/
