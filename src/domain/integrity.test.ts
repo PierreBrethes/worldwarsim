@@ -4,13 +4,7 @@ import {
   BUILDING_IMMUNITY_HOURS,
   DAMAGED_HOURS,
 } from '../../convex/constants';
-import {
-  disablingOf,
-  integrityOf,
-  restoresAtOf,
-  shelteredFromStrike,
-  struckOf,
-} from './integrity';
+import { disablingOf, integrityOf, restoresAtOf, shelteredFromStrike, struckOf } from './integrity';
 
 const HOUR = 3_600_000;
 const NOW = Date.UTC(2026, 10, 25, 12);

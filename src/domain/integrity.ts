@@ -60,7 +60,11 @@ export function struckOf(
   now: number,
 ):
   | { readonly damagedUntil: number; readonly immuneUntil: number }
-  | { readonly damagedUntil: undefined; readonly disabledUntil: number; readonly immuneUntil: number }
+  | {
+      readonly damagedUntil: undefined;
+      readonly disabledUntil: number;
+      readonly immuneUntil: number;
+    }
   | null {
   switch (integrityOf(building, now)) {
     case 'intact': {
