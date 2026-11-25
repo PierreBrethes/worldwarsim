@@ -59,9 +59,15 @@ describe('producingSites, a sabotaged site (#432)', () => {
       extraction: [{ buildingId: 'mine', nationalPerHour: 8, heapPerHour: 0 }],
       buildings: [
         { id: 'mine', key: 'mine', regionId: 'home', level: 1 },
-        { id: 'sabotaged', key: 'mine', regionId: 'home', level: 1, disabled: true },
+        { id: 'sabotaged', key: 'mine', regionId: 'home', level: 1, integrity: 'disabled' },
         { id: 'arsenal', key: 'arsenal', regionId: 'home', level: 1 },
-        { id: 'sabotagedArsenal', key: 'arsenal', regionId: 'home', level: 1, disabled: true },
+        {
+          id: 'sabotagedArsenal',
+          key: 'arsenal',
+          regionId: 'home',
+          level: 1,
+          integrity: 'disabled',
+        },
       ],
     } as const;
     expect([...producingSites(twins)].sort()).toEqual(['arsenal', 'mine']);

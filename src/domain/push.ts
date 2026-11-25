@@ -36,6 +36,12 @@ export const YOUR_MOVE_PUSH_INTERVAL_MS = 60 * 60_000;
 export const push = {
   title: 'La Manchette',
   attack: 'Une passe de résolution a eu lieu : une de vos forces a été attaquée.',
+  /** **Une frappe de bâtiment** (ADR 0046) : ni le bâtiment, ni le pays — un écran verrouillé est lu
+   *  par n'importe qui. Le cran porté suffit à dire s'il faut agir. */
+  buildingStruck: (integrity: 'damaged' | 'disabled') =>
+    integrity === 'disabled'
+      ? 'Un de vos bâtiments est désactivé : il a été frappé une seconde fois.'
+      : 'Un de vos bâtiments a été frappé : un second coup le désactiverait.',
   outpostDisabled: 'Un de vos avant-postes est désactivé.',
   foundationLost: 'Un de vos avant-postes en chantier est détruit avec sa garnison.',
   captureThreat: 'Un de vos sites est en cours de capture.',

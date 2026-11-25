@@ -36,6 +36,7 @@ import {
 } from '../src/domain/ids';
 import { outputShareOf } from '../src/domain/economy';
 import { carryCapacityOf, inService } from '../src/domain/loot';
+import { integrityOf, restoresAtOf } from '../src/domain/integrity';
 import { isNation, nationInk } from '../src/domain/nations';
 import { movementSlots } from '../src/domain/movement-orders';
 import {
@@ -451,7 +452,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
 
   const marks = await readMarksOf(ctx, player);
   // Placeholders, listed so they are not mistaken for served data. Each one waits on a
-  // schema slice that is not written (see `WWS/docs/RESTE-A-CODER.md`):
+  // schema slice that is not written:
   //   `number: 1`      — a season is unique and never renumbered; a season history would.
   //   `progress: 0`    — victory progress waits on the share of the map (ADR 0020),
   //                      surface 4.8.
@@ -634,7 +635,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         nextLevelMinutes: worksMinutesAt(buildingCostKey(building), building.level + 1),
         cappedByHq: cappedByHq(building.key, building.level, hqLevel),
         ...(isReachedBuilding(building, sites) ? {} : { unreached: true as const }),
-        ...(inService(building.disabledUntil, now) ? {} : { disabled: true as const }),
+        ...integrityView(building, now),
         ...(building.capturedAt === undefined ? {} : { captured: true as const }),
         ...(building.foundationMark === true ? { foundationMark: true as const } : {}),
         /** **Mon tas, et à moi seul** (ADR 0041) : jamais dans un relevé ni un bâtiment adverse.
@@ -931,6 +932,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         outpostId: engagement.outpostId,
         outpostDisabled: engagement.disabledUntil !== null,
         shock: engagement.shock === true,
+        defence: engagement.defence === true,
         mine: tally(side),
         theirs: tally(side === 'attacker' ? 'defender' : 'attacker'),
         ...facedOf(engagement, side),
@@ -1005,17 +1007,19 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
                   presenceEndsAt:
                     movement.plunder.phase === 'presence' ? movement.plunder.until : null,
                 }
-              : movement.lootCollection !== undefined
-                ? {
-                    kind: 'collection' as const,
-                    sightingId: movement.lootCollection.sightingId,
-                  }
-                : movement.lootDelivery !== undefined
+              : movement.strike !== undefined
+                ? { kind: 'strike' as const, buildingId: movement.strike.buildingId }
+                : movement.lootCollection !== undefined
                   ? {
-                      kind: 'cargoReturn' as const,
-                      regionId: movement.lootDelivery.regionId,
+                      kind: 'collection' as const,
+                      sightingId: movement.lootCollection.sightingId,
                     }
-                  : null;
+                  : movement.lootDelivery !== undefined
+                    ? {
+                        kind: 'cargoReturn' as const,
+                        regionId: movement.lootDelivery.regionId,
+                      }
+                    : null;
         return {
           id: movement._id,
           type: movement.type,
@@ -1353,6 +1357,9 @@ function named(notice: Doc<'notices'>) {
     case 'siteSabotaged':
     case 'heapFull':
     case 'expeditionFoundNothing':
+    case 'buildingStruck':
+    case 'strikeDelivered':
+    case 'strikeFoundNothing':
     case 'objectiveRevealed':
     case 'objectiveTaken':
       return { ...notice, regionName: nameOf(notice.regionId) };
@@ -1385,6 +1392,12 @@ function named(notice: Doc<'notices'>) {
     default:
       return notice;
   }
+}
+
+/** **Mon bâtiment frappé** (ADR 0046 §7), et à moi seul : absent, il est intact. */
+function integrityView(building: Doc<'buildings'>, now: number) {
+  const integrity = integrityOf(building, now);
+  return integrity === 'intact' ? {} : { integrity, restoresAt: restoresAtOf(building, now)! };
 }
 
 const captureView = (capture: Doc<'captures'>, side: 'capturer' | 'defender') => ({

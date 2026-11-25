@@ -323,6 +323,16 @@ function buildingPoster(
   ];
   let bar: number | null = null;
 
+  /** **Frappé** (ADR 0046 §7), à son propriétaire seul : l'état et l'heure où il en revient. */
+  const standing = view.me.buildings.find((one) => one.id === building.id);
+  if (standing?.integrity !== undefined && standing.restoresAt !== undefined)
+    lines.push({
+      kind: 'chip',
+      label: fr.posters.state,
+      chip: fr.posters.struck(standing.integrity, asClockTime(standing.restoresAt)),
+      tone: 'cut',
+    });
+
   if (produces(building.key)) {
     // Rien n'est dit plutôt qu'un « relié » supposé.
     const linked = view.me.regions.find((region) => region.id === building.regionId)?.linked;

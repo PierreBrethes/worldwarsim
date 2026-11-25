@@ -34,6 +34,12 @@ const FIRING_SIDE: Partial<Record<ReplayStep, ReplayView['side']>> = {
   riposte: 'defender',
 };
 
+/** **L'initiative retournée** (ADR 0046 §4) : sur une frappe de bâtiment, la garnison tire la première. */
+const DEFENCE_FIRING_SIDE: Partial<Record<ReplayStep, ReplayView['side']>> = {
+  frappe: 'defender',
+  riposte: 'attacker',
+};
+
 export const REPLAY_MS = REPLAY_STEPS.reduce((sum, step) => sum + STEP_MS[step], 0);
 
 /** @a-mesurer — le tampon se pose 0,4 s après la coulée, soit à la fin du compte-rendu, et tient 2 s
@@ -149,7 +155,9 @@ export function replayAt(view: ReplayView, t: number, motion: MapMotion = 'full'
 
   // Each side falls in the beat aimed at it, one piece at a time across what the shots leave of it.
   const struckIn = (side: 'mine' | 'theirs') => {
-    const firedAt = (view.side === 'attacker') === (side === 'theirs') ? 'frappe' : 'riposte';
+    /** Qui tire dans la frappe : l'attaquant, sauf à une riposte de garnison (ADR 0046). */
+    const struckFirst = view.defence === true ? 'mine' : 'theirs';
+    const firedAt = (view.side === 'attacker') === (side === struckFirst) ? 'frappe' : 'riposte';
     const { start, end } = stepBounds(firedAt);
     const from = start + VOLLEY_SHARE * (end - start);
     return { from, length: end - from };
@@ -178,7 +186,11 @@ export function replayAt(view: ReplayView, t: number, motion: MapMotion = 'full'
 
   /** Un bombardement n'a pas de riposte (B20). */
   const firing =
-    view.bombardment !== undefined && step === 'riposte' ? undefined : FIRING_SIDE[step];
+    view.bombardment !== undefined && step === 'riposte'
+      ? undefined
+      : view.defence === true
+        ? DEFENCE_FIRING_SIDE[step]
+        : FIRING_SIDE[step];
   return {
     step,
     progress,

@@ -408,6 +408,26 @@ describe('the shock', () => {
   });
 });
 
+/** **La défense à l'initiative** (ADR 0046 §4) : la garnison tire d'abord sur la frappe. */
+describe('the defence first', () => {
+  it('has the defender strike and the attacker riposte with what is left', () => {
+    const initiative = duel('infantry1', 'infantry1');
+    const defence = duel('infantry1', 'infantry1', { mode: 'defence' });
+    expect(defence.lostByAttacker).toBe(initiative.lostByDefender);
+    expect(defence.lostByDefender).toBe(initiative.lostByAttacker);
+    expect(defence.engagement.strikes.map((strike) => [strike.phase, strike.by])).toEqual([
+      ['strike', defence.defender.id],
+      ['riposte', defence.attacker.id],
+    ]);
+  });
+
+  it('keeps the garrison behind its walls', () => {
+    const open = duel('infantry1', 'infantry1', { mode: 'defence' });
+    const walled = duel('infantry1', 'infantry1', { mode: 'defence', sheltered: true });
+    expect(walled.lostByDefender).toBeLessThan(open.lostByDefender);
+  });
+});
+
 /** **Coups** (ADR 0028 §3) : chaque troupe porte ses passes, et une troupe à sec n'en tire aucune. */
 describe('the rounds a troop carries', () => {
   const armed = (profile: CombatProfile, rounds: number) => ({ ...troop(profile), rounds });

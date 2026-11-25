@@ -143,7 +143,7 @@ describe('maquettesOf', () => {
 
   it('knows my sites out of service, and those I sealed while they stay sealed (#279)', () => {
     const view = {
-      me: { buildings: [{ id: 'b1', disabled: true as const }, { id: 'b2' }] },
+      me: { buildings: [{ id: 'b1', integrity: 'disabled' as const }, { id: 'b2' }] },
       surveyedInstallations: [
         { id: 'x', sealedUntil: 20 },
         { id: 'y', sealedUntil: 9 },

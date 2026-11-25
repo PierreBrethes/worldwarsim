@@ -181,6 +181,12 @@ export function useOrderPreview(
       ? 'skip'
       : { ...dispatch, buildingId: mission.buildingId as Id<'buildings'> },
   );
+  const strikePreview = useQuery(
+    api.movements.previewStrike,
+    dispatch === null || mission?.kind !== 'strike'
+      ? 'skip'
+      : { ...dispatch, buildingId: mission.buildingId as Id<'buildings'> },
+  );
   const capturePreview = useQuery(
     api.movements.previewCapture,
     dispatch === null || mission?.kind !== 'capture'
@@ -203,11 +209,13 @@ export function useOrderPreview(
           : coursePreview
         : mission.kind === 'plunder'
           ? plunderPreview
-          : mission.kind === 'capture'
-            ? capturePreview
-            : mission.kind === 'collect'
-              ? collectPreview
-              : marchPreview;
+          : mission.kind === 'strike'
+            ? strikePreview
+            : mission.kind === 'capture'
+              ? capturePreview
+              : mission.kind === 'collect'
+                ? collectPreview
+                : marchPreview;
   /** **Le refus du cap, dit avant l'aperçu** (#449) : la mi-parcours passée pendant le glisser,
    *  ou une cible qui donnerait une mission. Relu à chaque arrêt de la main, à l'heure du client. */
   const courseRefusal = useMemo(() => {

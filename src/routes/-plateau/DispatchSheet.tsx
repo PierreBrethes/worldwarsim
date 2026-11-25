@@ -126,6 +126,7 @@ export function CombatLines({ combat }: { combat: CombatReport }) {
           combat.mine.lost,
           combat.theirs.lost,
           combat.shock === true,
+          combat.defence === true,
         )}
       />
       {(combat.mine.dry ?? 0) + (combat.theirs.dry ?? 0) > 0 && (

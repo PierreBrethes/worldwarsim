@@ -354,7 +354,7 @@ describe('where a troop stands decides what it eats', () => {
    * ordre depuis cette date, donc la question s'est posée : mouillée dans le rayon d'un de ses
    * propres points, elle était nourrie au tarif du pays — la géométrie répondait oui à une
    * question que personne n'avait posée. Le ravitaillement en mer par un port ami à portée reste
-   * ouvert (`QUESTIONS.md` 🟡) ; il ne sera pas un effet de bord d'un rayon terrestre.
+   * ouvert (#658) ; il ne sera pas un effet de bord d'un rayon terrestre.
    */
   it('feeds nobody at sea, even moored inside the reach of one of its own points', async () => {
     const t = boot();
