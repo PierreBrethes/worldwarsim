@@ -450,6 +450,15 @@ const feedArmy = ({ view, now }: BotContext): Desire[] => {
   const { me } = view;
   if (me.hqLevel === 0 || me.foundation.length > 0 || !workIdle(view)) return [];
   if (!hungry(view, now)) return [];
+  // Un tas de vivres qui attend est la faim à soigner : `harvest` le rapporte, monter une ferme de
+  // plus n'ajouterait qu'un tas (#672 : des chantiers courts sans ce frein boucleraient ici).
+  const waiting = me.buildings.some(
+    (building) =>
+      !building.captured &&
+      building.heap?.resource === 'food' &&
+      building.heap.amount >= BOT_HARVEST_MIN,
+  );
+  if (waiting) return [];
   const farms = me.buildings.filter((building) => building.key === 'farm' && !building.captured);
   const raisable = farms.find((farm) => upgradeHold(farm, view, now) === null);
   if (raisable !== undefined) return [raiseBuilding(raisable)];

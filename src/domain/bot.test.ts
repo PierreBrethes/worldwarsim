@@ -297,6 +297,17 @@ describe('le bot facile, ses vivres et ses avant-postes (#652)', () => {
     });
   });
 
+  it("ne monte rien tant qu'un tas de vivres attend d'être rapporté", () => {
+    const orders = turn(
+      viewOf({
+        hqLevel: 1,
+        buildings: [hqStanding, barracks, { ...farm, heap: { resource: 'food', amount: 40 } }],
+        resources: resources({ stock: 50, ratePerHour: -10 }),
+      }),
+    );
+    expect(orders.some((order) => order.fn === 'constructions.start')).toBe(false);
+  });
+
   it('ne touche pas à sa ferme tant que les vivres tiennent', () => {
     const orders = turn(
       viewOf({
