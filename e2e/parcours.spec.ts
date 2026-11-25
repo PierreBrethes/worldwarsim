@@ -209,6 +209,11 @@ test('fonder, rejoindre, poser le QG et envoyer un mouvement', async ({ browser 
   // L'écran : le compteur des slots de la réglette, puis son volet, disent le mouvement en cours.
   const slots = a.getByRole('button', { name: /mouvements/ }).first();
   await expect(slots).toContainText(/1 \/ \d+/, { timeout: 15_000 });
+  // Le volet cède devant une fenêtre ouverte (`coversUnderway`) : le plateau personnel se replie.
+  const fold = a.getByRole('button', { name: 'replier le plateau personnel' });
+  if ((await fold.count()) > 0) await fold.first().click();
+  await expect(a).not.toHaveURL(/personalBoard/);
   await slots.click();
+  await expect(slots).toHaveAttribute('aria-expanded', 'true');
   await expect(a.getByText(/^slots 1 \/ \d+$/)).toBeVisible();
 });
