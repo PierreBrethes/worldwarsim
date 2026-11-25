@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : bde1e0f -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : e98ae6a -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ Les issues portent les questions, les prompts portent le travail. Quand le simul
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-180 valeurs marquées dans `convex/` et `src/domain/`.
+184 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `FACTORY_LINES` et leurs voisines : l'en-tête de `convex/constants.ts` les
@@ -17,7 +17,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 
 | Constante | Valeur | Où | Pourquoi elle attend |
 | --- | --- | --- | --- |
-| `NEAR_KM` | `250` | `convex/bot.fixture.ts:127` | « près » d'un point, c'est une plage que `BOT_LANDING_KM` autour de lui peut offrir. |
+| `NEAR_KM` | `250` | `convex/bot.fixture.ts:137` | « près » d'un point, c'est une plage que `BOT_LANDING_KM` autour de lui peut offrir. |
 | `HEAP_CAP_HOURS` | `24` | `convex/constants.ts:55` | l'ADR le pose, aucune partie ne l'a joué |
 | `FACTORY_LINES` | `{ ammunition: { output: 'ammunition', inputs: [ ['coal', 1], ['steel', 1], ], perHourPerLevel: 3 }, oil: { output: 'oil', inputs: [['coal', 3]], perHourPerLevel: 3 } }` | `convex/constants.ts:66` | one of each a round, three an hour and a level, and three coal for one oil: set by |
 | `DAKAR_SPARED_PER_RESOURCE` | `600` | `convex/constants.ts:111` | 600 de la décision du 20/10, jamais joué |
@@ -106,20 +106,24 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `TOUR_HOLD_MS` | `2200` | `src/domain/absence-tour.ts:29` | le maintien d'un tampon du rejeu, et l'écart du second (« terrain tenu »). |
 | `SECOND_STAMP_MS` | `800` | `src/domain/absence-tour.ts:30` | le maintien d'un tampon du rejeu, et l'écart du second (« terrain tenu »). |
 | `BLITZ_CROSSING_MINUTES` | `14.4` | `src/domain/blitz.ts:152` | the decision says 15 to 20 minutes, sped up by a quarter; nothing has played one yet |
-| `BOT_ORDERS_PER_TURN` | `2` | `src/domain/bot.ts:256` | combien d'ordres un passage garde ; peu, pour qu'un bot reste facile (ADR 0042 §5). |
-| `BOT_POINT_COLUMN` | `9` | `src/domain/bot.ts:262` | les infanteries d'une colonne qui prend un point neutre. Au banc de `convex` (ADR 0043), |
-| `BOT_ARMY_TARGET` | `BOT_POINT_COLUMN + 3` | `src/domain/bot.ts:267` | l'armée libre (sans la garnison des avant-postes), debout et en file, à partir de |
-| `BOT_POINT_CANDIDATES` | `3` | `src/domain/bot.ts:269` | les points neutres essayés par escouade, du plus proche ; chaque essai coûte une route. |
-| `BOT_HQ_ALERT_KM` | `400` | `src/domain/bot.ts:272` | à moins de ce rayon du QG, un camp relevé est une menace (ADR 0042 §2, urgence). |
-| `BOT_SQUAD_SIZE` | `2` | `src/domain/bot.ts:274` | l'escouade qui avance ; le reste de la garnison tient le QG. |
-| `BOT_ADVANCE_CANDIDATES` | `5` | `src/domain/bot.ts:276` | les régions étrangères essayées par passage, de la plus proche ; chaque essai coûte une route. |
-| `BOT_CONVOY_LOAD` | `100` | `src/domain/bot.ts:278` | ce qu'un camion charge d'un coup, sous sa capacité et le stock. |
-| `BOT_PORT_KM` | `300` | `src/domain/bot.ts:281` | le port se cherche dans les régions nationales à ce rayon du QG, et sur leur côte à ce rayon de leur pôle. |
-| `BOT_LANDING_KM` | `200` | `src/domain/bot.ts:283` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
-| `BOT_LANDING_STEP_KM` | `12.5` | `src/domain/bot.ts:284` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
-| `BOT_LANDING_BEARINGS` | `16` | `src/domain/bot.ts:285` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
-| `BOT_LANDING_CANDIDATES` | `80` | `src/domain/bot.ts:287` | les plages essayées par point neutre, de la plus proche : la plus proche est souvent hors de portée du plein du cargo. |
-| `BOT_LANDING_FOOT_TRIES` | `6` | `src/domain/bot.ts:289` | les routes à pied cherchées par point neutre ; un échec explore toute la grille. |
+| `BOT_ORDERS_PER_TURN` | `2` | `src/domain/bot.ts:276` | combien d'ordres un passage garde ; peu, pour qu'un bot reste facile (ADR 0042 §5). |
+| `BOT_POINT_COLUMN` | `9` | `src/domain/bot.ts:282` | les infanteries d'une colonne qui prend un point neutre. Au banc de `convex` (ADR 0043), |
+| `BOT_ARMY_TARGET` | `BOT_POINT_COLUMN + 3` | `src/domain/bot.ts:287` | l'armée libre (sans la garnison des avant-postes), debout et en file, à partir de |
+| `BOT_FOOD_HORIZON_HOURS` | `12` | `src/domain/bot.ts:293` | le bot nourrit son armée (#652) quand ses vivres tomberont à zéro dans moins de ces |
+| `BOT_HARVEST_MIN` | `40` | `src/domain/bot.ts:295` | sous ce tas, un camion ne part pas le ramasser (ADR 0041) : le trajet coûterait plus. |
+| `BOT_FOOD_LOW` | `60` | `src/domain/bot.ts:296` | sous ce tas, un camion ne part pas le ramasser (ADR 0041) : le trajet coûterait plus. |
+| `BOT_RAISE_RESERVE` | `0.5` | `src/domain/bot.ts:301` | la part de son plafond d'acier que le bot garde après une élévation. Il n'élève |
+| `BOT_POINT_CANDIDATES` | `3` | `src/domain/bot.ts:303` | les points neutres essayés par escouade, du plus proche ; chaque essai coûte une route. |
+| `BOT_HQ_ALERT_KM` | `400` | `src/domain/bot.ts:306` | à moins de ce rayon du QG, un camp relevé est une menace (ADR 0042 §2, urgence). |
+| `BOT_SQUAD_SIZE` | `2` | `src/domain/bot.ts:308` | l'escouade qui avance ; le reste de la garnison tient le QG. |
+| `BOT_ADVANCE_CANDIDATES` | `5` | `src/domain/bot.ts:310` | les régions étrangères essayées par passage, de la plus proche ; chaque essai coûte une route. |
+| `BOT_CONVOY_LOAD` | `100` | `src/domain/bot.ts:312` | ce qu'un camion charge d'un coup, sous sa capacité et le stock. |
+| `BOT_PORT_KM` | `300` | `src/domain/bot.ts:315` | le port se cherche dans les régions nationales à ce rayon du QG, et sur leur côte à ce rayon de leur pôle. |
+| `BOT_LANDING_KM` | `200` | `src/domain/bot.ts:317` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
+| `BOT_LANDING_STEP_KM` | `12.5` | `src/domain/bot.ts:318` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
+| `BOT_LANDING_BEARINGS` | `16` | `src/domain/bot.ts:319` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
+| `BOT_LANDING_CANDIDATES` | `80` | `src/domain/bot.ts:321` | les plages essayées par point neutre, de la plus proche : la plus proche est souvent hors de portée du plein du cargo. |
+| `BOT_LANDING_FOOT_TRIES` | `6` | `src/domain/bot.ts:323` | les routes à pied cherchées par point neutre ; un échec explore toute la grille. |
 | `STALE_MARGIN_MS` | `30_000` | `src/domain/combat-on-map.ts:28` | un |
 | `FINAL_POSE_MS` | `STEP_MS['compte-rendu']` | `src/domain/combat-on-map.ts:32` | le temps du compte-rendu, assez pour lire qui reste debout ? |
 | `REPORT_HOLD_MS` | `STEP_MS['compte-rendu'] + 6000` | `src/domain/combat-on-map.ts:200` | le temps de lire « nos pièces » et de l'ouvrir. |
