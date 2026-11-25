@@ -926,11 +926,24 @@ export const MONDIALE_FIRE_REACH = { rangeKm: 150, deadZoneKm: 30 } as const;
 /**
  * **Le pas d'une poursuite** (B18) : le plus long qu'un poursuivant reste sans regarder sa cible.
  * Le contact se date entre deux regards (`contactAt`), donc ce pas ne borne que la réaction à un
- * changement de cap.
+ * changement de cap, et la perte de vue.
  *
  * @a-mesurer à 200 km/min, quinze secondes font cinquante kilomètres
  */
-export const PURSUIT_STEP_SECONDS = 15;
+const PURSUIT_STEP_SECONDS = 15;
+
+/**
+ * **En Mondiale, dix minutes** (#655) : une marche y dure des heures (`MONDIALE_PACE`), et quinze
+ * secondes y planifieraient des centaines de regards par poursuite. À six kilomètres la minute,
+ * dix minutes font une soixantaine de kilomètres : l'allonge d'un détecteur à pied, pas plus.
+ *
+ * @a-mesurer rien n'a encore poursuivi dans une Mondiale
+ */
+const MONDIALE_PURSUIT_STEP_SECONDS = 600;
+
+/** Le pas d'une poursuite dans le mode joué (`null` = Mondiale), comme `contactKm`. */
+export const pursuitStepSecondsOf = (theatre: Theatre | null): number =>
+  theatre === null ? MONDIALE_PURSUIT_STEP_SECONDS : PURSUIT_STEP_SECONDS;
 
 /**
  * **How far a listening station hears what moves** — design sheet 04's second detector.

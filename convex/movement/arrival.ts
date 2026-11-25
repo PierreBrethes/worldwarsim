@@ -493,7 +493,7 @@ async function boardOnArrival(
     await ctx.db.patch(rider.id as Id<'troops'>, { carriedBy: carrierId });
 }
 
-async function retainStandingDefence(
+export async function retainStandingDefence(
   ctx: MutationCtx,
   movementId: Id<'movements'> | null,
   engagement: Awaited<ReturnType<typeof resolveContact>>['engagement'],

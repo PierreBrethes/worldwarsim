@@ -419,6 +419,19 @@ export type LabelAnchor =
   | { readonly kind: 'region'; readonly regionId: string };
 
 /**
+ * **La colonne adverse en vue sous la visée** (B18, portée en Mondiale par #655) : son arc, que
+ * l'attaque poursuit, dans les deux modes. Un arc à soi, ou un souvenir, n'est pas une cible.
+ */
+export const chasedArcOf = <Arc extends { readonly id: string; readonly state: string }>(
+  anchor: LabelAnchor,
+  arcs: ReadonlyArray<Arc>,
+): Arc | null => {
+  if (anchor.kind !== 'movementHead') return null;
+  const arc = arcs.find((one) => one.id === anchor.arc);
+  return arc?.state === 'enemyDetected' ? arc : null;
+};
+
+/**
  * **Une installation relevée, telle que le mât la tend à qui agit dessus.** Ce n'est pas un
  * `BuildingHandle` et ce n'en sera jamais un : un relevé n'a pas de niveau, et l'inventer pour
  * réutiliser la forme d'à côté ferait dire au brouillard ce qu'il ne sait pas.
