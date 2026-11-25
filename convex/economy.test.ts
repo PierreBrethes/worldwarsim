@@ -2608,7 +2608,7 @@ describe('legacy depot compatibility', () => {
       point: pointIn(JURA),
     });
     expect(raised).toMatchObject({ level: 2, cost: { steel: 60, coal: 23 } });
-    vi.advanceTimersByTime(54 * 60_000);
+    vi.advanceTimersByTime(buildMinutes('depot', 2) * 60_000);
     await t.finishInProgressScheduledFunctions();
     expect(await t.run((ctx) => ctx.db.get(building.id as Id<'buildings'>))).toMatchObject({
       key: 'warehouse',
@@ -2717,6 +2717,23 @@ describe('raising an outpost', () => {
 
   const steelOf = async (t: ReturnType<typeof boot>, seat: Seat) =>
     (await t.query(api.view.playerView, seat)).me.resources.steel.stock;
+
+  /** #672 : l'élévation au niveau 2 coûte 98 acier (65 × 1,5) et dure 33 minutes (22 × 1,5) au QG
+   *  de départ, écrits en dur pour que le barème ne se lise pas lui-même. */
+  it('raises an outpost to level 2 for 98 steel and 33 minutes', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    await fill(t, seat, 'steel', 1000);
+    await fill(t, seat, 'coal', 1000);
+    await fill(t, seat, 'food', 1000);
+    const outpostId = await plant(t, seat);
+    const opening = await steelOf(t, seat);
+
+    await t.mutation(api.constructions.raiseOutpost, { ...seat, outpostId, specialty: 'store' });
+    expect(await steelOf(t, seat)).toBe(opening - 98);
+    const { me } = await t.query(api.view.playerView, seat);
+    expect(me.construction).toMatchObject({ key: 'outpost', minutes: 33 });
+  });
 
   /** Cas 1 et 2 : l'ordre entre dans la file, il est débité, et à son terme le point porte un
    *  niveau, un emplacement et le rayon de plus. */

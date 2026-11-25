@@ -115,8 +115,10 @@ export const isCommanded = (key: BuildingKey): boolean =>
   (COMMANDED_CHAINS as ReadonlyArray<string>).includes(key);
 
 /**
- * Low by default so warehouses become necessary targets (fiche 02).
- * Each level raises all five ceilings; legacy depots count as warehouses.
+ * Low by default (fiche 02), but no longer a brake on prices: at ×1,5 per level no building
+ * level costs more than this (the headquarters at level 5 asks 304 steel, #672), only the
+ * carrier (430) does. A warehouse stays necessary to lose nothing between two visits, and for
+ * the carrier. Each level raises all five ceilings; legacy depots count as warehouses.
  */
 export const BASE_CAP = 400;
 
