@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 71fd5a4 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 9bce704 -->
 
 # Les constantes à mesurer
 
@@ -176,16 +176,16 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `SEA_BUDGET` | `{ desk: 6, touch: 3 }` | `src/domain/place-names.ts:170` | lu sur la maquette A, qui en écrit onze sur l'Europe |
 | `YOUR_MOVE_PUSH_INTERVAL_MS` | `60 * 60_000` | `src/domain/push.ts:34` | « À vous » suit la cadence du télégraphe : une heure, faute de mesure. |
 | `STEP_MS` | `{ voyage: 1500, pose: 1200, frappe: 1950, riposte: 1950, deroute: 1400, 'compte-rendu': 2000 }` | `src/domain/replay.ts:9` | a short replay, read through in about ten seconds (grilling of 13/10). |
-| `SINK_HOLD_MS` | `2000` | `src/domain/replay.ts:41` | le tampon se pose 0,4 s après la coulée, soit à la fin du compte-rendu, et tient 2 s |
-| `HEEL` | `(14 * Math.PI) / 180` | `src/domain/replay.ts:214` | la gîte à la chute, 14° sur le bord touché (storyboard) |
-| `PITCH` | `(9 * Math.PI) / 180` | `src/domain/replay.ts:216` | le tangage de la coulée par l'arrière, 9° (storyboard) |
-| `FINAL_HEEL` | `(22 * Math.PI) / 180` | `src/domain/replay.ts:218` | la gîte où la coque finit, 22° (storyboard), tenue par l'épave de la pose finale |
-| `SINK_MS` | `1600` | `src/domain/replay.ts:220` | la coulée finit 1,6 s après le début du compte-rendu : à juger à l'œil, avant l'effacement du tampon |
-| `SINK_LAG_MS` | `1000` | `src/domain/replay.ts:222` | la coulée commence 1 s après la fin de la chute de la coque (storyboard : `P.sink[0] = P.hit + 1,0`) |
-| `SLICK_TAIL_MS` | `1500` | `src/domain/replay.ts:247` | la nappe s'étale jusqu'à 1,5 s après la fin de la coulée (storyboard : `sink[1] + 1,5`) |
-| `BUBBLES_LEAD_MS` | `600` | `src/domain/replay.ts:249` | les bulles montent 0,6 s avant la fin de la coulée (storyboard : `sink[1] - 0,6`) |
-| `BUBBLES_MS` | `1400` | `src/domain/replay.ts:251` | les bulles vivent 1,4 s (storyboard : `life: 1.4`) |
-| `STRIKE_MS` | `1600` | `src/domain/replay.ts:253` | l'étiquette de places se barre 1,6 s après le début de la coulée (storyboard : `sink[0] + 1,6`) |
+| `SINK_HOLD_MS` | `2000` | `src/domain/replay.ts:47` | le tampon se pose 0,4 s après la coulée, soit à la fin du compte-rendu, et tient 2 s |
+| `HEEL` | `(14 * Math.PI) / 180` | `src/domain/replay.ts:226` | la gîte à la chute, 14° sur le bord touché (storyboard) |
+| `PITCH` | `(9 * Math.PI) / 180` | `src/domain/replay.ts:228` | le tangage de la coulée par l'arrière, 9° (storyboard) |
+| `FINAL_HEEL` | `(22 * Math.PI) / 180` | `src/domain/replay.ts:230` | la gîte où la coque finit, 22° (storyboard), tenue par l'épave de la pose finale |
+| `SINK_MS` | `1600` | `src/domain/replay.ts:232` | la coulée finit 1,6 s après le début du compte-rendu : à juger à l'œil, avant l'effacement du tampon |
+| `SINK_LAG_MS` | `1000` | `src/domain/replay.ts:234` | la coulée commence 1 s après la fin de la chute de la coque (storyboard : `P.sink[0] = P.hit + 1,0`) |
+| `SLICK_TAIL_MS` | `1500` | `src/domain/replay.ts:259` | la nappe s'étale jusqu'à 1,5 s après la fin de la coulée (storyboard : `sink[1] + 1,5`) |
+| `BUBBLES_LEAD_MS` | `600` | `src/domain/replay.ts:261` | les bulles montent 0,6 s avant la fin de la coulée (storyboard : `sink[1] - 0,6`) |
+| `BUBBLES_MS` | `1400` | `src/domain/replay.ts:263` | les bulles vivent 1,4 s (storyboard : `life: 1.4`) |
+| `STRIKE_MS` | `1600` | `src/domain/replay.ts:265` | l'étiquette de places se barre 1,6 s après le début de la coulée (storyboard : `sink[0] + 1,6`) |
 | `DRY_SOON_HOURS` | `24` | `src/domain/resource-band.ts:72` | a day ahead: one evening's glance covers the night. |
 | `COST_BY_MEDIUM` | `{ land: 1.6, landMotorized: 1.15, sea: 1.0 }` | `src/domain/routing.ts:93` | relative prices chosen for their ordering; only the foot pace behind them is measured |
 | `THREAD_PIECE_CELLS` | `2` | `src/domain/routing.ts:978` | measured against the medium on 340 routes (#231), not against a play need |
@@ -193,6 +193,6 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `TANGIER_LOT` | `{ give: 300, get: 100 } as const` | `src/domain/strategic-points.ts:149` | posé pour la saison test ; rien ne mesure ce que vaut un échange par édition |
 | `SURVEY_INK_FADED` | `0.2` | `src/domain/survey-ink.ts:4` | the ink left on a survey nobody renewed, the day it is wiped: a trace, read by eye. |
 | `DETOUR` | `{ land: 1.02, sea: 1.4, air: 1 } as const` | `src/domain/tour-sheet.ts:116` | un cargo qui double un cap dépasse largement la médiane |
-| `LIFT_CAPACITY` | `{ cargo: 12, carrier: 6, airTransport: 2 }` | `src/domain/troops.ts:178` | assumed against the troop ceiling alone — two cargos lift a whole infantry |
-| `LIFT_COST` | `{ infantry: 1, armor: 3, landTransport: 2, artillery: 2 }` | `src/domain/troops.ts:185` | the passenger half of `LIFT_CAPACITY`, assumed on the same single bearing |
-| `LAND_SEATS_PER_TRANSPORT` | `2` | `src/domain/troops.ts:208` | two seats, assumed; at four, motorizing an army would be nearly free |
+| `LIFT_CAPACITY` | `{ cargo: 12, carrier: 6, airTransport: 2 }` | `src/domain/troops.ts:180` | assumed against the troop ceiling alone — two cargos lift a whole infantry |
+| `LIFT_COST` | `{ infantry: 1, armor: 3, landTransport: 2, artillery: 2 }` | `src/domain/troops.ts:187` | the passenger half of `LIFT_CAPACITY`, assumed on the same single bearing |
+| `LAND_SEATS_PER_TRANSPORT` | `2` | `src/domain/troops.ts:210` | two seats, assumed; at four, motorizing an army would be nearly free |
