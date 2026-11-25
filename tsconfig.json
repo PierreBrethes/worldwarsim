@@ -25,5 +25,5 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "convex", "vite.config.ts"]
+  "include": ["src", "convex", "e2e", "vite.config.ts", "playwright.config.ts"]
 }
