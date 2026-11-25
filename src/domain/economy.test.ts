@@ -404,25 +404,34 @@ describe('placement at a point (ADR 0029)', () => {
   const coal = { key: 'coal', taken: false } as const;
 
   it('refuses a new depot even on free ground', () => {
-    expect(placementRefusal('depot', free, 2, null)).toBe('UNKNOWN_BUILDING');
+    expect(placementRefusal('depot', free, 2, null, false)).toBe('UNKNOWN_BUILDING');
+  });
+
+  /** ADR 0046 §8 (#648) : un QG désactivé ne lance plus de chantier — après lui, rien d'autre. */
+  it('refuses any placement while the headquarters is disabled, after the key itself', () => {
+    expect(placementRefusal('barracks', free, 2, null, true)).toBe('BUILDING_DISABLED');
+    expect(placementRefusal('depot', free, 2, null, true)).toBe('UNKNOWN_BUILDING');
+    expect(placementRefusal('barracks', free, 0, null, true)).toBe('HQ_FIRST');
   });
 
   it('refuses a tile a research card still holds, and anything before the headquarters', () => {
-    expect(placementRefusal('airfield', free, 2, 'aviation')).toBe('RESEARCH_REQUIRED');
-    expect(placementRefusal('barracks', free, 0, null)).toBe('HQ_FIRST');
-    expect(placementRefusal('hq', free, 0, null)).toBeNull();
+    expect(placementRefusal('airfield', free, 2, 'aviation', false)).toBe('RESEARCH_REQUIRED');
+    expect(placementRefusal('barracks', free, 0, null, false)).toBe('HQ_FIRST');
+    expect(placementRefusal('hq', free, 0, null, false)).toBeNull();
   });
 
   it('refuses a second research centre, built or ordered, and nothing else for having one', () => {
-    expect(placementRefusal('researchCenter', free, 2, null)).toBeNull();
-    expect(placementRefusal('researchCenter', { ...free, already: true }, 2, null)).toBe(
+    expect(placementRefusal('researchCenter', free, 2, null, false)).toBeNull();
+    expect(placementRefusal('researchCenter', { ...free, already: true }, 2, null, false)).toBe(
       'ALREADY_BUILT',
     );
-    expect(placementRefusal('barracks', { ...free, already: true }, 2, null)).toBeNull();
+    expect(placementRefusal('barracks', { ...free, already: true }, 2, null, false)).toBeNull();
   });
 
   it('refuses a second headquarters, said as the raise of the one standing', () => {
-    expect(placementRefusal('hq', { ...free, already: true }, 2, null)).toBe('ALREADY_BUILT');
+    expect(placementRefusal('hq', { ...free, already: true }, 2, null, false)).toBe(
+      'ALREADY_BUILT',
+    );
     const reach = { widestKm: 0, hasOutposts: false };
     expect(aimRefusalText({ code: 'ALREADY_BUILT' }, 'hq', reach, null, [])).toBe(
       'le quartier général est unique — visez-le pour l’élever',
@@ -430,42 +439,48 @@ describe('placement at a point (ADR 0029)', () => {
   });
 
   it('refuses a point no soil and no reach of the player covers', () => {
-    expect(placementRefusal('barracks', { ...free, reached: false }, 2, null)).toBe('OUT_OF_REACH');
+    expect(placementRefusal('barracks', { ...free, reached: false }, 2, null, false)).toBe(
+      'OUT_OF_REACH',
+    );
   });
 
   it('wants an exploitation on its own deposit, and on a free one', () => {
-    expect(placementRefusal('mine', free, 2, null)).toBe('DEPOSIT_REQUIRED');
-    expect(placementRefusal('farm', { ...free, deposit: coal }, 2, null)).toBe('DEPOSIT_REQUIRED');
-    expect(placementRefusal('mine', { ...free, deposit: coal }, 2, null)).toBeNull();
+    expect(placementRefusal('mine', free, 2, null, false)).toBe('DEPOSIT_REQUIRED');
+    expect(placementRefusal('farm', { ...free, deposit: coal }, 2, null, false)).toBe(
+      'DEPOSIT_REQUIRED',
+    );
+    expect(placementRefusal('mine', { ...free, deposit: coal }, 2, null, false)).toBeNull();
     expect(
-      placementRefusal('mine', { ...free, deposit: { key: 'coal', taken: true } }, 2, null),
+      placementRefusal('mine', { ...free, deposit: { key: 'coal', taken: true } }, 2, null, false),
     ).toBe('DEPOSIT_TAKEN');
   });
 
   it('refuses anything but a port on the water, and a port beside it', () => {
     const afloat = { ...free, onLand: false, coastal: true };
-    expect(placementRefusal('barracks', afloat, 2, null)).toBe('NOT_ON_LAND');
-    expect(placementRefusal('hq', afloat, 0, null)).toBe('NOT_ON_LAND');
-    expect(placementRefusal('port', afloat, 2, null)).toBeNull();
-    expect(placementRefusal('barracks', { ...afloat, reached: false }, 2, null)).toBe(
+    expect(placementRefusal('barracks', afloat, 2, null, false)).toBe('NOT_ON_LAND');
+    expect(placementRefusal('hq', afloat, 0, null, false)).toBe('NOT_ON_LAND');
+    expect(placementRefusal('port', afloat, 2, null, false)).toBeNull();
+    expect(placementRefusal('barracks', { ...afloat, reached: false }, 2, null, false)).toBe(
       'OUT_OF_REACH',
     );
   });
 
   it('wants a port on a coast', () => {
-    expect(placementRefusal('port', free, 2, null)).toBe('NOT_COASTAL');
-    expect(placementRefusal('port', { ...free, coastal: true }, 2, null)).toBeNull();
+    expect(placementRefusal('port', free, 2, null, false)).toBe('NOT_COASTAL');
+    expect(placementRefusal('port', { ...free, coastal: true }, 2, null, false)).toBeNull();
   });
 
   it(`keeps ${BUILDING_SPACING_KM} km between two buildings of the player`, () => {
     const near = (km: number) => ({ ...free, nearest: { key: 'arsenal' as const, km } });
-    expect(placementRefusal('barracks', near(BUILDING_SPACING_KM - 1), 2, null)).toBe('TOO_CLOSE');
-    expect(placementRefusal('barracks', near(BUILDING_SPACING_KM), 2, null)).toBeNull();
+    expect(placementRefusal('barracks', near(BUILDING_SPACING_KM - 1), 2, null, false)).toBe(
+      'TOO_CLOSE',
+    );
+    expect(placementRefusal('barracks', near(BUILDING_SPACING_KM), 2, null, false)).toBeNull();
   });
 
   it('counts no region: two buildings far enough apart stand in the same one', () => {
     expect(
-      placementRefusal('barracks', { ...free, nearest: { key: 'mine', km: 40 } }, 2, null),
+      placementRefusal('barracks', { ...free, nearest: { key: 'mine', km: 40 } }, 2, null, false),
     ).toBe(null);
   });
 });

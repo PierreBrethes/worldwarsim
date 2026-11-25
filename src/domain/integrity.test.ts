@@ -4,7 +4,15 @@ import {
   BUILDING_IMMUNITY_HOURS,
   DAMAGED_HOURS,
 } from '../../convex/constants';
-import { disablingOf, integrityOf, restoresAtOf, shelteredFromStrike, struckOf } from './integrity';
+import {
+  disablingOf,
+  hqDisabledAt,
+  integrityOf,
+  restoresAtOf,
+  servedDates,
+  shelteredFromStrike,
+  struckOf,
+} from './integrity';
 
 const HOUR = 3_600_000;
 const NOW = Date.UTC(2026, 10, 25, 12);
@@ -73,5 +81,36 @@ describe('restoresAtOf', () => {
     expect(restoresAtOf({}, NOW)).toBeNull();
     expect(restoresAtOf({ damagedUntil: NOW + HOUR }, NOW)).toBe(NOW + HOUR);
     expect(restoresAtOf({ disabledUntil: NOW + 2 * HOUR }, NOW)).toBe(NOW + 2 * HOUR);
+  });
+});
+
+/** ADR 0046 §8 (#648) : le QG désactivé est le sien, jamais un QG pris à un autre. */
+describe('hqDisabledAt', () => {
+  const hq = { key: 'hq' as const, disabledUntil: NOW + HOUR };
+
+  it('reads his own headquarters disabled, and nothing else', () => {
+    expect(hqDisabledAt([hq], NOW)).toBe(true);
+    expect(hqDisabledAt([{ ...hq, disabledUntil: NOW - 1 }], NOW)).toBe(false);
+    expect(hqDisabledAt([{ ...hq, key: 'barracks' }], NOW)).toBe(false);
+    expect(hqDisabledAt([{ ...hq, captured: true }], NOW)).toBe(false);
+  });
+
+  it('reads the view the owner is served as the server reads its dates', () => {
+    expect(
+      hqDisabledAt(
+        [{ key: 'hq', ...servedDates({ integrity: 'disabled', restoresAt: NOW }) }],
+        NOW,
+      ),
+    ).toBe(true);
+    expect(
+      hqDisabledAt(
+        [{ key: 'hq', ...servedDates({ integrity: 'disabled', restoresAt: NOW - 1 }) }],
+        NOW,
+      ),
+    ).toBe(false);
+    expect(integrityOf(servedDates({ integrity: 'damaged', restoresAt: NOW }), NOW)).toBe(
+      'damaged',
+    );
+    expect(integrityOf(servedDates({}), NOW)).toBe('intact');
   });
 });

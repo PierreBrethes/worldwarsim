@@ -104,6 +104,7 @@ export const BUILDING_SPACING_KM = 30;
 export type PlacementRefusal =
   | 'UNKNOWN_BUILDING'
   | 'HQ_FIRST'
+  | 'BUILDING_DISABLED'
   | 'RESEARCH_REQUIRED'
   | 'OUT_OF_REACH'
   | 'DEPOSIT_REQUIRED'
@@ -165,8 +166,12 @@ export function placementRefusal(
   spot: Spot,
   hqLevel: number,
   lockedBy: ResearchCard | null,
+  /** Son QG désactivé (`hqDisabledAt`, ADR 0046 §8) : il ne lance plus de chantier. */
+  hqDisabled: boolean,
 ): PlacementRefusal | null {
   const byKey = keyRefusal(key, hqLevel, lockedBy);
+  if (byKey === 'UNKNOWN_BUILDING' || byKey === 'HQ_FIRST') return byKey;
+  if (hqDisabled) return 'BUILDING_DISABLED';
   if (byKey !== null) return byKey;
   if (spot.already && UNIQUE_BUILDINGS.includes(key)) return 'ALREADY_BUILT';
   if (!spot.reached) return 'OUT_OF_REACH';

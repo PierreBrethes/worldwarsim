@@ -3,6 +3,7 @@ import type { QueryCtx } from './_generated/server';
 import { buildCost, respecialtyBill, type Costs } from './constants';
 import { canonicalBuildingKey, type BuildingKey } from '../src/domain/ids';
 import { inService } from '../src/domain/loot';
+import { hqDisabledAt } from '../src/domain/integrity';
 
 // A completed legacy queue entry changes its building key, never its paid tariff.
 export const buildingCostKey = (building: Doc<'buildings'>): BuildingKey =>
@@ -13,6 +14,13 @@ export const activeBuildings = (
   now: number,
 ): Array<Doc<'buildings'>> =>
   buildings.filter((building) => inService(building.disabledUntil, now));
+
+/** **Son QG est désactivé** (`hqDisabledAt`, ADR 0046 §8) : un QG pris à un autre ne compte pas. */
+export const hqDisabledIn = (buildings: ReadonlyArray<Doc<'buildings'>>, now: number): boolean =>
+  hqDisabledAt(
+    buildings.map((building) => ({ ...building, captured: building.capturedAt !== undefined })),
+    now,
+  );
 
 export async function playerBuildings(
   ctx: QueryCtx,

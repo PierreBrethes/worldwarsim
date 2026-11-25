@@ -1183,12 +1183,24 @@ describe('the strike order', () => {
     );
   });
 
-  it('strikes only somebody else, and never a listening station nor a headquarters yet', () => {
+  it('strikes only somebody else, and never a listening station', () => {
     expect(strikeRefusalOf(barracks, airfield(['bomber']), true)).toBe('FRIENDLY_TARGET');
-    for (const key of ['listening', 'hq', 'researchCenter'] as const)
-      expect(
-        strikeRefusalOf({ kind: 'building', buildingId: 'x', key }, airfield(['bomber']), false),
-      ).toBe('NOT_A_STRIKE_TARGET');
+    expect(
+      strikeRefusalOf(
+        { kind: 'building', buildingId: 'x', key: 'listening' },
+        airfield(['bomber']),
+        false,
+      ),
+    ).toBe('NOT_A_STRIKE_TARGET');
+  });
+
+  /** ADR 0046 §8 (#648) : le QG et le centre de recherche se frappent, mais ne se pillent pas. */
+  it('strikes a headquarters and a research centre, which a plunder never aims at', () => {
+    for (const key of ['hq', 'researchCenter'] as const) {
+      const aim = { kind: 'building' as const, buildingId: 'x', key };
+      expect(strikeRefusalOf(aim, airfield(['bomber']), false)).toBeNull();
+      expect(plunderOrderRefusalOf(aim, column(['infantry']), false)).toBe('WAREHOUSE_TARGET_ONLY');
+    }
   });
 
   it('leaves from an aerodrome, and not from a disabled one', () => {

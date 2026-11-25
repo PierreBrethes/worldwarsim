@@ -8,7 +8,7 @@ import { pledgedWork, upgradeHold, type UpgradeHold } from '@/domain/constructio
 import { asDuration } from '@/domain/duration';
 import { speedsUp } from '@/domain/level-speed';
 import { type BuildingKey } from '@/domain/ids';
-import { currentMinutes, type Building, type PlayerView } from '@/domain/player-view';
+import { workMinutesLeft, type Building, type PlayerView } from '@/domain/player-view';
 import type { Seat } from '@/data/session';
 
 export type Queued = {
@@ -110,14 +110,23 @@ function holdText(hold: UpgradeHold, building: Building, view: PlayerView, now: 
       const works = pledgedWork(view);
       const rank = works.findIndex((entry) => entry.regionId === building.regionId);
       const entry = works[rank];
-      if (entry?.minutesLeft != null)
-        return fr.works.underway(asDuration(currentMinutes(entry.minutesLeft, view.loadedAt, now)));
+      if (entry?.minutesLeft != null) {
+        const left = asDuration(
+          workMinutesLeft(
+            { minutesLeft: entry.minutesLeft, frozen: entry.frozen },
+            view.loadedAt,
+            now,
+          ),
+        );
+        return entry.frozen === true ? fr.works.frozen(left) : fr.works.underway(left);
+      }
       return fr.works.queued(rank + 1);
     }
     case 'cappedByHq':
       return fr.economy.cappedByHq;
     case 'outOfReach':
     case 'hqFirst':
+    case 'hqDisabled':
       return upgradeHoldText(hold);
     case 'materials':
       return fr.works.lacking(hold.needed - hold.available, fr.resources[hold.resource]);

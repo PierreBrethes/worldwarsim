@@ -863,8 +863,8 @@ describe('in aim', () => {
       ]);
     });
 
-    it('strikes a barracks, an airfield and a port too — where plunder stops', () => {
-      for (const key of ['barracks', 'airfield', 'port'] as const) {
+    it('strikes a barracks, an airfield, a port, a headquarters and a research centre too — where plunder stops', () => {
+      for (const key of ['barracks', 'airfield', 'port', 'hq', 'researchCenter'] as const) {
         const fan = compassOf({ ...mine, key }, view, bombers);
         expect(fan?.actions.map((action) => action.key)).toContain('strike');
       }
@@ -878,7 +878,7 @@ describe('in aim', () => {
 
     it('says a disabled aerodrome lets nothing leave', () => {
       const fan = compassOf(mine, view, { ...bombers, disabledDoors: airfield });
-      expect(fan?.refusal).toBe(fr.errors.BUILDING_DISABLED());
+      expect(fan?.refusal).toBe(fr.errors.BUILDING_DISABLED({}));
     });
 
     it('says an escort of anything but fighters is refused', () => {

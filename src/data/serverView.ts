@@ -143,6 +143,7 @@ function adaptedView(server: ServerView): PlayerView {
             regionName: server.me.construction.regionName,
             point: server.me.construction.point ?? null,
             minutesLeft: server.me.construction.minutesLeft,
+            ...(server.me.construction.frozen === true ? { frozen: true as const } : {}),
             ...(server.me.construction.minutes === undefined
               ? {}
               : { minutes: server.me.construction.minutes }),

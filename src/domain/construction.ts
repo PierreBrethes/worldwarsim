@@ -36,6 +36,7 @@ import { buildingLabelId } from './building-label-id';
 import { DEPOSIT_POINTS, depositAt, type DepositPoint } from './world';
 import type { Asset } from './nation-assets';
 import { ADM0_BY_NATION, isNation } from './nations';
+import { hqDisabledAt, servedBuildings } from './integrity';
 
 /**
  * **The whole construction queue as one list**, head first — the running site and everything
@@ -50,6 +51,8 @@ export const pledgedWork = (
   readonly point: LonLat | null;
   /** Seule la tête de file en porte un : elle monte, les autres attendent. */
   readonly minutesLeft?: number;
+  /** Figée sous son QG désactivé (ADR 0046 §8). */
+  readonly frozen?: true;
 }> =>
   view.me.construction === null
     ? view.me.constructionQueue
@@ -213,7 +216,13 @@ function verdictAmong(
       view.me.buildings.some((building) => building.key === key && building.captured !== true) ||
       pledgedBuildings(view).some((order) => order.key === key),
   };
-  const refusal = placementRefusal(key, spot, view.me.hqLevel, view.buildCatalog[key].lockedBy);
+  const refusal = placementRefusal(
+    key,
+    spot,
+    view.me.hqLevel,
+    view.buildCatalog[key].lockedBy,
+    hqDisabledOf(view, view.loadedAt),
+  );
   if (refusal === null) return { refusal: null, free };
   if (refusal === 'TOO_CLOSE' && spot.nearest !== null) {
     return {
@@ -390,6 +399,8 @@ export type UpgradeHold =
   | { readonly kind: 'outOfReach'; readonly outpostLevels: ReadonlyArray<number> }
   /** No headquarters yet: nothing rises before it (`HQ_FIRST`). */
   | { readonly kind: 'hqFirst' }
+  /** Son QG désactivé ne lance plus de chantier (`BUILDING_DISABLED`, ADR 0046 §8). */
+  | { readonly kind: 'hqDisabled' }
   /** An order already stands on this point — one entry per point, running or queued. */
   | { readonly kind: 'alreadyQueued' }
   | { readonly kind: 'cappedByHq' }
@@ -484,12 +495,18 @@ export function tileBillOf(
 export type RaiseFacts = {
   readonly reached: boolean;
   readonly hqLevel: number;
+  /** Son QG désactivé (`hqDisabledAt`, ADR 0046 §8) : il ne lance plus de chantier. */
+  readonly hqDisabled: boolean;
   readonly queued: boolean;
   readonly cappedByHq: boolean;
 };
 
 export type RaiseRefusal =
-  'OUT_OF_OUTPOST_REACH' | 'HQ_FIRST' | 'ALREADY_QUEUED_HERE' | 'CAPPED_BY_HQ';
+  | 'OUT_OF_OUTPOST_REACH'
+  | 'HQ_FIRST'
+  | 'BUILDING_DISABLED'
+  | 'ALREADY_QUEUED_HERE'
+  | 'CAPPED_BY_HQ';
 
 /**
  * **The one rule for raising a building**, read by the tile in hand, the site sheet and
@@ -499,15 +516,21 @@ export type RaiseRefusal =
 export function raiseRefusalOf(facts: RaiseFacts): RaiseRefusal | null {
   if (!facts.reached) return 'OUT_OF_OUTPOST_REACH';
   if (facts.hqLevel === 0) return 'HQ_FIRST';
+  if (facts.hqDisabled) return 'BUILDING_DISABLED';
   if (facts.queued) return 'ALREADY_QUEUED_HERE';
   if (facts.cappedByHq) return 'CAPPED_BY_HQ';
   return null;
 }
 
+/** **Son QG est désactivé**, lu sur sa vue par la fonction même du serveur (`hqDisabledAt`). */
+export const hqDisabledOf = (view: PlayerView, now: number): boolean =>
+  hqDisabledAt(servedBuildings(view.me.buildings), now);
+
 export function upgradeHold(building: Building, view: PlayerView, now: number): UpgradeHold | null {
   const refusal = raiseRefusalOf({
     reached: building.unreached !== true,
     hqLevel: view.me.hqLevel,
+    hqDisabled: hqDisabledOf(view, now),
     // One entry per point: the server allows a single queued raise there.
     queued: pledgedBuildings(view).some((work) => samePoint(work.lonLat, building.point)),
     cappedByHq: building.cappedByHq,
@@ -522,6 +545,8 @@ export function upgradeHold(building: Building, view: PlayerView, now: number): 
       };
     case 'HQ_FIRST':
       return { kind: 'hqFirst' };
+    case 'BUILDING_DISABLED':
+      return { kind: 'hqDisabled' };
     case 'ALREADY_QUEUED_HERE':
       return { kind: 'alreadyQueued' };
     case 'CAPPED_BY_HQ':
@@ -555,6 +580,7 @@ export function upgradeHold(building: Building, view: PlayerView, now: number): 
 export type OutpostRaiseHold =
   | { readonly kind: 'maxLevel'; readonly maximum: number }
   | { readonly kind: 'disabled' }
+  | { readonly kind: 'hqDisabled' }
   | { readonly kind: 'alreadyQueued' }
   | {
       readonly kind: 'materials';
@@ -568,6 +594,8 @@ export type OutpostRaiseHold =
 export type OutpostRaise = {
   readonly level: number;
   readonly disabled: boolean;
+  /** Son QG désactivé (ADR 0046 §8) : la file des chantiers est la sienne, il n'en lance plus. */
+  readonly hqDisabled: boolean;
   /** Une élévation de **ce** point déjà payée et en file. Une seconde attendrait un niveau que
    *  la première n'a pas encore atteint, donc tarifé faux. */
   readonly queued: boolean;
@@ -581,6 +609,7 @@ export function outpostRaiseHold(
 ): OutpostRaiseHold | null {
   if (outpost.level >= maximum) return { kind: 'maxLevel', maximum };
   if (outpost.disabled) return { kind: 'disabled' };
+  if (outpost.hqDisabled) return { kind: 'hqDisabled' };
   if (outpost.queued) return { kind: 'alreadyQueued' };
   return shortfallOf(outpost.stocks, cost);
 }
@@ -631,6 +660,7 @@ export function specialtyRefusalOf(
   if (outpost.specialty === specialty) return { kind: 'held' };
   if (choosesFreely(outpost)) return null;
   if (outpost.disabled) return { kind: 'disabled' };
+  if (outpost.hqDisabled) return { kind: 'hqDisabled' };
   if (outpost.queued) return { kind: 'alreadyQueued' };
   return shortfallOf(outpost.stocks, bill);
 }

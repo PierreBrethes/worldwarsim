@@ -817,6 +817,17 @@ describe('the dispatches of a strike on a building (ADR 0046)', () => {
     expect(disabled.text).toContain('frappée — désactivée');
     expect(disabled.severity).toBe('critical');
     expect(disabled.resolutionAt).toBeDefined();
+    /** ADR 0046 §8 (#648) : un QG désactivé ne lance plus de chantier, ses mouvements partent. */
+    const hq = read({
+      kind: 'buildingStruck',
+      at: NOON,
+      building: 'hq',
+      regionName: 'Paris',
+      integrity: 'disabled',
+      restoresAt: NOON + 3_600_000,
+    });
+    expect(hq.text).toContain('ni chantier ni recherche');
+    expect(hq.text).not.toContain('ni départ');
   });
 
   it('tells the striker the notch he landed, or that the garrison held him off, with his losses', () => {

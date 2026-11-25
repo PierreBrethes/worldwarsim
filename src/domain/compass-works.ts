@@ -14,6 +14,7 @@ import {
   demolitionRefusalOf,
   underCaptureOf,
   foundationHold,
+  hqDisabledOf,
   outpostDismantleRefusalOf,
   outpostRaiseHold,
   pledgedOutposts,
@@ -111,6 +112,7 @@ function outpostRaiseBranches(
     {
       level: outpost.level,
       disabled: outpost.disabledMinutesLeft !== null,
+      hqDisabled: hqDisabledOf(view, view.loadedAt),
       queued: pledgedOutposts(view).has(outpost.id),
       stocks: Object.fromEntries(
         RESOURCES.map((resource) => [

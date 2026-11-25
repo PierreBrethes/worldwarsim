@@ -21,7 +21,14 @@ import {
 } from './research';
 
 const stocks = { food: 500, steel: 500, coal: 500, oil: 500, ammunition: 0 };
-const ready = { researched: [], running: null, queued: [], centerLevel: 1, stocks } as const;
+const ready = {
+  researched: [],
+  running: null,
+  queued: [],
+  centerLevel: 1,
+  halted: null,
+  stocks,
+} as const;
 
 describe('the research tree', () => {
   /**
@@ -121,6 +128,19 @@ describe('the research tree', () => {
 describe('putting a card on the research centre', () => {
   it('takes a card whose prerequisites stand', () => {
     expect(researchRefusalOf('infantryMk2', ready)).toBeNull();
+  });
+
+  /** ADR 0046 §8 (#648) : un Centre ou un QG désactivé ne lance aucune carte, et le dit. */
+  it('refuses any card while its centre or the headquarters is disabled, before the price', () => {
+    const broke = { ...stocks, coal: 0 };
+    for (const building of ['researchCenter', 'hq'] as const)
+      expect(researchRefusalOf('escort', { ...ready, halted: building, stocks: broke })).toEqual({
+        code: 'BUILDING_DISABLED',
+        building,
+      });
+    expect(researchRefusalOf('escort', { ...ready, halted: 'hq', centerLevel: null })).toEqual({
+      code: 'RESEARCH_NEEDS_CENTER',
+    });
   });
 
   it('names the card to research first', () => {

@@ -745,6 +745,8 @@ type RunningWork = {
    *  moment it is finished. `null` for an outpost's raise, which plants nothing. */
   readonly point: LonLat | null;
   readonly minutesLeft: number;
+  /** **Figé** sous son QG désactivé (ADR 0046 §8) : `minutesLeft` ne décompte pas. */
+  readonly frozen?: true;
   /** **La durée dont le serveur l'a daté** : la barre se tire d'elle, jamais d'un recalcul au
    *  niveau du QG d'aujourd'hui. Absente sur un chantier d'avant le champ. */
   readonly minutes?: number;
@@ -1765,6 +1767,14 @@ export function currentStock(resource: Resource, loadedAt: number, now: number):
 export function currentMinutes(minutesLeft: number, loadedAt: number, now: number): number {
   return Math.max(0, minutesLeft - Math.max(0, now - loadedAt) / 60_000);
 }
+
+/** **Ce qui reste au chantier qui court** : figé sous un QG désactivé, son reste ne décompte pas. */
+export const workMinutesLeft = (
+  work: { readonly minutesLeft: number; readonly frozen?: true | undefined },
+  loadedAt: number,
+  now: number,
+): number =>
+  work.frozen === true ? work.minutesLeft : currentMinutes(work.minutesLeft, loadedAt, now);
 
 /**
  * **Le jour de la saison, compté depuis un** : la vingt-cinquième heure ouvre le jour 2. Sans

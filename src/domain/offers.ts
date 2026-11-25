@@ -6,6 +6,7 @@ import { foundingMotive } from './compass-works';
 import {
   demolitionRefusalOf,
   foundationHold,
+  hqDisabledOf,
   outpostDismantleRefusalOf,
   outpostRaiseHold,
   pledgedOutposts,
@@ -481,6 +482,7 @@ function outpostOffers(outpost: OutpostView, view: PlayerView, ctx: OfferContext
     level: outpost.level,
     specialty: outpost.specialty,
     disabled: outpost.disabledMinutesLeft !== null,
+    hqDisabled: hqDisabledOf(view, ctx.now),
     queued: pledgedOutposts(view).has(outpost.id),
     stocks: stocksAt(view, ctx.now),
   };

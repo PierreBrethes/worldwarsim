@@ -3,6 +3,7 @@ import {
   BUILDING_IMMUNITY_HOURS,
   DAMAGED_HOURS,
 } from '../../convex/constants';
+import type { BuildingKey } from './ids';
 import { inService } from './loot';
 
 /**
@@ -77,3 +78,43 @@ export function struckOf(
       return null;
   }
 }
+
+/** **Les dates que la vue sert à son propriétaire** (`integrity`, `restoresAt`), relues comme
+ *  celles du serveur : l'écran pose la même question que la mutation, à la même fonction. */
+export const servedDates = (building: {
+  readonly integrity?: 'damaged' | 'disabled' | undefined;
+  readonly restoresAt?: number | undefined;
+}): IntegrityDates =>
+  building.integrity === 'disabled'
+    ? { disabledUntil: building.restoresAt }
+    : building.integrity === 'damaged'
+      ? { damagedUntil: building.restoresAt }
+      : {};
+
+/** Ses bâtiments tels que sa vue les sert, relus en dates (`servedDates`). */
+export const servedBuildings = <
+  B extends {
+    readonly integrity?: 'damaged' | 'disabled' | undefined;
+    readonly restoresAt?: number | undefined;
+  },
+>(
+  buildings: ReadonlyArray<B>,
+): Array<B & IntegrityDates> =>
+  buildings.map((building) => ({ ...building, ...servedDates(building) }));
+
+/**
+ * **Son QG est désactivé** (ADR 0046 §8) : il ne lance plus de chantier ni de recherche, et ses
+ * chantiers attendent son retour. Le sien seul : un QG pris à un autre ne tient pas sa file.
+ */
+export const hqDisabledAt = (
+  buildings: ReadonlyArray<
+    IntegrityDates & { readonly key: BuildingKey; readonly captured?: boolean | undefined }
+  >,
+  now: number,
+): boolean =>
+  buildings.some(
+    (building) =>
+      building.key === 'hq' &&
+      building.captured !== true &&
+      integrityOf(building, now) === 'disabled',
+  );
