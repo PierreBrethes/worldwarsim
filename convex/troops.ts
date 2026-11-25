@@ -225,7 +225,7 @@ export const cancel = mutation({
     requirePlayable(player, season);
     const batch = await ctx.db.get(recruitmentId);
     if (!batch || batch.playerId !== player._id) fail('UNKNOWN_BATCH');
-    if (batch.finishesAt !== null) fail('BATCH_ALREADY_STARTED');
+    if (batch.finishesAt !== null || batch.frozenMs !== undefined) fail('BATCH_ALREADY_STARTED');
 
     const cost = recruitmentCost(batch.role, batch.tier);
     await credit(ctx, player._id, cost.costs, Date.now());

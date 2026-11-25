@@ -281,6 +281,45 @@ describe('a barracks disabled by a strike', () => {
     expect(woken.finishesAt).toBe(restoredAt + 2 * HOUR);
     expect((await t.run((ctx) => ctx.db.get(next)))!.finishesAt).toBeNull();
   });
+
+  it('forms on when the wake-up runs at the very instant it is back', async () => {
+    const t = boot();
+    const { order, guest, target } = await strikeScene(t, 'barracks');
+    await t.run((ctx) => ctx.db.patch(target, { damagedUntil: MIDDAY + 30 * HOUR }));
+    const head = await batch(t, target, guest, 0);
+    const { movementId, arrivesAt: at } = await fileStrike(t, order);
+    await t.run((ctx) => ctx.db.patch(head, { finishesAt: at + 2 * HOUR }));
+    vi.setSystemTime(at);
+    await t.mutation(internal.movements.arrive, { movementId });
+
+    const back = at + BUILDING_DISABLED_HOURS * HOUR;
+    vi.setSystemTime(back);
+    await t.mutation(internal.production.restoreAfterDisabling, {
+      seasonId: (await playerOf(t, guest)).seasonId,
+      at: back,
+    });
+    expect((await t.run((ctx) => ctx.db.get(head)))!.finishesAt).toBe(back + 1 + 2 * HOUR);
+  });
+
+  it('refuses to cancel a frozen batch, which had started', async () => {
+    const t = boot();
+    const { order, guest, target } = await strikeScene(t, 'barracks');
+    await t.run((ctx) => ctx.db.patch(target, { damagedUntil: MIDDAY + 30 * HOUR }));
+    const head = await batch(t, target, guest, 0);
+    const { movementId, arrivesAt: at } = await fileStrike(t, order);
+    await t.run((ctx) => ctx.db.patch(head, { finishesAt: at + 2 * HOUR }));
+    vi.setSystemTime(at);
+    await t.mutation(internal.movements.arrive, { movementId });
+
+    const player = await playerOf(t, guest);
+    await expect(
+      t.mutation(api.troops.cancel, {
+        token: guest.token,
+        seasonId: player.seasonId,
+        recruitmentId: head,
+      }),
+    ).rejects.toThrow(/BATCH_ALREADY_STARTED/);
+  });
 });
 
 describe('the strike at its arrival', () => {

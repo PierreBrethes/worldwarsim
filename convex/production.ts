@@ -157,7 +157,7 @@ export const restoreAfterDisabling = internalMutation({
      *  reprend de ce qu'il lui restait. */
     for (const building of await seasonBuildings(ctx, seasonId))
       if (building.key === 'barracks' && building.disabledUntil === at)
-        await startLanes(ctx, building._id, Date.now());
+        await startLanes(ctx, building._id, Math.max(Date.now(), at + 1));
   },
 });
 
