@@ -53,3 +53,4 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0043](0043-un-point-neutre-est-garde.md) | Un point stratégique neutre est gardé par une garnison locale | acceptée (23/11) — amende 0027 §4 ; précise 0019 §3 ; Mondiale seule |
 | [0044](0044-la-faim-ralentit-et-suspend.md) | La faim ralentit les colonnes et suspend la capture | acceptée (23/11) — révise `consommation-continue.md` D3 et la ligne « Capture » du glossaire ; précise 0041 §4 ; Mondiale seule |
 | [0045](0045-les-notifications-et-le-a-vous.md) | Les notifications, et un « À vous » quand une colonne arrive | acceptée (23/11) — inscrit notif-1a à notif-6, révise notif-3a ; Mondiale seule |
+| [0046](0046-le-bombardier-frappe-un-batiment.md) | Le bombardier frappe un bâtiment : intact, endommagé, désactivé | acceptée (25/11) — remplace la proposition `frappe-de-batiment.md` (78a) ; répond au QG frappé ; Mondiale seule |
