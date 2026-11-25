@@ -6,6 +6,7 @@ import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import { RESOURCES, type ResourceKey } from '../src/domain/ids';
 import {
   BASE_CAP,
+  BUILDING_IMMUNITY_HOURS,
   EXTRACTION_PER_HOUR,
   HEAP_CAP_HOURS,
   nominalStrength,
@@ -825,12 +826,18 @@ describe('plunder presence', () => {
     const transport = await troop(t, seat, 'landTransport', barracks);
     const warehouseId = await building(t, guest, 'warehouse');
     await setStocks(t, guest, { food: 702, steel: 500 });
+    await t.run((ctx) => ctx.db.patch(warehouseId, { damagedUntil: MIDDAY + 30 * HOUR }));
     const movementId = await plunderArrival(t, seat, warehouseId, [infantry, transport], barracks);
 
     const takenAt = await completePresence(t, movementId);
 
     const target = await t.run((ctx) => ctx.db.get(warehouseId));
     expect(target?.disabledUntil).toBe(takenAt + BUILDING_DISABLED_HOURS * HOUR);
+    /** ADR 0046 §5 : le sabotage pose le même désactivé, et l'abri derrière lui. */
+    expect(target?.immuneUntil).toBe(
+      takenAt + (BUILDING_DISABLED_HOURS + BUILDING_IMMUNITY_HOURS) * HOUR,
+    );
+    expect(target?.damagedUntil).toBeUndefined();
     const stocks = await stocksOf(t, guest);
     expect(stocks.food).toBe(BASE_CAP);
     expect(stocks.steel).toBe(BASE_CAP);

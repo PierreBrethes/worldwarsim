@@ -905,6 +905,38 @@ export const NOTICE = v.union(
     reason: v.union(v.literal('gone'), v.literal('disabled'), v.literal('sealed')),
   }),
   /**
+   * **La frappe** (ADR 0046 §7). Chez la victime, le cran perdu et l'heure du retour ; chez celui
+   * qui a frappé, le cran porté (`null` : aucun bombardier n'a tenu) et ses pertes — jamais l'heure
+   * du retour, que son relevé ne suit pas. `strikeFoundNothing` est la colonne arrivée devant rien,
+   * comme l'expédition : rasé ou capturé (`gone`), déjà désactivé, ou à l'abri (`immune`).
+   */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('buildingStruck'),
+    building: BUILDING_KEY,
+    regionId: v.string(),
+    integrity: v.union(v.literal('damaged'), v.literal('disabled')),
+    restoresAt: v.number(),
+    storageLost: v.optional(RESOURCE_AMOUNTS),
+  }),
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('strikeDelivered'),
+    building: BUILDING_KEY,
+    regionId: v.string(),
+    notch: v.union(v.literal('damaged'), v.literal('disabled'), v.null()),
+    /** Les troupes de la colonne détruites par la garnison. */
+    destroyed: v.number(),
+    combatId: v.union(v.id('engagements'), v.null()),
+  }),
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('strikeFoundNothing'),
+    building: BUILDING_KEY,
+    regionId: v.string(),
+    reason: v.union(v.literal('gone'), v.literal('disabled'), v.literal('immune')),
+  }),
+  /**
    * **Un objectif neutre, annoncé à tout le monde au lancement** (objectifs neutres, 17/09/2026).
    * C'est le garde-fou de la proposition du 29/08 : un PVE que chacun découvre dans son coin fait
    * farmer côte à côte, un PVE public fait converger. Ce qu'elle nomme est le lieu et l'archétype,

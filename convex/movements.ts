@@ -80,6 +80,7 @@ import {
   namesATroopTwice,
   plunderAimOf,
   surveyedPlunderTarget,
+  surveyedTarget,
   troopsAmong,
   fuelBill,
 } from './movement/orders';
@@ -102,6 +103,7 @@ import { surveyAlongRoute } from './surveys';
 import { hostAtPoint, landAtPoint, reachedOverGround, routeBetween } from './routes';
 import { playerOf, requirePlayable, seasonStillPlays } from './seats';
 import { arriveForPlunder, completeLootDelivery, completePresence } from './plunder';
+import { arriveForStrike } from './strikes';
 import { resolveLootCollectionArrivals, startLootCollectionMission } from './lootCollections';
 import { restHold } from './movement/rest';
 import { holdAtFort as holdAtFortEntry } from './movement/fort';
@@ -717,6 +719,35 @@ export const plunder = mutation({
 });
 
 /**
+ * **Frapper** (ADR 0046 §3) : des bombardiers partis d'un aérodrome, sur un bâtiment adverse
+ * relevé. Le refus est celui de la rose (`strikeRefusalOf`), Blitz comprise ; l'état de la cible
+ * ne se lit qu'à l'arrivée (`convex/strikes.ts`).
+ */
+export const strike = mutation({
+  args: {
+    token: v.string(),
+    seasonId: v.id('seasons'),
+    origin: MOVEMENT_ORIGIN,
+    troopIds: v.array(v.id('troops')),
+    buildingId: v.id('buildings'),
+  },
+  handler: async (ctx, { token, seasonId, origin, troopIds, buildingId }) => {
+    const { player, season } = await playerOf(ctx, token, seasonId);
+    requirePlayable(player, season);
+    const target = await surveyedTarget(ctx, player, buildingId);
+    return march(ctx, {
+      playerId: player._id,
+      season,
+      type: 'march',
+      origin,
+      troopIds,
+      aim: plunderAimOf(target),
+      strike: { buildingId, surveyed: { key: target.key, regionId: target.regionId } },
+    });
+  },
+});
+
+/**
  * **Capturer** (décision du 14/10) : un bâtiment adverse relevé, ou un avant-poste adverse. La
  * colonne y marche comme à une attaque ; l'arrivée engage, puis l'infanterie debout capture
  * (`captures.ts`). Le refus est celui de la rose (`captureOrderRefusalOf`).
@@ -1255,6 +1286,13 @@ export const arrive = internalMutation({
     if (movement.plunder?.phase === 'outbound') {
       await surveyAlongRoute(ctx, movement, now);
       const fought = await arriveForPlunder(ctx, movement, now);
+      await reassessDetection(ctx, movement.seasonId, now, [movement.playerId, ...fought]);
+      return;
+    }
+
+    if (movement.strike !== undefined) {
+      await surveyAlongRoute(ctx, movement, now);
+      const fought = await arriveForStrike(ctx, movement, now);
       await reassessDetection(ctx, movement.seasonId, now, [movement.playerId, ...fought]);
       return;
     }

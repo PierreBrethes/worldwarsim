@@ -6,7 +6,7 @@ import { emptyLoad, isAirStop } from './logistics';
 import { marchingTroopIds, PROJECTION_BY_DOMAIN, type MarchStation } from './troops';
 import { playedTheatre } from './theatres';
 import type { PlayerView } from './player-view';
-import type { Column } from './movement-orders';
+import { disabledDoorsOf, type Column } from './movement-orders';
 
 /**
  * A column composed and armed, waiting for an aim. `rule` is the shape the shared legality
@@ -63,6 +63,10 @@ export function armedColumn(
     station.kind === 'building'
       ? view.me.buildings.find((building) => building.id === station.buildingId)
       : undefined;
+  const doors =
+    departure === undefined
+      ? []
+      : view.me.buildings.filter((building) => building.regionId === departure.regionId);
   const outpost =
     station.kind === 'outpost'
       ? view.me.outposts.find((candidate) => candidate.id === station.outpostId)
@@ -82,14 +86,11 @@ export function armedColumn(
       /** An outpost and a plain point carry no region, so a column standing on one finds no gate
        *  under it and walks — which is the whole of what ADR 0013 still forbids (ADR 0019 §2). */
       departureBuildings: new Set([
-        ...(departure === undefined
-          ? []
-          : view.me.buildings
-              .filter((building) => building.regionId === departure.regionId)
-              .map((building) => building.key)),
+        ...doors.map((building) => building.key),
         /** **L'escale aérienne** (ADR 0028 §5), comme `departureOf` la lit. */
         ...(outpost !== undefined && isAirStop(outpost.level) ? [PROJECTION_BY_DOMAIN.air] : []),
       ]),
+      disabledDoors: disabledDoorsOf(doors),
       /** Servi avec l'adresse et lu sur la grille de routage, jamais déduit de `country` : le
        *  polygone dit « terre » sur des rivages que la grille tient pour de l'eau, et c'est la
        *  grille qui a accepté la visée. Rien n'est recalculé ici — une seconde géométrie côté

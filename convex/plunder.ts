@@ -11,7 +11,8 @@ import {
   raidsStock,
   sparedPerResourceOf,
 } from '../src/domain/loot';
-import { CARRY_CAPACITY_BY_ROLE, BUILDING_DISABLED_HOURS, PLUNDER_HOURS_PRESENT } from './constants';
+import { CARRY_CAPACITY_BY_ROLE, PLUNDER_HOURS_PRESENT } from './constants';
+import { disablingOf } from '../src/domain/integrity';
 import { resolveContact } from './combat';
 import { heldOver } from './holding';
 import { plunderTargetAt } from './movement/orders';
@@ -276,11 +277,14 @@ export async function completePresence(
       : emptyStocks();
   if (isWarehouse) await debit(ctx, target.playerId, taken, now);
 
-  const disabledUntil = now + BUILDING_DISABLED_HOURS * 3_600_000;
+  const disabling = disablingOf(now);
+  const { disabledUntil } = disabling;
   /** Hors service, son tas ne monte plus : réglé à l'heure du raid, au débit qui l'a fait, moins
    *  ce que la colonne emporte (le reste du tas y reste). */
   if (heap !== undefined) await takeHeap(ctx, target, heap, loots ? taken[heap.resource] : 0, now);
-  await ctx.db.patch(target._id, { disabledUntil });
+  /** **Le même désactivé que la frappe** (ADR 0046 §5), l'abri derrière lui et sans dommage
+   *  à lire ensuite. */
+  await ctx.db.patch(target._id, { ...disabling, damagedUntil: undefined });
   const storageLost = isWarehouse
     ? await clipToStorage(ctx, target.playerId, now, spared)
     : emptyStocks();

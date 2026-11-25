@@ -21,6 +21,7 @@ import {
   captureOrderRefusalOf,
   plunderOrderRefusalOf,
   refusalDetails,
+  strikeRefusalOf,
   refusalOf,
   routeModeOf,
   type Column,
@@ -1160,5 +1161,87 @@ describe('a hungry column', () => {
     const hungry = column(['infantry'], { starving: true });
     expect(captureOrderRefusalOf(outpost, hungry, false)).toBe('CAPTURE_STARVING');
     expect(captureOrderRefusalOf(outpost, column(['infantry']), false)).toBeNull();
+  });
+});
+
+/** ADR 0046 §3 : la frappe part d'un aérodrome, porte un bombardier, et vise un bâtiment adverse. */
+describe('the strike order', () => {
+  const barracks = { kind: 'building', buildingId: 'b', key: 'barracks' } as const;
+  const airfield = (roles: ReadonlyArray<UnitRole>, held: Partial<Column> = {}) =>
+    column(roles, { departureBuildings: new Set<BuildingKey>(['airfield']), ...held });
+
+  it('is offered to bombers and their fighter escort', () => {
+    expect(strikeRefusalOf(barracks, airfield(['bomber']), false)).toBeNull();
+    expect(strikeRefusalOf(barracks, airfield(['bomber', 'fighter']), false)).toBeNull();
+  });
+
+  it('needs a bomber, and takes no other role than the fighter', () => {
+    expect(strikeRefusalOf(barracks, airfield([]), false)).toBe('EMPTY_MOVEMENT');
+    expect(strikeRefusalOf(barracks, airfield(['fighter']), false)).toBe('STRIKE_NEEDS_BOMBER');
+    expect(strikeRefusalOf(barracks, airfield(['bomber', 'airTransport']), false)).toBe(
+      'STRIKE_ESCORT_FIGHTERS_ONLY',
+    );
+  });
+
+  it('strikes only somebody else, and never a listening station nor a headquarters yet', () => {
+    expect(strikeRefusalOf(barracks, airfield(['bomber']), true)).toBe('FRIENDLY_TARGET');
+    for (const key of ['listening', 'hq', 'researchCenter'] as const)
+      expect(
+        strikeRefusalOf({ kind: 'building', buildingId: 'x', key }, airfield(['bomber']), false),
+      ).toBe('NOT_A_STRIKE_TARGET');
+  });
+
+  it('leaves from an aerodrome, and not from a disabled one', () => {
+    expect(strikeRefusalOf(barracks, column(['bomber']), false)).toBe('NO_AIRFIELD_AT_DEPARTURE');
+    expect(
+      strikeRefusalOf(
+        barracks,
+        airfield(['bomber'], { disabledDoors: new Set<BuildingKey>(['airfield']) }),
+        false,
+      ),
+    ).toBe('BUILDING_DISABLED');
+  });
+
+  it('goes to the fire with rounds, and not in a Blitz', () => {
+    expect(strikeRefusalOf(barracks, airfield(['bomber'], { outOfRounds: true }), false)).toBe(
+      'NO_ROUNDS',
+    );
+    const blitz = airfield(['bomber'], {
+      blitz: {
+        theatre: { west: -10, south: 30, east: 40, north: 60 } as never,
+        reloading: false,
+        occupiedBuildingIds: new Set(),
+      },
+    });
+    expect(strikeRefusalOf(barracks, blitz, false)).toBe('NOT_IN_BLITZ');
+  });
+});
+
+/** ADR 0046 §6 : rien ne part d'un aérodrome ni d'un port désactivés ; on y rentre toujours. */
+describe('a disabled door', () => {
+  it('lets no wing take off and no hull embark', () => {
+    const closed = new Set<BuildingKey>(['airfield', 'port']);
+    const doors = new Set<BuildingKey>(['airfield', 'port']);
+    expect(
+      refusalOf(
+        'march',
+        blank,
+        column(['fighter'], { departureBuildings: doors, disabledDoors: closed }),
+      ),
+    ).toBe('BUILDING_DISABLED');
+    expect(
+      refusalOf(
+        'march',
+        blank,
+        column(['cargo'], { departureBuildings: doors, disabledDoors: closed }),
+      ),
+    ).toBe('BUILDING_DISABLED');
+    expect(
+      refusalOf(
+        'march',
+        blank,
+        column(['infantry'], { departureBuildings: doors, disabledDoors: closed }),
+      ),
+    ).toBeNull();
   });
 });

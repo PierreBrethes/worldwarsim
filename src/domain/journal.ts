@@ -819,6 +819,33 @@ function written(notice: Notice, viewerNation: string | null): Written {
           notice.reason,
         ),
       };
+    case 'buildingStruck':
+      return {
+        at: notice.at,
+        severity: notice.integrity === 'disabled' ? 'critical' : 'notable',
+        kind: 'buildingStruck',
+        text: said.buildingStruck(notice.building, notice.regionName, notice.integrity),
+        resolutionAt: asLocalTime(notice.restoresAt),
+      };
+    case 'strikeDelivered':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'strikeDelivered',
+        text: said.strikeDelivered(
+          notice.building,
+          notice.regionName,
+          notice.notch,
+          notice.destroyed,
+        ),
+      };
+    case 'strikeFoundNothing':
+      return {
+        at: notice.at,
+        severity: 'notable',
+        kind: 'foundNothing',
+        text: said.strikeFoundNothing(notice.building, notice.regionName, notice.reason),
+      };
     case 'lootLost':
       return {
         at: notice.at,

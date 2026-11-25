@@ -1027,6 +1027,13 @@ export const fr = {
         : `${aRoleName(d.role)} ne fonde pas — seule l’infanterie plante un point`,
     INFANTRY_REQUIRED: () => 'il faut au moins une troupe d’infanterie pour rapporter la charge',
     WAREHOUSE_TARGET_ONLY: () => 'seuls un entrepôt ou un site producteur se pillent',
+    /** **La frappe** (ADR 0046 §3). */
+    STRIKE_NEEDS_BOMBER: () => 'seul un bombardier frappe un bâtiment : il en faut au moins un',
+    STRIKE_ESCORT_FIGHTERS_ONLY: () =>
+      'une frappe ne part qu’avec des bombardiers et leurs chasseurs d’escorte',
+    NOT_A_STRIKE_TARGET: () =>
+      'ce bâtiment ne se frappe pas : ni un poste d’écoute, ni un QG, ni un centre de recherche',
+    BUILDING_DISABLED: () => 'ce bâtiment est désactivé : il ne forme rien et rien n’en part',
     CAPTURE_NEEDS_INFANTRY: () => 'seule l’infanterie capture : il en faut au moins une troupe',
     CAPTURE_STARVING: () => 'l’armée a faim : elle ne capture plus avant d’être nourrie',
     CAPTURE_ON_FOOT: () => 'l’infanterie capture à pied : débarquez-la d’abord',
@@ -2688,6 +2695,8 @@ export const fr = {
       lootTaken: 'butin pris',
       sitePlundered: 'site pillé',
       siteSabotaged: 'site saboté',
+      buildingStruck: 'bâtiment frappé',
+      strikeDelivered: 'frappe',
       lootLost: 'charge perdue',
       lootRecovered: 'charge reprise',
       lootCollected: 'caisse ramassée',
@@ -2866,6 +2875,42 @@ export const fr = {
           : reason === 'sealed'
             ? `Expédition bredouille — ${region} : ${building} était scellé par Dakar (ancienne règle). La colonne rentre à vide.`
             : `Expédition bredouille — ${region} : ${building} était déjà à l’arrêt. La colonne rentre à vide.`,
+      /** **La frappe** (ADR 0046 §7). */
+      buildingStruck: (
+        building: BuildingKey,
+        region: string,
+        integrity: 'damaged' | 'disabled',
+      ) => {
+        const e = fr.buildingGender[building] === 'f' ? 'e' : '';
+        return integrity === 'disabled'
+          ? `${fr.buildings[building]} de ${region} frappé${e} — désactivé${e} : ni production, ni formation, ni départ jusqu’à son rétablissement.`
+          : `${fr.buildings[building]} de ${region} frappé${e} — endommagé${e} : un second coup le désactiverait.`;
+      },
+      strikeDelivered: (
+        building: BuildingKey,
+        region: string,
+        notch: 'damaged' | 'disabled' | null,
+        destroyed: number,
+      ) => {
+        const e = fr.buildingGender[building] === 'f' ? 'e' : '';
+        const losses =
+          destroyed === 0 ? '' : ` Pertes : ${destroyed} troupe${destroyed > 1 ? 's' : ''}.`;
+        return notch === null
+          ? `Frappe repoussée — ${fr.buildings[building]} de ${region} : aucun bombardier n’a passé la garnison.${losses}`
+          : `Frappe portée — ${fr.buildings[building]} de ${region} ${notch === 'disabled' ? `désactivé${e}` : `endommagé${e}`}.${losses}`;
+      },
+      strikeFoundNothing: (
+        building: BuildingKey,
+        region: string,
+        reason: 'gone' | 'disabled' | 'immune',
+      ) =>
+        `Frappe sans objet — ${region} : ${fr.buildings[building]} ${
+          reason === 'gone'
+            ? 'relevé n’est plus là'
+            : reason === 'disabled'
+              ? 'était déjà désactivé'
+              : 'venait de se rétablir et reste à l’abri'
+        }. Les bombardiers rentrent.`,
       lootLost: (loot: string) => `Charge perdue : ${loot}.`,
       lootRecovered: (country: string, loot: string) =>
         `Charge récupérée après combat — ${country} : ${loot}.`,

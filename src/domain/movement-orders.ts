@@ -188,6 +188,9 @@ export type Column = {
    *  (`ALREADY_HERE`). Absent on a plain point. */
   readonly originId?: string;
   readonly departureBuildings: ReadonlySet<BuildingKey>;
+  /** **Les portes désactivées** (ADR 0046 §6) : celles de `departureBuildings` dont aucun bâtiment
+   *  n'est en service. Rien n'en part ; on y rentre toujours. Absent, toutes sont ouvertes. */
+  readonly disabledDoors?: ReadonlySet<BuildingKey>;
   /**
    * **Whether the column is already in the water it would be asked to embark on.** Read off the
    * departure point and nowhere else, **on the routing grid** — the same cell the aim's `ground`
@@ -279,7 +282,9 @@ export type OrderRefusal =
   | 'BUILDING_OCCUPIED'
   | 'INDIRECT_FIRE_ONLY'
   /** **Sans coups, ni attaque ni riposte** (ADR 0028 §1) : la colonne marche, elle n'attaque pas. */
-  | 'NO_ROUNDS';
+  | 'NO_ROUNDS'
+  /** **Un aérodrome ou un port désactivé** (ADR 0046 §6) : rien n'en part. */
+  | 'BUILDING_DISABLED';
 
 export type PlunderAim = {
   readonly kind: 'building';
@@ -343,6 +348,52 @@ export function plunderOrderRefusalOf(
   isMine: boolean,
 ): PlunderRefusal | OrderRefusal | null {
   return plunderRefusalOf(aim, column.roles, isMine) ?? dry(column) ?? closedGate(aim, column);
+}
+
+/** Les portes de la région de départ dont aucun bâtiment n'est en service : la même lecture pour
+ *  la colonne du serveur et celle de la rose. */
+export const disabledDoorsOf = (
+  doors: ReadonlyArray<{ readonly key: BuildingKey; readonly disabled?: boolean }>,
+): ReadonlySet<BuildingKey> => {
+  const open = new Set(doors.filter((door) => door.disabled !== true).map((door) => door.key));
+  return new Set(doors.map((door) => door.key).filter((key) => !open.has(key)));
+};
+
+export type StrikeRefusal =
+  | 'NOT_IN_BLITZ'
+  | 'EMPTY_MOVEMENT'
+  | 'STRIKE_NEEDS_BOMBER'
+  | 'STRIKE_ESCORT_FIGHTERS_ONLY'
+  | 'FRIENDLY_TARGET'
+  | 'NOT_A_STRIKE_TARGET';
+
+/**
+ * **Ce qu'un bombardier frappe** (ADR 0046 §3, §6) : ce que le pillage vise, plus la caserne,
+ * l'aérodrome et le port. Ni le poste d'écoute (sa portée est le brouillard), ni le QG et le centre
+ * de recherche tant que #648 n'a pas dit ce qu'ils perdent.
+ */
+const isStrikeTarget = (key: BuildingKey): boolean =>
+  isPlunderTarget(key) || key === 'barracks' || key === 'airfield' || key === 'port';
+
+/**
+ * **Frapper** (ADR 0046 §3) : des bombardiers, escortés de chasseurs et de rien d'autre, sur un
+ * bâtiment adverse, puis la porte de départ commune — l'aérodrome y est exigé. La même lecture
+ * pour la rose et pour `movements.strike`. L'abri et l'état de la cible ne s'y lisent pas : le
+ * relevé ne les dit pas, l'arrivée les apprend (`convex/strikes.ts`).
+ */
+export function strikeRefusalOf(
+  aim: PlunderAim,
+  column: Column,
+  isMine: boolean,
+): StrikeRefusal | OrderRefusal | null {
+  if (column.blitz !== undefined) return 'NOT_IN_BLITZ';
+  if (column.roles.length === 0) return 'EMPTY_MOVEMENT';
+  if (!column.roles.includes('bomber')) return 'STRIKE_NEEDS_BOMBER';
+  if (column.roles.some((role) => role !== 'bomber' && role !== 'fighter'))
+    return 'STRIKE_ESCORT_FIGHTERS_ONLY';
+  if (isMine) return 'FRIENDLY_TARGET';
+  if (!isStrikeTarget(aim.key)) return 'NOT_A_STRIKE_TARGET';
+  return dry(column) ?? closedGate(aim, column);
 }
 
 /** **Sans coups, ni attaque ni riposte** (ADR 0028 §1) : capturer et piller, c'est aller au feu. */
@@ -668,8 +719,15 @@ const closedGate = (aim: MovementAim, column: Column): OrderRefusal | null => {
   ) {
     return 'NO_AIRFIELD_AT_DEPARTURE';
   }
+  if (
+    domains.has('air') &&
+    (column.blitz === undefined || domains.has('land')) &&
+    column.disabledDoors?.has(PROJECTION_BY_DOMAIN.air) === true
+  )
+    return 'BUILDING_DISABLED';
   if (domains.has('sea') && embarking(column, domains)) {
     if (!column.departureBuildings.has(PROJECTION_BY_DOMAIN.sea)) return 'NO_PORT_AT_DEPARTURE';
+    if (column.disabledDoors?.has(PROJECTION_BY_DOMAIN.sea) === true) return 'BUILDING_DISABLED';
   }
   /**
    * **Le large ne se quitte qu'à bord** (règle 3 du 18/09). Il se lit **après** l'aérodrome,

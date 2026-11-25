@@ -739,6 +739,14 @@ export default defineSchema({
      * belongs to this movement. Its optional return region is the automatic plan fixed before
      * the return; absence keeps pre-S6a documents readable. */
     plunder: v.optional(PLUNDER_MISSION),
+    /** **La frappe** (ADR 0046 §3) : des bombardiers venus retirer un cran à ce bâtiment. Le relevé
+     *  du départ nomme la cible si elle n'est plus là à l'arrivée (`strikeFoundNothing`). */
+    strike: v.optional(
+      v.object({
+        buildingId: v.id('buildings'),
+        surveyed: v.object({ key: BUILDING_KEY, regionId: v.string() }),
+      }),
+    ),
     /** Cargo on a stamped return is delivered at its frontier; an unstamped load stays legacy. */
     loot: v.optional(RESOURCE_AMOUNTS),
     /** Several recovered or regrouped loads keep their own report without duplicating totals. */

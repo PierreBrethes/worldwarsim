@@ -14,6 +14,7 @@ import type { BuildingKey, UnitRole } from '../src/domain/ids';
 import { levelOf, playerBuildings } from './buildingReads';
 import { blitzRecruitRefusalOf, fundsAt } from '../src/domain/blitz';
 import { modeOf } from '../src/domain/season-mode';
+import { integrityOf } from '../src/domain/integrity';
 import { fundsOf, isBlitz, occupiedBuildingIds, spendFunds } from './blitz';
 import {
   BLITZ,
@@ -139,13 +140,18 @@ export const recruit = mutation({
     const now = Date.now();
     const cost = recruitmentCost(role, tier);
     const { stocks } = await economyOf(ctx, player._id, now, { mode: modeOf(season.mode) });
-    const refusal = recruitRefusalOf(role, tier, building, {
-      researched: player.researched ?? [],
-      army,
-      siteQueue: queue.length,
-      costs: cost.costs,
-      stocks,
-    });
+    const refusal = recruitRefusalOf(
+      role,
+      tier,
+      { key: building.key, disabled: integrityOf(building, now) === 'disabled' },
+      {
+        researched: player.researched ?? [],
+        army,
+        siteQueue: queue.length,
+        costs: cost.costs,
+        stocks,
+      },
+    );
     if (refusal !== null) {
       const { code, ...details } = refusal;
       fail(code, details);

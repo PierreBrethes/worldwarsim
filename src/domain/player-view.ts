@@ -606,6 +606,10 @@ export type Building = {
   readonly unreached?: true;
   /** **Hors service** (razzia) : il ne produit ni ne brûle rien tant que sa date n'est pas passée. */
   readonly disabled?: true;
+  /** **Frappé ou saboté** (ADR 0046 §7), servi à son seul propriétaire : endommagé ou désactivé,
+   *  et l'heure où il revient intact. Absent, il est intact. */
+  readonly integrity?: 'damaged' | 'disabled';
+  readonly restoresAt?: number;
   /** **Pris à un autre** : il colore sa région, mais un Centre de recherche pris ne cherche pas. */
   readonly captured?: true;
   /** **Posé en fondation offerte** (ADR 0041 §3) : son premier niveau verse au stock national. */
@@ -827,6 +831,10 @@ export type DispatchKind =
   | 'lootTaken'
   | 'sitePlundered'
   | 'siteSabotaged'
+  /** **La frappe** (ADR 0046 §7) : le bâtiment frappé chez sa victime, le cran porté chez qui a
+   *  frappé. La colonne arrivée devant rien se dit `foundNothing`, comme l'expédition. */
+  | 'buildingStruck'
+  | 'strikeDelivered'
   | 'lootLost'
   | 'lootRecovered'
   | 'lootCollected'
@@ -1264,6 +1272,31 @@ type NoticeBody =
       readonly building: BuildingKey;
       readonly regionName: string;
       readonly reason: 'gone' | 'disabled' | 'sealed';
+    }
+  | {
+      readonly kind: 'buildingStruck';
+      readonly at: number;
+      readonly building: BuildingKey;
+      readonly regionName: string;
+      readonly integrity: 'damaged' | 'disabled';
+      readonly restoresAt: number;
+      readonly storageLost?: ResourceAmounts;
+    }
+  | {
+      readonly kind: 'strikeDelivered';
+      readonly at: number;
+      readonly building: BuildingKey;
+      readonly regionName: string;
+      readonly notch: 'damaged' | 'disabled' | null;
+      readonly destroyed: number;
+      readonly combatId: string | null;
+    }
+  | {
+      readonly kind: 'strikeFoundNothing';
+      readonly at: number;
+      readonly building: BuildingKey;
+      readonly regionName: string;
+      readonly reason: 'gone' | 'disabled' | 'immune';
     }
   | { readonly kind: 'lootLost'; readonly at: number; readonly loot: ResourceAmounts }
   | {

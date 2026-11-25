@@ -68,6 +68,8 @@ export type RecruitRefusal =
       readonly found: BuildingKey;
     }
   | { readonly code: 'RESEARCH_REQUIRED'; readonly card: ResearchCard }
+  /** **Une caserne désactivée** (ADR 0046 §6) ne lance plus de formation ; sa file attend. */
+  | { readonly code: 'BUILDING_DISABLED' }
   | { readonly code: 'TROOP_BOUND_REACHED' }
   | { readonly code: 'QUEUE_FULL' }
   | {
@@ -98,12 +100,13 @@ export type RecruitSituation = {
 export function recruitRefusalOf(
   role: UnitRole,
   tier: UnitTier,
-  site: { readonly key: BuildingKey },
+  site: { readonly key: BuildingKey; readonly disabled?: boolean },
   situation: RecruitSituation,
 ): RecruitRefusal | null {
   const expected = projectionKeyOf(role);
   if (site.key !== expected)
     return { code: 'WRONG_PROJECTION_BUILDING', expected, found: site.key };
+  if (site.key === 'barracks' && site.disabled === true) return { code: 'BUILDING_DISABLED' };
   const card = roleLockOf(role, tier, situation.researched);
   if (card !== null) return { code: 'RESEARCH_REQUIRED', card };
   if (situation.army >= MONDIALE_TROOP_BOUND) return { code: 'TROOP_BOUND_REACHED' };

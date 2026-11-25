@@ -36,6 +36,7 @@ import {
 } from '../src/domain/ids';
 import { outputShareOf } from '../src/domain/economy';
 import { carryCapacityOf, inService } from '../src/domain/loot';
+import { integrityOf, restoresAtOf } from '../src/domain/integrity';
 import { isNation, nationInk } from '../src/domain/nations';
 import { movementSlots } from '../src/domain/movement-orders';
 import {
@@ -633,6 +634,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         cappedByHq: cappedByHq(building.key, building.level, hqLevel),
         ...(isReachedBuilding(building, sites) ? {} : { unreached: true as const }),
         ...(inService(building.disabledUntil, now) ? {} : { disabled: true as const }),
+        ...integrityView(building, now),
         ...(building.capturedAt === undefined ? {} : { captured: true as const }),
         ...(building.foundationMark === true ? { foundationMark: true as const } : {}),
         /** **Mon tas, et à moi seul** (ADR 0041) : jamais dans un relevé ni un bâtiment adverse.
@@ -1351,6 +1353,9 @@ function named(notice: Doc<'notices'>) {
     case 'siteSabotaged':
     case 'heapFull':
     case 'expeditionFoundNothing':
+    case 'buildingStruck':
+    case 'strikeDelivered':
+    case 'strikeFoundNothing':
     case 'objectiveRevealed':
     case 'objectiveTaken':
       return { ...notice, regionName: nameOf(notice.regionId) };
@@ -1383,6 +1388,12 @@ function named(notice: Doc<'notices'>) {
     default:
       return notice;
   }
+}
+
+/** **Mon bâtiment frappé** (ADR 0046 §7), et à moi seul : absent, il est intact. */
+function integrityView(building: Doc<'buildings'>, now: number) {
+  const integrity = integrityOf(building, now);
+  return integrity === 'intact' ? {} : { integrity, restoresAt: restoresAtOf(building, now)! };
 }
 
 const captureView = (capture: Doc<'captures'>, side: 'capturer' | 'defender') => ({
