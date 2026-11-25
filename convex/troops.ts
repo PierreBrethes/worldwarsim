@@ -244,8 +244,8 @@ export const deliver = internalMutation({
   handler: async (ctx, { recruitmentId }) => {
     const batch = await ctx.db.get(recruitmentId);
     if (!batch) return;
-    /** Un rendez-vous que la file a quitté : figée par une frappe, ou redatée depuis. */
-    if (batch.finishesAt === null || batch.finishesAt > Date.now()) return;
+    /** Un rendez-vous que la file a quitté : figée par une frappe, elle ne livre qu'à son réveil. */
+    if (batch.frozenMs !== undefined) return;
     const season = await playingSeason(ctx, batch.playerId);
     if (season === null) return;
 
