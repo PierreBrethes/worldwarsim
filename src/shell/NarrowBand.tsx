@@ -54,7 +54,7 @@ export function NarrowBand({
       className="hud paper-grain float absolute top-[calc(6px/var(--hud-scale))] right-[calc(6px/var(--hud-scale))] left-[calc(6px/var(--hud-scale))] z-[var(--z-band)] border border-[var(--ink)] text-[var(--ink)]"
       style={{ fontFamily: 'var(--font-body)' }}
     >
-      <div className="flex h-[40px] items-center gap-[10px] overflow-hidden px-[12px]">
+      <div className="flex h-[40px] items-center gap-[8px] overflow-hidden px-[12px]">
         <button
           type="button"
           aria-expanded={surface === 'dossier'}
@@ -66,7 +66,7 @@ export function NarrowBand({
           {surface !== 'dossier' && unread.size > 0 && (
             <UnreadDot className="top-[2px] left-[28px]" />
           )}
-          <span className="min-w-0 truncate font-(family-name:--font-display) text-[20px] leading-none font-bold tracking-[.01em] uppercase">
+          <span className="min-w-0 truncate font-(family-name:--font-display) text-[20px] max-[420px]:text-[17px] leading-none font-bold tracking-[.01em] uppercase">
             {nationLabel(me.nation)}
           </span>
           <span
@@ -94,7 +94,7 @@ export function NarrowBand({
             <span className="flex max-[420px]:hidden">
               <SlotBoxes used={me.slots.used} total={me.slots.total} />
             </span>
-            <span className="font-(family-name:--font-mono) text-[14px] leading-none font-medium tabular-nums">
+            <span className="font-(family-name:--font-mono) text-[14px] max-[420px]:text-[12.5px] leading-none font-medium tabular-nums">
               {fr.banner.slotsCount(me.slots.used, me.slots.total)}
             </span>
           </span>
@@ -142,7 +142,7 @@ function RaceTouch({ reading, search }: { reading: RaceMarkReading | null; searc
       to="/plateau"
       search={withWindow(search, 'press')}
       title={fr.points.race.cellTitle(mine, said)}
-      className={`flex min-h-[40px] shrink-0 items-center gap-[6px] font-(family-name:--font-mono) text-[13px] leading-none font-medium whitespace-nowrap tabular-nums ${phrase === null ? '' : 'text-[var(--critical)]'}`}
+      className={`flex min-h-[40px] shrink-0 items-center gap-[6px] border-l border-(color:--ink)/25 pl-[7px] font-(family-name:--font-mono) text-[12.5px] max-[420px]:text-[12px] leading-none font-medium whitespace-nowrap tabular-nums ${phrase === null ? '' : 'text-[var(--critical)]'}`}
     >
       {mine}
       {phrase !== null && <span className="font-semibold">{phrase.left}</span>}

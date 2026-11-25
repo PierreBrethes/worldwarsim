@@ -11,7 +11,7 @@ const SPECIES: ReadonlyArray<DepositKey> = ['coal', 'iron', 'food', 'oil'];
 /**
  * **« Sonder · espèce »** (#249, maquette `radar-gisements/choisie.html`) : au pied des boutons de
  * carte, au bureau (#670) comme au téléphone (#621), l'icône de l'espèce qui lance l'onde pour la
- * dernière, 44 × 44 px, et son chevron en pastille à sa gauche qui ouvre la liste. S relance, 1 à 4
+ * dernière, 44 × 44 px, et son chevron en pastille qui ouvre la liste (à sa gauche au téléphone, au-dessus au bureau, où le dock tient le bord). S relance, 1 à 4
  * choisissent dans la liste ouverte ; son nom se lit au `title`. La liste s'ouvre vers la gauche et
  * le haut (la pile tient le bord droit). Pas d'appui long : le chevron est la seule entrée de la liste.
  */
@@ -90,11 +90,11 @@ export function SweepButton({
     </div>
   );
   return (
-    <div ref={root} className="relative flex items-center">
+    <div ref={root} className="relative flex items-center md:flex-col md:items-end">
       {status !== null && (
         <span
           role="status"
-          className="mr-[8px] border border-(color:--ink)/40 bg-[rgb(233_222_196/94%)] px-[7px] py-[3px] text-[12px] font-medium whitespace-nowrap text-[var(--ink-soft)]"
+          className="absolute right-full bottom-[6px] mr-[8px] border border-(color:--ink)/40 bg-[rgb(233_222_196/94%)] px-[7px] py-[3px] text-[12px] font-medium whitespace-nowrap text-[var(--ink-soft)]"
         >
           {status}
         </span>
@@ -106,7 +106,7 @@ export function SweepButton({
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => setOpen((was) => !was)}
-        className={`press float h-[44px] w-[32px] cursor-pointer border border-r-0 border-[var(--ink)] text-[12px] leading-none font-semibold ${open ? 'bg-[var(--ink)] text-[var(--paper)]' : 'paper-grain'}`}
+        className={`press float h-[44px] w-[32px] cursor-pointer border border-r-0 border-[var(--ink)] md:h-[24px] md:w-[44px] md:border-r md:border-b-0 text-[12px] leading-none font-semibold ${open ? 'bg-[var(--ink)] text-[var(--paper)]' : 'paper-grain'}`}
       >
         ▾
       </button>
