@@ -5415,7 +5415,6 @@ export const fr = {
    * l'onde pose sur les gisements atteints, et la dépêche quand elle n'en trouve aucun.
    */
   sweep: {
-    button: 'Sonder',
     launch: (deposit: DepositKey) => `Sonder la carte : ${fr.deposits[deposit]} (S)`,
     choose: 'Choisir l’espèce',
     menu: 'Sonder pour',
