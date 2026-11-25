@@ -133,6 +133,9 @@ test('fonder, rejoindre, poser le QG et envoyer un mouvement', async ({ browser 
   await b.waitForURL('**/salon');
   await b.getByRole('radio', { name: 'R.-Uni' }).click();
   await b.getByRole('button', { name: 'tamponner « prêt »' }).click();
+  await expect(b.getByRole('button', { name: 'tamponner « prêt »' })).toHaveCount(0);
+  // Sa page n'a plus rien à dire : fermée, elle ne dispute plus le processeur au plateau.
+  await b.context().close();
 
   mark('invité prêt');
   // Le fondateur lance : la séquence de lancement mène au plateau.

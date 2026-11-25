@@ -24,16 +24,20 @@ export default defineConfig({
     baseURL: `http://localhost:${port}`,
     viewport: { width: 1600, height: 900 },
     screenshot: 'only-on-failure',
+    // Les animations réduites (`map-motion.ts`) : moins d'images à peindre sans GPU.
+    reducedMotion: 'reduce',
     // Sans GPU (CI), le WebGL de three.js passe par SwiftShader.
     launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
   },
-  /** Le serveur de dev, et pas le build : seul le dev expose `globalThis.mapEngine` aux gestes.
+  /** Le build du banc (`VITE_BANC=1`), servi par `vite preview` : il expose `globalThis.mapEngine`
+   *  aux gestes comme le dev, sans compiler chaque module à la demande ; sous SwiftShader, le
+   *  serveur de dev affamait la page au point qu'un geste de souris prenait des secondes.
    *  Un port à lui, pour ne pas reprendre le `npm run dev` du poste. */
   webServer: {
-    command: `npx vite --port ${port} --strictPort`,
+    command: `npx vite build --outDir dist-e2e --emptyOutDir && npx vite preview --outDir dist-e2e --port ${port} --strictPort`,
     url: `http://localhost:${port}`,
     reuseExistingServer: false,
-    timeout: 120_000,
-    env: { VITE_CONVEX_URL: backend },
+    timeout: 300_000,
+    env: { VITE_CONVEX_URL: backend, VITE_BANC: '1' },
   },
 });
