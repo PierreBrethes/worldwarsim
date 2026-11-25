@@ -3,10 +3,10 @@ import { Link } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import type { Seat } from '@/data/session';
-import { countdownLabel, fr, nationLabel } from '@/i18n/fr';
+import { countdownLabel, fr, nationLabel, raceClockLabel } from '@/i18n/fr';
 import { asClockTime, asLocalTime } from '@/domain/duration';
 import { outcomeOf, type EndingFacts, type Outcome } from '@/domain/ending';
-import { nationInk } from '@/domain/nations';
+import { raceMarksOf } from '@/domain/race-mark';
 import { PRESS_SORT_KEYS, sortPressRows, type PressSortKey } from '@/domain/press-sort';
 import type {
   PressEdition,
@@ -18,6 +18,7 @@ import type {
 } from '@/domain/player-view';
 import { Flag } from '@/emblems/Flag';
 import { FinalEditionPage } from '@/shell/final-edition/FinalEditionPage';
+import { RaceMarks } from '@/shell/RaceMarks';
 import { Stamp } from '@/shell/Stamp';
 import { useClock } from '@/shell/clock';
 import { useNarrowScreen } from '@/shell/viewport';
@@ -590,7 +591,8 @@ function Race({
   points: ReadonlyArray<StrategicPointView>;
   race: RaceCountdown | null;
 }) {
-  const now = useClock(MINUTE);
+  /** Sous l'heure, le compte se lit à la seconde : la minute le ferait sauter. */
+  const now = useClock(race !== null && race.endsAt - Date.now() < 3_600_000 ? 1000 : MINUTE);
   const [open, setOpen] = useState(() => points.some((point) => point.longest !== null));
   if (points.length === 0) return null;
   const byNation = new Map<string, Array<StrategicPointView>>();
@@ -611,24 +613,7 @@ function Race({
         <span className="font-(family-name:--font-display) text-[13.5px] font-bold whitespace-nowrap">
           {fr.points.race.title}
         </span>
-        <span className="flex gap-[3px]">
-          {points.map((point) => (
-            <i
-              key={point.id}
-              title={`${fr.points.names[point.key]}${point.contested ? ` (${fr.points.race.contested})` : ''}`}
-              className="h-[9px] w-[9px] border border-[var(--ink)]"
-              style={{
-                background: point.holder === null ? 'transparent' : nationInk(point.holder.nation),
-                ...(point.contested
-                  ? {
-                      backgroundImage:
-                        'repeating-linear-gradient(45deg, transparent 0 2px, var(--paper) 2px 3px)',
-                    }
-                  : {}),
-              }}
-            />
-          ))}
-        </span>
+        <RaceMarks marks={raceMarksOf(points)} size={9} />
         <span className="min-w-[5.5rem] flex-1 text-[11.5px] text-[var(--ink-soft)]">
           {leader === undefined
             ? fr.points.race.nobody
@@ -648,7 +633,7 @@ function Race({
         >
           {fr.points.race.countdown(
             nationLabel(race.leaderNation),
-            countdownLabel(Math.max(0, race.endsAt - now)),
+            raceClockLabel(Math.max(0, race.endsAt - now)),
           )}
         </p>
       )}
