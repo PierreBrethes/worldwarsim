@@ -636,6 +636,9 @@ export default defineSchema({
     tier: UNIT_TIER,
     rank: v.number(),
     finishesAt: v.union(v.number(), v.null()),
+    /** **Ce qu'il restait au lot quand sa caserne a été frappée** (ADR 0046 §6) : la file se fige,
+     *  le lot n'est plus daté, et son réveil le date de ce reste. Absent, il se date de sa durée pleine. */
+    frozenMs: v.optional(v.number()),
   })
     .index('byPlayer', ['playerId'])
     .index('byBuilding', ['buildingId']),

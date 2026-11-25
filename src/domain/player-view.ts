@@ -610,10 +610,9 @@ export type Building = {
   /** **Hors de toute portée** : ni le sol natal ni un avant-poste debout ne couvre son point (un
    *  avant-poste perdu) — il ne s'élève plus (`raiseRefusalOf`). */
   readonly unreached?: true;
-  /** **Hors service** (razzia) : il ne produit ni ne brûle rien tant que sa date n'est pas passée. */
-  readonly disabled?: true;
-  /** **Frappé ou saboté** (ADR 0046 §7), servi à son seul propriétaire : endommagé ou désactivé,
-   *  et l'heure où il revient intact. Absent, il est intact. */
+  /** **Frappé ou saboté** (ADR 0046 §7), servi à son seul propriétaire : endommagé, ou désactivé —
+   *  hors service, il ne produit ni ne brûle rien —, et l'heure où il revient intact. Absent, il est
+   *  intact. Le seul état du bâtiment : `integrityOf` le lit de ses dates. */
   readonly integrity?: 'damaged' | 'disabled';
   readonly restoresAt?: number;
   /** **Pris à un autre** : il colore sa région, mais un Centre de recherche pris ne cherche pas. */

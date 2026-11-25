@@ -923,7 +923,7 @@ describe('plunder presence', () => {
     const held = (await t.query(api.view.playerView, guest)).me.buildings.find(
       (site) => site.id === mineId,
     );
-    expect(held?.disabled).toBe(true);
+    expect(held?.integrity).toBe('disabled');
     expect(
       (await t.query(api.view.playerView, guest)).surveyedInstallations.every(
         (installation) => installation.sealedUntil === undefined,

@@ -85,7 +85,12 @@ export type DropChip = {
   readonly verb: string;
 };
 
-const HOSTILE: ReadonlySet<CompassAction['key']> = new Set(['bombard', 'plunder', 'strike', 'capture']);
+const HOSTILE: ReadonlySet<CompassAction['key']> = new Set([
+  'bombard',
+  'plunder',
+  'strike',
+  'capture',
+]);
 
 /** **A piece order's sign and verb**, and the red ink of what goes to the fire. A march's verb
  *  says what leaves: on foot, by sea, by air (`forbiddenGroundOf`). */

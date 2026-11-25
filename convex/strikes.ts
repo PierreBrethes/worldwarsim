@@ -3,13 +3,15 @@ import type { MutationCtx } from './_generated/server';
 import { emptyStocks } from '../src/domain/economy';
 import { RESOURCES, type ResourceKey } from '../src/domain/ids';
 import { integrityOf, shelteredFromStrike, struckOf } from '../src/domain/integrity';
-import { raidsStock } from '../src/domain/loot';
+import { raidsStock, sparedPerResourceOf } from '../src/domain/loot';
 import { resolveContact } from './combat';
 import { movementsOf, pointOf, troopsCarriedBy, troopsStationedAt } from './movement/forces';
 import { forgetMovement, walkHome } from './movement/arrival';
 import { clipToStorage } from './resources';
 import { scheduleRestore, settleBeforeChange } from './production';
 import { takeHeap } from './heaps';
+import { freezeQueue } from './troops';
+import { dakarSparedAt } from './strategicPoints';
 
 /**
  * **La frappe à son arrivée** (ADR 0046 §4). La cible se relit ici : l'ordre est parti sur le
@@ -164,9 +166,12 @@ async function strikeBuilding(
   const heap = before.heaps[target._id];
   if (heap !== undefined) await takeHeap(ctx, target, heap, 0, now);
   await ctx.db.patch(target._id, dates);
+  /** **Dakar** : ce que le rognage laisse au teneur, la même lecture que le pillage (`completePresence`). */
+  const spared = (await dakarSparedAt(ctx, target)) ?? sparedPerResourceOf(false);
   const storageLost = raidsStock(target.key)
-    ? await clipToStorage(ctx, target.playerId, now)
+    ? await clipToStorage(ctx, target.playerId, now, spared)
     : emptyStocks();
+  if (target.key === 'barracks') await freezeQueue(ctx, target._id, now);
   await scheduleRestore(ctx, target.seasonId, dates.disabledUntil);
   return {
     integrity: 'disabled',

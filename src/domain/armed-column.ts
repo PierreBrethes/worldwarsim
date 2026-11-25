@@ -90,7 +90,9 @@ export function armedColumn(
         /** **L'escale aérienne** (ADR 0028 §5), comme `departureOf` la lit. */
         ...(outpost !== undefined && isAirStop(outpost.level) ? [PROJECTION_BY_DOMAIN.air] : []),
       ]),
-      disabledDoors: disabledDoorsOf(doors),
+      disabledDoors: disabledDoorsOf(
+        doors.map((door) => ({ key: door.key, disabled: door.integrity === 'disabled' })),
+      ),
       /** Servi avec l'adresse et lu sur la grille de routage, jamais déduit de `country` : le
        *  polygone dit « terre » sur des rivages que la grille tient pour de l'eau, et c'est la
        *  grille qui a accepté la visée. Rien n'est recalculé ici — une seconde géométrie côté

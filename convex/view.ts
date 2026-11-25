@@ -633,7 +633,6 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
         nextLevelMinutes: worksMinutesAt(buildingCostKey(building), building.level + 1),
         cappedByHq: cappedByHq(building.key, building.level, hqLevel),
         ...(isReachedBuilding(building, sites) ? {} : { unreached: true as const }),
-        ...(inService(building.disabledUntil, now) ? {} : { disabled: true as const }),
         ...integrityView(building, now),
         ...(building.capturedAt === undefined ? {} : { captured: true as const }),
         ...(building.foundationMark === true ? { foundationMark: true as const } : {}),
@@ -1009,16 +1008,16 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
               : movement.strike !== undefined
                 ? { kind: 'strike' as const, buildingId: movement.strike.buildingId }
                 : movement.lootCollection !== undefined
-                ? {
-                    kind: 'collection' as const,
-                    sightingId: movement.lootCollection.sightingId,
-                  }
-                : movement.lootDelivery !== undefined
                   ? {
-                      kind: 'cargoReturn' as const,
-                      regionId: movement.lootDelivery.regionId,
+                      kind: 'collection' as const,
+                      sightingId: movement.lootCollection.sightingId,
                     }
-                  : null;
+                  : movement.lootDelivery !== undefined
+                    ? {
+                        kind: 'cargoReturn' as const,
+                        regionId: movement.lootDelivery.regionId,
+                      }
+                    : null;
         return {
           id: movement._id,
           type: movement.type,

@@ -9,12 +9,13 @@ import {
   DAMAGED_HOURS,
   nominalStrength,
 } from './constants';
+import { sparedPerResourceOf } from '../src/domain/loot';
 import { pointOfRegion, regionFacts } from './regions';
 import schema from './schema';
 import { fileSurvey } from './surveys';
 import { onMission } from './movement/course';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, placeHq, seatIn } from './seats.fixture';
+import { foundSeat, holdPoint, joinSeat, placeHq, seatIn } from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
@@ -207,6 +208,56 @@ describe('a disabled barracks', () => {
   });
 });
 
+describe('a barracks disabled by a strike', () => {
+  const batch = (t: ReturnType<typeof boot>, barracks: Id<'buildings'>, seat: Seat, rank: number) =>
+    playerOf(t, seat).then((player) =>
+      t.run((ctx) =>
+        ctx.db.insert('recruitments', {
+          playerId: player._id,
+          buildingId: barracks,
+          role: 'infantry',
+          tier: 1,
+          rank,
+          finishesAt: null,
+        }),
+      ),
+    );
+
+  it('freezes its queue until it is back: nothing is delivered, the time left is kept, the wake-up forms on', async () => {
+    const t = boot();
+    const { order, guest, target } = await strikeScene(t, 'barracks');
+    await t.run((ctx) => ctx.db.patch(target, { damagedUntil: MIDDAY + 30 * HOUR }));
+    const head = await batch(t, target, guest, 0);
+    const next = await batch(t, target, guest, 1);
+    const troopsBefore = (await t.run((ctx) => ctx.db.query('troops').collect())).length;
+    const { movementId, arrivesAt: at } = await fileStrike(t, order);
+    const dated = at + 2 * HOUR;
+    await t.run((ctx) => ctx.db.patch(head, { finishesAt: dated }));
+
+    vi.setSystemTime(at);
+    await t.mutation(internal.movements.arrive, { movementId });
+    const frozen = (await t.run((ctx) => ctx.db.get(head)))!;
+    expect(frozen.finishesAt).toBeNull();
+    expect(frozen.frozenMs).toBe(2 * HOUR);
+
+    /** The old date comes round while the barracks is out: the batch is not delivered. */
+    vi.setSystemTime(dated + 1);
+    await t.mutation(internal.troops.deliver, { recruitmentId: head });
+    expect(await t.run((ctx) => ctx.db.get(head))).not.toBeNull();
+    expect(await t.run((ctx) => ctx.db.query('troops').collect())).toHaveLength(troopsBefore);
+
+    const restoredAt = at + BUILDING_DISABLED_HOURS * HOUR + 1;
+    vi.setSystemTime(restoredAt);
+    await t.mutation(internal.production.restoreAfterDisabling, {
+      seasonId: (await playerOf(t, guest)).seasonId,
+      at: restoredAt - 1,
+    });
+    const woken = (await t.run((ctx) => ctx.db.get(head)))!;
+    expect(woken.finishesAt).toBe(restoredAt + 2 * HOUR);
+    expect((await t.run((ctx) => ctx.db.get(next)))!.finishesAt).toBeNull();
+  });
+});
+
 describe('the strike at its arrival', () => {
   it('takes an unguarded building down to damaged, tells both sides, and flies home', async () => {
     const t = boot();
@@ -258,7 +309,6 @@ describe('the strike at its arrival', () => {
     expect(await ownBuilding(t, guest, target)).toMatchObject({
       integrity: 'disabled',
       restoresAt: disabledUntil,
-      disabled: true,
     });
     const heap = await t.run((ctx) =>
       ctx.db
@@ -359,6 +409,34 @@ describe('the strike at its arrival', () => {
     const [struck] = (await noticesOf(t, guest)).filter((one) => one.kind === 'buildingStruck');
     expect(struck).toMatchObject({ integrity: 'disabled' });
     expect(struck && 'storageLost' in struck && (struck.storageLost?.food ?? 0) > 0).toBe(true);
+  });
+
+  /** **Dakar** (ADR 0032) : le teneur garde 600 par ressource, que l'entrepôt frappé ne couvre plus. */
+  it('keeps to the holder of Dakar what a struck warehouse spares him, as a plunder does', async () => {
+    const t = boot();
+    const { order, seat, guest, target } = await strikeScene(t, 'warehouse');
+    await holdPoint(t, seat, 'dakar', guest);
+    await t.run((ctx) => ctx.db.patch(target, { damagedUntil: MIDDAY + 30 * HOUR }));
+    const player = await playerOf(t, guest);
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db
+        .query('resources')
+        .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+        .collect())
+        await ctx.db.patch(row._id, { stock: 1_000_000, updatedAt: Date.now() });
+    });
+
+    await strikeAndArrive(t, order);
+
+    const food = await t.run(async (ctx) =>
+      (
+        await ctx.db
+          .query('resources')
+          .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+          .collect()
+      ).find((row) => row.key === 'food'),
+    );
+    expect(food?.stock).toBe(sparedPerResourceOf(true));
   });
 
   it('finds a building disabled since, and says so to the one who flew', async () => {

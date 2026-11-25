@@ -101,7 +101,7 @@ describe('reading a transport sheet from the view', () => {
 
   it('marks an exploitation cut off or out of service as not working', () => {
     const read = readSheet(
-      view({}, [mine('b'), mine('c', { disabled: true })]),
+      view({}, [mine('b'), mine('c', { integrity: 'disabled' })]),
       'T',
       pickups('b', 'c'),
       world,

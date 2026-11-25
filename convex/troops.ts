@@ -143,7 +143,7 @@ export const recruit = mutation({
     const refusal = recruitRefusalOf(
       role,
       tier,
-      { key: building.key, disabled: integrityOf(building, now) === 'disabled' },
+      { key: building.key, integrity: integrityOf(building, now) },
       {
         researched: player.researched ?? [],
         army,
@@ -244,6 +244,8 @@ export const deliver = internalMutation({
   handler: async (ctx, { recruitmentId }) => {
     const batch = await ctx.db.get(recruitmentId);
     if (!batch) return;
+    /** Un rendez-vous que la file a quitté : figée par une frappe, ou redatée depuis. */
+    if (batch.finishesAt === null || batch.finishesAt > Date.now()) return;
     const season = await playingSeason(ctx, batch.playerId);
     if (season === null) return;
 
@@ -351,15 +353,33 @@ export async function startLanes(
    * and taking it back would be an attrition on the queue by another name.
    */
   if ((await economyOf(ctx, head.playerId, now)).starving) return;
+  /** **Une caserne désactivée ne forme rien** (ADR 0046 §6), de la même façon : la file attend, et
+   *  `restoreAfterDisabling` la réveille à son retour. */
+  if (building !== null && integrityOf(building, now) === 'disabled') return;
 
   for (const batch of idle) {
     /** Daté au départ, au niveau du site d'alors : une élévation plus tard ne le redate pas, le
-     *  gain vaut pour la suite (ADR 0031). */
-    const minutes = trainingMinutes(batch, building, blitz);
-    const finishesAt = now + minutes * 60_000;
-    await ctx.db.patch(batch._id, { finishesAt });
+     *  gain vaut pour la suite (ADR 0031). Un lot figé reprend de ce qu'il lui restait. */
+    const ms = batch.frozenMs ?? trainingMinutes(batch, building, blitz) * 60_000;
+    const finishesAt = now + ms;
+    await ctx.db.patch(batch._id, { finishesAt, frozenMs: undefined });
     await ctx.scheduler.runAt(finishesAt, internal.troops.deliver, { recruitmentId: batch._id });
   }
+}
+
+/**
+ * **La file d'un bâtiment qu'on vient de désactiver se fige** (ADR 0046 §6) : le lot en cours perd
+ * sa date et garde ce qu'il lui restait, le même état qu'une file que la faim n'a pas datée. Son
+ * rendez-vous de livraison, resté au planning, s'écarte de lui-même (`deliver`).
+ */
+export async function freezeQueue(
+  ctx: MutationCtx,
+  buildingId: Id<'buildings'>,
+  now: number,
+): Promise<void> {
+  const [head] = await queueOf(ctx, buildingId);
+  if (head === undefined || head.finishesAt === null) return;
+  await ctx.db.patch(head._id, { finishesAt: null, frozenMs: Math.max(0, head.finishesAt - now) });
 }
 
 /** **Un niveau accélère** (ADR 0031) : la durée du barème, raccourcie au niveau du site. La Blitz
