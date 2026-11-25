@@ -12,6 +12,7 @@ import type { MutationCtx, QueryCtx } from '../_generated/server';
 import type { LonLat } from '../../src/domain/geo';
 import {
   captureOrderRefusalOf,
+  disabledDoorsOf,
   isPlunderTarget,
   isQuay,
   plunderOrderRefusalOf,
@@ -20,6 +21,7 @@ import {
   movementSlots,
   refusalDetails,
   refusalOf,
+  strikeRefusalOf,
   withoutOrigin,
   landCostOf,
   routeModeOf,
@@ -29,6 +31,7 @@ import {
 import { holdsPoint } from '../strategicPoints';
 import { carriesSurveyedInstallation } from '../../src/domain/objectives';
 import { withinTheatre } from '../../src/domain/blitz';
+import { integrityOf } from '../../src/domain/integrity';
 import { isAirStop, onTourRefusalOf } from '../../src/domain/logistics';
 import { fail } from '../errors';
 import { movementCargoFields, takeStationedCargo } from '../cargo';
@@ -612,6 +615,8 @@ export async function columnOf(
     .withIndex('byPlayer', (q) => q.eq('playerId', playerId))
     .collect();
   const theatre = await blitzTheatreOf(ctx, playerId);
+  const doors = buildings.filter((building) => building.regionId === departure.regionId);
+  const now = Date.now();
   return {
     ...(theatre === null
       ? {}
@@ -631,11 +636,15 @@ export async function columnOf(
     myOutpostIds: new Set((await outpostsOf(ctx, playerId)).map((outpost) => String(outpost._id))),
     ...(typeof departure.stationId === 'string' ? { originId: departure.stationId } : {}),
     departureBuildings: new Set([
-      ...buildings
-        .filter((building) => building.regionId === departure.regionId)
-        .map((building) => building.key),
+      ...doors.map((building) => building.key),
       ...(departure.airStop === true ? [PROJECTION_BY_DOMAIN.air] : []),
     ]),
+    disabledDoors: disabledDoorsOf(
+      doors.map((building) => ({
+        key: building.key,
+        disabled: integrityOf(building, now) === 'disabled',
+      })),
+    ),
     afloat: departure.afloat,
     coastal: departure.coastal,
     ...(theatre === null && outOfRounds(troops) ? { outOfRounds: true } : {}),
@@ -822,6 +831,7 @@ export async function march(
     troopIds,
     aim,
     plunder,
+    strike,
     capture,
     pursuit,
     boardsOn,
@@ -844,6 +854,8 @@ export async function march(
       readonly buildingId: Id<'buildings'>;
       readonly surveyed: { readonly key: Doc<'buildings'>['key']; readonly regionId: string };
     };
+    /** **La frappe** (ADR 0046 §3) : refusée par `strikeRefusalOf`, résolue à l'arrivée. */
+    strike?: NonNullable<Doc<'movements'>['strike']>;
     capture?: NonNullable<Doc<'movements'>['capture']>;
     /** **La troupe poursuivie** (Blitz, B18) : la colonne n'a alors pas d'arrivée, elle a des
      *  regards (`schedulePursuit`). */
@@ -942,15 +954,17 @@ export async function march(
     boardsOn,
   );
   const refusal =
-    capture !== undefined
-      ? captureOrderRefusalOf(aim.aim, column, false)
-      : plunder === undefined
-        ? refusalOf(type, aim.aim, column)
-        : plunderOrderRefusalOf(
-            aim.aim as Extract<MovementAim, { kind: 'building' }>,
-            column,
-            false,
-          );
+    strike !== undefined
+      ? strikeRefusalOf(aim.aim as Extract<MovementAim, { kind: 'building' }>, column, false)
+      : capture !== undefined
+        ? captureOrderRefusalOf(aim.aim, column, false)
+        : plunder === undefined
+          ? refusalOf(type, aim.aim, column)
+          : plunderOrderRefusalOf(
+              aim.aim as Extract<MovementAim, { kind: 'building' }>,
+              column,
+              false,
+            );
   if (refusal !== null) fail(refusal, { type, ...refusalDetails(aim.aim, column) });
   /** **Le cadre vaut pour toute visée** (B1) : un mât ou un point d'appui n'a pas de coordonnées
    *  dans sa visée, mais il en a sur le plateau. */
@@ -1038,6 +1052,7 @@ export async function march(
       ? { objectiveId: aim.aim.objectiveId as Id<'objectives'> }
       : {}),
     ...(capture === undefined ? {} : { capture }),
+    ...(strike === undefined ? {} : { strike }),
     ...(pursuit === undefined ? {} : { pursuit: { troopId: pursuit.troopId, checkAt: now } }),
     ...(boardsOn === undefined ? {} : { boardsOn }),
     ...(delivery === undefined ? {} : { delivery }),

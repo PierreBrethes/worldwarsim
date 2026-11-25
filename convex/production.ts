@@ -12,6 +12,7 @@ import { seasonBuildings } from './buildingReads';
 import { recordLinkage } from './holding';
 import { holdsPoint } from './strategicPoints';
 import { restampChanged, type Heaps } from './heaps';
+import { startLanes } from './troops';
 
 /**
  * **La production reliée, du côté de l'horloge qu'il n'y a pas** (ADR 0020 §6).
@@ -152,6 +153,11 @@ export const restoreAfterDisabling = internalMutation({
       .filter((one) => one.disabledUntil === at)
       .map((one) => one.playerId);
     await reassessDetection(ctx, seasonId, Date.now(), restored);
+    /** **Une caserne qui revient forme de nouveau** (ADR 0046 §6) : la file que la frappe a figée
+     *  reprend de ce qu'il lui restait. */
+    for (const building of await seasonBuildings(ctx, seasonId))
+      if (building.key === 'barracks' && building.disabledUntil === at)
+        await startLanes(ctx, building._id, Math.max(Date.now(), at + 1));
   },
 });
 

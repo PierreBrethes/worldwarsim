@@ -47,6 +47,8 @@ type OwnMovementMission =
       readonly buildingId: string;
       readonly presenceEndsAt: number | null;
     }
+  /** **La frappe** (ADR 0046) : la colonne va retirer un cran à un bâtiment, puis rentre. */
+  | { readonly kind: 'strike'; readonly buildingId: string }
   | { readonly kind: 'collection'; readonly sightingId: string }
   | { readonly kind: 'cargoReturn'; readonly regionId: string }
   /** Blitz (B18) : la colonne poursuit une unité, et sa route se recourbe sur elle. */
@@ -488,6 +490,8 @@ export type CombatReport = {
   readonly outpostDisabled: boolean;
   /** **Un choc** (B17) : charge contre charge, les deux camps ont tiré ensemble. */
   readonly shock?: boolean;
+  /** **Une frappe de bâtiment** (ADR 0046) : la garnison a tiré la première, l'initiative retournée. */
+  readonly defence?: boolean;
   readonly mine: CombatTally;
   readonly theirs: CombatTally;
   /** **Ce qu'on a eu en face au feu** (F1) — absent sur un engagement d'avant le 14/10, et chez
@@ -547,6 +551,8 @@ export type ReplayView = {
   readonly bombardment?: { readonly from?: { readonly lon: number; readonly lat: number } };
   /** Aux mêmes conditions que `CombatReport.atSea`. */
   readonly atSea?: true;
+  /** Aux mêmes conditions que `CombatReport.defence` : la garnison tire la première. */
+  readonly defence?: true;
   /** **Ce que les coques coulées de mon camp emportaient** (#513) : hommes, machines et places à
    *  bord. Servi au seul camp qui le perd — l'autre voit couler et ne sait rien de la cargaison. */
   readonly drowned?: { readonly men: number; readonly machines: number; readonly seats: number };
@@ -604,8 +610,11 @@ export type Building = {
   /** **Hors de toute portée** : ni le sol natal ni un avant-poste debout ne couvre son point (un
    *  avant-poste perdu) — il ne s'élève plus (`raiseRefusalOf`). */
   readonly unreached?: true;
-  /** **Hors service** (razzia) : il ne produit ni ne brûle rien tant que sa date n'est pas passée. */
-  readonly disabled?: true;
+  /** **Frappé ou saboté** (ADR 0046 §7), servi à son seul propriétaire : endommagé, ou désactivé —
+   *  hors service, il ne produit ni ne brûle rien —, et l'heure où il revient intact. Absent, il est
+   *  intact. Le seul état du bâtiment : `integrityOf` le lit de ses dates. */
+  readonly integrity?: 'damaged' | 'disabled';
+  readonly restoresAt?: number;
   /** **Pris à un autre** : il colore sa région, mais un Centre de recherche pris ne cherche pas. */
   readonly captured?: true;
   /** **Posé en fondation offerte** (ADR 0041 §3) : son premier niveau verse au stock national. */
@@ -827,6 +836,10 @@ export type DispatchKind =
   | 'lootTaken'
   | 'sitePlundered'
   | 'siteSabotaged'
+  /** **La frappe** (ADR 0046 §7) : le bâtiment frappé chez sa victime, le cran porté chez qui a
+   *  frappé. La colonne arrivée devant rien se dit `foundNothing`, comme l'expédition. */
+  | 'buildingStruck'
+  | 'strikeDelivered'
   | 'lootLost'
   | 'lootRecovered'
   | 'lootCollected'
@@ -1264,6 +1277,31 @@ type NoticeBody =
       readonly building: BuildingKey;
       readonly regionName: string;
       readonly reason: 'gone' | 'disabled' | 'sealed';
+    }
+  | {
+      readonly kind: 'buildingStruck';
+      readonly at: number;
+      readonly building: BuildingKey;
+      readonly regionName: string;
+      readonly integrity: 'damaged' | 'disabled';
+      readonly restoresAt: number;
+      readonly storageLost?: ResourceAmounts;
+    }
+  | {
+      readonly kind: 'strikeDelivered';
+      readonly at: number;
+      readonly building: BuildingKey;
+      readonly regionName: string;
+      readonly notch: 'damaged' | 'disabled' | null;
+      readonly destroyed: number;
+      readonly combatId: string | null;
+    }
+  | {
+      readonly kind: 'strikeFoundNothing';
+      readonly at: number;
+      readonly building: BuildingKey;
+      readonly regionName: string;
+      readonly reason: 'gone' | 'disabled' | 'immune';
     }
   | { readonly kind: 'lootLost'; readonly at: number; readonly loot: ResourceAmounts }
   | {

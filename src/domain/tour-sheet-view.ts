@@ -113,7 +113,7 @@ export function readSheet(
         ),
         cap: heap.cap,
         heapPerHour,
-        working: building.disabled !== true && extraction?.linked === true,
+        working: building.integrity !== 'disabled' && extraction?.linked === true,
         stoppedForHours:
           heap.fullSince === undefined ? null : Math.max(0, now - heap.fullSince) / HOUR,
         facts: { ours: true, exploitation: true, hasQuay: read.hasQuay, routed: read.routed },

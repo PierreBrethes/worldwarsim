@@ -15,14 +15,16 @@ import type {
   LootCollectionPreviewed,
   MovementPreviewed,
   PlunderPreviewed,
+  StrikePreviewed,
 } from '@/data/serverView';
 import type { Seat } from '@/data/session';
 
-/** **Un seul aperçu pour quatre missions** : la même route et les mêmes heures ; ce qui les
+/** **Un seul aperçu pour cinq missions** : la même route et les mêmes heures ; ce qui les
  *  sépare — le relais, la charge, la présence sur site — se lit là où il existe. */
 export type Previewed =
   | MovementPreviewed
   | PlunderPreviewed
+  | StrikePreviewed
   | CapturePreviewed
   | LootCollectionPreviewed
   | CoursePreviewed;
@@ -37,6 +39,7 @@ type PreviewMission =
       readonly delivery?: true;
     }
   | { readonly kind: 'plunder'; readonly buildingId: string }
+  | { readonly kind: 'strike'; readonly buildingId: string }
   | {
       readonly kind: 'capture';
       readonly target: { readonly kind: 'building' | 'outpost' | 'point'; readonly id: string };
@@ -146,6 +149,7 @@ export function useSendOrder(seat: Seat) {
   const attack = useMutation(api.movements.attack);
   const raid = useMutation(api.movements.raid);
   const plunder = useMutation(api.movements.plunder);
+  const strike = useMutation(api.movements.strike);
   const capture = useMutation(api.movements.capture);
   const collectLoot = useMutation(api.movements.collectLoot);
   return useCallback(
@@ -172,8 +176,8 @@ export function useSendOrder(seat: Seat) {
               troopIds: ids,
               target: wireCaptureTarget(mission.target),
             })
-          : mission.kind === 'plunder'
-            ? await plunder({
+          : mission.kind === 'plunder' || mission.kind === 'strike'
+            ? await (mission.kind === 'plunder' ? plunder : strike)({
                 ...seat,
                 origin: from,
                 troopIds: ids,
@@ -231,7 +235,18 @@ export function useSendOrder(seat: Seat) {
         destination: destinationOf(aim, preview),
       };
     },
-    [seat, marchTo, enterGarrison, enterOutpost, attack, raid, plunder, capture, collectLoot],
+    [
+      seat,
+      marchTo,
+      enterGarrison,
+      enterOutpost,
+      attack,
+      raid,
+      plunder,
+      strike,
+      capture,
+      collectLoot,
+    ],
   );
 }
 
@@ -273,6 +288,13 @@ export function choiceOf(action: OrderAction): OrderChoice {
         aim: action.aim,
         type: 'march',
         mission: { kind: 'plunder', buildingId: action.buildingId },
+      };
+    case 'strike':
+      return {
+        ...said,
+        aim: action.aim,
+        type: 'march',
+        mission: { kind: 'strike', buildingId: action.buildingId },
       };
     case 'capture':
       return {

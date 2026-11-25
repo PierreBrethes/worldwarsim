@@ -23,7 +23,7 @@ import { aimOf, march } from './movement/orders';
 import { insertMovement, restampOutpost, restampServed, seasonMovements } from './movement/forces';
 import { planCargoReturn } from './movement/cargoReturn';
 import { chainSecondTarget } from './movement/blitzkrieg';
-import { nominalStrength, outpostReachKm, PLUNDER_DISABLED_HOURS } from './constants';
+import { nominalStrength, outpostReachKm, BUILDING_DISABLED_HOURS } from './constants';
 import {
   capitalRegionOf,
   foundationOf,
@@ -1880,7 +1880,7 @@ export const sabotageScene = internalMutation({
       regionId: deposit.regionId,
       point: { lon: deposit.lonLat[0] + 0.008, lat: deposit.lonLat[1] },
       level: 1,
-      disabledUntil: now + PLUNDER_DISABLED_HOURS * 3_600_000,
+      disabledUntil: now + BUILDING_DISABLED_HOURS * 3_600_000,
     });
     await recordLinkage(ctx, player.seasonId);
     await reassessDetection(ctx, player.seasonId, now, playerId);

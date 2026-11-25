@@ -139,7 +139,7 @@ export function ledgerOf(view: PlayerView, resource: ResourceKey): Ledger {
     listening: () => {
       const rows: LedgerRow[] = [
         ...me.buildings
-          .filter((building) => building.key === 'listening' && !building.disabled)
+          .filter((building) => building.key === 'listening' && building.integrity !== 'disabled')
           .map((building) => ({
             what: {
               kind: 'station' as const,

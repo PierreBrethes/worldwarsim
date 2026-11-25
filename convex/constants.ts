@@ -1033,12 +1033,28 @@ export const OUTPOST_IMMUNITY_HOURS = 3;
 /**
  * First playable values for the warehouse expedition. They establish the two separate waits —
  * holding the site, then keeping it out of service — but no simulation or game has balanced
- * either one.
+ * either one. The second is any building's **désactivé**, by sabotage or by strike (ADR 0046 §5).
  *
  * @a-mesurer starting points only; no simulation models plunder presence or warehouse downtime
  */
 export const PLUNDER_HOURS_PRESENT = 2;
-export const PLUNDER_DISABLED_HOURS = 12;
+export const BUILDING_DISABLED_HOURS = 12;
+
+/**
+ * **Endommagé** (ADR 0046 §5) : le temps qu'un bâtiment frappé une fois met à revenir intact, sans
+ * ordre ni coût. Il ne sert qu'à ce qu'un second coup le désactive.
+ *
+ * @a-mesurer 24 h de l'ADR 0046, jamais joué
+ */
+export const DAMAGED_HOURS = 24;
+
+/**
+ * **À l'abri** (ADR 0046 §5) : rétabli, un bâtiment ne se frappe plus pendant ce temps, comme
+ * l'avant-poste après un raid. Sans lui, un joueur riche tient l'économie d'un autre éteinte.
+ *
+ * @a-mesurer 6 h de l'ADR 0046, jamais joué
+ */
+export const BUILDING_IMMUNITY_HOURS = 6;
 
 /**
  * **Le temps qu'une infanterie à pleine force met à capturer**, par mode et par cible (décision du

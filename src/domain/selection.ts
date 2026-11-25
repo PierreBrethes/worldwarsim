@@ -44,6 +44,7 @@ export function insideStroke(
 const GROUPED: ReadonlySet<CompassAction['key']> = new Set([
   'aim',
   'plunder',
+  'strike',
   'capture',
   'collect',
 ]);

@@ -1502,6 +1502,8 @@ function missionLabel(
       return mission.phase === 'presence' && mission.presenceEndsAt !== null
         ? fr.loot.missions.plunderPresence(asLocalTime(mission.presenceEndsAt))
         : fr.loot.missions.plunderOutbound;
+    case 'strike':
+      return fr.loot.missions.strike;
     case 'collection':
       return fr.loot.missions.collection;
     case 'cargoReturn':

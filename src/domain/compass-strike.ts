@@ -10,6 +10,7 @@ import {
   lootCollectionOrderRefusalOf,
   captureOrderRefusalOf,
   plunderOrderRefusalOf,
+  strikeRefusalOf,
   refusalDetails,
   type Column,
   type MovementAim,
@@ -49,7 +50,28 @@ export function plunderFan(
     column,
     isMine,
   );
+  /** **Frapper** (ADR 0046) : la branche des seuls bombardiers, refusée par `strikeRefusalOf` que
+   *  `movements.strike` relit. Une colonne sans bombardier n'en entend pas parler. */
+  const striking = column.roles.includes('bomber');
+  const struck = striking
+    ? view.mode === 'blitz'
+      ? ('STRIKE_NOT_IN_BLITZ' as const)
+      : strikeRefusalOf(aimed, column, isMine)
+    : null;
   const actions: Array<CompassAction> = [
+    ...(striking && struck === null
+      ? [
+          {
+            key: 'strike' as const,
+            pictogram: 'sabotage' as const,
+            label: fr.compass.strike,
+            cost: slotCost(view),
+            consequence: fr.compass.strikeConsequence,
+            buildingId: target.id,
+            aim: aimed,
+          },
+        ]
+      : []),
     ...(refused === null
       ? [
           {
@@ -72,8 +94,10 @@ export function plunderFan(
     refusal:
       actions.length > 0
         ? null
-        : (capture.refusal ??
-          (refused === null ? null : fr.errors[refused](refusalDetails(aimed, column)))),
+        : striking
+          ? fr.errors[struck!](refusalDetails(aimed, column))
+          : (capture.refusal ??
+            (refused === null ? null : fr.errors[refused](refusalDetails(aimed, column)))),
   };
 }
 

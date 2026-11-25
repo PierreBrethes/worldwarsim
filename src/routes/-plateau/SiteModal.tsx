@@ -29,7 +29,7 @@ import {
 } from '@/domain/troops';
 import type { PlayerView, TroopStation, UnitRole } from '@/domain/player-view';
 import { currentMinutes, currentStock } from '@/domain/player-view';
-import { asClockTime, asDuration } from '@/domain/duration';
+import { asClockTime, asDuration, asLocalTime } from '@/domain/duration';
 import { spedMinutes, speedsUp } from '@/domain/level-speed';
 import { produces, shortfallOf } from '@/domain/economy';
 import { blitzRecruitRefusalOf, fundsAt, incomePerMinute, rolesFormedBy } from '@/domain/blitz';
@@ -284,6 +284,7 @@ function Site({
           <UpgradeControl building={building} view={view} seat={seat} now={now} />
         </span>
       </WindowHead>
+      <StruckState building={building} />
       <UnderCapture view={view} buildingId={building.id} now={now} />
 
       {error && (
@@ -480,6 +481,7 @@ function BlitzSite({
 
   const body = (
     <>
+      <StruckState building={building} />
       <UnderCapture view={view} buildingId={building.id} now={now} />
       {error && (
         <p className="shrink-0 border-b border-[var(--critical)] px-4 py-[9px] text-[12.5px] text-[var(--critical)]">
@@ -693,6 +695,30 @@ const RECRUITED_NOTICE_MS = 8_000;
  * quelques pixels. Ici toute la feuille défile ; l'en-tête, les trois onglets et le plafond restent
  * collés. Un seul gabarit pour la caserne, le port et l'aérodrome : former, la file, la garnison.
  */
+/**
+ * **Le site est frappé** (ADR 0046 §7), à son propriétaire seul : le tampon de son état et l'heure
+ * où il en revient. Un état, jamais une action — rien ne se répare, le bâtiment se rétablit seul.
+ * Désactivé, l'encre est rouge ; endommagé, elle reste à l'encre (règle 3 du tampon).
+ */
+export function StruckState({ building }: { building: Building }) {
+  if (building.integrity === undefined || building.restoresAt === undefined) return null;
+  const disabled = building.integrity === 'disabled';
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-b border-(color:--ink)/18 px-4 py-2">
+      <Stamp
+        label={fr.stamps.struck[building.integrity]}
+        tone={disabled ? 'critical' : 'ink'}
+        size="small"
+      />
+      <span
+        className={`text-[12.5px] ${disabled ? 'text-[var(--critical)]' : 'text-[var(--ink)]'}`}
+      >
+        {fr.stamps.struckWhy(building.integrity, asLocalTime(building.restoresAt))}
+      </span>
+    </div>
+  );
+}
+
 /**
  * **Le site se fait capturer** (14/10) : le tampon, et pourquoi — une infanterie adverse le tient
  * et il change de main à l'heure dite si personne ne l'en chasse. Jamais qui : la vue ne le sert
