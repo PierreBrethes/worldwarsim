@@ -1,0 +1,60 @@
+name: E2E
+
+# Le parcours critique en navigateur (#651) : appelé par ci.yml avant le déploiement, et joué
+# sur chaque pull request, où rien d'autre ne tourne.
+on:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  parcours:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - run: npm ci
+
+      # Le backend de docker-compose.yml, seul, sur une base vide qui meurt avec le job. Le secret
+      # et la clé d'admin sont jetables : ils ne servent qu'à ce conteneur.
+      - name: Lever un backend Convex local
+        run: |
+          echo "INSTANCE_SECRET=$(openssl rand -hex 32)" > .env
+          docker compose up -d --wait backend
+          key="$(docker compose exec -T backend ./generate_admin_key.sh | tail -n 1)"
+          echo "::add-mask::$key"
+          echo "CONVEX_SELF_HOSTED_ADMIN_KEY=$key" >> "$GITHUB_ENV"
+
+      - name: Déployer les fonctions sur le backend local
+        run: npx convex deploy
+        env:
+          CONVEX_SELF_HOSTED_URL: http://127.0.0.1:3210
+
+      - name: Installer Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Jouer le parcours
+        run: npm run e2e
+        env:
+          VITE_CONVEX_URL: http://127.0.0.1:3210
+
+      # La capture de l'échec ; pour la trace, relancer en local avec `npm run e2e -- --trace on`.
+      - name: Garder la capture de l'échec
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: e2e-echec
+          path: test-results/
+          retention-days: 7
+
+      - name: Journal du backend
+        if: failure()
+        run: docker compose logs --tail 200 backend

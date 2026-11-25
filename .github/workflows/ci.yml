@@ -41,7 +41,11 @@ jobs:
       - name: Vérifications
         run: npm run verifier
 
-  # Le déploiement est en aval des vérifications — même workflow, même liste, aucune
+  # Le parcours critique en navigateur, contre un backend local (#651) : voir e2e.yml.
+  e2e:
+    uses: ./.github/workflows/e2e.yml
+
+  # Le déploiement est en aval des vérifications et du parcours — même workflow, même liste, aucune
   # divergence possible. Il ne tourne que sur main (seule branche déclenchée ci-dessus).
   #
   # L'ordre des deux pas est un choix : les fonctions d'abord, le front ensuite. Pendant la
@@ -50,7 +54,7 @@ jobs:
   # existantes ; une migration incompatible avec une saison en cours fait échouer le job,
   # c'est voulu — on wipe ou on migre, mais on ne casse pas une saison en silence.
   deployer:
-    needs: verifications
+    needs: [verifications, e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

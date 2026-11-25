@@ -64,7 +64,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'front',
-          exclude: ['convex/**', 'node_modules/**', '.claude/**', 'brag-output/**'],
+          exclude: ['convex/**', 'e2e/**', 'node_modules/**', '.claude/**', 'brag-output/**'],
         },
       },
     ],
