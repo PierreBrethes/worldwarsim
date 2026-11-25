@@ -36,16 +36,12 @@ describe("un bot joue son ouverture par la porte d'un joueur", () => {
     for (const nation of [played.france, played.ussr]) {
       for (const fn of [
         'movements.capture',
+        'movements.marchTo',
         'movements.foundOutpostHere',
         'logistics.load',
         'tours.start',
       ])
         expect(nation).toContain(fn);
-      // La seconde colonne part vers un point ou rejoint la garnison de l'avant-poste : les
-      // chantiers courts de #672 fondent l'avant-poste assez tôt pour que la France fasse le second.
-      expect(
-        nation.some((fn) => fn === 'movements.marchTo' || fn === 'movements.enterGarrison'),
-      ).toBe(true);
     }
 
     for (const seat of [bot, idle]) {
