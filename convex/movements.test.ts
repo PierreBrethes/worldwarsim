@@ -697,6 +697,8 @@ describe('founding opens a construction site, and it has to be held', () => {
     expect(await outpostsOf(t, seat)).toHaveLength(0);
     expect(await stockOf(t, seat, 'steel')).toBeCloseTo(paid, 5);
     expect((await noticesOfSeat(t, seat)).some((one) => one.kind === 'foundationLost')).toBe(true);
+    /** Les colonnes parties de lui le desservaient : ses lignes partent avec lui (#640). */
+    expect(await t.run((ctx) => ctx.db.query('outpostServing').collect())).toEqual([]);
   });
 
   /**
