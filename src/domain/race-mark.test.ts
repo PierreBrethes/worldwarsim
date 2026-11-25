@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PlayerView, StrategicPointView } from './player-view';
+import { raceClockShortLabel } from '@/i18n/fr';
 import { raceMarkOf } from './race-mark';
 
 const point = (
@@ -72,18 +73,40 @@ describe('raceMarkOf', () => {
       view([point('a', 'germany')], { leaderNation: 'germany', endsAt: 23 * HOUR + 12 * 60_000 }),
       0,
     )!;
-    expect(running.phrase).toEqual({ who: 'Allemagne', left: '23 h 12' });
+    expect(running.phrase).toMatchObject({ who: 'Allemagne', left: '23 h 12' });
   });
 
-  it('says « vous » when I lead, and counts the seconds under an hour', () => {
+  it('says « vous » when the race runs and I hold four points, and counts the seconds under an hour', () => {
+    const mine = Array.from({ length: 4 }, (_, rank) =>
+      point(`p${rank}`, 'france', { mine: true }),
+    );
     const reading = raceMarkOf(
-      view([point('a', 'france', { mine: true })], {
-        leaderNation: 'france',
-        endsAt: 12 * 60_000 + 4_000,
-      }),
+      view(mine, { leaderNation: 'france', endsAt: 12 * 60_000 + 4_000 }),
       0,
     )!;
-    expect(reading.phrase).toEqual({ who: 'Vous', left: '12 min 04 s' });
+    expect(reading.phrase).toEqual({
+      who: 'Vous',
+      you: true,
+      nation: null,
+      left: '12 min 04 s',
+      leftMs: 12 * 60_000 + 4_000,
+    });
+  });
+
+  it('names the nation when it leads with one point of mine: two seats of one nation do not both read « vous »', () => {
+    const reading = raceMarkOf(
+      view([point('a', 'france', { mine: true })], { leaderNation: 'france', endsAt: HOUR }),
+      0,
+    )!;
+    expect(reading.phrase).toMatchObject({ who: 'France', you: false, nation: 'france' });
+  });
+
+  it('gives no flag to a leader without a nation', () => {
+    const reading = raceMarkOf(
+      view([point('a', 'Théo')], { leaderNation: 'Théo', endsAt: HOUR }),
+      0,
+    )!;
+    expect(reading.phrase).toMatchObject({ you: false, nation: null });
   });
 
   it('keeps no phrase once the season is concluded', () => {
@@ -92,5 +115,13 @@ describe('raceMarkOf', () => {
       0,
     )!;
     expect(reading.phrase).toBeNull();
+  });
+});
+
+describe('raceClockShortLabel', () => {
+  it('reads the minute alone under an hour, and the seconds under a minute', () => {
+    expect(raceClockShortLabel(47 * 60_000 + 52_000)).toBe('47 min');
+    expect(raceClockShortLabel(52_000)).toBe('52 s');
+    expect(raceClockShortLabel(23 * HOUR + 12 * 60_000)).toBe('23 h 12');
   });
 });

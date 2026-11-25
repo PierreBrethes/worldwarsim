@@ -203,35 +203,46 @@ const AIR_AFTER_WATERMARK = 6;
 
 /**
  * **La course aux Sept** (#670) : sept marques à l'encre de leur teneur, le compte du joueur
- * (« 2 / 4 ») et, quand la course court, sa phrase — la cellule passe alors en alerte. Un clic
- * ouvre la Presse, où la course se lit repliée. Repli : sous 1350 px les marques et le compte, de
- * 1350 à 1500 le compte à rebours en plus, la phrase entière au-delà ; la nation reste au `title`.
+ * (« 2 / 4 ») et, quand la course court, sa phrase — la cellule passe alors en alerte (en ocre
+ * quand c'est le joueur qui mène). Un clic ouvre la Presse, où la course se lit repliée. Trois
+ * replis : le compte seul sous 1350 px ; « victoire dans X » dès 1350 ; « LES SEPT » dès 1440 ;
+ * la nation dès 1500 (elle reste au `title`). Elle rétrécit avant de pousser les onglets.
  */
 function RaceCell({ reading, search }: { reading: RaceMarkReading | null; search: BoardSearch }) {
   if (reading === null) return null;
   const { phrase } = reading;
   const mine = fr.points.race.mine(reading.mine);
   const said = phrase === null ? null : fr.points.race.phrase(phrase.who, phrase.left);
+  const alert =
+    phrase === null ? '' : phrase.you ? 'text-[var(--notable-paper)]' : 'text-[var(--critical)]';
+  const tint =
+    phrase === null
+      ? ''
+      : `bg-[color-mix(in_srgb,var(${phrase.you ? '--notable' : '--critical'})_9%,transparent)]`;
   return (
     <Link
       to="/plateau"
       search={withWindow(search, 'press')}
       title={fr.points.race.cellTitle(mine, said)}
-      className={`${CELL} cursor-pointer gap-[9px] whitespace-nowrap hover:bg-[var(--paper-clair)] ${phrase === null ? '' : 'bg-[color-mix(in_srgb,var(--critical)_9%,transparent)]'}`}
+      className={`${CELL.replace('shrink-0', 'min-w-0 overflow-hidden')} cursor-pointer gap-[9px] whitespace-nowrap hover:bg-[var(--paper-clair)] ${tint}`}
     >
-      <span className="text-[8.5px] leading-none font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase max-[1500px]:hidden">
+      <span className="text-[8.5px] leading-none font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase max-[1439px]:hidden">
         {fr.points.race.cell}
       </span>
-      <RaceMarks marks={reading.marks} size={11} />
+      <span className="shrink-0">
+        <RaceMarks marks={reading.marks} size={11} />
+      </span>
       <span
-        className={`font-(family-name:--font-mono) text-[13px] leading-none font-medium tabular-nums ${phrase === null ? '' : 'text-[var(--critical)]'}`}
+        className={`shrink-0 font-(family-name:--font-mono) text-[13px] leading-none font-medium tabular-nums ${alert}`}
       >
         {mine}
       </span>
       {phrase !== null && (
-        <span className="font-(family-name:--font-mono) text-[13px] leading-none font-semibold text-[var(--critical)] tabular-nums max-[1350px]:hidden">
-          <span className="max-[1500px]:hidden">{said}</span>
-          <span className="min-[1501px]:hidden">{phrase.left}</span>
+        <span
+          className={`truncate font-(family-name:--font-mono) text-[13px] leading-none font-semibold tabular-nums max-[1349px]:hidden ${alert}`}
+        >
+          <span className="max-[1499px]:hidden">{phrase.who} · </span>
+          {fr.points.race.within(phrase.left)}
         </span>
       )}
     </Link>

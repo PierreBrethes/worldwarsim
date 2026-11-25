@@ -295,12 +295,12 @@ const held = process.argv.includes('--sans-depart');
 const rangoon = process.argv.includes('--rangoun');
 /** `--poste` (#475) : des chasseurs et des coques de plus, pour remplir l'aire et le môle. */
 const crowded = process.argv.includes('--poste');
-/** `--piste-mole [s]` (#269, #270) : des avions et des coques qui sortent, se posent, partent. */
 /** `--course <3|4> [secondes]` (#670) : la France tient trois ou quatre des Sept ; à quatre la course
  *  court, et `secondes` la clôt dans ce délai (`dev:raceEndsSoon`) pour lire le compte sous l'heure. */
 const courseAt = process.argv.indexOf('--course');
 const courseHeld = courseAt < 0 ? null : Number(process.argv[courseAt + 1]) === 3 ? 3 : 4;
 const courseIn = courseAt < 0 ? null : Number(process.argv[courseAt + 2]) || null;
+/** `--piste-mole [s]` (#269, #270) : des avions et des coques qui sortent, se posent, partent. */
 const runwayAt = process.argv.indexOf('--piste-mole');
 const runwayIn = runwayAt < 0 ? null : Number(process.argv[runwayAt + 1]) || 40;
 /** `--lancement [s]` (#501) : la scène de `--navire`, et un cargo recruté au port, lancé par la cale dans s secondes. */

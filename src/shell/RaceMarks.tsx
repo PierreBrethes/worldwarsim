@@ -2,6 +2,10 @@ import { fr } from '@/i18n/fr';
 import { nationInk } from '@/domain/nations';
 import type { RaceMark } from '@/domain/race-mark';
 
+/** Les hachures d'un point contesté : du papier sur l'encre du teneur ; sur un point neutre, le
+ *  papier sur le papier ne se verrait pas, elles sont d'encre douce. */
+const HATCH = { held: 'var(--paper)', neutral: 'color-mix(in srgb, var(--ink) 55%, transparent)' };
+
 /**
  * **Les Sept en sept marques** (Presse et réglette) : chacune à l'encre de son teneur, vide si
  * neutre ; un point contesté garde l'encre de son teneur et gagne des hachures, sans jamais dire
@@ -21,8 +25,7 @@ export function RaceMarks({ marks, size }: { marks: ReadonlyArray<RaceMark>; siz
             background: mark.nation === null ? 'transparent' : nationInk(mark.nation),
             ...(mark.contested
               ? {
-                  backgroundImage:
-                    'repeating-linear-gradient(45deg, transparent 0 2px, var(--paper) 2px 3px)',
+                  backgroundImage: `repeating-linear-gradient(45deg, transparent 0 2px, ${HATCH[mark.nation === null ? 'neutral' : 'held']} 2px 3px)`,
                 }
               : {}),
           }}
