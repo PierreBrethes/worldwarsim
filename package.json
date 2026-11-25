@@ -25,6 +25,7 @@
     "banc:client": "node scripts/banc-client.mjs",
     "capture": "node scripts/capture.mjs",
     "bots:mondiale": "node scripts/bots-mondiale.mjs",
+    "bots:serie": "node scripts/bots-serie.mjs",
     "film": "node scripts/film-accueil.mjs",
     "gestes": "node scripts/gestes.mjs"
   },
