@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode, type Ref } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type Ref } from 'react';
 import { Link, useSearch } from '@tanstack/react-router';
 import { fr, nationLabel } from '@/i18n/fr';
 import { isOutpostWork } from '@/domain/ids';
@@ -15,9 +15,12 @@ import { withWindow, type BoardSearch } from '@/routes/-plateau/board-search';
 import { Odometer, ReserveTag, useAnnouncedStock } from './ReserveCell';
 import { Stamp } from './Stamp';
 import { UnderwayDrawer } from './UnderwayDrawer';
-import type { Underway } from '@/domain/underway';
+import { underwayLeftMs, type Underway } from '@/domain/underway';
 import { SurfaceTabs } from './SurfaceColumn';
 import { useClock } from './clock';
+import { FaceIcon } from './UnderwayFace';
+import { RaceMarks } from './RaceMarks';
+import { raceMarkOf, type RaceMarkReading } from '@/domain/race-mark';
 
 /**
  * **La réglette** (table plein écran, décision de Pierre du 13/10) : une bande de papier posée en
@@ -30,7 +33,6 @@ import { useClock } from './clock';
 export function Reglette({
   view,
   telegraphUnread,
-  sweep = null,
   underway = [],
   onLocate = () => {},
   covered = false,
@@ -38,8 +40,6 @@ export function Reglette({
 }: {
   view: PlayerView;
   telegraphUnread: number;
-  /** Le bouton « Sonder · espèce » (#249), que le plateau seul sait mener. */
-  sweep?: ReactNode;
   /** **Les échéances en cours**, que le compteur de slots ouvre en volet (#615). */
   underway?: ReadonlyArray<Underway>;
   onLocate?: (line: Underway) => void;
@@ -156,8 +156,14 @@ export function Reglette({
             </span>
             <HalifaxMark slots={me.slots} />
             {next !== undefined && (
-              <span className="border-l border-(color:--ink)/32 pl-[10px] font-(family-name:--font-mono) text-[13px] leading-none font-medium text-[var(--notable-paper)] tabular-nums">
-                {asDuration((next.endsAt - now) / 60_000)}
+              <span
+                title={next.label}
+                className="flex items-center gap-[6px] border-l border-(color:--ink)/32 pl-[10px] font-(family-name:--font-mono) text-[13px] leading-none font-medium text-[var(--notable-paper)] tabular-nums"
+              >
+                <span aria-hidden className="flex w-[26px] justify-center">
+                  <FaceIcon face={next.face} nation={me.nation} />
+                </span>
+                {asDuration(underwayLeftMs(next, now) / 60_000)}
               </span>
             )}
           </button>
@@ -174,7 +180,7 @@ export function Reglette({
         </div>
       )}
 
-      {sweep !== null && <div className={CELL}>{sweep}</div>}
+      <RaceCell reading={raceMarkOf(view, now)} search={search} />
 
       <div className="ml-auto flex min-w-0 items-center gap-[18px] px-[16px]">
         {me.funds !== null && <FundsCell funds={me.funds} loadedAt={view.loadedAt} now={now} />}
@@ -194,6 +200,43 @@ const WATERMARK_WIDTH = RULE_HEIGHT * 1.5;
 /** The fade's tail runs a little past its computed end; a letter on it would read over two
  *  grounds. Counted in pixels: it makes up for the mask's falloff, not a proportion. */
 const AIR_AFTER_WATERMARK = 6;
+
+/**
+ * **La course aux Sept** (#670) : sept marques à l'encre de leur teneur, le compte du joueur
+ * (« 2 / 4 ») et, quand la course court, sa phrase — la cellule passe alors en alerte. Un clic
+ * ouvre la Presse, où la course se lit repliée. Repli : sous 1350 px les marques et le compte, de
+ * 1350 à 1500 le compte à rebours en plus, la phrase entière au-delà ; la nation reste au `title`.
+ */
+function RaceCell({ reading, search }: { reading: RaceMarkReading | null; search: BoardSearch }) {
+  if (reading === null) return null;
+  const { phrase } = reading;
+  const mine = fr.points.race.mine(reading.mine);
+  const said = phrase === null ? null : fr.points.race.phrase(phrase.who, phrase.left);
+  return (
+    <Link
+      to="/plateau"
+      search={withWindow(search, 'press')}
+      title={fr.points.race.cellTitle(mine, said)}
+      className={`${CELL} cursor-pointer gap-[9px] whitespace-nowrap hover:bg-[var(--paper-clair)] ${phrase === null ? '' : 'bg-[color-mix(in_srgb,var(--critical)_9%,transparent)]'}`}
+    >
+      <span className="text-[8.5px] leading-none font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase max-[1500px]:hidden">
+        {fr.points.race.cell}
+      </span>
+      <RaceMarks marks={reading.marks} size={11} />
+      <span
+        className={`font-(family-name:--font-mono) text-[13px] leading-none font-medium tabular-nums ${phrase === null ? '' : 'text-[var(--critical)]'}`}
+      >
+        {mine}
+      </span>
+      {phrase !== null && (
+        <span className="font-(family-name:--font-mono) text-[13px] leading-none font-semibold text-[var(--critical)] tabular-nums max-[1350px]:hidden">
+          <span className="max-[1500px]:hidden">{said}</span>
+          <span className="min-[1501px]:hidden">{phrase.left}</span>
+        </span>
+      )}
+    </Link>
+  );
+}
 
 /** **La prochaine édition de la presse**, en heure ronde : ce qui bat la saison, d'un coup d'œil.
  *  Rien sur une édition finale ou avant la première. */

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import {
   RouterProvider,
   createMemoryHistory,
@@ -53,6 +53,7 @@ const view = (used: number, mode: 'mondiale' | 'blitz' = 'mondiale') =>
     mode,
     loadedAt: NOW,
     journal: [],
+    strategicPoints: [],
     season: {
       number: 1,
       elapsedHours: 460,
@@ -142,6 +143,7 @@ describe('the slots counter as the door of the underway drawer', () => {
     expect(door().getAttribute('aria-expanded')).toBe('false');
     expect(drawer()).toBeNull();
     expect(door().textContent).toContain('00:12:30');
+    expect(within(door()).getByTitle('marche → Paris').textContent).toContain('00:12:30');
   });
 
   it('opens on a click, with its two groups, nearest first, and closes on a second click', async () => {

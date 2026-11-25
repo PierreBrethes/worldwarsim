@@ -52,12 +52,13 @@ describe('SweepButton', () => {
     expect(screen.getByRole('menu')).not.toBeNull();
   });
 
-  it('as an icon, is one 44 px square: a touch sweeps, the chevron opens the list to the left and up (#621)', () => {
+  it('is one 44 px square: a touch sweeps, the chevron opens the list to the left and up (#621)', () => {
     const onSweep = vi.fn();
-    render(<SweepButton species="iron" onSweep={onSweep} status="Onde en route" icon />);
+    render(<SweepButton species="iron" onSweep={onSweep} status="Onde en route" />);
     const launch = screen.getByTitle(fr.sweep.launch('iron'));
     expect(launch.className).toContain('h-[44px] w-[44px]');
-    expect(launch.textContent).not.toContain(fr.sweep.button);
+    expect(launch.textContent).toBe('');
+    expect(launch.getAttribute('aria-keyshortcuts')).toBe('S');
     fireEvent.click(launch);
     expect(onSweep).toHaveBeenLastCalledWith('iron');
     expect(screen.getByRole('status').textContent).toBe('Onde en route');

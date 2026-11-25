@@ -23,7 +23,6 @@ export function Shell({
   todo,
   onShowBriefing,
   onResumeSteps = null,
-  sweep = null,
   underway = [],
   onLocate = () => {},
   covered = false,
@@ -38,9 +37,6 @@ export function Shell({
   onShowBriefing: () => void;
   /** Reprendre les premiers pas repliés ou passés, depuis le dossier du téléphone. */
   onResumeSteps?: (() => void) | null;
-  /** Le bouton de la sonde, posé dans la réglette au bureau (#249) ; au téléphone, le plateau le
-   *  tient sous le pouce. */
-  sweep?: ReactNode;
   /** Les échéances en cours : au bureau, le compteur de slots de la réglette les ouvre en volet. */
   underway?: ReadonlyArray<Underway>;
   onLocate?: (line: Underway) => void;
@@ -116,7 +112,6 @@ export function Shell({
             <Reglette
               view={view}
               telegraphUnread={telegraphUnread}
-              sweep={sweep}
               underway={underway}
               onLocate={onLocate}
               covered={covered}

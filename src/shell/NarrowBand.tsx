@@ -17,6 +17,7 @@ import { BlitzClock, EditionMark, SlotBoxes } from './Reglette';
 import { Stamp } from './Stamp';
 import { UnreadDot } from './UnreadDot';
 import { useUnreadPatchnotes } from '@/data/patchnotes';
+import { raceMarkOf, type RaceMarkReading } from '@/domain/race-mark';
 import { useClock } from './clock';
 import { useSoleSurface } from './sole-surface';
 
@@ -98,6 +99,7 @@ export function NarrowBand({
             </span>
           </span>
         )}
+        <RaceTouch reading={raceMarkOf(view, now)} search={search} />
         <EditionMark view={view} />
       </div>
 
@@ -122,6 +124,29 @@ export function NarrowBand({
       )}
       {surface === 'layers' && <LayersSheet onClose={() => setSurface(null)} />}
     </header>
+  );
+}
+
+/**
+ * **La course aux Sept au téléphone** (#670) : le compte du joueur (« 2 / 4 ») et, quand la course
+ * court, le temps qui reste, en alerte. Un toucher ouvre la Presse ; la nation et la phrase
+ * entière se lisent au `title`.
+ */
+function RaceTouch({ reading, search }: { reading: RaceMarkReading | null; search: BoardSearch }) {
+  if (reading === null) return null;
+  const { phrase } = reading;
+  const mine = fr.points.race.mine(reading.mine);
+  const said = phrase === null ? null : fr.points.race.phrase(phrase.who, phrase.left);
+  return (
+    <Link
+      to="/plateau"
+      search={withWindow(search, 'press')}
+      title={fr.points.race.cellTitle(mine, said)}
+      className={`flex min-h-[40px] shrink-0 items-center gap-[6px] font-(family-name:--font-mono) text-[13px] leading-none font-medium whitespace-nowrap tabular-nums ${phrase === null ? '' : 'text-[var(--critical)]'}`}
+    >
+      {mine}
+      {phrase !== null && <span className="font-semibold">{phrase.left}</span>}
+    </Link>
   );
 }
 
