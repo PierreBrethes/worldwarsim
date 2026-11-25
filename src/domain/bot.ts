@@ -1,4 +1,4 @@
-import { MONDIALE_TROOP_BOUND } from '../../convex/constants';
+import { MONDIALE_TROOP_BOUND, TOUR_MAX_STOPS } from '../../convex/constants';
 import { armedColumn } from './armed-column';
 import {
   aimVerdict,
@@ -159,7 +159,8 @@ export type BotOrder =
         /** Un dépôt d'avant-poste par son id, une exploitation à ramasser par `{ kind: 'site' }`. */
         readonly stops: ReadonlyArray<string | { readonly kind: 'site'; readonly id: string }>;
       };
-    };
+    }
+  | { readonly fn: 'tours.recall'; readonly args: { readonly troopId: string } };
 
 type BotPoint = { readonly lon: number; readonly lat: number };
 type BotCampTarget = { readonly kind: 'camp'; readonly campId: string };
@@ -615,10 +616,72 @@ function recruitCall(
   return { want, order: { fn: 'troops.recruit', args: { buildingId: site.id, role, tier: 1 } } };
 }
 
+/** @a-mesurer : les camions que le bot forme pour ses tas ; au-delà, une tournée refaite les rassemble. */
+const BOT_TRUCKS_MAX = 3;
+
+/**
+ * Les tas à rapporter qu'aucune tournée ne dessert : une tournée garde les arrêts de son départ
+ * (#684), et un camion en tournée n'en reprend pas d'autre. Les vivres d'abord quand l'armée a faim.
+ */
+const unservedHeaps = ({ view, world, now }: BotContext): Building[] => {
+  const hq = hqOf(view);
+  if (hq === undefined) return [];
+  const starving = hungry(view, now);
+  const served = new Set(
+    view.me.troops.flatMap((troop) => troop.tour?.stops.map((stop) => stop.id) ?? []),
+  );
+  return view.me.buildings
+    .filter(
+      (building) =>
+        !building.captured &&
+        !served.has(building.id) &&
+        building.heap !== undefined &&
+        building.heap.amount >= BOT_HARVEST_MIN &&
+        world.landRoute(hq.point, building.point, ['landTransport']) !== null,
+    )
+    .sort(
+      (a, b) =>
+        Number(starving && b.heap!.resource === 'food') -
+          Number(starving && a.heap!.resource === 'food') || b.heap!.amount - a.heap!.amount,
+    );
+};
+
+/** Les arrêts de ces tas, et ce que le serveur sait de chaque exploitation (`tourRefusalOf`). */
+const stopsOfHeaps = (heaps: ReadonlyArray<Building>) => ({
+  stops: heaps.map(({ id }) => ({ kind: 'site' as const, id })),
+  sites: new Map(
+    heaps.map(({ id }) => [id, { ours: true, exploitation: true, hasQuay: false, routed: true }]),
+  ),
+});
+
+/**
+ * Ce qui attend aux pieds des exploitations dépasse ce que les camions emportent en un tour : un
+ * camion de plus (#684 : une ferme ne rend que ce qu'un camion rapporte, le reste s'entasse).
+ */
+const needsHarvestTruck = (context: BotContext): boolean => {
+  const { view, workshop } = context;
+  const trucks = view.me.troops.filter((troop) => troop.role === 'landTransport');
+  const queued = workshop.facilities.some((facility) =>
+    facility.queue.some((batch) => batch.role === 'landTransport'),
+  );
+  const waiting = view.me.buildings
+    .filter((building) => !building.captured && (building.heap?.amount ?? 0) >= BOT_HARVEST_MIN)
+    .reduce((sum, building) => sum + building.heap!.amount, 0);
+  return (
+    !queued &&
+    trucks.length < BOT_TRUCKS_MAX &&
+    waiting > trucks.length * loadCapacityOf('landTransport')
+  );
+};
+
 const recruit = (context: BotContext): Desire[] => {
   const { view, workshop } = context;
   const site = workshop.facilities.find((facility) => facility.key === 'barracks');
   const total = workshop.troopsInService + workshop.troopsQueued;
+  if (site !== undefined && total < MONDIALE_TROOP_BOUND && needsHarvestTruck(context)) {
+    const call = recruitCall(context, site, 'landTransport', WANT_RECRUIT);
+    if (call !== null && !('refused' in call)) return [call];
+  }
   // Seule l'armée libre se compte contre la cible ; la borne du serveur compte tout.
   const army = freeArmyOf(view, workshop);
   if (site === undefined || army >= BOT_ARMY_TARGET || total >= MONDIALE_TROOP_BOUND) return [];
@@ -979,16 +1042,27 @@ const supply = (context: BotContext): Desire[] => {
           depot: depot.depot,
           capacity: depot.depotCapacity,
         };
-        const stops = [{ kind: 'depot', id: depot.id }] as const;
+        // La tournée est perpétuelle : elle emporte aussi les tas qu'aucune autre ne dessert (#684).
+        const heaps = stopsOfHeaps(unservedHeaps(context).slice(0, TOUR_MAX_STOPS - 1));
+        const stops = [{ kind: 'depot', id: depot.id } as const, ...heaps.stops];
         if (
-          tourRefusalOf({ role: troop.role, place, busy: null, load: troop.load, stops }) ===
-            null &&
+          tourRefusalOf({
+            role: troop.role,
+            place,
+            busy: null,
+            load: troop.load,
+            stops,
+            sites: heaps.sites,
+          }) === null &&
           deliverRefusalOf([troop], outpost, true) === null
         )
           return [
             {
               want: WANT_SUPPLY,
-              order: { fn: 'tours.start', args: { troopId: troop.id, stops: [depot.id] } },
+              order: {
+                fn: 'tours.start',
+                args: { troopId: troop.id, stops: [depot.id, ...heaps.stops] },
+              },
             },
           ];
         continue;
@@ -1354,29 +1428,15 @@ const disembarkLanded = ({ view }: BotContext): Desire[] => {
  * `tourRefusalOf`.
  */
 const harvest = (context: BotContext): Desire[] => {
-  const { view, world, now } = context;
+  const { view, now } = context;
   const hq = hqOf(view);
   if (hq === undefined) return [];
   const starving = hungry(view, now);
-  const heaps = view.me.buildings
-    .filter(
-      (building) =>
-        !building.captured &&
-        building.heap !== undefined &&
-        building.heap.amount >= BOT_HARVEST_MIN &&
-        world.landRoute(hq.point, building.point, ['landTransport']) !== null,
-    )
-    .sort(
-      (a, b) =>
-        Number(starving && b.heap!.resource === 'food') -
-          Number(starving && a.heap!.resource === 'food') || b.heap!.amount - a.heap!.amount,
-    );
+  const heaps = unservedHeaps(context).slice(0, TOUR_MAX_STOPS);
   const [heap] = heaps;
   if (heap === undefined) return [];
   const place = { kind: 'building', key: 'hq' } as const;
-  const sites = new Map([
-    [heap.id, { ours: true, exploitation: true, hasQuay: false, routed: true }],
-  ]);
+  const { stops, sites } = stopsOfHeaps(heaps);
   for (const squad of squadsOf(view, 'landTransport')) {
     if (squad.station.kind !== 'building' || squad.station.buildingId !== hq.id) continue;
     for (const troop of squad.troops) {
@@ -1386,7 +1446,7 @@ const harvest = (context: BotContext): Desire[] => {
         place,
         busy: null,
         load: troop.load,
-        stops: [{ kind: 'site', id: heap.id }],
+        stops,
         sites,
       });
       if (refusal !== null) continue;
@@ -1395,12 +1455,28 @@ const harvest = (context: BotContext): Desire[] => {
           want: starving ? WANT_HARVEST_HUNGRY : WANT_HARVEST,
           order: {
             fn: 'tours.start',
-            args: { troopId: troop.id, stops: [{ kind: 'site', id: heap.id }] },
+            args: { troopId: troop.id, stops },
           },
         },
       ];
     }
   }
+  // Chaque camion roule : le premier dont la tournée a de la place est rappelé, et la refera avec
+  // ce tas (#684). Une tournée pleine reste telle : un camion de plus est formé (`recruit`).
+  const rolling = view.me.troops.find(
+    (troop) =>
+      troop.role === 'landTransport' &&
+      troop.tour !== undefined &&
+      !troop.tour.recalled &&
+      troop.tour.stops.length < TOUR_MAX_STOPS,
+  );
+  if (rolling !== undefined && squadsOf(view, 'landTransport').length === 0)
+    return [
+      {
+        want: starving ? WANT_HARVEST_HUNGRY : WANT_HARVEST,
+        order: { fn: 'tours.recall', args: { troopId: rolling.id } },
+      },
+    ];
   // Aucun camion au QG : un camion posé ailleurs (la caserne) y rentre.
   const home: MovementAim = { kind: 'building', buildingId: hq.id, key: 'hq' };
   for (const squad of squadsOf(view, 'landTransport')) {

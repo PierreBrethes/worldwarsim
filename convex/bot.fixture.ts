@@ -94,6 +94,11 @@ export async function submit(t: Bench, seat: Seat, order: BotOrder): Promise<unk
       });
     case 'movements.disembark':
       return t.mutation(api.movements.disembark, { ...seat, troopIds: ids(order.args.troopIds) });
+    case 'tours.recall':
+      return t.mutation(api.tours.recall, {
+        ...seat,
+        troopId: order.args.troopId as Id<'troops'>,
+      });
     case 'tours.start':
       return t.mutation(api.tours.start, {
         ...seat,

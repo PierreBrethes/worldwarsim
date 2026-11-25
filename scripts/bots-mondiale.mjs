@@ -319,6 +319,8 @@ function submit(seat, order) {
       return client.mutation(api.logistics.load, { ...seat, ...args });
     case 'tours.start':
       return client.mutation(api.tours.start, { ...seat, ...args });
+    case 'tours.recall':
+      return client.mutation(api.tours.recall, { ...seat, ...args });
     default:
       throw new Error(`ordre inconnu : ${fn}`);
   }
