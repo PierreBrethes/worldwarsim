@@ -4,7 +4,7 @@ statut: validé
 maj: 2026-10-17
 code: []
 decisions: [ADR 0005, ADR 0020]
-voir: [CONTEXT.md, QUESTIONS.md, docs/adr/README.md, docs/decisions.md]
+voir: [CONTEXT.md, docs/adr/README.md, docs/decisions.md]
 ---
 
 # WorldWarSim — le coffre de design
