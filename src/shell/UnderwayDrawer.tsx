@@ -1,7 +1,7 @@
 import { fr } from '@/i18n/fr';
 import { asDuration } from '@/domain/duration';
 import { slotsRefusalOf, underwayLeftMs, type Underway } from '@/domain/underway';
-import { Face } from '@/routes/-plateau/UnderwayColumn';
+import { FaceIcon } from './UnderwayFace';
 import { useClock } from './clock';
 
 /** @a-mesurer : la largeur du volet et la hauteur de son corps (le plafond de 440 px de carte
@@ -139,7 +139,7 @@ function Row({
       className="grid h-[48px] w-full cursor-pointer grid-cols-[36px_1fr_64px] items-center border-t border-[var(--ink)]/20 pr-[14px] pl-[8px] text-left hover:bg-[var(--paper-clair)]"
     >
       <span className="flex h-[34px] w-[34px] items-center justify-center">
-        <Face face={line.face} nation={nation} />
+        <FaceIcon face={line.face} nation={nation} />
       </span>
       <span className="grid grid-cols-[76px_1fr] items-center gap-x-[8px]">
         <b
