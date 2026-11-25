@@ -10,6 +10,7 @@ import {
   depositHolders,
   PLACING_SNAP_KM,
   riseOf,
+  siteRiseAt,
   snapTo,
   raiseChoosesSpecialty,
   specialtyRefusalOf,
@@ -743,6 +744,20 @@ describe('workSitesOf', () => {
         minutes: 90,
       }),
     ]);
+  });
+
+  /** Revue de #648 : figé sous son QG désactivé, le chantier ne monte plus, à aucune heure. */
+  it('carries a frozen head with what it has left, and its rise holds at any hour', () => {
+    const [site] = workSitesOf(
+      me({ construction: { ...head('farm', 'r-a', 10), frozen: true } }),
+      CATALOG,
+      LOADED,
+    );
+    expect(site).toMatchObject({ phase: 'rising', frozenMinutesLeft: 10 });
+    expect(siteRiseAt(site!, LOADED)).toBeCloseTo(riseOf(10, 30));
+    expect(siteRiseAt(site!, LOADED + 86_400_000)).toBeCloseTo(riseOf(10, 30));
+    const [running] = workSitesOf(me({ construction: head('farm', 'r-a', 10) }), CATALOG, LOADED);
+    expect(siteRiseAt(running!, LOADED + 86_400_000)).toBe(1);
   });
 
   it('plans a queued first level by its rank and leaves it undated; a queued raise draws nothing', () => {

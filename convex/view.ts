@@ -57,7 +57,7 @@ import {
   totalLevelOf,
 } from './buildingReads';
 import { siegesOf, siegeTargetsOf } from './buildings';
-import { besieged } from '../src/domain/construction';
+import { besieged, workStarted } from '../src/domain/construction';
 import {
   FOUNDER_ABSENCE_NOTICE_HOURS,
   MAX_PLAYERS,
@@ -226,8 +226,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   const queue = await queueOf(ctx, player._id);
   /** The first dated entry is the one the banner counts down; the others wait in
    *  `constructionQueue`. */
-  const construction =
-    queue.find((entry) => entry.finishesAt !== null || entry.frozenMs !== undefined) ?? null;
+  const construction = queue.find(workStarted) ?? null;
 
   const recruiting = await recruitmentsOf(ctx, player._id);
 

@@ -2,7 +2,7 @@ import { pileSupplies } from './supplies';
 import { cardName, fr, stackLabel } from '@/i18n/fr';
 import { researchProgressOf, searcherOf } from './research';
 import { incomePerMinute } from './blitz';
-import { riseOf, type WorkSite } from './construction';
+import { siteRiseAt, type WorkSite } from './construction';
 import type { BuildingKey } from './ids';
 import { capturingAt } from './capture';
 import { captureSaid } from './capture-said';
@@ -375,8 +375,8 @@ function buildingPoster(
 
   const works = label.works;
   if (works?.finishesAt != null) {
-    lines.push(left(works.finishesAt, now));
-    bar = riseOf((works.finishesAt - now) / 60_000, works.minutes);
+    lines.push(worksLeft(works, now));
+    bar = siteRiseAt(works, now);
   }
 
   return {
@@ -406,10 +406,16 @@ function worksPoster(works: WorkSite, now: number): Poster {
     ...plain,
     eyebrow: fr.posters.worksSite(works.regionName),
     title,
-    lines: [left(works.finishesAt, now)],
-    bar: riseOf((works.finishesAt - now) / 60_000, works.minutes),
+    lines: [worksLeft(works, now)],
+    bar: siteRiseAt(works, now),
   };
 }
+
+/** Ce qui reste au chantier : figé sous son QG désactivé, un reste dit et fixe (ADR 0046 §8). */
+const worksLeft = (works: WorkSite, now: number): PosterLine =>
+  works.frozenMinutesLeft === undefined
+    ? left(works.finishesAt!, now)
+    : { kind: 'text', text: fr.works.frozen(asDuration(works.frozenMinutesLeft)) };
 
 const left = (dueAt: number, now: number): PosterLine => ({
   kind: 'row',

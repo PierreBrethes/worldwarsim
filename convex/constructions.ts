@@ -19,6 +19,7 @@ import {
 } from '../src/domain/economy';
 import {
   cancelWorkRefusalOf,
+  workStarted,
   outpostRaiseHold,
   raiseRefusalOf,
   specialtyRefusalOf,
@@ -420,9 +421,7 @@ export const cancel = mutation({
     requirePlayable(player, season);
     const entry = await ctx.db.get(constructionId);
     if (!entry || entry.playerId !== player._id) fail('UNKNOWN_CONSTRUCTION');
-    const refusal = cancelWorkRefusalOf({
-      started: entry.finishesAt !== null || entry.frozenMs !== undefined,
-    });
+    const refusal = cancelWorkRefusalOf({ started: workStarted(entry) });
     if (refusal !== null) fail(refusal);
 
     const refunded = billOfWork(entry);

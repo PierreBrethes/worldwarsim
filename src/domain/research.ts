@@ -363,3 +363,20 @@ export function researchHaltOf<
   if (center !== null && integrityOf(center, now) === 'disabled') return 'researchCenter';
   return hqDisabledAt(buildings, now) ? 'hq' : null;
 }
+
+/**
+ * **La carte court-elle ?** (ADR 0046 §8) Son Centre doit chercher : debout, à soi, en service. Un
+ * QG désactivé ne laisse commencer aucune carte, la suivante déjà payée comprise ; celle qui a
+ * déjà couru continue. La seule lecture de `runCard` et de `followCenter`.
+ */
+export function researchRunsOf<
+  B extends IntegrityDates & {
+    readonly key: BuildingKey;
+    readonly level: number;
+    readonly captured?: boolean | undefined;
+  },
+>(buildings: ReadonlyArray<B>, now: number, begun: boolean): boolean {
+  if (searcherLevel(buildings) === null) return false;
+  const halt = researchHaltOf(buildings, now);
+  return halt === null || (halt === 'hq' && begun);
+}

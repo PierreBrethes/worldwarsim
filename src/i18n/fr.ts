@@ -2488,6 +2488,8 @@ export const fr = {
    * proche au plus lointain. Les libellés sont en capitales par la feuille de style.
    */
   underway: {
+    /** Son QG désactivé (ADR 0046 §8) : le chantier attend, son reste ne décompte pas. */
+    frozen: (label: string) => `${label} · figé`,
     header: 'en cours',
     fold: 'replier la colonne « en cours »',
     unfold: 'déplier la colonne « en cours »',

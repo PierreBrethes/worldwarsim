@@ -16,6 +16,7 @@ import {
   researchProgressOf,
   searcherLevel,
   researchRefusalOf,
+  researchRunsOf,
   roleLockOf,
   slotCardsOf,
 } from './research';
@@ -264,5 +265,27 @@ describe('the Transmissions cards', () => {
     for (const card of ['transmissions1', 'transmissions2', 'transmissions3'] as const) {
       expect(counterOf(card), card).toBeNull();
     }
+  });
+});
+
+/** Revue de #648 : le QG désactivé retient la carte qui n'a pas commencé, jamais celle qui court. */
+describe('researchRunsOf', () => {
+  const NOW = 1_000_000;
+  const center = { key: 'researchCenter' as const, level: 1 };
+  const hq = { key: 'hq' as const, level: 1 };
+  const out = { disabledUntil: NOW + 1 };
+
+  it('runs a card on a centre in service, and on none without one', () => {
+    expect(researchRunsOf([center, hq], NOW, false)).toBe(true);
+    expect(researchRunsOf([hq], NOW, true)).toBe(false);
+  });
+
+  it('holds every card under a disabled centre', () => {
+    expect(researchRunsOf([{ ...center, ...out }, hq], NOW, true)).toBe(false);
+  });
+
+  it('lets a begun card run under a disabled headquarters, and holds a fresh one', () => {
+    expect(researchRunsOf([center, { ...hq, ...out }], NOW, true)).toBe(true);
+    expect(researchRunsOf([center, { ...hq, ...out }], NOW, false)).toBe(false);
   });
 });

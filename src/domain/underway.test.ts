@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { slotsRefusalOf, underwayOf, type RecruitmentDue, type Underway } from './underway';
+import {
+  slotsRefusalOf,
+  underwayLeftMs,
+  underwayOf,
+  type RecruitmentDue,
+  type Underway,
+} from './underway';
 import type { ArcView, ChainView, PlayerView } from './player-view';
 
 const LOADED = 1_000_000;
@@ -111,6 +117,24 @@ describe('what runs, nearest first', () => {
   it('leaves a detected arc out: only the player’s own countdowns run here', () => {
     const seen = { state: 'enemyDetected', id: 'E-1' } as unknown as ArcView;
     expect(underwayOf(board({}, [seen]), [])).toEqual([]);
+  });
+
+  /** Revue de #648 : la ligne d'un chantier figé le dit, et son reste ne décompte pas. */
+  it('says a frozen head of the queue is frozen, and keeps what it has left', () => {
+    const work = {
+      id: 'W-1',
+      key: 'mine',
+      name: 'Mine',
+      outpostId: null,
+      regionId: 'FRA-1',
+      point: [3, 50],
+      minutesLeft: 89,
+      frozen: true,
+    };
+    const [line] = underwayOf(board({ construction: work }), []);
+    expect(line?.label).toContain('figé');
+    expect(underwayLeftMs(line!, LOADED)).toBe(89 * 60_000);
+    expect(underwayLeftMs(line!, LOADED + 10 * 3_600_000)).toBe(89 * 60_000);
   });
 
   it('names the level the head of the queue is raising the building to', () => {

@@ -38,6 +38,7 @@ import {
   type SeaFront,
   ringSpacing,
   SOCLE_TOP,
+  worksLotKey,
   yawOf,
 } from './maquettes';
 import { GROUP_SPACING, pileLayout } from '@/domain/pile-layout';
@@ -2190,5 +2191,14 @@ describe.each([1, DRAWN_SHARE])('a group of sites drawn at %s of the common scal
       expect(scale).toBeCloseTo(0.6, 9);
       expect(place).toEqual(line[i]);
     });
+  });
+});
+
+/** Revue de #648 : un chantier qui se fige est un autre dressing, qui ne monte plus. */
+describe('worksLotKey', () => {
+  it('parts a frozen site from the same site rising', () => {
+    const rising = worksLotKey('farm.glb', 'm-1', false, {});
+    expect(worksLotKey('farm.glb', 'm-1', false, { frozenMinutesLeft: 12 })).not.toBe(rising);
+    expect(worksLotKey('farm.glb', 'm-1', false, {})).toBe(rising);
   });
 });

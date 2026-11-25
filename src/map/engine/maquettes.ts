@@ -192,6 +192,17 @@ const RUNWAY = 'piste';
 const WATER_EDGE = 'fx_bord_eau';
 
 /** A fixed turn per id, so that a row of farms is not a parade, and a building never spins. */
+/**
+ * **The lot of a site at work**: its own, one per site. A site that freezes or starts again
+ * (ADR 0046 §8) is another dressing, since the dressing reads its works once, at its pose.
+ */
+export const worksLotKey = (
+  url: string,
+  id: string,
+  mirrored: boolean,
+  works: Pick<Works, 'frozenMinutesLeft'>,
+): string => `${url} works ${id} ${mirrored} ${works.frozenMinutesLeft ?? ''}`;
+
 export function yawOf(id: string): number {
   let hash = 2166136261;
   for (let k = 0; k < id.length; k++) hash = Math.imul(hash ^ id.charCodeAt(k), 16777619);
@@ -878,7 +889,7 @@ export class MaquetteLayer implements SequenceHost {
       // An airfield with its runway cut short is another file's scene (#493).
       const url = withRunway(maquette.url, this.runways.get(maquette.id) ?? RUNWAY_MODULES);
       const key = maquette.works
-        ? `${url} works ${maquette.id} ${mirrored}`
+        ? worksLotKey(url, maquette.id, mirrored, maquette.works)
         : `${url} ${maquette.washed} ${shown.join()} ${maquette.pose ?? ''} ${mirrored}`;
       let lot = this.lots.get(key);
       if (lot === undefined) {

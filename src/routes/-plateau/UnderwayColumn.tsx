@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { fr } from '@/i18n/fr';
 import { asDuration, asShortDuration } from '@/domain/duration';
-import type { Underway, UnderwayFace } from '@/domain/underway';
+import { underwayLeftMs, type Underway, type UnderwayFace } from '@/domain/underway';
 import { keepUnderwayFolded, readUnderwayFolded } from '@/data/settings';
 import { BuildingPlate } from '@/emblems/Plate';
 import { UnitSprite } from '@/emblems/UnitSprite';
@@ -114,7 +114,7 @@ export function UnderwayColumn({
       {(crowded ? [] : lines).map((line) => {
         const isFresh = line.id === fresh;
         const open = !folded || isFresh;
-        const minutesLeft = (line.endsAt - now) / 60_000;
+        const minutesLeft = underwayLeftMs(line, now) / 60_000;
         const recall = line.recall;
         const row = (
           <button

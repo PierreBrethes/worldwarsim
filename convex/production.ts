@@ -165,7 +165,8 @@ export const restoreAfterDisabling = internalMutation({
         await ctx.scheduler.runAt(back, internal.constructions.resume, {
           playerId: building.playerId,
         });
-      if (building.key === 'researchCenter') await followCenter(ctx, building.playerId, back);
+      if (building.key === 'researchCenter' || building.key === 'hq')
+        await followCenter(ctx, building.playerId, back);
     }
   },
 });

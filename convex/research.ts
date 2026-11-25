@@ -6,6 +6,7 @@ import type { MutationCtx } from './_generated/server';
 import {
   researchHaltOf,
   researchMs,
+  researchRunsOf,
   researchRefusalOf,
   researchUnqueueRefusalOf,
   searcherLevel,
@@ -31,11 +32,9 @@ const searchersOf = async (ctx: MutationCtx, playerId: Id<'players'>) =>
 const centerLevelOf = async (ctx: MutationCtx, playerId: Id<'players'>) =>
   searcherLevel(await searchersOf(ctx, playerId));
 
-/** **Son Centre cherche** : debout, à lui, et pas désactivé (ADR 0046 §8). */
-const searching = async (ctx: MutationCtx, playerId: Id<'players'>, now: number) => {
-  const buildings = await searchersOf(ctx, playerId);
-  return searcherLevel(buildings) !== null && researchHaltOf(buildings, now) !== 'researchCenter';
-};
+/** **La carte court** (`researchRunsOf`) : `begun`, elle a déjà couru. */
+const runs = async (ctx: MutationCtx, playerId: Id<'players'>, now: number, begun: boolean) =>
+  researchRunsOf(await searchersOf(ctx, playerId), now, begun);
 
 /** La carte suivante prend le Centre : sa durée se fixe ici, au niveau du Centre de ce moment. */
 async function runCard(
@@ -46,7 +45,7 @@ async function runCard(
 ): Promise<number> {
   const level = await centerLevelOf(ctx, playerId);
   const remainingMs = researchMs(card, level ?? 1);
-  const standing = await searching(ctx, playerId, now);
+  const standing = await runs(ctx, playerId, now, false);
   await ctx.db.patch(playerId, {
     research: { card, totalMs: remainingMs, remainingMs, since: standing ? now : null },
   });
@@ -160,7 +159,9 @@ export async function followCenter(
 ): Promise<void> {
   const running = (await ctx.db.get(playerId))?.research;
   if (running === undefined) return;
-  const standing = await searching(ctx, playerId, now);
+  /** Une carte qui n'a pas couru (`totalMs` entier) attend aussi son QG ; celle qui court, non. */
+  const begun = running.since !== null || running.remainingMs !== running.totalMs;
+  const standing = await runs(ctx, playerId, now, begun);
   if (!standing && running.since !== null) {
     await ctx.db.patch(playerId, {
       research: {

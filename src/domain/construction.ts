@@ -732,6 +732,16 @@ export const demolitionRefusalOf = (building: Demolition): DemolitionRefusal | n
  * ouvrirait un aller-retour gratuit entre matière et temps. Le serveur (`constructions.cancel`) et
  * la tête de file, qui dit sa phrase à la place du bouton, lisent cette seule fonction.
  */
+/**
+ * **Un chantier a commencé** dès qu'il a été daté, et le reste figé sous un QG désactivé
+ * (ADR 0046 §8) : il a consommé du temps de la file. Le seul prédicat de ce qui se rembourse
+ * (annuler, raser, démanteler) et de la tête que la vue sert.
+ */
+export const workStarted = (work: {
+  readonly finishesAt: number | null;
+  readonly frozenMs?: number | undefined;
+}): boolean => work.finishesAt !== null || work.frozenMs !== undefined;
+
 export const cancelWorkRefusalOf = (work: {
   readonly started: boolean;
 }): 'CONSTRUCTION_ALREADY_STARTED' | null => (work.started ? 'CONSTRUCTION_ALREADY_STARTED' : null);
@@ -891,12 +901,24 @@ export type WorkSite = {
   readonly finishesAt: number | null;
   /** What the whole level lasts: the catalog's for a first level, the building's for a raise. */
   readonly minutes: number;
+  /** **Figé** sous son QG désactivé (ADR 0046 §8) : ce qu'il lui reste, qui ne décompte pas. */
+  readonly frozenMinutesLeft?: number;
 };
+
+/** **How far a site has risen at `now`** (`riseOf`) : a frozen one holds where it stopped, an
+ *  undated one stands whole. The one reading of the crane and of the poster. */
+export const siteRiseAt = (
+  site: Pick<WorkSite, 'finishesAt' | 'minutes' | 'frozenMinutesLeft'>,
+  now: number,
+): number =>
+  site.finishesAt === null
+    ? 1
+    : riseOf(site.frozenMinutesLeft ?? (site.finishesAt - now) / 60_000, site.minutes);
 
 type RisingWork = Pick<
   NonNullable<PlayerView['me']['construction']>,
   'id' | 'key' | 'outpostId' | 'point' | 'regionId' | 'regionName' | 'minutesLeft'
-> & { readonly minutes?: number; readonly kept?: number };
+> & { readonly minutes?: number; readonly kept?: number; readonly frozen?: true };
 
 export function workSitesOf(
   me: Pick<PlayerView['me'], 'buildings' | 'construction' | 'constructionQueue' | 'hqLevel'>,
@@ -928,6 +950,7 @@ export function workSitesOf(
           : standing.level + 1,
       rank,
       finishesAt: loadedAt + work.minutesLeft * 60_000,
+      ...(work.frozen === true ? { frozenMinutesLeft: work.minutesLeft } : {}),
       /** Dated at the start: the length the server wrote, not today's headquarters level. */
       minutes:
         work.minutes ?? (standing === undefined ? catalog[key].minutes : standing.nextLevelMinutes),

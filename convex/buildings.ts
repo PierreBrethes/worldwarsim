@@ -11,6 +11,7 @@ import {
   keeping,
   type Evacuated,
   type Siege,
+  workStarted,
 } from '../src/domain/construction';
 import { assetOf } from '../src/domain/nation-assets';
 import { modeOf } from '../src/domain/season-mode';
@@ -235,7 +236,7 @@ async function cancelWorkOn(
       canonicalBuildingKey(entry.building) !== canonicalBuildingKey(building.key)
     )
       continue;
-    if (entry.finishesAt === null) {
+    if (!workStarted(entry)) {
       add(buildCost(entry.building, entry.level));
       await restoreKept(ctx, player._id, entry);
     }

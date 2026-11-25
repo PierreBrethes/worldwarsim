@@ -22,7 +22,7 @@ import {
   Vector2,
   Vector3,
 } from 'three';
-import { riseOf } from '@/domain/construction';
+import { siteRiseAt } from '@/domain/construction';
 import type { StampWords } from '@/domain/ink-bursts';
 import { footprintOf, type Loop } from './footprint';
 import { ARC_COLORS, PALETTE } from './palette';
@@ -41,6 +41,8 @@ export type Works = {
   /** Only the head of the queue is dated. */
   readonly finishesAt: number | null;
   readonly minutes: number;
+  /** Figé sous son QG désactivé (ADR 0046 §8) : son reste, qui ne décompte pas. */
+  readonly frozenMinutesLeft?: number;
   /** What the pennant reads, `null` for a bare one. */
   readonly pennant: string | null;
   /** Pressed when it stands under the player's eyes. */
@@ -355,10 +357,7 @@ export class WorksDressing {
     this.object.visible = size > 0;
     if (size <= 0) return;
     this.object.matrix.compose(at, turn, scale.setScalar(size));
-    const share =
-      this.cut === null || this.works.finishesAt === null
-        ? 1
-        : riseOf((this.works.finishesAt - now) / 60_000, this.works.minutes);
+    const share = this.cut === null ? 1 : siteRiseAt(this.works, now);
     if (this.works.phase === 'queued') return;
     const { max } = this.box;
     const height = this.cut === null ? max.y : this.base + (max.y - this.base) * share;
