@@ -68,6 +68,7 @@ const PAS_DE_CALAIS = 'FRA-5334'; // coal, coastal
 const ARDENNES = 'FRA-5268'; // nothing at all
 const JURA = 'FRA-5312'; // food
 const RUHR = 'DEU-1572'; // German
+const KENT = 'GBR-3409'; // coastal, across the Channel
 
 /** Calais harbour, 800 m from the Pas-de-Calais's open-sea coast (#221) — a sea cell of the
  *  routing grid, as the real shore often is. The old point, forty kilometres inland, took a quay
@@ -572,6 +573,51 @@ describe('placement', () => {
           point: OFF_CALAIS,
         }),
       ).rejects.toThrow('NOT_COASTAL');
+    });
+
+    /**
+     * **Un joueur sans port n'est jamais enfermé chez lui** (#653, ADR 0029 et ADR 0004). Ses ports
+     * et ses avant-postes perdus, il garde son sol national, qui ne se perd jamais, et un port se
+     * repose sur toute côte de ce sol. Ailleurs, sans avant-poste pour porter le point, non.
+     */
+    it('lets a player who lost every port and outpost found a port on their home coast', async () => {
+      const t = boot();
+      const seat = await launchedSeason(t);
+      await promoteHq(t, seat, 2);
+      await raise(t, seat, 'port', PAS_DE_CALAIS);
+      await t.run(async (ctx) => {
+        const player = await seatIn(ctx, seat);
+        const ports = await ctx.db
+          .query('buildings')
+          .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+          .collect();
+        for (const port of ports.filter((building) => building.key === 'port'))
+          await ctx.db.delete(port._id);
+        const outposts = await ctx.db
+          .query('outposts')
+          .withIndex('byPlayer', (q) => q.eq('playerId', player._id))
+          .collect();
+        for (const outpost of outposts) await ctx.db.delete(outpost._id);
+      });
+      for (const key of RESOURCES) await fill(t, seat, key, BASE_CAP);
+
+      const coast = decodeCoast(coastAsset as CoastAsset, projectionAsset as unknown as Projection);
+      const kent = nearestCoast(coast, [1.3, 51.13], 30, KENT)!.lonLat;
+      await expect(
+        t.mutation(api.constructions.start, {
+          ...seat,
+          building: 'port',
+          regionId: KENT,
+          point: { lon: kent[0], lat: kent[1] },
+        }),
+      ).rejects.toThrow('OUT_OF_OUTPOST_REACH');
+
+      await t.mutation(api.constructions.start, {
+        ...seat,
+        building: 'port',
+        regionId: PAS_DE_CALAIS,
+        point: CALAIS_SHORE,
+      });
     });
 
     /** **Sur l'eau, seul un port se pose** (#224) : la terre se lit à la précision de l'atlas,

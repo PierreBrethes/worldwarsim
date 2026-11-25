@@ -4,7 +4,7 @@ statut: validé
 maj: 2026-10-17
 code: []
 decisions: [ADR 0005, ADR 0020]
-voir: [CONTEXT.md, QUESTIONS.md, docs/adr/README.md, docs/decisions.md]
+voir: [CONTEXT.md, docs/adr/README.md, docs/decisions.md]
 ---
 
 # WorldWarSim — le coffre de design
@@ -18,8 +18,8 @@ pièges, les conventions de la doc. Rien ici ne tient un état du projet.
 | Besoin | Où |
 |---|---|
 | Pourquoi une règle existe | `docs/adr/README.md`, puis l'ADR ; `docs/decisions.md` pour une décision datée |
-| Ce qui n'est pas tranché | `QUESTIONS.md` |
-| Ce qui reste à coder | `docs/RESTE-A-CODER.md` |
+| Ce qui n'est pas tranché | les issues `question` et `à trancher` |
+| Ce qui reste à coder | les issues GitHub ; les idées sans décision dans #659 |
 | Le vocabulaire | `CONTEXT.md` |
 | Une surface avant de la coder | `docs/design/11-brief-ui.md` et `docs/design/contrats-de-vue/` |
 | Un pourquoi daté introuvable ailleurs | `docs/technique/recit-du-code-2026-10-17.md` (figé) |

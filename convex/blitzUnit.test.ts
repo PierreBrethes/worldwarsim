@@ -9,6 +9,7 @@ import { nominalStrength } from './constants';
 import schema from './schema';
 import { modules } from './test.setup';
 import { reassessDetection } from './movement/detection';
+import { servingOf } from './movement/forces';
 import { resolveContact } from './combat';
 import {
   campsAroundAFullPass,
@@ -24,6 +25,10 @@ import {
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
 type Bench = ReturnType<typeof boot>;
+
+/** Les colonnes qui desservent un point, lues dans leur table (#640). */
+const servedBy = (t: Bench, outpostId: Id<'outposts'>) =>
+  t.run(async (ctx) => (await servingOf(ctx, outpostId)).map((row) => row.movementId));
 const MIDDAY = Date.UTC(2026, 9, 14, 12);
 const PARIS = { lon: 2.35, lat: 48.85 };
 const LYON = { lon: 4.85, lat: 45.75 };
@@ -457,7 +462,7 @@ describe('a Blitz unit and its orders (lot 5)', () => {
     vi.setSystemTime(MIDDAY);
     await t.mutation(internal.movements.pursue, { movementId: chase, expectedAt: MIDDAY });
     expect((await t.run((ctx) => ctx.db.get(chase)))!.departedAt).toBe(MIDDAY);
-    expect((await t.run((ctx) => ctx.db.get(outpostId)))!.servedBy).toEqual([chase]);
+    expect(await servedBy(t, outpostId)).toEqual([chase]);
   });
 
   it('chases a column it sees on the board, and two chases that cross meet in a shock', async () => {

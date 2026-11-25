@@ -2,8 +2,7 @@
 name: wws-fin-session
 description: >-
   Rituel de fin de session pour le projet worldwarsim (WWS) de Pierre. Synchronise la
-  documentation du repo avec ce qui a été décidé et codé pendant la session — QUESTIONS.md,
-  l'index des ADR, le cycle de vie des prompts (ready/ → done/), les chiffres de mesure périmés,
+  documentation du repo avec ce qui a été décidé et codé pendant la session — l'index des ADR, le cycle de vie des prompts (ready/ → done/), les chiffres de mesure périmés,
   l'en-tête des notes du coffre, WWS/INDEX.md et le registre des décisions —
   puis produit un récap structuré. Trigger dès que Pierre dit « note tout », « récap », « fin de
   session », « on s'arrête », « dodo », « je vais me coucher », « on a fini là », ou toute
@@ -43,7 +42,7 @@ a une ancre **greppable** dans le repo :
   statut et bandeau de révision comme les ADR 0015 et 0017 le font déjà) ;
 - une décision de valeur → la constante et son commentaire, avec `@a-mesurer` si elle est
   assumée et non mesurée ;
-- une piste non tranchée → `WWS/QUESTIONS.md`, dans la bonne section (🔴 / 🟠 / 🟡).
+- une piste non tranchée → une issue `question` ou `à trancher` (skill `ticket`).
 
 **Interdit** : citer « la décision de <date> » ou « la question N » dans un commentaire de code ou
 un prompt sans que le grep de cette référence rende un fichier de `WWS/`.

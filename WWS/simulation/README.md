@@ -30,7 +30,7 @@ défaut, et c'est voulu — un état de référence périmé trompe plus qu'il n
 
 Il comptait les décisions de l'ouverture sur une copie à la main de `convex/constants.ts`,
 d'avant la Blitz, et n'avait plus d'état de référence. Il vit dans l'historique git ; une
-prochaine mesure partira d'un client Convex (`QUESTIONS.md`), jamais d'une copie des constantes.
+prochaine mesure partira d'un client Convex (#652), jamais d'une copie des constantes.
 
 ## Ce qui a été retiré — `../docs/_to_delete/simulation-v1/`
 

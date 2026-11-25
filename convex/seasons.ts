@@ -823,6 +823,13 @@ export const destroy = mutation({
       .collect()) {
       await ctx.db.delete(objective._id);
     }
+    /** Un point desservi non plus : le couple ne nomme aucun joueur (#640). */
+    for (const row of await ctx.db
+      .query('outpostServing')
+      .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
+      .collect()) {
+      await ctx.db.delete(row._id);
+    }
     /** Les Sept non plus : un point tenu reste à la saison, pas à son teneur. */
     for (const point of await seasonPoints(ctx, season._id)) await ctx.db.delete(point._id);
     for (const queued of await ctx.db

@@ -4,7 +4,7 @@ statut: périmé
 maj: 2026-10-02
 code: []
 decisions: [ADR 0001, ADR 0020]
-voir: [INDEX.md, CLAUDE.md, QUESTIONS.md, docs/design/01-vision-et-format.md]
+voir: [INDEX.md, CLAUDE.md, docs/design/01-vision-et-format.md]
 ---
 
 # WorldWarSim
@@ -32,7 +32,7 @@ Jeu de stratégie web asynchrone sur une carte du monde réel. Saison de 48 h à
 | comprendre le jeu en 5 minutes | [docs/design/01-vision-et-format.md](docs/design/01-vision-et-format.md) |
 | comprendre *pourquoi* c'est comme ça | [docs/adr/](docs/adr/README.md) |
 | voir la carte tourner | [prototypes/carte-3d.html](prototypes/carte-3d.html) |
-| savoir ce qui n'est pas tranché | [QUESTIONS.md](QUESTIONS.md) |
+| savoir ce qui n'est pas tranché | les issues `question` et `à trancher` |
 | lancer une passe de design | [docs/design/11-brief-ui.md](docs/design/11-brief-ui.md) |
 | peupler des maquettes | [simulation/README.md](simulation/README.md) — l'état de référence s'exporte d'une vraie saison |
 | savoir ce qui va faire mal à coder | [docs/technique/risques.md](docs/technique/risques.md) |

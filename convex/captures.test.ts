@@ -8,7 +8,7 @@ import { push } from '../src/domain/push';
 import { heldOver } from './holding';
 import { reassessDetection } from './movement/detection';
 import { forgetMovements, walkHome } from './movement/arrival';
-import { insertMovement } from './movement/forces';
+import { insertMovement, servingOf } from './movement/forces';
 import { allRegions, foundationOwedBy, regionFacts, pointOfRegion } from './regions';
 import { distanceKm } from '../src/domain/geo';
 import schema from './schema';
@@ -27,6 +27,10 @@ import type { Seat } from './seats.fixture';
 
 const boot = () => convexTest({ schema, modules, transactionLimits: true });
 type Bench = ReturnType<typeof boot>;
+
+/** Les colonnes qui desservent un point, lues dans leur table (#640). */
+const servedBy = (t: Bench, outpostId: Id<'outposts'>) =>
+  t.run(async (ctx) => (await servingOf(ctx, outpostId)).map((row) => row.movementId));
 const HOUR = 3_600_000;
 const MIDDAY = Date.UTC(2026, 8, 9, 12);
 const MARNE = 'FRA-5323';
@@ -988,10 +992,11 @@ describe('a Mondiale headquarters', () => {
     });
   });
 
-  /** **Les colonnes du vaincu s'effacent ensemble** (#638) : un point ne porte plus que celles
-   *  qui roulent encore, et la saison n'est lue qu'une fois, quel que soit le nombre de colonnes
-   *  (lue par colonne, la chute d'un QG dépassait les 16 Mo). */
-  it('drops the fallen player’s columns from the outposts in one read of the season', async () => {
+  /** **Les colonnes du vaincu s'effacent ensemble** (#638) : un point ne garde que celles qui
+   *  roulent encore, et les points de la saison ne se lisent pas (lue par colonne, la chute d'un
+   *  QG dépassait les 16 Mo). Une colonne effacée ne dessert plus rien : ses lignes se lisent par
+   *  mouvement (#640). */
+  it('drops the fallen player’s columns from the outposts without reading the season', async () => {
     const t = boot();
     const { seat, guest } = await threeAtTable(t);
     const loser = await playerOf(t, guest);
@@ -1032,7 +1037,7 @@ describe('a Mondiale headquarters', () => {
       const mine = [await column(loser._id), await column(loser._id), await column(loser._id)];
       return { outpostId, mine, theirs: await column(capturer._id) };
     });
-    expect((await t.run((ctx) => ctx.db.get(outpostId)))!.servedBy).toHaveLength(4);
+    expect(await servedBy(t, outpostId)).toHaveLength(4);
 
     const seasonReads = await t.run(async (ctx) => {
       const query = vi.spyOn(ctx.db, 'query');
@@ -1040,8 +1045,8 @@ describe('a Mondiale headquarters', () => {
       return query.mock.calls.filter(([table]) => table === 'outposts').length;
     });
 
-    expect(seasonReads).toBe(1);
-    expect((await t.run((ctx) => ctx.db.get(outpostId)))!.servedBy).toEqual([theirs]);
+    expect(seasonReads).toBe(0);
+    expect(await servedBy(t, outpostId)).toEqual([theirs]);
   });
 
   it('does not read the outposts of the season when the fallen has no column', async () => {
