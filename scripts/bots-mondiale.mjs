@@ -273,6 +273,8 @@ function submit(seat, order) {
   switch (fn) {
     case 'constructions.start':
       return client.mutation(api.constructions.start, { ...seat, ...args });
+    case 'constructions.raiseOutpost':
+      return client.mutation(api.constructions.raiseOutpost, { ...seat, ...args });
     case 'troops.recruit':
       return client.mutation(api.troops.recruit, { ...seat, ...args });
     case 'movements.attack':

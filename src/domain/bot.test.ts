@@ -254,3 +254,108 @@ describe('worldFrom', () => {
     expect(geo.landRoute([2.35, 48.85], [-73.9, 40.7], ['infantry'])).toBeNull();
   });
 });
+
+describe('le bot facile, ses vivres et ses avant-postes (#652)', () => {
+  const barracks = { id: 'b-1', key: 'barracks', point: SPARE, level: 1 };
+  const farm = {
+    id: 'farm-1',
+    key: 'farm',
+    regionId: 'farm-region',
+    point: [3, 47] as const,
+    level: 1,
+    nextLevelCost: { steel: 30 },
+    cappedByHq: false,
+  };
+  const outpost = {
+    id: 'o-1',
+    isMine: true,
+    level: 1,
+    standsAt: null,
+    atMaxLevel: false,
+    disabledMinutesLeft: null,
+    nextLevelCost: { steel: 50 },
+  };
+  const resources = (food: { stock: number; ratePerHour: number }) =>
+    Object.fromEntries(
+      RESOURCES.map((key) => [
+        key,
+        key === 'food' ? { ...food, cap: 1000 } : { stock: 1000, ratePerHour: 0, cap: 1000 },
+      ]),
+    );
+
+  it('monte sa ferme quand ses vivres seront à sec dans moins de douze heures', () => {
+    const orders = turn(
+      viewOf({
+        hqLevel: 1,
+        buildings: [hqStanding, barracks, farm],
+        resources: resources({ stock: 50, ratePerHour: -10 }),
+      }),
+    );
+    expect(orders).toContainEqual({
+      fn: 'constructions.start',
+      args: { building: 'farm', regionId: 'farm-region', point: { lon: 3, lat: 47 } },
+    });
+  });
+
+  it('ne touche pas à sa ferme tant que les vivres tiennent', () => {
+    const orders = turn(
+      viewOf({
+        hqLevel: 1,
+        buildings: [hqStanding, barracks, farm],
+        resources: resources({ stock: 900, ratePerHour: -10 }),
+      }),
+    );
+    expect(orders.some((order) => order.fn === 'constructions.start')).toBe(false);
+  });
+
+  it("élève son avant-poste avec de l'acier qui dort, et choisit une spécialisation au niveau 2", () => {
+    const orders = turn(
+      viewOf({ hqLevel: 1, buildings: [hqStanding, barracks], outposts: [outpost] }),
+    );
+    expect(orders).toContainEqual({
+      fn: 'constructions.raiseOutpost',
+      args: { outpostId: 'o-1', specialty: 'store' },
+    });
+  });
+
+  it("n'élève pas sur l'acier dont il a besoin, ni deux ordres que son stock ne paie pas ensemble", () => {
+    const steel = (stock: number) =>
+      Object.fromEntries(
+        RESOURCES.map((key) => [
+          key,
+          { stock: key === 'steel' ? stock : 1000, ratePerHour: 0, cap: 1000 },
+        ]),
+      );
+    const short = turn(
+      viewOf({
+        hqLevel: 1,
+        buildings: [hqStanding, barracks],
+        outposts: [outpost],
+        resources: steel(520),
+      }),
+    );
+    expect(short.some((order) => order.fn === 'constructions.raiseOutpost')).toBe(false);
+
+    const both = turn(
+      viewOf({
+        hqLevel: 1,
+        buildings: [hqStanding, barracks, farm],
+        resources: Object.fromEntries(
+          RESOURCES.map((key) => [
+            key,
+            key === 'food'
+              ? { stock: 10, ratePerHour: -10, cap: 1000 }
+              : { stock: key === 'steel' ? 32 : 1000, ratePerHour: 0, cap: 1000 },
+          ]),
+        ),
+        regions: [{ id: 'row-spare', point: SPARE, site: { id: null } }],
+      }),
+    );
+    const steelSpent = both.reduce(
+      (sum, order) =>
+        sum + (order.fn === 'constructions.start' ? (order.args.building === 'farm' ? 30 : 20) : 0),
+      0,
+    );
+    expect(steelSpent).toBeLessThanOrEqual(32);
+  });
+});

@@ -60,11 +60,24 @@ export default defineConfig({
         extends: true,
         test: { name: 'convex', include: ['convex/**/*.test.ts'], environment: 'edge-runtime' },
       },
+      // `npm run bots:serie` (#652) : une Mondiale de bots entière, jamais dans `npm run test`.
+      ...(process.env.BOTS_SERIE
+        ? [
+            {
+              extends: true as const,
+              test: {
+                name: 'simulation',
+                include: ['convex/**/*.sim.ts'],
+                environment: 'edge-runtime' as const,
+              },
+            },
+          ]
+        : []),
       {
         extends: true,
         test: {
           name: 'front',
-          exclude: ['convex/**', 'node_modules/**', '.claude/**', 'brag-output/**'],
+          exclude: ['convex/**', 'e2e/**', 'node_modules/**', '.claude/**', 'brag-output/**'],
         },
       },
     ],

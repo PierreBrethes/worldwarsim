@@ -6,6 +6,7 @@ import { heapFullSince } from '../src/domain/economy';
 import { modeOf } from '../src/domain/season-mode';
 import { economyOf } from './resources';
 import { heapRowOf, setHeapWatch, writeHeapRow, type HeapReading } from './heaps';
+import { cancelJob } from './scheduledJobs';
 
 /**
  * **La dépêche « tas plein »** (#555). Le tas se lit paresseusement : l'instant où il devient plein
@@ -56,7 +57,7 @@ export async function examineHeap(
       reading.fullSince ?? now,
     ));
   const waiting = known?.fullJob;
-  if (waiting !== undefined && !due) await ctx.scheduler.cancel(waiting);
+  if (waiting !== undefined && !due) await cancelJob(ctx, waiting);
   if (reading.fullSince === undefined) {
     const fullJob =
       due || reading.cap <= 0 || reading.heapPerHour <= 0

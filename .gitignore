@@ -32,4 +32,8 @@ ds-bundle/
 scripts/demo-mondiale.accounts.json
 scripts/bots-mondiale.accounts.json
 scripts/banc-mondiale.accounts.json
+/bots-serie/
+test-results
+playwright-report
+dist-e2e
 sauvegardes/

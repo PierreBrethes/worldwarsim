@@ -10,6 +10,7 @@
     "build": "npm run types && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "e2e": "playwright test --trace off",
     "rapport": "node scripts/rapport-de-saison.mjs",
     "routes": "node scripts/generer-routes.mjs",
     "types": "npm run routes && tsc --noEmit && tsc -p convex --noEmit",
@@ -24,6 +25,7 @@
     "banc:client": "node scripts/banc-client.mjs",
     "capture": "node scripts/capture.mjs",
     "bots:mondiale": "node scripts/bots-mondiale.mjs",
+    "bots:serie": "node scripts/bots-serie.mjs",
     "film": "node scripts/film-accueil.mjs",
     "gestes": "node scripts/gestes.mjs"
   },
@@ -40,6 +42,7 @@
     "@babel/core": "7.29.7",
     "@edge-runtime/vm": "^5.0.0",
     "@eslint/js": "10.0.1",
+    "@playwright/test": "1.63.0",
     "@rolldown/plugin-babel": "0.2.4",
     "@tailwindcss/vite": "^4.0.0",
     "@tanstack/router-generator": "^1.167.40",

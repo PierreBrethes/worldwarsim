@@ -46,7 +46,8 @@ describe("un bot joue son ouverture par la porte d'un joueur", () => {
 
     for (const seat of [bot, idle]) {
       const { me } = adaptServerView(await t.query(api.view.playerView, seat));
-      expect(me.hqLevel).toBe(1);
+      // Le bot monte son QG quand il plafonne ses fermes (#652).
+      expect(me.hqLevel).toBeGreaterThanOrEqual(1);
       expect(me.outposts.length).toBeGreaterThan(0);
       expect(me.foundation).toEqual([]);
       const barracks =
