@@ -545,6 +545,27 @@ describe('founding opens a construction site, and it has to be held', () => {
     expect(await outpostsOf(t, seat)).toHaveLength(0);
   });
 
+  /** #672 : la fondation garde le prix du premier niveau et dure le tiers de l'ancien barème,
+   *  écrits en dur pour que le barème ne se lise pas lui-même. */
+  it('founds an outpost for 65 steel and 20 food, standing 22 minutes later', async () => {
+    const t = boot();
+    const { seat } = await launchedSeason(t);
+    await fundFoundation(t, seat);
+    const point = regionFacts(PRAHOVA)!.point;
+    const steel = await stockOf(t, seat, 'steel');
+    const food = (await t.query(api.view.playerView, seat)).me.resources.food.stock;
+
+    await found(t, seat, point, [await post(t, seat, point)]);
+
+    expect(await stockOf(t, seat, 'steel')).toBeCloseTo(steel - 65, 5);
+    expect((await t.query(api.view.playerView, seat)).me.resources.food.stock).toBeCloseTo(
+      food - 20,
+      3,
+    );
+    const [outpost] = await outpostsOf(t, seat);
+    expect(outpost!.standsAt).toBe(MIDDAY.getTime() + 22 * 60_000);
+  });
+
   /**
    * **Le débit est exact, et le point ne fait rien.** Il ne tient aucune région, ne colore rien,
    * ne relève rien, n'ouvre aucun emplacement et ne relaie pas : c'est toute la fenêtre.

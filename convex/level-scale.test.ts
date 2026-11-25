@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCost, buildMinutes } from './constants';
+import { BASE_CAP, COST_BY_ROLE, MAX_HQ_LEVEL, buildCost, buildMinutes } from './constants';
 
 /** #672 : les premiers chantiers montent en minutes, un niveau de plus coûte une fois et demie. */
 describe('le barème des niveaux', () => {
@@ -24,5 +24,13 @@ describe('le barème des niveaux', () => {
     expect(buildCost('mine', 3)).toEqual({ steel: 68, coal: 23 });
     expect(buildMinutes('mine', 3)).toBe(Math.round(10 * 2.25));
     expect(buildCost('outpost', 3).steel).toBe(Math.round(65 * 2.25));
+  });
+
+  /** Le choix de #672 : à ×1,5 aucun niveau ne dépasse le plafond de base, l'entrepôt ne sert plus
+   *  qu'à ne rien perdre entre deux visites et à payer le porte-avions. */
+  it('le plus haut prix de niveau tient sous le plafond de base, le porte-avions le dépasse', () => {
+    expect(buildCost('hq', MAX_HQ_LEVEL).steel).toBe(304);
+    expect(buildCost('hq', MAX_HQ_LEVEL).steel).toBeLessThan(BASE_CAP);
+    expect(COST_BY_ROLE.carrier.steel).toBeGreaterThan(BASE_CAP);
   });
 });
