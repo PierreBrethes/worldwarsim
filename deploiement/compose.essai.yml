@@ -1,0 +1,33 @@
+# Le backend d'essai d'une restauration (#650), à côté de la production et sans rien lui prendre :
+#
+#   deploiement/restauration.sh derniere
+#
+# Son propre projet compose (`-p wws-essai`), donc son propre volume. Il est remonté d'une copie
+# de la vraie base : ses jobs planifiés (presse, notifications, échéances) tournent dès le
+# démarrage. Il n'a donc AUCUNE sortie réseau (`isole` est interne) : une copie n'envoie jamais
+# une notification à un vrai joueur. Le relais, seul sur les deux réseaux, porte l'API sur
+# 127.0.0.1 de l'hôte, et rien d'autre.
+services:
+  backend:
+    image: ${WWS_BACKEND_IMAGE:?l'image du backend sauvegardé, lue dans le MANIFEST}
+    ports: !reset []
+    networks: [isole]
+    environment:
+      - CONVEX_CLOUD_ORIGIN=http://127.0.0.1:${WWS_ESSAI_PORT:-3310}
+      - CONVEX_SITE_ORIGIN=http://127.0.0.1:${WWS_ESSAI_PORT:-3310}
+
+  relais:
+    build:
+      context: .
+      dockerfile: deploiement/outils.Dockerfile
+    command: ['socat', 'TCP-LISTEN:3210,fork,reuseaddr', 'TCP:backend:3210']
+    networks: [isole, default]
+    ports:
+      - '127.0.0.1:${WWS_ESSAI_PORT:-3310}:3210'
+    depends_on:
+      backend:
+        condition: service_healthy
+
+networks:
+  isole:
+    internal: true
