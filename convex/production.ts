@@ -160,7 +160,7 @@ export const restoreAfterDisabling = internalMutation({
     const back = Math.max(Date.now(), at + 1);
     for (const building of await seasonBuildings(ctx, seasonId)) {
       if (building.disabledUntil !== at) continue;
-      if (building.key === 'barracks') await startLanes(ctx, building._id, Date.now());
+      if (building.key === 'barracks') await startLanes(ctx, building._id, back);
       if (building.key === 'hq')
         await ctx.scheduler.runAt(back, internal.constructions.resume, {
           playerId: building.playerId,
