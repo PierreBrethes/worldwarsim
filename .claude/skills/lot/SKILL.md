@@ -1,13 +1,12 @@
 ---
 name: lot
-description: Consigne d'un agent qui code une issue GitHub de La Manchette (#N) ou une feature de la file, seul et sans Pierre. Use when on lance un agent sur une issue, un lot ou une feature de RESTE-A-CODER.
+description: Consigne d'un agent qui code une issue GitHub de La Manchette (#N), seul et sans Pierre. Use when on lance un agent sur une issue ou un lot.
 ---
 
 # Lot
 
 Tu codes **une** issue (`gh issue view N --comments` ; s'il sort vide,
-`gh api repos/PierreBrethes/worldwarsim/issues/N` puis `…/N/comments`) ou une feature de
-`WWS/docs/RESTE-A-CODER.md`. Pierre est absent : aucune question, tu tranches et tu le notes.
+`gh api repos/PierreBrethes/worldwarsim/issues/N` puis `…/N/comments`). Pierre est absent : aucune question, tu tranches et tu le notes.
 
 ## 1. Lire
 
@@ -158,8 +157,7 @@ au même cadrage que sa référence. Un état que la démo ne sait pas montrer d
 ## 6. Fin
 
 1. `npm run verifier` vert sur ton dernier commit : un commit fait après lui le relance.
-2. Issue : ni `RESTE-A-CODER.md` ni GitHub, Pierre met l'issue à jour depuis ton rapport.
-   Feature de la file : barre-la dans `WWS/docs/RESTE-A-CODER.md`.
+2. Ne touche pas l'issue sur GitHub : Pierre la met à jour depuis ton rapport.
 3. Rapport en français, 15 lignes au plus : commits ; ce que le joueur voit ; **décisions prises
    seul**, chacune ; code retiré ; changements de schéma ; ce qui reste ou inquiète ; chemins
    des captures.

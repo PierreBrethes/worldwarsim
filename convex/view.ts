@@ -233,11 +233,13 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
   /** Le refus de démantèlement sous capture, servi comme `serving` : la même lecture que la
    *  mutation (`siegeTargetsOf`, `besieged`). */
   const sieges = await siegesOf(ctx, player._id);
-  const outpostRows = outposts.map((outpost) => ({
-    outpost,
-    serving: isServed(outpost),
-    underSiege: besieged(sieges, siegeTargetsOf(outpost, buildings)),
-  }));
+  const outpostRows = await Promise.all(
+    outposts.map(async (outpost) => ({
+      outpost,
+      serving: await isServed(ctx, outpost._id),
+      underSiege: besieged(sieges, siegeTargetsOf(outpost, buildings)),
+    })),
+  );
   const movements = await movementsOf(ctx, player._id);
   const surveys = await surveysWithInstallations(ctx, player._id);
   /** **Les avant-postes étrangers relevés** (ADR 0039 §3) : ce que la ligne garde, rien de la
@@ -450,7 +452,7 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
 
   const marks = await readMarksOf(ctx, player);
   // Placeholders, listed so they are not mistaken for served data. Each one waits on a
-  // schema slice that is not written (see `WWS/docs/RESTE-A-CODER.md`):
+  // schema slice that is not written:
   //   `number: 1`      — a season is unique and never renumbered; a season history would.
   //   `progress: 0`    — victory progress waits on the share of the map (ADR 0020),
   //                      surface 4.8.

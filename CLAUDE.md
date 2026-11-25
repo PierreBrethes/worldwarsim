@@ -133,5 +133,6 @@ bannis : tick, temps réel, micro, base, rush.
 
 - `WWS/docs/design/11-brief-ui.md` avant de coder une surface, et ses contrats de vue
   (`WWS/docs/design/contrats-de-vue/`).
-- `WWS/docs/RESTE-A-CODER.md` (la file), `WWS/QUESTIONS.md` (ce qui n'est pas tranché).
+- Les issues GitHub : la seule file. Ce qui n'est pas tranché porte `question` ou `à trancher` ;
+  les idées sans décision vivent dans #659.
 - `deploiement/README.md` pour le VPS et la CI.

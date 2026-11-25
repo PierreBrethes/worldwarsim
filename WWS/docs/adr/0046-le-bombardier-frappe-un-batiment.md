@@ -1,6 +1,6 @@
 # ADR 0046 — Le bombardier frappe un bâtiment, qui passe par trois états
 
-**Statut :** proposée (25/11/2026), points 🟠 en attente de Pierre. **Mondiale seule** (`modeOf`).
+**Statut :** acceptée (25/11/2026) : Pierre fusionne sur les recommandations, les points 🟠 compris. **Mondiale seule** (`modeOf`).
 **Remplace** la proposition `propositions/frappe-de-batiment.md` (06/09, décision 78a), qui
 posait une intégrité de 0 à 100. **Répond** à `QUESTIONS.md`, « Que devient un quartier général
 frappé ? ». Réutilise la désactivation du sabotage (`buildings.disabledUntil`,
