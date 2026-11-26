@@ -60,15 +60,23 @@ describe('mastOf', () => {
 
 describe('mastPx', () => {
   it('floor 56 up to distance 53, linear to 30 at 136 and beyond, x0.7 on a phone', () => {
-    expect(mastPx(3, false)).toBeGreaterThan(56);
-    expect(mastPx(18, false)).toBeGreaterThanOrEqual(56);
-    expect(mastPx(53, false)).toBe(56);
-    expect(mastPx(136, false)).toBe(30);
-    expect(mastPx(300, false)).toBe(30);
-    expect(mastPx(94.5, false)).toBeCloseTo(43, 5);
-    expect(mastPx(53, true)).toBeCloseTo(39.2, 5);
-    expect(mastPx(136, true)).toBeCloseTo(21, 5);
-    expect(mastPx(3, true)).toBeCloseTo(0.7 * mastPx(3, false), 5);
+    expect(mastPx(3, false, 900, 42)).toBeGreaterThan(56);
+    expect(mastPx(18, false, 900, 42)).toBeGreaterThanOrEqual(56);
+    expect(mastPx(53, false, 900, 42)).toBe(56);
+    expect(mastPx(136, false, 900, 42)).toBe(30);
+    expect(mastPx(300, false, 900, 42)).toBe(30);
+    expect(mastPx(94.5, false, 900, 42)).toBeCloseTo(43, 5);
+    expect(mastPx(53, true, 900, 42)).toBeCloseTo(39.2, 5);
+    expect(mastPx(136, true, 900, 42)).toBeCloseTo(21, 5);
+    expect(mastPx(3, true, 900, 42)).toBeCloseTo(0.7 * mastPx(3, false, 900, 42), 5);
+  });
+  it('reads the real size against the viewport and the FOV it is given', () => {
+    const base = mastPx(3, false, 900, 42);
+    expect(mastPx(3, false, 1800, 42)).toBeCloseTo(2 * base, 5);
+    expect(mastPx(3, false, 600, 42)).toBeCloseTo((2 / 3) * base, 5);
+    expect(mastPx(3, false, 900, 21)).toBeGreaterThan(base);
+    // The floor does not depend on the screen.
+    expect(mastPx(136, false, 400, 42)).toBe(30);
   });
   it('exports the sizes', () => {
     expect(MAST_UNITS.height).toBe(0.46);

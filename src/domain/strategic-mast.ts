@@ -51,15 +51,20 @@ export const MAST_PX = {
   baseMinShare: 0.16,
 };
 
-/** @a-mesurer viewport height the real size is read against, and the engine camera FOV (42) */
-const REFERENCE_HEIGHT_PX = 900;
-const HALF_TAN_FOV = Math.tan((42 * Math.PI) / 360);
-
-/** Mast height on screen: the larger of its real size and its floor. */
-export function mastPx(distance: number, phone: boolean): number {
+/**
+ * Mast height on screen: the larger of its real size and its floor. The real size is read against
+ * the engine's own viewport height and camera FOV (degrees), never a copy of them.
+ */
+export function mastPx(
+  distance: number,
+  phone: boolean,
+  viewportHeight: number,
+  fov: number,
+): number {
   const { near, nearDistance, far, farDistance } = MAST_PX;
   const t = Math.min(1, Math.max(0, (distance - nearDistance) / (farDistance - nearDistance)));
   const floor = near + (far - near) * t;
-  const real = (MAST_UNITS.height * REFERENCE_HEIGHT_PX) / (2 * HALF_TAN_FOV * distance);
+  const real =
+    (MAST_UNITS.height * viewportHeight) / (2 * Math.tan((fov * Math.PI) / 360) * distance);
   return Math.max(real, floor) * (phone ? MAST_PX.phone : 1);
 }
