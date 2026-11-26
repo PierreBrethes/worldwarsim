@@ -30,6 +30,7 @@ import {
   settingsRefusalOf,
   type Settings,
 } from '../src/domain/operation-order';
+import { LISTED_MINIMUM, departureOf, listingRefusalOf } from '../src/domain/listing';
 import {
   DEFAULT_REST_WINDOW,
   FOUNDER_ABSENCE_HOURS,
@@ -217,8 +218,13 @@ const stored = (settings: Settings) => ({
  * modification lève les « prêt »** : on ne tamponne pas un ordre qui a changé depuis.
  */
 export const configure = mutation({
-  args: { token: v.string(), seasonId: v.id('seasons'), ...SETTINGS_ARGS },
-  handler: async (ctx, { token, seasonId, ...changes }) => {
+  args: {
+    token: v.string(),
+    seasonId: v.id('seasons'),
+    ...SETTINGS_ARGS,
+    listed: v.optional(v.boolean()),
+  },
+  handler: async (ctx, { token, seasonId, listed, ...changes }) => {
     const { player, season } = await playerOf(ctx, token, seasonId);
     if (!player.creator) fail('CREATOR_ONLY');
     if (season.status !== 'lobby') fail('SEASON_ALREADY_LAUNCHED');
@@ -239,7 +245,16 @@ export const configure = mutation({
       rendezvousChanged: changes.scheduledAt !== undefined,
     });
     if (refusal !== null) fail(refusal);
+    if (listed !== undefined) {
+      const unlisted = listingRefusalOf({
+        mode: next.mode,
+        listed,
+        departureAt: season.departureAt ?? null,
+      });
+      if (unlisted !== null) fail(unlisted);
+    }
     await ctx.db.patch(season._id, {
+      ...(listed === undefined ? {} : { listed }),
       ...(next.theatre === null ? {} : { theatre: next.theatre }),
       scheduledAt: next.scheduledAt,
       remind: next.remind ?? undefined,
@@ -250,6 +265,70 @@ export const configure = mutation({
     for (const entry of present) if (entry.ready) await ctx.db.patch(entry._id, { ready: false });
     const patched = await ctx.db.get(season._id);
     if (patched !== null) await planReminder(ctx, patched);
+    /** Publier un salon déjà au minimum, ou baisser les places jusqu'aux inscrits, fixe ou
+     *  avance le départ comme une inscription. */
+    await planDeparture(ctx, season._id);
+  },
+});
+
+/** Ce que l'annonce d'un salon sert à ses inscrits ; `null` pour un salon par code. */
+const listingOf = (season: Doc<'seasons'>) =>
+  season.listed === true
+    ? { minimum: LISTED_MINIMUM, departureAt: season.departureAt ?? null }
+    : null;
+
+/**
+ * **Le départ d'une annonce suit les inscriptions** (`departureOf`) : relu à chaque place prise
+ * et à chaque ordre du fondateur, il ne change qu'en se fixant ou en avançant. Le travail
+ * précédent est annulé, et `depart` relit encore l'heure à l'échéance.
+ */
+async function planDeparture(ctx: MutationCtx, seasonId: Id<'seasons'>): Promise<void> {
+  const season = await ctx.db.get(seasonId);
+  if (season === null || season.listed !== true || season.status !== 'lobby') return;
+  const present = await seatsOf(ctx, seasonId);
+  const before = season.departureAt ?? null;
+  const now = Date.now();
+  const departureAt = departureOf({
+    seats: present.length,
+    minimum: LISTED_MINIMUM,
+    maximum: maximumOf(season),
+    departureAt: before,
+    now,
+  });
+  if (departureAt === null || departureAt === before) return;
+  if (season.departureJobId !== undefined) {
+    const job = await ctx.db.system.get(season.departureJobId);
+    if (job !== null && job.state.kind === 'pending') await ctx.scheduler.cancel(job._id);
+  }
+  const departureJobId = await ctx.scheduler.runAt(departureAt, internal.seasons.depart, {
+    seasonId,
+    expectedAt: departureAt,
+  });
+  await ctx.db.patch(seasonId, { departureAt, departureJobId });
+  for (const entry of present) {
+    await notifyPlayer(ctx, entry._id, {
+      type: 'season',
+      phrase: before === null ? push.departureFixed : push.departureAdvanced,
+      url: '/salon',
+      at: now,
+    });
+  }
+}
+
+/**
+ * **Une annonce part seule, à son heure** (ADR 0027 §4) : avec ses inscrits, prêts ou non, et
+ * la première nation libre pour qui n'en a pas choisi. Un départ avancé ou une saison détruite
+ * depuis laissent ce travail sans effet.
+ */
+export const depart = internalMutation({
+  args: { seasonId: v.id('seasons'), expectedAt: v.number() },
+  handler: async (ctx, { seasonId, expectedAt }) => {
+    const season = await ctx.db.get(seasonId);
+    if (season === null || season.status !== 'lobby' || season.listed !== true) return;
+    if (season.departureAt !== expectedAt) return;
+    const present = await seatsOf(ctx, seasonId);
+    if (present.length < LISTED_MINIMUM) return;
+    await openSeason(ctx, season, present, Date.now());
   },
 });
 
@@ -310,7 +389,8 @@ async function countSeat(ctx: MutationCtx, seasonId: Id<'seasons'>): Promise<voi
  * a value the attacker picks. **Le compte n'y change rien** : il faut toujours le code, et le
  * refus par `SEAT_TAKEN` ne dit rien qu'un joueur déjà assis ne sache.
  *
- * What would change this: public lobbies, or codes shared beyond a group of friends.
+ * What would change this: codes shared beyond a group of friends. A listed lobby (#654) prints
+ * its own code on the classifieds, so guessing it buys nothing there.
  */
 export const join = mutation({
   args: { token: v.string(), code: v.string() },
@@ -336,6 +416,7 @@ export const join = mutation({
     if (refusal === 'LOBBY_FULL' || refusal === 'BLITZ_FULL') fail(refusal, { maximum });
     if (refusal !== null) fail(refusal);
     await seat(ctx, account, season._id, false);
+    await planDeparture(ctx, season._id);
     return { seasonId: season._id };
   },
 });
@@ -445,6 +526,7 @@ export async function previewOf(ctx: QueryCtx, player: Doc<'players'>) {
       : [];
   return {
     orders: ordersOf(season),
+    listing: listingOf(season),
     table,
     verdict: season.verdict?.reason ?? null,
     concludedAt: season.concludedAt ?? null,
@@ -483,6 +565,52 @@ async function winnerNationOf(ctx: QueryCtx, season: Doc<'seasons'>): Promise<st
   return winner === null ? null : (winner.nation ?? winner.nickname);
 }
 
+/** Ce que les petites annonces montrent : de quoi décider d'entrer, comme une invitation. */
+const LISTINGS_SHOWN = 12;
+
+/**
+ * **Les petites annonces** (#654) : les Mondiales publiées encore au salon, sauf celles où le
+ * lecteur est déjà assis — elles sont dans ses articles. Le code y figure : c'est par lui qu'on
+ * entre, et un salon publié ne le garde pas secret. Les plus avancées vers leur départ d'abord.
+ */
+export const listings = query({
+  args: { token: v.string() },
+  handler: async (ctx, { token }) => {
+    const account = await accountOf(ctx, token);
+    if (!account) return [];
+    const open = await ctx.db
+      .query('seasons')
+      .withIndex('byListing', (q) => q.eq('listed', true).eq('status', 'lobby'))
+      .collect();
+    const shown = [];
+    for (const season of open) {
+      if ((await seatOf(ctx, account, season._id)) !== null) continue;
+      const present = await seatsOf(ctx, season._id);
+      if (present.length >= maximumOf(season)) continue;
+      shown.push({
+        code: season.code,
+        founder: founderOf(present)?.nickname ?? null,
+        players: present.length,
+        minimum: LISTED_MINIMUM,
+        maximum: maximumOf(season),
+        departureAt: season.departureAt ?? null,
+        durationHours: season.durationHours,
+        hqCaptureHours: season.hqCaptureHours ?? null,
+        createdAt: season._creationTime,
+      });
+    }
+    return shown
+      .sort(
+        (a, b) =>
+          (a.departureAt ?? Number.POSITIVE_INFINITY) -
+            (b.departureAt ?? Number.POSITIVE_INFINITY) ||
+          b.players - a.players ||
+          a.createdAt - b.createdAt,
+      )
+      .slice(0, LISTINGS_SHOWN);
+  },
+});
+
 export const lobby = query({
   args: { token: v.string(), seasonId: v.id('seasons') },
   handler: async (ctx, { token, seasonId }) => {
@@ -494,6 +622,7 @@ export const lobby = query({
       mode: modeOf(season.mode),
       theatre: season.theatre ?? null,
       launchRefusal: season.launchRefusal ?? null,
+      listing: listingOf(season),
       maximum: maximumOf(season),
       durationHours: season.durationHours,
       orders: ordersOf(season),
@@ -546,91 +675,106 @@ export const launch = mutation({
         ready: entry.ready,
         seenAt: entry.lobbySeenAt ?? null,
       })),
+      listing: listingOf(season),
     });
-    if (plan.refusal === 'NOT_ENOUGH_PLAYERS') fail(plan.refusal, { minimum: range.min });
+    if (plan.refusal === 'NOT_ENOUGH_PLAYERS') {
+      fail(plan.refusal, { minimum: listingOf(season)?.minimum ?? range.min });
+    }
     /** Un plafond revu à la baisse après que le salon s'est rempli : la carte ne se poserait pas. */
     if (plan.refusal === 'BLITZ_FULL') fail(plan.refusal, { maximum: range.max });
     if (plan.refusal !== null) fail(plan.refusal, { nicknames: plan.nicknames });
+    await openSeason(ctx, season, present, now);
+  },
+});
 
-    const theatre =
-      season.theatre === THEATRE_DRAW ? drawTheatre(season.seed, present.length) : season.theatre;
-    await ctx.db.patch(season._id, {
-      status: 'launched',
-      launchedAt: now,
-      launchRefusal: undefined,
-      playableRegion: playableRegion(present.length),
-      playerCount: present.length,
-      ...(theatre === undefined ? {} : { theatre }),
-      ...(season.theatre === THEATRE_DRAW ? { theatreDrawn: true } : {}),
+/**
+ * **Le lancement lui-même**, une fois la porte passée : par la main du fondateur (`launch`) ou
+ * à l'heure d'une annonce (`depart`).
+ */
+async function openSeason(
+  ctx: MutationCtx,
+  season: Doc<'seasons'>,
+  present: Array<Doc<'players'>>,
+  now: number,
+): Promise<void> {
+  const theatre =
+    season.theatre === THEATRE_DRAW ? drawTheatre(season.seed, present.length) : season.theatre;
+  await ctx.db.patch(season._id, {
+    status: 'launched',
+    launchedAt: now,
+    launchRefusal: undefined,
+    playableRegion: playableRegion(present.length),
+    playerCount: present.length,
+    ...(theatre === undefined ? {} : { theatre }),
+    ...(season.theatre === THEATRE_DRAW ? { theatreDrawn: true } : {}),
+  });
+  await ctx.scheduler.runAfter(0, internal.messages.erase, { seasonId: season._id, lobby: true });
+  /** **L'absent parti sans nation en reçoit une** (J1 b) : en Blitz elles sont identiques. */
+  for (const entry of present) {
+    if (entry.nation !== null) continue;
+    const nation = freeNations(present)[0];
+    if (nation === undefined) fail('NO_FREE_NATION');
+    entry.nation = nation;
+    await ctx.db.patch(entry._id, { nation });
+  }
+  /** **Les Sept, posés neutres** (P11) : la course commence avec la saison. */
+  if (modeOf(season.mode) === 'mondiale') await layOut(ctx, season._id, now);
+  for (const entry of present) {
+    await endow(ctx, entry, season, now);
+    await notifyPlayer(ctx, entry._id, {
+      type: 'season',
+      phrase: push.seasonLaunched,
+      url: journalUrl,
+      at: now,
     });
-    await ctx.scheduler.runAfter(0, internal.messages.erase, { seasonId: season._id, lobby: true });
-    /** **L'absent parti sans nation en reçoit une** (J1 b) : en Blitz elles sont identiques. */
-    for (const entry of present) {
-      if (entry.nation !== null) continue;
-      const nation = freeNations(present)[0];
-      if (nation === undefined) fail('NO_FREE_NATION');
-      entry.nation = nation;
-      await ctx.db.patch(entry._id, { nation });
-    }
-    /** **Les Sept, posés neutres** (P11) : la course commence avec la saison. */
-    if (modeOf(season.mode) === 'mondiale') await layOut(ctx, season._id, now);
-    for (const entry of present) {
-      await endow(ctx, entry, season, now);
-      await notifyPlayer(ctx, entry._id, {
-        type: 'season',
-        phrase: push.seasonLaunched,
-        url: journalUrl,
-        at: now,
-      });
-    }
+  }
 
-    /**
-     * **La première édition du classement**, à `launchedAt + PRESS_EDITION_HOURS` et pas une
-     * minute avant : au lancement tout le monde a la même dotation, il n'y a rien à raconter.
-     * Le travail se replanifie ensuite lui-même (`convex/press.ts`), comme les files.
-     */
-    /** **Une Blitz n'a pas d'édition en cours de partie** : deux heures n'en laisseraient pas
-     *  paraître une seule. Son horloge, elle, la conclut (B11), et la conclusion écrit
-     *  l'édition finale. */
-    if (modeOf(season.mode) === 'blitz' && season.durationHours !== null) {
+  /**
+   * **La première édition du classement**, à `launchedAt + PRESS_EDITION_HOURS` et pas une
+   * minute avant : au lancement tout le monde a la même dotation, il n'y a rien à raconter.
+   * Le travail se replanifie ensuite lui-même (`convex/press.ts`), comme les files.
+   */
+  /** **Une Blitz n'a pas d'édition en cours de partie** : deux heures n'en laisseraient pas
+   *  paraître une seule. Son horloge, elle, la conclut (B11), et la conclusion écrit
+   *  l'édition finale. */
+  if (modeOf(season.mode) === 'blitz' && season.durationHours !== null) {
+    const endsAt = now + season.durationHours * 3_600_000;
+    await ctx.scheduler.runAt(endsAt, internal.blitz.closeAtClock, {
+      seasonId: season._id,
+      expectedAt: endsAt,
+    });
+  } else {
+    await ctx.scheduler.runAfter(PRESS_EDITION_HOURS * 3_600_000, internal.press.publish, {
+      playerId: present[0]!._id,
+    });
+    /** **L'horloge de la Mondiale sert de filet** (M4) : elle conclut à la durée du salon. */
+    if (season.durationHours !== null) {
       const endsAt = now + season.durationHours * 3_600_000;
-      await ctx.scheduler.runAt(endsAt, internal.blitz.closeAtClock, {
+      await ctx.scheduler.runAt(endsAt, internal.race.closeAtClock, {
         seasonId: season._id,
         expectedAt: endsAt,
       });
-    } else {
-      await ctx.scheduler.runAfter(PRESS_EDITION_HOURS * 3_600_000, internal.press.publish, {
-        playerId: present[0]!._id,
-      });
-      /** **L'horloge de la Mondiale sert de filet** (M4) : elle conclut à la durée du salon. */
-      if (season.durationHours !== null) {
-        const endsAt = now + season.durationHours * 3_600_000;
-        await ctx.scheduler.runAt(endsAt, internal.race.closeAtClock, {
-          seasonId: season._id,
-          expectedAt: endsAt,
-        });
-      }
     }
+  }
 
-    /**
-     * **Les objectifs neutres se posent dans leur propre travail, et ce travail est une action**
-     * (objectifs neutres, 17/09/2026). Le lancement porte déjà la dotation de chacun ; y ajouter
-     * un champ de distances par quartier général et une route par paire de voisins, c'est mettre
-     * **plus** que la seconde d'une mutation sur le geste qui ouvre la partie — mesuré à 700 ms à
-     * chaud sur huit sièges, donc largement au-delà à froid sur le VPS. Une action n'a pas ce
-     * plafond ; elle n'a pas de transaction non plus, d'où `objectives.commit` derrière elle. Ce
-     * que la séparation achète est une saison **jouable avant que les dépêches tombent** : le
-     * plateau s'ouvre, les réserves paraissent une seconde plus tard.
-     */
-    /** **La Blitz tire sa carte de départ au lieu de ses objectifs** (lot 4) : un QG et une
-     *  caserne par joueur, le reste neutre, par la même mécanique en trois temps. */
-    await ctx.scheduler.runAfter(
-      0,
-      modeOf(season.mode) === 'blitz' ? internal.blitz.place : internal.objectives.place,
-      { seasonId: season._id },
-    );
-  },
-});
+  /**
+   * **Les objectifs neutres se posent dans leur propre travail, et ce travail est une action**
+   * (objectifs neutres, 17/09/2026). Le lancement porte déjà la dotation de chacun ; y ajouter
+   * un champ de distances par quartier général et une route par paire de voisins, c'est mettre
+   * **plus** que la seconde d'une mutation sur le geste qui ouvre la partie — mesuré à 700 ms à
+   * chaud sur huit sièges, donc largement au-delà à froid sur le VPS. Une action n'a pas ce
+   * plafond ; elle n'a pas de transaction non plus, d'où `objectives.commit` derrière elle. Ce
+   * que la séparation achète est une saison **jouable avant que les dépêches tombent** : le
+   * plateau s'ouvre, les réserves paraissent une seconde plus tard.
+   */
+  /** **La Blitz tire sa carte de départ au lieu de ses objectifs** (lot 4) : un QG et une
+   *  caserne par joueur, le reste neutre, par la même mécanique en trois temps. */
+  await ctx.scheduler.runAfter(
+    0,
+    modeOf(season.mode) === 'blitz' ? internal.blitz.place : internal.objectives.place,
+    { seasonId: season._id },
+  );
+}
 
 /**
  * **The one exit a season has**, whichever door it takes: the points, the clock, the last one

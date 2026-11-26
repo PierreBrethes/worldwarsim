@@ -739,6 +739,34 @@
     .ad.code .code-field {
       font-size: 17px;
     }
+    /* Les petites annonces (#654) : une ligne par Mondiale ouverte. */
+    .ad.listings ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .ad.listings li {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 2px 10px;
+      align-items: center;
+      padding: 9px 0;
+      border-top: 1px solid color-mix(in srgb, var(--ink) 30%, transparent);
+    }
+    .ad.listings li > :not(button) {
+      grid-column: 1;
+    }
+    .ad.listings li > button {
+      grid-column: 2;
+      grid-row: 1 / span 3;
+    }
+    .ad.listings b {
+      font: 700 17px/1.1 var(--display);
+    }
+    .ad.listings .meta {
+      font: italic 12px/1.3 var(--text);
+      color: var(--ink-soft);
+    }
     .ad .corner {
       position: absolute;
       top: -1px;

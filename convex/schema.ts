@@ -191,7 +191,18 @@ export default defineSchema({
     reminderJobId: v.optional(v.id('_scheduled_functions')),
     /** Le théâtre a été tiré au sort au lancement : un lancement défait le remet au sort. */
     theatreDrawn: v.optional(v.boolean()),
-  }).index('byCode', ['code']),
+    /**
+     * **Aux petites annonces** (#654, Mondiale seule) : le salon se lit sur l'accueil de tout
+     * joueur et part seul à `departureAt`, fixé par les inscriptions (`src/domain/listing.ts`).
+     * Absent se lit `false` : un salon par code, que le fondateur lance.
+     */
+    listed: v.optional(v.boolean()),
+    departureAt: v.optional(v.number()),
+    /** Le travail du départ en attente, qu'un départ avancé annule (`planDeparture`). */
+    departureJobId: v.optional(v.id('_scheduled_functions')),
+  })
+    .index('byCode', ['code'])
+    .index('byListing', ['listed', 'status']),
 
   players: defineTable({
     seasonId: v.id('seasons'),

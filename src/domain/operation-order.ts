@@ -116,7 +116,12 @@ export function presenceOf(seenAt: number | null, now: number): Presence {
   return { kind: 'away', minutes: Math.floor((now - seenAt) / 60_000) };
 }
 
-type LaunchRefusal = 'NOT_ENOUGH_PLAYERS' | 'BLITZ_FULL' | 'PLAYERS_NOT_READY' | 'PLAYERS_ABSENT';
+type LaunchRefusal =
+  | 'NOT_ENOUGH_PLAYERS'
+  | 'BLITZ_FULL'
+  | 'PLAYERS_NOT_READY'
+  | 'PLAYERS_ABSENT'
+  | 'LISTED_DEPARTS_ALONE';
 
 export type LaunchPlan =
   | { readonly refusal: null }
@@ -128,6 +133,9 @@ export type LaunchPlan =
  * place** — posé comme les autres, il joue en arrivant en retard. Ni son « prêt » ni sa nation
  * ne comptent : sans nation, le lancement lui donne la première libre. Sans heure convenue (« table complète »), l'heure ne
  * vient jamais d'elle-même — le fondateur en fixe une. Celui qui lance est à la table.
+ *
+ * **Une annonce ne se lance pas à la main** (#654) : elle part seule à son heure
+ * (`departureOf`), et sa table est courte sous le minimum de l'annonce.
  */
 export function launchPlanOf<Id>(input: {
   readonly mode: SeasonMode;
@@ -141,7 +149,14 @@ export function launchPlanOf<Id>(input: {
     readonly ready: boolean;
     readonly seenAt: number | null;
   }>;
+  readonly listing?: { readonly minimum: number } | null;
 }): LaunchPlan {
+  if (input.listing != null) {
+    return {
+      refusal:
+        input.seats.length < input.listing.minimum ? 'NOT_ENOUGH_PLAYERS' : 'LISTED_DEPARTS_ALONE',
+    };
+  }
   const absent =
     input.mode === 'blitz'
       ? input.seats.filter(
@@ -179,14 +194,19 @@ export type TableStep = 'nation' | 'ready' | 'invite' | 'launch' | 'wait';
  * **Ce que la table attend de celui qui la regarde, une chose à la fois** : sa nation, puis son
  * « prêt » ; pour le fondateur, inviter tant que la table est trop courte, puis lancer dès que
  * les autres sont prêts (`founderLaunchOf`). Le reste du temps, rien : on attend les autres.
+ * Une annonce ne demande pas de « prêt » : elle part à son heure, avec les inscrits.
  */
 export function tableStepOf(input: {
   readonly nation: string | null;
   readonly ready: boolean;
   readonly founder: boolean;
   readonly launchRefusal: LaunchPlan['refusal'];
+  readonly listed?: boolean;
 }): TableStep {
   if (input.nation === null) return 'nation';
+  if (input.listed === true) {
+    return input.founder && input.launchRefusal === 'NOT_ENOUGH_PLAYERS' ? 'invite' : 'wait';
+  }
   if (!input.founder) return input.ready ? 'wait' : 'ready';
   if (input.launchRefusal === null) return 'launch';
   return input.launchRefusal === 'NOT_ENOUGH_PLAYERS' ? 'invite' : 'wait';
