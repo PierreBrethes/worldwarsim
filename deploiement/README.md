@@ -196,6 +196,12 @@ npm run bots:mondiale -- --bots 3 --code ABC123 # rejoint la saison d'un humain,
   libre, déclare-toi prêt ; le script lance dès que les `--bots` plus `--humains` places sont
   prêtes. Avec `--code`, fonde ta saison dans le jeu, donne son code, puis lance-la toi-même.
 - **Relance** : sans `--code`, le script reprend la saison de `scripts/bots-mondiale.accounts.json` tant qu'elle n'est pas conclue ; `--nouvelle` en fonde une autre. Avec `--code`, une saison déjà lancée est refusée (« rien à rejoindre »).
+- **En pré-production** : ajoute `--preprod` à n'importe laquelle de ces commandes. Le script vise
+  `https://convex.pierrebrethes.cloud` sans lire `.env.local`, imprime le lien
+  `https://wws.pierrebrethes.cloud/rejoindre/CODE` et range ses comptes dans
+  `scripts/bots-mondiale.preprod.accounts.json`. Il faut le laisser tourner toute la saison (sept
+  jours) : sa machine éteinte, les bots ne jouent plus. Les fonctions de la pré-production doivent
+  être celles de `main`, sinon un ordre que le domaine accepte peut être refusé.
 - `--cadence` : secondes entre deux passages (30 par défaut). Un refus du serveur s'écrit sur une
   ligne (bot, ordre, code) et la boucle continue.
 - Comptes `Bot1`…`BotN` (clés `a`…) et saison dans `scripts/bots-mondiale.accounts.json`, ignoré

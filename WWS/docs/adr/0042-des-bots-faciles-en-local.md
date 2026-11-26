@@ -29,6 +29,14 @@ et défendent leur QG ; son go sur le plan du 21/11 (« Vas-y, lance le plan »)
 > facile fait déjà (port, cargo), jamais de recherche. Un point que la grille noie (Hong Kong) se
 > prend d'une plage voisine, sans route à pied. Rien ne change pour un bot continental.
 
+> **Révisée le 26/11/2026 (§4) : la pré-production admise, sur demande.** Pierre veut tester en
+> pré-production contre des bots, sans réunir d'amis (« Oui, bots sur la préprod »). Le script
+> accepte `--preprod`, qui vise `convex.pierrebrethes.cloud`, URL écrite dans le script et jamais
+> lue d'un fichier ; tout autre backend distant reste refusé. Rien ne change au §1 : le bot y
+> joue par les mutations publiques, sans clé admin, et le serveur ne le distingue pas d'un joueur.
+> Ses comptes vivent dans un fichier à part (`bots-mondiale.preprod.accounts.json`). Le pilote
+> tourne sur la machine qui le lance pendant toute la saison, sept vrais jours.
+
 ## Contexte
 
 Aucun bot n'existe. Le simulateur d'ouverture, qui jouait contre un modèle et non contre Convex,
@@ -57,7 +65,8 @@ Trois familles éprouvées pour un adversaire simple :
    qu'un ordre que le `*RefusalOf` du domaine accepte sur la même vue ; un ordre que le serveur
    refuse quand même est oublié, jamais réessayé en boucle.
 4. **En local seulement.** Le pilote est un script Node (`scripts/`) qui refuse tout backend non
-   local, comme `scripts/demo-mondiale.mjs`. Rien n'en part en pré-prod ni en prod.
+   local, comme `scripts/demo-mondiale.mjs`. Rien n'en part en pré-prod ni en prod. *(Révisé le
+   26/11/2026 : la pré-production par `--preprod`, voir l'encart.)*
 5. **Facile par le rythme.** Un bot facile joue peu de coups par passage et peu souvent ; la
    difficulté n'est pas un réglage de règle. Un seul niveau.
 
