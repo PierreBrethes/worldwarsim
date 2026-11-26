@@ -119,7 +119,6 @@ const WIPE_BATCH = 200;
 
 /** Jobs per transaction: each cancel is a system operation, and 200 overran the cap on a loaded base. */
 const JOBS_PAGE = 50;
-const SEASONS_PAGE = 200;
 
 /** One batch of one game table; `more` says whether the table still holds documents. */
 export const wipeBatch = internalMutation({
@@ -349,48 +348,42 @@ export const backfillListeningSilent = internalMutation({
  * migration, un point d'avant la poussée sous une colonne déjà partie se démantèlerait jusqu'à
  * l'arrivée de celle-ci. Idempotente.
  *
- * Une page de saisons par appel, la suivante planifiée par lui : une mutation ne planifie pas plus
- * de 1000 fonctions, et une base de démo dépasse les 1000 saisons. Chaque saison se lit par pages
- * de points (`backfillOutpostServingOf`) : la liste pesait jusqu'à 6 Ko par point sur le banc.
+ * **L'appel à la main ne fait que planifier la première page** (25/11 : en préprod, l'appel qui
+ * planifiait une relecture par saison dépassait la seconde permise). Chaque page de points se
+ * relit seule, sur toute la table, puis planifie la suivante : une seule planification par
+ * mutation, et la liste pesait jusqu'à 6 Ko par point sur le banc. Une page qui échoue s'annule
+ * en entier ; relancer reprend du début, sans risque.
  *
- * `npx convex run dev:backfillOutpostServing`
+ * `npx convex run dev:backfillOutpostServing` ; `npx convex logs` dit chaque page, et la dernière
+ * écrit `done`.
  */
 export const backfillOutpostServing = internalMutation({
-  args: { cursor: v.optional(v.string()) },
-  handler: async (ctx, { cursor }) => {
-    const page = await ctx.db
-      .query('seasons')
-      .paginate({ cursor: cursor ?? null, numItems: SEASONS_PAGE });
-    for (const season of page.page)
-      await ctx.scheduler.runAfter(0, internal.dev.backfillOutpostServingOf, {
-        seasonId: season._id,
-      });
-    if (!page.isDone)
-      await ctx.scheduler.runAfter(0, internal.dev.backfillOutpostServing, {
-        cursor: page.continueCursor,
-      });
-    return { seasons: page.page.length, more: !page.isDone };
+  args: {},
+  handler: async (ctx) => {
+    await ctx.scheduler.runAfter(0, internal.dev.backfillOutpostServingPage, { cursor: null });
+    return { scheduled: true };
   },
 });
 
-/** @a-mesurer Points relus par mutation : cent points à 6 Ko (le banc, #640) tiennent sous la limite. */
-export const OUTPOSTS_PAGE = 100;
+/** @a-mesurer Points relus par mutation, sous la seconde permise d'une base auto-hébergée. */
+export const OUTPOSTS_PAGE = 25;
 
-export const backfillOutpostServingOf = internalMutation({
-  args: { seasonId: v.id('seasons'), cursor: v.optional(v.string()) },
-  handler: async (ctx, { seasonId, cursor }) => {
-    const page = await ctx.db
-      .query('outposts')
-      .withIndex('bySeason', (q) => q.eq('seasonId', seasonId))
-      .paginate({ cursor: cursor ?? null, numItems: OUTPOSTS_PAGE });
-    const movements = page.page.length === 0 ? [] : await seasonMovements(ctx, seasonId);
+export const backfillOutpostServingPage = internalMutation({
+  args: { cursor: v.union(v.string(), v.null()) },
+  handler: async (ctx, { cursor }) => {
+    const page = await ctx.db.query('outposts').paginate({ cursor, numItems: OUTPOSTS_PAGE });
+    const movements = new Map<Id<'seasons'>, Array<Doc<'movements'>>>();
     for (const outpost of page.page) {
-      await restampOutpost(ctx, outpost._id, movements);
+      if (!movements.has(outpost.seasonId))
+        movements.set(outpost.seasonId, await seasonMovements(ctx, outpost.seasonId));
+      await restampOutpost(ctx, outpost._id, movements.get(outpost.seasonId));
       if (outpost.servedBy !== undefined) await ctx.db.patch(outpost._id, { servedBy: undefined });
     }
+    console.log(
+      `backfillOutpostServing: ${page.page.length} points, ${page.isDone ? 'done' : 'more'}`,
+    );
     if (!page.isDone)
-      await ctx.scheduler.runAfter(0, internal.dev.backfillOutpostServingOf, {
-        seasonId,
+      await ctx.scheduler.runAfter(0, internal.dev.backfillOutpostServingPage, {
         cursor: page.continueCursor,
       });
   },
