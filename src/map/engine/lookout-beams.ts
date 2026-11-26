@@ -49,7 +49,14 @@ export type BeamPoint = {
   readonly id: string;
   readonly lonLat: LonLat;
   readonly lookoutKm: number | null;
+  /** **Its maquette's id** (#468): the beam leaves its projector while it is drawn. */
+  readonly site?: string;
 };
+
+/** **Where a beam leaves a maquette**: the lens on the board, and how far it looks down. */
+export type BeamSource = (
+  point: BeamPoint,
+) => { readonly at: Vector3; readonly dip: number } | null;
 
 /** **Où le faisceau regarde au repos**, et l'azimut où il tourne : fonction de l'identifiant et de
  *  l'horloge de l'ambiance seules, sans état, donc le même après une vue qui se resert. */
@@ -115,6 +122,7 @@ function sector(): BufferGeometry {
 
 type Beam = {
   readonly mesh: Mesh<BufferGeometry, MeshBasicMaterial>;
+  point: Placed;
   readonly azimuthOf: (seconds: number) => number;
   /** Where it stands in its fade, 0 out to 1 lit, and the night's share it was last lit by. */
   level: number;
@@ -129,7 +137,8 @@ const tint = new Color(...MOON_TINT).multiplyScalar(1 / Math.max(...MOON_TINT));
  * **Les avant-postes qui guettent balaient le sol, la nuit** (#644) : un secteur de lumière pâle
  * posé au sol, additif, avec un point à sa source, qui tourne lentement. Une ambiance du fx
  * `sites` : idle quand aucun faisceau n'est allumé dans le champ ; en mouvement réduit ou coupé,
- * il est posé à son azimut de repos et ne demande aucune image. Il lit la nuit du lieu lui-même
+ * il est posé à son azimut de repos et ne demande aucune image. De près, sous le Guet dessiné, il
+ * part de la lentille du projecteur et regarde le sol comme elle (#468). Il lit la nuit du lieu lui-même
  * (`ambience.frame()` passe avant `night.apply`) et ne dépend pas du calque des zones.
  */
 export class LookoutBeams implements AmbientLayer {
@@ -150,6 +159,7 @@ export class LookoutBeams implements AmbientLayer {
     private readonly eye: () => Vector3,
     private readonly cap: number,
     private readonly now: () => number = () => performance.now(),
+    private readonly sourceOf: BeamSource = () => null,
   ) {
     this.last = now();
   }
@@ -182,7 +192,9 @@ export class LookoutBeams implements AmbientLayer {
     );
     for (const [id, { point, strength }] of wanted) {
       if (!this.beams.has(id)) this.beams.set(id, this.take(point));
-      this.beams.get(id)!.strength = strength;
+      const beam = this.beams.get(id)!;
+      beam.strength = strength;
+      beam.point = point;
     }
     for (const [id, beam] of this.beams) {
       beam.level = Math.min(1, Math.max(0, beam.level + (wanted.has(id) ? fade : -fade)));
@@ -192,6 +204,12 @@ export class LookoutBeams implements AmbientLayer {
         this.beams.delete(id);
         continue;
       }
+      // Off its projector it looks down as the lens does; off its point it lies on the ground.
+      const source = this.sourceOf(beam.point);
+      const { at } = beam.point;
+      if (source === null) beam.mesh.position.set(at.x, at.y + LIFT, at.z);
+      else beam.mesh.position.copy(source.at);
+      beam.mesh.rotation.x = source?.dip ?? 0;
       beam.mesh.rotation.y = beam.azimuthOf(clock);
       beam.mesh.material.opacity = beam.level * beam.strength * BEAM_GAIN;
     }
@@ -216,8 +234,8 @@ export class LookoutBeams implements AmbientLayer {
     });
     const mesh = new Mesh(this.geometry, material);
     const reach = point.box.getSize(new Vector3()).x / 2;
-    mesh.position.set(point.at.x, point.at.y + LIFT, point.at.z);
     mesh.scale.setScalar(reach);
+    mesh.rotation.order = 'YXZ';
     mesh.renderOrder = RANK;
     mesh.frustumCulled = false;
     // Decor: neither picked nor aimed at.
@@ -225,6 +243,7 @@ export class LookoutBeams implements AmbientLayer {
     this.object.add(mesh);
     return {
       mesh,
+      point,
       azimuthOf: (seconds) => beamAzimuth(point.id, seconds),
       level: 0,
       strength: 0,

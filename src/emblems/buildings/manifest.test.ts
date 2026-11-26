@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { BUILDINGS } from '@/domain/ids';
-import { BUILDING_SPRITES, buildingMaquette, buildingSprite } from './manifest';
+import { BUILDINGS, CHOSEN_SPECIALTIES } from '@/domain/ids';
+import {
+  BUILDING_SPRITES,
+  buildingMaquette,
+  buildingSprite,
+  OUTPOST_GEAR,
+  OUTPOST_MAQUETTE,
+} from './manifest';
 
 describe('building sprite manifest', () => {
   it('answers for each key, and for nothing else', () => {
@@ -32,5 +38,15 @@ describe('building maquette manifest', () => {
     expect(buildingMaquette('mine', 'coal')).not.toBe(buildingMaquette('mine', 'iron'));
     expect(buildingMaquette('mine', 'iron')).toBe(buildingMaquette('mine', null));
     expect(buildingMaquette('farm', 'coal')).toBe(buildingMaquette('farm', null));
+  });
+});
+
+describe("the outpost's maquette (#468)", () => {
+  it('stands one file for every outpost, an accessory group for each trade chosen, none for the generalist', () => {
+    expect(OUTPOST_MAQUETTE).toMatch(/outpost\.glb$/);
+    expect(OUTPOST_GEAR.general).toBeNull();
+    const groups = CHOSEN_SPECIALTIES.map((specialty) => OUTPOST_GEAR[specialty]);
+    expect(new Set(groups).size).toBe(CHOSEN_SPECIALTIES.length);
+    expect(groups).not.toContain(null);
   });
 });

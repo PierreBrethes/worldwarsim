@@ -1,7 +1,7 @@
 import { DEPOSIT_POINTS } from '@/domain/world';
 import { describe, expect, it } from 'vitest';
 import type { MapMarker } from '@/domain/labels';
-import { BUILDING_SEALS, buildingMaquette } from '@/emblems/buildings/manifest';
+import { BUILDING_SEALS, buildingMaquette, OUTPOST_MAQUETTE } from '@/emblems/buildings/manifest';
 import type { CaptureView } from '@/domain/player-view';
 import { objectiveMaquette } from '@/emblems/objectives/manifest';
 import { maquettesOf, sealedSites } from './maquettes';
@@ -13,7 +13,10 @@ import {
   buildingMetres,
   buildingSpan,
   objectiveSpan,
+  OUTPOST_METRES,
+  OUTPOST_ON_BOARD,
 } from '@/domain/piece-size';
+import { fr } from '@/i18n/fr';
 
 const building = (over: Partial<Extract<MapMarker, { kind: 'building' }>> = {}): MapMarker => ({
   kind: 'building',
@@ -353,5 +356,89 @@ describe('maquettesOf', () => {
       emptied: false,
     };
     expect(maquettesOf([objective], () => undefined)).toEqual([]);
+  });
+});
+
+/** **L'avant-poste se fonde, se spécialise et change de métier à l'écran** (#468). */
+describe('maquettesOf, an outpost', () => {
+  const mine = (over: Partial<Extract<MapMarker, { kind: 'outpost' }>> = {}): MapMarker => ({
+    kind: 'outpost',
+    id: 'outpost-o1',
+    lonLat: [5, 45],
+    hostCountry: 'FRA',
+    station: { kind: 'outpost', outpostId: 'o1' },
+    specialty: 'general',
+    changingTo: null,
+    level: 1,
+    standsAt: null,
+    garrison: 3,
+    reach: null,
+    ink: '#2a5ba8',
+    ...over,
+  });
+  const stood = (marker: MapMarker, minutes = 90) =>
+    maquettesOf([marker], () => undefined, new Set(), new Set(), undefined, minutes);
+
+  it('stands on its round socle in my ink, at its measure', () => {
+    expect(stood(mine())).toEqual([
+      {
+        id: 'outpost-o1',
+        at: { lonLat: [5, 45] },
+        url: OUTPOST_MAQUETTE,
+        span: OUTPOST_ON_BOARD.span,
+        metres: OUTPOST_METRES.ring,
+        footprint: OUTPOST_ON_BOARD.footprint,
+        socle: true,
+        reach: OUTPOST_ON_BOARD.reach,
+        washed: false,
+        side: 'mine',
+        ink: '#2a5ba8',
+        flag: '#2a5ba8',
+        gear: null,
+      },
+    ]);
+  });
+
+  it('wears the gear of the trade it plies now: none while it changes trade (ADR 0037 §7)', () => {
+    const gear = (over: Parameters<typeof mine>[0]) => stood(mine(over))[0]!.gear;
+    expect(gear({ level: 2, specialty: 'lookout' })).toBe('guet');
+    expect(gear({ level: 2, specialty: 'store' })).toBe('magasin');
+    expect(gear({ level: 3, specialty: 'fort' })).toBe('fort');
+    expect(gear({ level: 2, specialty: 'fort', changingTo: 'lookout' })).toBeNull();
+  });
+
+  it('rises round its mast from the order on: its first works, dated by its standing', () => {
+    const standsAt = Date.UTC(2026, 10, 26, 18, 30);
+    const [founding] = stood(mine({ standsAt }), 90);
+    expect(founding!.gear).toBeNull();
+    expect(founding!.works).toEqual({
+      phase: 'rising',
+      level: 1,
+      finishesAt: standsAt,
+      minutes: 90,
+      pennant: null,
+      stamp: { word: fr.stamps.finished, hour: asClockTime(standsAt) },
+    });
+  });
+
+  it("stands an enemy's surveyed outpost hollow and bare, with no trade: its survey serves none", () => {
+    const seen: MapMarker = {
+      kind: 'foreignOutpost',
+      id: 'foreign-outpost-x',
+      outpostId: 'x',
+      lonLat: [6, 46],
+      hostCountry: 'DEU',
+      washed: true,
+    };
+    const [standing] = stood(seen);
+    expect(standing).toMatchObject({
+      url: OUTPOST_MAQUETTE,
+      side: 'seen',
+      washed: true,
+      gear: null,
+    });
+    expect(standing).not.toHaveProperty('flag');
+    expect(standing).not.toHaveProperty('ink');
+    expect(standing).not.toHaveProperty('works');
   });
 });

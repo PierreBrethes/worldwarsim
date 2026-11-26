@@ -1,4 +1,4 @@
-import { Box3, MeshBasicMaterial, Vector3 } from 'three';
+import { Box3, type Mesh, MeshBasicMaterial, Vector3 } from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import type { LonLat } from '@/domain/geo';
 import { Ambience } from './ambience';
@@ -23,7 +23,14 @@ const point = (id: string, lon: number, km: number | null = 20): BeamPoint => ({
   lookoutKm: km,
 });
 
-function setup(options: { instant?: number; cap?: number; sees?: boolean } = {}) {
+function setup(
+  options: {
+    instant?: number;
+    cap?: number;
+    sees?: boolean;
+    source?: (point: BeamPoint) => { at: Vector3; dip: number } | null;
+  } = {},
+) {
   const clock = { ms: 0 };
   const asked: number[] = [];
   const layer = new LookoutBeams(
@@ -36,6 +43,7 @@ function setup(options: { instant?: number; cap?: number; sees?: boolean } = {})
     () => new Vector3(0, 5, 0),
     options.cap ?? 6,
     () => clock.ms,
+    options.source,
   );
   return { layer, clock, asked };
 }
@@ -183,5 +191,29 @@ describe('the lookout beams ambience', () => {
     expect(ambience.advance(1000)).toBe(true);
     expect(new Ambience(new Set(['sea'])).enabled(layer.fx)).toBe(false);
     expect(layer.hz).toBe(8);
+  });
+
+  it("leaves my lookout's projector, looking down as its lens, while its maquette stands (#468)", () => {
+    const lens = { at: new Vector3(2.01, 0.004, -48.02), dip: Math.PI / 18 };
+    const drawn = { now: true };
+    const { layer } = setup({
+      source: (point) => (point.site === 'outpost-a' && drawn.now ? lens : null),
+    });
+    layer.show([{ ...point('a', 2), site: 'outpost-a' }, point('b', 3)]);
+    layer.frame(10, 'full');
+    const [a, b] = layer.object.children as [Mesh, Mesh];
+    expect(a.position.distanceTo(lens.at)).toBeLessThan(1e-9);
+    expect(a.rotation.x).toBeCloseTo(lens.dip, 9);
+    expect(a.rotation.y).toBeCloseTo(beamAzimuth('a', 10), 5);
+    // Down 10° whichever way it turns: tilted on its own axis, then turned.
+    const tip = new Vector3(0, 0, 1).applyEuler(a.rotation);
+    expect(Math.asin(-tip.y)).toBeCloseTo(lens.dip, 9);
+    expect(b.position.x).toBe(3);
+    expect(b.rotation.x).toBe(0);
+    // Far off, the maquette gives way to its pin: the beam is back on its point.
+    drawn.now = false;
+    layer.frame(11, 'full');
+    expect(a.position.x).toBe(2);
+    expect(a.rotation.x).toBe(0);
   });
 });

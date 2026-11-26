@@ -4,13 +4,17 @@ import {
   Color,
   Group,
   LinearMipmapLinearFilter,
+  type Material,
   Mesh,
   MeshBasicMaterial,
+  type Object3D,
   PlaneGeometry,
 } from 'three';
-import type { BattleTrace } from '@/domain/battle-traces';
+import type { BattleTrace, Wreck } from '@/domain/battle-traces';
+import { KITS } from '@/emblems/kits/manifest';
 import { metresOnBoard } from '@/domain/piece-size';
-import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
+import { sceneOf } from './figurines/figurine';
+import { COUNTRY_THICKNESS, onLand, SEA_LEVEL, type WorldFrame } from './frame';
 import { inkDownAtNight, type NightUniforms } from './night-here';
 import { PALETTE } from './palette';
 
@@ -133,6 +137,27 @@ const CELLS = Array.from({ length: VARIANTS }, (_, cell) => {
   return geometry;
 });
 
+/** **Où la carcasse se couche**, en diamètres de cratère du point : au bord du premier. */
+const WRECK_AWAY = 0.9;
+
+/** Les deux restes du kit (`traces.glb`, #642, #643), chargés une fois. */
+let wrecks: Promise<Readonly<Record<Wreck, Object3D>>> | null = null;
+const wrecksOf = (): Promise<Readonly<Record<Wreck, Object3D>>> =>
+  (wrecks ??= sceneOf(KITS.traces).then((scene) => {
+    const node = (name: Wreck) => scene.getObjectByName(name)!;
+    return { carcasse: node('carcasse'), epave: node('epave') };
+  }));
+
+/** **Où et comment se pose le reste d'une trace**, en diamètres de cratère autour de son point. */
+function wreckAround(id: string): { dx: number; dz: number; turn: number } {
+  const angle = seeded(id, 97) * Math.PI * 2;
+  return {
+    dx: Math.cos(angle) * WRECK_AWAY,
+    dz: Math.sin(angle) * WRECK_AWAY,
+    turn: seeded(id, 98) * Math.PI * 2,
+  };
+}
+
 /** **Où se posent les cratères d'une trace**, en diamètres autour de son point, et leur taille. */
 export function cratersAround(
   trace: Pick<BattleTrace, 'id' | 'craters'>,
@@ -151,21 +176,40 @@ export function cratersAround(
 }
 
 /**
- * **Le champ de bataille se souvient** (#642) : les cratères de mes combats sur terre, à l'encre
- * pâle, sous les contours et les pièces, sur la terre seule (`onLand`). Rien n'est animé : la
- * trace est posée à chaque vue, identique dans les trois réglages, et pâlit d'une vue à l'autre.
+ * **Le champ de bataille se souvient** (#642, #643) : les cratères de mes combats sur terre, à
+ * l'encre pâle, sous les contours et les pièces, sur la terre seule (`onLand`) ; la carcasse d'un
+ * engin détruit à leur bord, l'épave d'un navire coulé à la flottaison, à l'échelle commune. Rien
+ * n'est animé : la trace est posée à chaque vue, identique dans les trois réglages, et pâlit d'une
+ * vue à l'autre.
  */
 export class BattleTraces {
   readonly object = new Group();
+  private readonly wrecks = new Group();
   private readonly ink = new Color(PALETTE.border);
+  /** Each view's wrecks wait on the kit; a view served since then lays its own instead. */
+  private served = 0;
 
   constructor(
     private readonly frame: Pick<WorldFrame, 'projectLonLat'>,
     private readonly night: NightUniforms,
+    /** The kit has come and its wrecks are laid: an image is due. */
+    private readonly laid: () => void = () => {},
   ) {}
 
   show(traces: ReadonlyArray<BattleTrace>): void {
     this.clear();
+    const served = ++this.served;
+    const wrecked = traces.filter((trace) => trace.wreck !== null);
+    if (wrecked.length > 0)
+      wrecksOf().then(
+        (kit) => {
+          if (served !== this.served) return;
+          this.layWrecks(wrecked, kit);
+          this.laid();
+        },
+        // The kit did not come: the craters stand without their wrecks, and the loader has said why.
+        () => {},
+      );
     if (traces.length === 0) return;
     const diameter = metresOnBoard(CRATER_METRES);
     for (const trace of traces) {
@@ -200,17 +244,63 @@ export class BattleTraces {
 
   /** How many craters stand now: what the tests read. */
   get size(): number {
-    return this.object.children.length;
+    return this.object.children.filter((child) => child !== this.wrecks).length;
+  }
+
+  /** How many wrecks stand now: what the tests read. */
+  get wreckCount(): number {
+    return this.wrecks.children.length;
+  }
+
+  /** Lays each trace's wreck from the kit: its own copy of the materials, faded with its ink. */
+  layWrecks(traces: ReadonlyArray<BattleTrace>, kit: Readonly<Record<Wreck, Object3D>>): void {
+    const metre = metresOnBoard(1);
+    const diameter = metresOnBoard(CRATER_METRES);
+    for (const trace of traces) {
+      if (trace.wreck === null) continue;
+      const copy = kit[trace.wreck].clone(true);
+      const { dx, dz, turn } = wreckAround(trace.id);
+      const atSea = trace.wreck === 'epave';
+      const at = this.frame.projectLonLat(trace.point, atSea ? SEA_LEVEL : COUNTRY_THICKNESS);
+      // The wreck lies at its point at sea; on land, at the first crater's rim.
+      copy.position.set(
+        at.x + (atSea ? 0 : dx * diameter),
+        at.y,
+        at.z + (atSea ? 0 : dz * diameter),
+      );
+      copy.rotation.set(0, turn, 0);
+      copy.scale.setScalar(metre);
+      copy.traverse((node) => {
+        node.raycast = () => {};
+        const mesh = node as Mesh;
+        if (!mesh.isMesh) return;
+        const material = (mesh.material as Material).clone();
+        material.transparent = trace.ink < 0.999;
+        material.opacity = trace.ink;
+        mesh.material = material;
+      });
+      this.wrecks.add(copy);
+    }
+    if (this.wrecks.parent === null) this.object.add(this.wrecks);
   }
 
   dispose(): void {
     this.clear();
+    this.served++;
     this.object.removeFromParent();
   }
 
   private clear(): void {
+    this.wrecks.traverse((node) => {
+      const mesh = node as Mesh;
+      // The kit's geometry is shared with every copy; only the faded materials are ours.
+      if (mesh.isMesh) (mesh.material as Material).dispose();
+    });
+    this.wrecks.clear();
     const materials = new Set(
-      this.object.children.map((mesh) => (mesh as Mesh<PlaneGeometry, MeshBasicMaterial>).material),
+      this.object.children
+        .filter((child) => child !== this.wrecks)
+        .map((mesh) => (mesh as Mesh<PlaneGeometry, MeshBasicMaterial>).material),
     );
     for (const material of materials) material.dispose();
     this.object.clear();

@@ -1,13 +1,15 @@
 import manche from './manche.glb';
 import mole from './mole.glb';
 import piste from './piste.glb';
+import traces from './traces.glb';
 
 /**
  * **The terrain kits the engine lays beside a site** (ADR 0038 §10): the runway beside an
  * airfield (#269), the mole off a port's quay (#270), the windsock on the airfield's yard. They
- * are not the site's: its file never carries them, the engine lays them once at placement.
+ * are not the site's: its file never carries them, the engine lays them once at placement. And
+ * what a combat leaves (#642, #643): a burnt tank's `carcasse`, a sunk ship's `epave`.
  */
-export const KITS = { piste, mole, manche } as const;
+export const KITS = { piste, mole, manche, traces } as const;
 
 /** A module of the runway and its length along it, in metres; `-1` laid the other way. */
 type Module = readonly [
