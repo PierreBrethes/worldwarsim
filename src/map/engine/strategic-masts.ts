@@ -278,6 +278,8 @@ type Placed = {
   swap: Swap | null;
   /** Where it stands and how big as last drawn: what a click and the idle check read. */
   foot: Vector3;
+  /** The mast's own up as last drawn: it leans toward the eye, so it is not the world's. */
+  readonly lean: Vector3;
   height: number;
   readonly box: Box3;
 };
@@ -378,6 +380,7 @@ export class StrategicMasts implements AmbientLayer {
         ink,
         swap,
         foot: at.clone(),
+        lean: new Vector3(0, 1, 0),
         height: MAST_UNITS.height,
         box: new Box3().setFromCenterAndSize(
           at,
@@ -470,6 +473,7 @@ export class StrategicMasts implements AmbientLayer {
 
       object.position.copy(point.foot);
       faceCamera(object, eye);
+      point.lean.copy(UP).applyEuler(object.rotation);
       object.scale.setScalar(scale);
       object.updateMatrix();
       this.mast.setMatrixAt(k, object.matrix);
@@ -543,7 +547,7 @@ export class StrategicMasts implements AmbientLayer {
     if (point === undefined) return null;
     const over = POMME * 1.6 + (point.star ? 2 * STAR : 0);
     const scale = point.height / MAST_UNITS.height;
-    return spot.copy(point.foot).addScaledVector(UP, point.height + over * scale);
+    return spot.copy(point.foot).addScaledVector(point.lean, point.height + over * scale);
   }
 
   /** The socle's lamp by night, as a piece's: its centre, its radius, a whole share of light. */

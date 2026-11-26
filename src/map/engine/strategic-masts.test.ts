@@ -507,9 +507,20 @@ describe('the head of a mast, where its cartouche hangs', () => {
     const foot = (k: number) => new Vector3().setFromMatrixPosition(matrixOf(meshes(layer)[2]!, k));
     const plain = layer.headOf('strategic-a')!.clone();
     const mine = layer.headOf('strategic-b')!;
-    expect(plain.x).toBeCloseTo(foot(0).x);
-    expect(plain.y - foot(0).y).toBeGreaterThan(mastPxUnits());
-    expect(mine.y - foot(1).y).toBeGreaterThan(plain.y - foot(0).y);
+    expect(plain.distanceTo(foot(0))).toBeGreaterThan(mastPxUnits());
+    expect(mine.distanceTo(foot(1))).toBeGreaterThan(plain.distanceTo(foot(0)));
+  });
+
+  it('stands over the star as drawn, along the mast leaning toward the eye, not straight up', () => {
+    const { layer } = setup();
+    layer.show([stand('b', 6, { mine: true })]);
+    orient(layer);
+    // The star's tip: the mast's own up, at the mast's scale, as the draw rotates it.
+    const matrix = matrixOf(meshes(layer)[2]!, 0);
+    const scale = new Vector3().setFromMatrixScale(matrix).y;
+    const tip = new Vector3(0, MAST_UNITS.height + 0.0384 + 0.1, 0).applyMatrix4(matrix);
+    const head = layer.headOf('strategic-b')!;
+    expect(head.distanceTo(tip)).toBeLessThan(0.01 * scale);
   });
 
   it('is nothing for an id that has no mast', () => {
