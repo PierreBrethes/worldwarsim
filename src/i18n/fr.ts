@@ -5498,6 +5498,7 @@ export const fr = {
     estimatedTime: (time: string) => `~${time}`,
     heading: 'cap',
     headingAtMe: 'sur nous · estimé',
+    ultraDestination: 'destination · Ultra',
   },
 
   labels: {
@@ -5540,6 +5541,8 @@ export const fr = {
     /** Le fanion du piquet de chantier d'une élévation : le niveau qui monte. */
     pennant: (level: number) => `niv. ${level}`,
     estimated: 'estimé',
+    /** **Ultra** (ADR 0047 §3) : la destination qu'une station britannique a entendue. */
+    ultraBound: (place: string) => `Ultra · vers ${place}`,
     /** **Une pile figée se date** (ADR 0037 §5) : hors de la vue du Guet, elle a pu changer. */
     readAt: (time: string) => `lu à ${time}`,
     /** La colonne est au bout du fil et n'avance plus : ce qui reste à dire est l'heure de la

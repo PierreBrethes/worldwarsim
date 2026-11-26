@@ -1611,10 +1611,11 @@ function seenReprise(force: MarchingForce, sighting: SightWindow) {
 }
 
 /**
- * **« Cap sur moi », estimated** (rule 5 of decision 4a). Without a destination the question is
- * answered by prolonging the heading from the last point seen, over the distance the column has
- * left to walk, at the mesh of the very grid that says whose ground a point is. The point seen
- * counts too: a column caught standing on my soil is coming for me whatever it does next.
+ * **« Cap sur moi », estimated** (rule 5 of decision 4a). Without a destination — Ultra's is not
+ * read here (#686) — the question is answered by prolonging the heading from the last point seen,
+ * over the distance the column has left to walk, at the mesh of the very grid that says whose
+ * ground a point is. The point seen counts too: a column caught standing on my soil is coming for
+ * me whatever it does next.
  */
 function headingReachesMe(
   force: MarchingForce,

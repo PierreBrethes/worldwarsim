@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 3a6e884 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 2eb1b6a -->
 
 # Les constantes à mesurer
 
@@ -199,6 +199,6 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `TANGIER_LOT` | `{ give: 300, get: 100 } as const` | `src/domain/strategic-points.ts:149` | posé pour la saison test ; rien ne mesure ce que vaut un échange par édition |
 | `SURVEY_INK_FADED` | `0.2` | `src/domain/survey-ink.ts:4` | the ink left on a survey nobody renewed, the day it is wiped: a trace, read by eye. |
 | `DETOUR` | `{ land: 1.02, sea: 1.4, air: 1 } as const` | `src/domain/tour-sheet.ts:116` | un cargo qui double un cap dépasse largement la médiane |
-| `LIFT_CAPACITY` | `{ cargo: 12, carrier: 6, airTransport: 2 }` | `src/domain/troops.ts:242` | assumed against the troop ceiling alone — two cargos lift a whole infantry |
-| `LIFT_COST` | `{ infantry: 1, armor: 3, landTransport: 2, artillery: 2 }` | `src/domain/troops.ts:249` | the passenger half of `LIFT_CAPACITY`, assumed on the same single bearing |
-| `LAND_SEATS_PER_TRANSPORT` | `2` | `src/domain/troops.ts:272` | two seats, assumed; at four, motorizing an army would be nearly free |
+| `LIFT_CAPACITY` | `{ cargo: 12, carrier: 6, airTransport: 2 }` | `src/domain/troops.ts:247` | assumed against the troop ceiling alone — two cargos lift a whole infantry |
+| `LIFT_COST` | `{ infantry: 1, armor: 3, landTransport: 2, artillery: 2 }` | `src/domain/troops.ts:254` | the passenger half of `LIFT_CAPACITY`, assumed on the same single bearing |
+| `LAND_SEATS_PER_TRANSPORT` | `2` | `src/domain/troops.ts:277` | two seats, assumed; at four, motorizing an army would be nearly free |
