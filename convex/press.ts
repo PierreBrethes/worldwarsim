@@ -35,7 +35,7 @@ import { buildingCostKey, seasonBuildings } from './buildingReads';
 import { COST_BY_ROLE, PRESS_EDITION_HOURS, TIER_2_FACTOR, buildCost } from './constants';
 import { heldOver } from './holding';
 import { seasonOutposts, seasonTroops } from './movement/forces';
-import { allRegions } from './regions';
+import { allRegions, homeCountryOf } from './regions';
 import { isAtWar, playingSeason, seatsOf } from './seats';
 
 /**
@@ -237,6 +237,29 @@ async function writeEdition(
  * raid ne le déracine pas (ADR 0004), il lui prend sa part. C'est précisément ce que
  * l'édition doit montrer.
  */
+/**
+ * **Les régions conquises de chaque joueur** (départage à l'horloge, précision du 26/11/2026 de
+ * l'ADR 0027 §4) : celles qu'il tient hors de son sol national. Le compte brut récompensait le
+ * découpage de l'atlas, pas la guerre : 232 régions au Royaume-Uni, 27 en Allemagne, et le
+ * Royaume-Uni gagnait toute saison sans point tenu (série de bots, #652).
+ */
+export async function conqueredCounts(
+  ctx: QueryCtx,
+  seasonId: Id<'seasons'>,
+  at: number,
+  nationOf: ReadonlyMap<string, string | null>,
+): Promise<ReadonlyMap<string, number>> {
+  const regions = allRegions();
+  const countryOf = new Map(regions.map((region) => [region.id, region.country]));
+  const truth = await heldOver(ctx, seasonId, regions, at);
+  const counts = new Map<string, number>();
+  for (const [regionId, owner] of truth) {
+    if (countryOf.get(regionId) === homeCountryOf(nationOf.get(owner) ?? null)) continue;
+    counts.set(owner, (counts.get(owner) ?? 0) + 1);
+  }
+  return counts;
+}
+
 export async function heldCounts(
   ctx: QueryCtx,
   seasonId: Id<'seasons'>,

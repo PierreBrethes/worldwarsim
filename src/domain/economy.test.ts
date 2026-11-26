@@ -564,14 +564,18 @@ describe('the harvest heap (ADR 0041)', () => {
     expect(outputSplitOf(site, 'mondiale')).toEqual({ national: 0, heap: 24 });
   });
 
-  it('lets a foundation site deliver a level 1 rate on its own and heaps the rest', () => {
+  it('lets a foundation site deliver its first levels on its own and heaps the rest (#652)', () => {
     expect(outputSplitOf({ ...site, foundation: true }, 'mondiale')).toEqual({
-      national: 8,
+      national: 24,
+      heap: 0,
+    });
+    expect(outputSplitOf({ ...site, foundation: true, level: 5 }, 'mondiale')).toEqual({
+      national: 24,
       heap: 16,
     });
     expect(outputSplitOf({ ...site, foundation: true, share: 0.25 }, 'mondiale')).toEqual({
-      national: 2,
-      heap: 4,
+      national: 6,
+      heap: 0,
     });
   });
 
@@ -589,7 +593,8 @@ describe('the harvest heap (ADR 0041)', () => {
 
   it('caps the heap at a day of its heaped levels, whatever the share', () => {
     expect(heapCapOf(site)).toBe(24 * 8 * 3);
-    expect(heapCapOf({ ...site, foundation: true })).toBe(24 * 8 * 2);
+    expect(heapCapOf({ ...site, foundation: true })).toBe(0);
+    expect(heapCapOf({ ...site, foundation: true, level: 5 })).toBe(24 * 8 * 2);
     expect(heapCapOf({ ...site, share: 0 })).toBe(24 * 8 * 3);
     expect(heapCapOf({ ...site, deposit: null })).toBe(0);
   });

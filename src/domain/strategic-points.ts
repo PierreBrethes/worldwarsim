@@ -116,11 +116,12 @@ export function raceLeaderOf<Id extends string>(held: ReadonlyMap<Id, number>): 
 }
 
 /**
- * **L'horloge sert de filet** (M12) : le plus d'heures de points tenus l'emporte, le territoire
- * départage, et à égalité parfaite personne ne gagne.
+ * **L'horloge sert de filet** (M12) : le plus d'heures de points tenus l'emporte, les régions
+ * conquises (tenues hors du sol national, précision du 26/11/2026 de l'ADR 0027 §4) départagent,
+ * et à égalité parfaite personne ne gagne.
  */
 export function clockVerdictOf<Id extends string>(
-  lines: ReadonlyArray<{ readonly id: Id; readonly heldMs: number; readonly regions: number }>,
+  lines: ReadonlyArray<{ readonly id: Id; readonly heldMs: number; readonly conquered: number }>,
 ): { readonly winnerId: Id | null; readonly reason: 'clock' | 'territory' | 'draw' } {
   const best = (score: (line: (typeof lines)[number]) => number) => {
     const top = Math.max(...lines.map(score));
@@ -130,8 +131,8 @@ export function clockVerdictOf<Id extends string>(
   if (byHours.length === 1 && byHours[0]!.heldMs > 0)
     return { winnerId: byHours[0]!.id, reason: 'clock' };
   const contenders = byHours[0]!.heldMs > 0 ? byHours : lines;
-  const top = Math.max(...contenders.map((line) => line.regions));
-  const byLand = contenders.filter((line) => line.regions === top);
+  const top = Math.max(...contenders.map((line) => line.conquered));
+  const byLand = contenders.filter((line) => line.conquered === top);
   return byLand.length === 1
     ? { winnerId: byLand[0]!.id, reason: 'territory' }
     : { winnerId: null, reason: 'draw' };

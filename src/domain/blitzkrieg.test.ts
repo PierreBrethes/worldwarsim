@@ -48,6 +48,26 @@ describe('the blitzkrieg (ADR 0039 §6)', () => {
     expect(chainRefusalOf('blitzkrieg', ATTACK, [{ medium: 'air' }])).toBe('CHAIN_ASHORE_ONLY');
   });
 
+  /** Décision de Pierre du 26/11 : une colonne poursuivie n'est pas un lieu, l'ordre se refuse. */
+  it('chains no pursuit: a column chased is no place to stand between two targets', () => {
+    const track: MovementAim = {
+      kind: 'track',
+      movementId: 'm1',
+      lon: 5,
+      lat: 50,
+      hostCountry: 'BEL',
+      ground: 'land',
+      coastal: false,
+    };
+    expect(chainRefusalOf('blitzkrieg', { ...ATTACK, aim: track }, ROAD)).toBe(
+      'CHAIN_POSITION_ONLY',
+    );
+    expect(chainRefusalOf('blitzkrieg', { ...ATTACK, aim: LIEGE }, ROAD)).toBeNull();
+    expect(secondTargetRefusalOf('blitzkrieg', { aim: track, legs: ROAD }, NAMUR, tanks)).toBe(
+      'CHAIN_POSITION_ONLY',
+    );
+  });
+
   it('takes as second target what an attack may aim at, from the first', () => {
     const first = { aim: LIEGE, legs: ROAD };
     expect(secondTargetRefusalOf('blitzkrieg', first, NAMUR, tanks)).toBe(null);

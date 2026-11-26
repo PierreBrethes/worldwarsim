@@ -51,17 +51,17 @@ describe('the clock, as a net', () => {
   it('goes to the most hours of points held', () => {
     expect(
       clockVerdictOf([
-        { id: 'fr', heldMs: 30 * HOUR, regions: 10 },
-        { id: 'de', heldMs: 12 * HOUR, regions: 90 },
+        { id: 'fr', heldMs: 30 * HOUR, conquered: 10 },
+        { id: 'de', heldMs: 12 * HOUR, conquered: 90 },
       ]),
     ).toEqual({ winnerId: 'fr', reason: 'clock' });
   });
 
-  it('breaks a tie on hours with the territory', () => {
+  it('breaks a tie on hours with the regions conquered abroad', () => {
     expect(
       clockVerdictOf([
-        { id: 'fr', heldMs: 0, regions: 10 },
-        { id: 'de', heldMs: 0, regions: 90 },
+        { id: 'fr', heldMs: 0, conquered: 10 },
+        { id: 'de', heldMs: 0, conquered: 90 },
       ]),
     ).toEqual({ winnerId: 'de', reason: 'territory' });
   });
@@ -69,9 +69,9 @@ describe('the clock, as a net', () => {
   it('is a draw when hours and territory are equal at the top', () => {
     expect(
       clockVerdictOf([
-        { id: 'fr', heldMs: HOUR, regions: 40 },
-        { id: 'de', heldMs: HOUR, regions: 40 },
-        { id: 'it', heldMs: 0, regions: 99 },
+        { id: 'fr', heldMs: HOUR, conquered: 40 },
+        { id: 'de', heldMs: HOUR, conquered: 40 },
+        { id: 'it', heldMs: 0, conquered: 99 },
       ]),
     ).toEqual({ winnerId: null, reason: 'draw' });
   });

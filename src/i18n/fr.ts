@@ -13,6 +13,7 @@ import {
   BASE_CAP,
   depotCapacity,
   FORT_SLOWDOWN_MULTIPLIER,
+  FOUNDATION_NATIONAL_LEVELS,
   DAKAR_SPARED_PER_RESOURCE,
   DETECTION_RANGE_KM,
   NARVIK_UNLINKED_SHARE,
@@ -980,6 +981,8 @@ export const fr = {
       `${d.type === 'march' ? 'une marche' : d.type === 'raid' ? 'un raid' : 'une capture'} n’enchaîne pas — la Guerre éclair est une attaque à terre`,
     CHAIN_ASHORE_ONLY: () =>
       'la Guerre éclair est une attaque à terre : ni mer ni air sur ses deux routes',
+    CHAIN_POSITION_ONLY: () =>
+      'une colonne poursuivie n’est pas un lieu : la Guerre éclair enchaîne deux positions',
     SAME_TARGET: () => 'la seconde cible n’est pas la première',
     NOT_A_TRANSPORT: () => 'seuls un camion, un cargo ou un avion de transport se chargent',
     LOAD_NOT_A_SUPPLY: () =>
@@ -2243,7 +2246,7 @@ export const fr = {
           ? `close à la main ${when}${clock}.`
           : `close à la main par ${theNation(input.closedBy)} ${when}${clock}.`;
       if (input.reason === 'draw')
-        return `conclue ${when} : heures de points et territoire se valent, personne ne l’emporte.`;
+        return `conclue ${when} : heures de points et conquêtes se valent, personne ne l’emporte.`;
       /** Sous « à l'horloge », la raison ne le redit pas. */
       const why = fr.victory.verdictWhy(input.reason, null).replace(/^à l’horloge, /, '');
       return `${why}, ${when}${clock}.`;
@@ -2316,7 +2319,7 @@ export const fr = {
           reason === 'closed'
             ? 'Close à la main : personne n’est vainqueur ni vaincu.'
             : winner === null
-              ? 'À l’horloge, heures de points et territoire se valent : personne ne l’emporte.'
+              ? 'À l’horloge, heures de points et conquêtes se valent : personne ne l’emporte.'
               : `${upperFirst(theNation(winner))} ${agrees(winner, 'l’emporte', 'l’emportent')} : ${fr.victory.verdictWhy(reason, null)}.`,
       }),
     },
@@ -2668,7 +2671,7 @@ export const fr = {
         ? 'LA SAISON EST CLOSE'
         : reason === 'draw'
           ? perMinute === null
-            ? 'LA SAISON EST CONCLUE À L’HORLOGE — égalité : heures de points et territoire se valent, personne ne l’emporte'
+            ? 'LA SAISON EST CONCLUE À L’HORLOGE — égalité : heures de points et conquêtes se valent, personne ne l’emporte'
             : 'LA BLITZ EST CONCLUE À DEUX HEURES — égalité : revenu et caisse se valent, personne ne l’emporte'
           : `LA PARTIE EST CONCLUE — ${nation ?? '?'} l’emporte : ${fr.victory.verdictWhy(reason, perMinute)}`,
     verdictWhy: (reason: VerdictReason, perMinute: number | null) =>
@@ -2683,7 +2686,7 @@ export const fr = {
               : reason === 'clock'
                 ? 'à l’horloge, le plus d’heures de points stratégiques tenus'
                 : reason === 'territory'
-                  ? 'à l’horloge, à heures égales, le plus grand territoire'
+                  ? 'à l’horloge, à heures égales, le plus de régions conquises'
                   : 'revenu et caisse se valent',
   },
 
@@ -3177,8 +3180,7 @@ export const fr = {
             ? ''
             : ` ; ${skipped} exploitation${plural(skipped, ' sautée', 's sautées')} (perdue${plural(skipped, '', 's')} ou désactivée${plural(skipped, '', 's')})`
         }.`,
-      harvestCommissioned:
-        'Nouvelle règle — la récolte se rapporte : chaque exploitation entasse sa production à son pied, et un transport en tournée la ramasse pour la verser au stock. Les exploitations de fondation versent seules le débit d’un niveau 1.',
+      harvestCommissioned: `Nouvelle règle — la récolte se rapporte : chaque exploitation entasse sa production à son pied, et un transport en tournée la ramasse pour la verser au stock. Les exploitations de fondation versent seules le débit de leurs niveaux, jusqu’au niveau ${FOUNDATION_NATIONAL_LEVELS}.`,
       supplyDelivered: (country: string, delivered: string, kept: string) =>
         delivered === ''
           ? `Livraison sans place — ${country} : le dépôt était plein, ${kept} encore à bord. Le transport rentre.`
@@ -3354,7 +3356,7 @@ export const fr = {
         case 'heapEmpty':
           return `tas vide à cette heure · ${Math.round(reason.perHour)} / h`;
         case 'noHeap':
-          return 'fondation : verse seule son niveau 1 au stock, rien ne s’y entasse';
+          return `fondation : verse seule ses niveaux au stock jusqu’au niveau ${FOUNDATION_NATIONAL_LEVELS}, rien ne s’y entasse`;
         case 'heapStill':
           return `tas ${reason.heap} sur ${reason.cap} · ne grossit plus`;
         case 'aboardFull':
@@ -4290,7 +4292,7 @@ export const fr = {
    * au téléphone. Toujours nommé en entier — « le plateau » seul désigne la table.
    */
   /** **Le tas au pied d'une exploitation** (ADR 0041, #548) : sur la carte, au plateau personnel,
-   *  dans la fiche. Une exploitation de fondation verse seule le débit d'un niveau 1. */
+   *  dans la fiche. Une exploitation de fondation verse seule ses premiers niveaux (ADR 0041 §3). */
   heap: {
     full: 'PLEIN · ARRÊTÉE',
     since: (span: string) => `depuis ${span}`,
@@ -4298,7 +4300,7 @@ export const fr = {
       `rapporte seule · ${perHour} ${fr.resources[resource]} / h`,
     aloneBeside: (perHour: number) => `+ ${perHour} / h seul`,
     seal: 'F',
-    sealTitle: 'Exploitation de fondation : son niveau 1 verse seul au stock',
+    sealTitle: `Exploitation de fondation : ses niveaux versent seuls au stock jusqu’au niveau ${FOUNDATION_NATIONAL_LEVELS}`,
     title: (resource: ResourceKey, amount: number, cap: number) =>
       `Tas de ${fr.resources[resource]} au pied : ${amount} sur ${cap}`,
     board: {

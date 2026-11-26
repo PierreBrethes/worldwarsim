@@ -62,7 +62,7 @@ export function HeapFoot({ heap }: { heap: HeapMark }) {
   );
 }
 
-/** Le sceau de fondation : à l'exploitation dont le niveau 1 verse seul au stock. */
+/** Le sceau de fondation : à l'exploitation dont les premiers niveaux versent seuls au stock. */
 function Seal() {
   return (
     <span className="label-seal" title={fr.heap.sealTitle}>

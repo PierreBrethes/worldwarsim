@@ -770,6 +770,40 @@ describe('winning the race', () => {
     expect(longest.get(never)).toBeNull();
   });
 
+  it('breaks a tie on hours at the clock with the regions conquered, not the home soil', async () => {
+    const t = boot();
+    const { seat, guest } = await launched(t);
+    // Un avant-poste soviétique dans la Ruhr : la France tient plus de régions, toutes chez elle.
+    const ruhr = regionFacts('DEU-1572')!;
+    const guestPlayer = await playerOf(t, guest);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('outposts', {
+        seasonId: guestPlayer.seasonId,
+        playerId: guestPlayer._id,
+        point: { lon: ruhr.point[0], lat: ruhr.point[1] },
+        hostCountry: 'DEU',
+        regionId: ruhr.id,
+        level: 1,
+        foundedAt: Date.now(),
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+    });
+
+    const season = await seasonOf(t);
+    const endsAt = season.launchedAt! + season.durationHours! * HOUR;
+    const holder = await t.run(async (ctx) =>
+      (await heldOver(ctx, season._id, [ruhr], endsAt)).get(ruhr.id),
+    );
+    expect(holder).toBe(guestPlayer._id);
+    vi.setSystemTime(endsAt);
+    await t.mutation(internal.race.closeAtClock, { seasonId: season._id, expectedAt: endsAt });
+    const over = await seasonOf(t);
+    expect(over.winnerId).toBe(guestPlayer._id);
+    expect(over.verdict?.reason).toBe('territory');
+    expect((await playerOf(t, seat))._id).not.toBe(over.winnerId);
+  });
+
   it('counts at the clock the hours of points held and lost', async () => {
     const t = boot();
     const { seat, guest } = await launched(t);

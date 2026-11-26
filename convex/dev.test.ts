@@ -568,10 +568,7 @@ describe('dev.backfillOutpostServing', () => {
       return { near, far: await outpost(40, [served]), served };
     });
 
-    expect(await t.mutation(internal.dev.backfillOutpostServing, {})).toEqual({
-      seasons: 1,
-      more: false,
-    });
+    expect(await t.mutation(internal.dev.backfillOutpostServing, {})).toEqual({ scheduled: true });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
     const { rows, listed } = await t.run(async (ctx) => ({

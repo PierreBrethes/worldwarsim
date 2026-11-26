@@ -3,7 +3,7 @@ import { internalMutation } from './_generated/server';
 import { RACE_HOLD_HOURS, clockVerdictOf } from '../src/domain/strategic-points';
 import { notifyPlayer } from './notifications';
 import { journalUrl, push } from '../src/domain/push';
-import { heldCounts } from './press';
+import { conqueredCounts } from './press';
 import { concludeSeason } from './seasons';
 import { seatsOf } from './seats';
 import { heldMsOf, seasonPoints } from './strategicPoints';
@@ -59,7 +59,7 @@ export const remindRace = internalMutation({
 
 /**
  * **L'horloge sert de filet** (M4, M12) : à la durée réglée au salon, sans vainqueur, le plus
- * d'heures de points tenus l'emporte, puis le territoire. Seuls les belligérants encore debout
+ * d'heures de points tenus l'emporte, puis les régions conquises. Seuls les belligérants encore debout
  * concourent : un éliminé ne gagne pas.
  */
 export const closeAtClock = internalMutation({
@@ -72,12 +72,17 @@ export const closeAtClock = internalMutation({
     const standing = (await seatsOf(ctx, seasonId)).filter((seat) => seat.defeated !== true);
     if (standing.length === 0) return;
     const points = await seasonPoints(ctx, seasonId);
-    const regions = await heldCounts(ctx, seasonId, expectedAt);
+    const conquered = await conqueredCounts(
+      ctx,
+      seasonId,
+      expectedAt,
+      new Map(standing.map((seat) => [seat._id as string, seat.nation])),
+    );
     const verdict = clockVerdictOf(
       standing.map((seat) => ({
         id: seat._id,
         heldMs: heldMsOf(seat, points, expectedAt),
-        regions: regions.get(seat._id) ?? 0,
+        conquered: conquered.get(seat._id) ?? 0,
       })),
     );
     await concludeSeason(ctx, seasonId, verdict.winnerId, expectedAt, { reason: verdict.reason });

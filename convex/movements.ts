@@ -535,7 +535,7 @@ export const attack = mutation({
         ? null
         : chainRefusalOf(
             assetOf(player.nation ?? null, modeOf(season.mode)),
-            { type: 'attack', mission: { kind: 'march' } },
+            { type: 'attack', mission: { kind: 'march' }, aim: target },
             null,
           );
     if (gate !== null) fail(gate);
@@ -856,7 +856,7 @@ export const preview = query({
     const arrivesAt = now + minutes * 60_000;
     const chained = chainRefusalOf(
       assetOf(player.nation ?? null, modeOf(season.mode)),
-      { type, mission: { kind: 'march' } },
+      { type, mission: { kind: 'march' }, aim: target },
       route.legs,
     );
     return {

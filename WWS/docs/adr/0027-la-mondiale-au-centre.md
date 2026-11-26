@@ -65,6 +65,13 @@ accélération. Le jeu est en français ; l'anglais viendra par un `en.ts` typé
 
 - **Sa durée est un réglage du salon.** L'horloge sert de filet ; la victoire (4 points stratégiques
   sur 7 tenus **24 h**, fixe quelle que soit la durée) arrive normalement avant.
+
+> **Précisée le 26/11/2026 (#652, accord de Pierre) : à heures de points égales, l'horloge
+> départage aux régions conquises**, celles tenues hors du sol national (`conqueredCounts`,
+> `convex/press.ts`), et non plus au compte brut des régions tenues. La série de bots a montré
+> que le compte brut récompensait le découpage de l'atlas (232 régions au Royaume-Uni, 27 en
+> Allemagne) : le Royaume-Uni gagnait toute saison sans point tenu. Sans conquête de part et
+> d'autre, l'horloge rend l'égalité. Le classement de la presse garde sa part de territoire.
 - **Personne n'entre après le départ.** La fenêtre d'entrée tardive disparaît.
 - **À l'étape publique**, un salon s'affiche dans des « petites annonces ». Son départ s'adapte aux
   inscriptions : minimum atteint, il est fixé à une heure ronde au moins 24 h plus tard ; salon
