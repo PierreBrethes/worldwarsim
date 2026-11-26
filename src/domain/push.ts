@@ -53,6 +53,9 @@ export const push = {
   raceLeft: (hours: number) =>
     `Un belligérant tient quatre points : la saison se joue dans ${hours} h.`,
   rendezvousSoon: (minutes: number) => `La Blitz commence dans ${minutes} minutes : à table.`,
+  /** L'heure se lit au salon, dans le fuseau du lecteur : le serveur n'en connaît aucun. */
+  departureFixed: 'Votre Mondiale a son heure de départ : elle se lit au salon.',
+  departureAdvanced: 'Le salon est complet : le départ de votre Mondiale est avancé.',
   seasonConcluded: 'La saison est close.',
   seasonDominated: 'La saison est dominée : un belligérant l’emporte.',
   telegraphOne: 'Un message au télégraphe.',

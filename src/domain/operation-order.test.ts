@@ -202,6 +202,20 @@ describe('founderLaunchOf', () => {
   it('still needs a second player', () => {
     expect(founderLaunchOf(table([seat('founder', false)])).refusal).toBe('NOT_ENOUGH_PLAYERS');
   });
+
+  /** **Une annonce part seule, à son heure** (#654) : le fondateur ne la lance pas, et la table
+   *  courte se compte au minimum de l'annonce, pas à celui du mode. */
+  it('never launches a listed lobby by hand, and counts it short below the listing minimum', () => {
+    const listed = (seats: ReturnType<typeof seat>[]) => ({
+      ...table(seats),
+      listing: { minimum: 3 },
+    });
+    const two = [seat('founder', true), seat('b', true)];
+    expect(founderLaunchOf(listed(two)).refusal).toBe('NOT_ENOUGH_PLAYERS');
+    expect(founderLaunchOf(listed([...two, seat('c', false)])).refusal).toBe(
+      'LISTED_DEPARTS_ALONE',
+    );
+  });
 });
 
 /** **Une seule chose à faire à la fois** : ce que la table attend de celui qui la regarde. */
@@ -225,6 +239,18 @@ describe('tableStepOf', () => {
     expect(tableStepOf({ ...founder, launchRefusal: 'PLAYERS_ABSENT' })).toBe('wait');
     expect(tableStepOf(founder)).toBe('launch');
     expect(tableStepOf({ ...founder, ready: true })).toBe('launch');
+  });
+
+  /** Une annonce ne demande pas de « prêt » : elle part à l'heure, avec qui est inscrit. */
+  it('at a listed lobby asks only for the nation, and has the founder invite while it is short', () => {
+    expect(tableStepOf({ ...guest, listed: true })).toBe('wait');
+    expect(tableStepOf({ ...guest, nation: null, listed: true })).toBe('nation');
+    expect(tableStepOf({ ...founder, listed: true, launchRefusal: 'NOT_ENOUGH_PLAYERS' })).toBe(
+      'invite',
+    );
+    expect(tableStepOf({ ...founder, listed: true, launchRefusal: 'LISTED_DEPARTS_ALONE' })).toBe(
+      'wait',
+    );
   });
 });
 

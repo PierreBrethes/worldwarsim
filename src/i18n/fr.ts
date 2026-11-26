@@ -873,6 +873,9 @@ export const fr = {
     RENDEZVOUS_PAST: () => 'ce rendez-vous est déjà passé',
     SEATS_OUT_OF_RANGE: () =>
       'nombre de places impossible — ni sous le nombre d’assis, ni au-delà de ce que la table tient',
+    LISTED_DEPARTS_ALONE: () => 'un salon des petites annonces part seul, à son heure de départ',
+    DEPARTURE_FIXED: () =>
+      'le départ est fixé : l’annonce reste en place pour ceux qui sont venus par elle',
     THEATRE_TOO_SMALL: () => 'ce théâtre n’assoit pas tous ceux qui sont déjà à table',
     INVALID_REST_WINDOW: () => 'plage invalide : minutes entre 0 et 1439',
     REST_WINDOW_FROZEN: () =>
