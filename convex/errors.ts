@@ -100,6 +100,8 @@ export type ErrorCode =
   | 'DEMOLITION_UNDER_CAPTURE'
   | 'DISMANTLE_UNDER_CAPTURE'
   | 'WRONG_PROJECTION_BUILDING'
+  /** Levée en masse (ADR 0047 §2) : le MK2 ne se lève pas, il se forme à la caserne. */
+  | 'LEVY_FIRST_TIER_ONLY'
   | 'SINGLE_TIER_ROLE'
   | 'QUEUE_FULL'
   | 'UNKNOWN_BATCH'

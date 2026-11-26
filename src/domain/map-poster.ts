@@ -13,7 +13,7 @@ import { arcProgressAt } from './arc-timing';
 import type { MapLabel } from './labels';
 import { pileSheet, type SheetLine } from './pile-pieces';
 import { buildingStatsOf, pileStatsOf, type StatRow } from './stat-sheet';
-import type { CargoView, Composition, PlayerView, TroopView } from './player-view';
+import type { ArcDestination, CargoView, Composition, PlayerView, TroopView } from './player-view';
 import { surveyedAt } from './survey-ink';
 import { marchingTroopIds, stationKeyOf, troopsAt } from './troops';
 
@@ -201,7 +201,7 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
       return sighting(
         fr.posters.surveyed(asClockTime(arc.lastSeenAt)),
         fr.posters.moving,
-        [composition(arc.identification, now)],
+        [composition(arc.identification, now), ...ultraRow(arc.destination)],
         arc.identification.pierced,
       );
     case 'enemyDetected': {
@@ -215,6 +215,7 @@ function pieceOf(label: MapLabel, view: PlayerView, now: number): Poster | null 
             label: fr.posters.estimatedArrival,
             value: fr.posters.estimatedTime(asClockTime(arc.arrivesAt)),
           },
+          ...ultraRow(arc.destination),
           ...(arc.headingAtMe
             ? [
                 {
@@ -242,6 +243,12 @@ export const compositionText = (known: Composition, now: number): string =>
         known.readAt === null ? null : asDatedClock(known.readAt, now),
       )
     : fr.posters.unknown;
+
+/** **Ultra** (ADR 0047 §3) : où va la colonne qu'une station britannique a entendue. */
+const ultraRow = (destination: ArcDestination | undefined): ReadonlyArray<PosterLine> =>
+  destination === undefined
+    ? []
+    : [{ kind: 'row', label: fr.posters.ultraDestination, value: destination.label }];
 
 const composition = (known: Composition, now: number): PosterLine => ({
   kind: 'text',

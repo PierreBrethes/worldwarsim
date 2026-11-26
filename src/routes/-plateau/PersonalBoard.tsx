@@ -12,7 +12,7 @@ import {
 import { createPortal } from 'react-dom';
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
-import { spedMinutes, speedsUp } from '@/domain/level-speed';
+import { formedMinutes, speedsUp } from '@/domain/level-speed';
 import { countdownLabel, fr, roleLabel, upgradeHoldText } from '@/i18n/fr';
 import { handleError } from '@/data/errors';
 import { keepTilesStep, readTilesStep } from '@/data/settings';
@@ -50,7 +50,14 @@ import {
   type UnitTier,
 } from '@/domain/ids';
 import { currentMinutes, currentStock, type Building, type PlayerView } from '@/domain/player-view';
-import { projectionKeyOf, recruitRefusalOf, tierLabel, type RecruitRefusal } from '@/domain/troops';
+import {
+  formingSiteOf,
+  isProjectionKey,
+  listsRole,
+  recruitRefusalOf,
+  tierLabel,
+  type RecruitRefusal,
+} from '@/domain/troops';
 import { isSupplyKey, type SupplyLoad } from '@/domain/logistics';
 import type { MapMotion } from '@/domain/map-motion';
 import { BuildingPlate, ResourcePlate } from '@/emblems/Plate';
@@ -1411,7 +1418,7 @@ const recruitRefusalText = ({ code, ...details }: RecruitRefusal): string =>
 
 /**
  * **Le site sélectionné, dans la bande** (#163, comme dans Warcraft III) : les cartes des troupes
- * qu'il forme, leur prix, leur durée à son niveau (`spedMinutes`) et le refus que dit
+ * qu'il forme, leur prix, leur durée à son niveau (`formedMinutes`) et le refus que dit
  * `recruitRefusalOf`, la lecture même de `troops.recruit`. Un clic, un toucher ou Entrée sur une
  * carte la met en formation ici ; à droite, la file du site. Sa fiche s'ouvre d'ici.
  */
@@ -1444,8 +1451,9 @@ function SiteBand({
   const region = view.me.regions.find((one) => one.id === site.regionId)?.name ?? site.regionId;
   const siteName = fr.buildings[site.key];
   const stocks = stocksAt(view, now);
+  const forming = { ...formingSiteOf(view, site), integrity: site.integrity };
   const cards = (workshop?.grid ?? [])
-    .filter((entry) => projectionKeyOf(entry.role) === site.key)
+    .filter((entry) => listsRole(forming, entry.role))
     .flatMap((entry) => [
       { role: entry.role, tier: 1 as UnitTier, unit: entry.unit },
       ...(entry.unitTier2 === null
@@ -1456,7 +1464,7 @@ function SiteBand({
       const refusal =
         workshop === undefined
           ? null
-          : recruitRefusalOf(card.role, card.tier, site, {
+          : recruitRefusalOf(card.role, card.tier, forming, {
               researched: view.me.research.researched,
               army: workshop.troopsInService + workshop.troopsQueued,
               siteQueue: facility?.queue.length ?? 0,
@@ -1485,7 +1493,10 @@ function SiteBand({
         <b className="text-[13px] leading-[1.1] font-semibold">{siteName}</b>
       </span>
       <span className="text-[11px] leading-[1.25] text-[var(--ink-soft)]">
-        {region} · {fr.common.levelSpeed(site.level)}
+        {region} ·{' '}
+        {isProjectionKey(site.key)
+          ? fr.common.levelSpeed(site.level)
+          : fr.production.siteLevel(site.level)}
       </span>
       <span className="mt-[2px] flex flex-col items-start gap-[10px]">
         <button type="button" onClick={onOpenSheet} className={link}>
@@ -1538,7 +1549,9 @@ function SiteBand({
                   }
                   meta={
                     card.refusal ??
-                    countdownLabel(spedMinutes(card.unit.minutes, site.level) * 60_000)
+                    countdownLabel(
+                      formedMinutes(card.unit.minutes, site.key, card.role, site.level) * 60_000,
+                    )
                   }
                   price={<Price costs={card.unit.costs} size={10} />}
                 />

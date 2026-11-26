@@ -8,7 +8,8 @@ import { positionAt } from '../src/domain/interception';
 import { kmOf } from '../src/domain/routing';
 import { fuelStepsOf } from '../src/domain/supplies';
 import { nominalStrength } from './constants';
-import { marchingForce } from './movement/detection';
+import { marchingForce, reassessDetection } from './movement/detection';
+import { capitalRegionOf } from './regions';
 import { regionAtPoint } from './regionGeometry';
 import schema from './schema';
 import { modules } from './test.setup';
@@ -29,13 +30,13 @@ const TOKYO = { lon: 139.7, lat: 35.7 };
 
 const playerOf = (t: Bench, seat: Seat) => t.run(async (ctx) => (await seatIn(ctx, seat))._id);
 
-/** Le Japon (`japan`) et la France (`france`), QG posés, sans troupe. */
-async function launchedSeason(t: Bench) {
+/** Le Japon (`japan`) et la France (`france`), ou la nation dite, QG posés, sans troupe. */
+async function launchedSeason(t: Bench, guestNation: 'france' | 'uk' = 'france') {
   const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
   const guest = await joinSeat(t, code, 'Léa');
   await t.mutation(api.players.reserveNation, { ...seat, nation: 'japan' });
   await t.mutation(api.players.declareReady, { ...seat, ready: true });
-  await t.mutation(api.players.reserveNation, { ...guest, nation: 'france' });
+  await t.mutation(api.players.reserveNation, { ...guest, nation: guestNation });
   await t.mutation(api.players.declareReady, { ...guest, ready: true });
   await t.mutation(api.seasons.launch, seat);
   await unclocked(t);
@@ -240,6 +241,45 @@ describe('the carrier doctrine (ADR 0039 §4)', () => {
         .collect(),
     );
     expect(seen.map((one) => one.movementId)).toContain(turned.movementId);
+  });
+
+  /** **Ultra** (ADR 0047 §3) : la destination est celle du moment, et l'ancienne reste au souvenir. */
+  it('reads the new destination to a British station, the old one kept on the frozen arc', async () => {
+    const t = boot();
+    const { japan, france: uk } = await launchedSeason(t, 'uk');
+    const { movementId, arrivesAt } = await sailing(t, japan);
+    const [old] = await movements(t);
+    const quarter = MIDDAY.getTime() + (arrivesAt - MIDDAY.getTime()) / 4;
+    const here = positionAt(marchingForce(old!), quarter);
+    const ukId = await playerOf(t, uk);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('buildings', {
+        seasonId: uk.seasonId,
+        playerId: ukId,
+        key: 'listening',
+        regionId: capitalRegionOf('uk'),
+        point: { lon: here[0], lat: here[1] + 0.3 },
+        level: 1,
+      });
+      await reassessDetection(ctx, uk.seasonId, Date.now(), ukId);
+    });
+    vi.setSystemTime(quarter);
+    const heard = async () => (await t.query(api.view.playerView, uk)).detected ?? [];
+    expect((await heard()).map((arc) => arc.destination?.point)).toEqual([EAST]);
+
+    const turned = await turning(t, japan, movementId, OFF_SAIPAN);
+
+    const fresh = (await t.run((ctx) => ctx.db.query('sightings').collect())).find(
+      (row) => row.movementId === turned.movementId,
+    )!;
+    /** La ligne neuve s'ouvre au coude même : son insertion est l'écriture qui sert Ultra. */
+    expect(fresh).toMatchObject({ from: quarter, ultraFrom: quarter, noticeFiled: true });
+    vi.setSystemTime(Math.max(quarter, fresh.ultraFrom!));
+    const arcs = await heard();
+    expect(arcs.find((arc) => arc.id === turned.movementId)?.destination?.point).toEqual(
+      OFF_SAIPAN,
+    );
+    expect(arcs.find((arc) => arc.id !== turned.movementId)?.destination?.point).toEqual(EAST);
   });
 
   it('tells a watcher already following the fleet nothing new: one dispatch, its line frozen', async () => {

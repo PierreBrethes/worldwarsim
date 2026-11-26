@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildLabels, type MapMarker } from './labels';
 import { posterOf, type Poster } from './map-poster';
+import type { LonLat } from './geo';
 import type { ArcView, PlayerView } from './player-view';
 import { directRoute } from './routing';
 import { fr, stackLabel } from '@/i18n/fr';
@@ -559,6 +560,43 @@ describe('posterOf', () => {
       { kind: 'text', text: 'Ce que valent les types du jeu se lit à l’abaque.' },
     ]);
     expect(texts(poster)).not.toMatch(/marche|attaque|raid/);
+  });
+
+  /** **Ultra** (ADR 0047 §3) : la destination entendue, sur la fiche du relevé, en vue ou figé. */
+  it('names the destination a British station heard, with the Ultra mention', () => {
+    const destination = { lonLat: [3, 2] as LonLat, label: 'Malte' };
+    const heard: ArcView = {
+      state: 'enemyDetected',
+      id: 'foe',
+      from: [0, 0],
+      to: [1, 1],
+      route,
+      detector: 'station',
+      detectorRegion: 'Kent',
+      headingDegrees: 90,
+      headingAtMe: false,
+      identification: { pierced: false },
+      arrivesAt: LOADED_AT + 30 * 60_000,
+      seenTo: LOADED_AT + 10 * 60_000,
+      since: LOADED_AT - 40 * 60_000,
+      destination,
+    };
+    const row = { kind: 'row', label: fr.posters.ultraDestination, value: 'Malte' };
+    expect(posterFor(view({ arcs: [heard] }), [], 'foe')?.lines).toContainEqual(row);
+    const remembered: ArcView = {
+      state: 'lastKnown',
+      id: 'foe',
+      from: [0, 0],
+      to: [1, 1],
+      route,
+      detector: 'station',
+      detectorRegion: 'Kent',
+      headingDegrees: 90,
+      identification: { pierced: false },
+      lastSeenAt: LOADED_AT - 5 * 60_000,
+      destination,
+    };
+    expect(posterFor(view({ arcs: [remembered] }), [], 'foe')?.lines).toContainEqual(row);
   });
 
   it('names the pile a Guet has read, never its order, and sends to the gunnery', () => {

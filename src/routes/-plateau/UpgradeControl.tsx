@@ -7,7 +7,7 @@ import { neverText } from '@/domain/compass-works';
 import { availabilityOf, upgradeHold, type UpgradeHold } from '@/domain/construction';
 import { PRODUCER_OF } from '@/domain/economy';
 import { asDuration } from '@/domain/duration';
-import { speedsUp } from '@/domain/level-speed';
+import { siteSpeedsUp } from '@/domain/level-speed';
 import { RESOURCES } from '@/domain/ids';
 import { currentStock, type Building, type Cost, type PlayerView } from '@/domain/player-view';
 import { ResourcePlate } from '@/emblems/Plate';
@@ -64,7 +64,11 @@ export function UpgradeControl({
           {asDuration(building.nextLevelMinutes)}
         </span>
         <span className="font-(family-name:--font-mono) text-[11px] text-[var(--ink-quiet)]">
-          {speedsUp(building.key) ? fr.common.levelSpeed(next) : fr.upgrade.toLevel(next)}
+          {/* La fiche d'un site : « −x % » ne se dit que d'un site de projection. Sur un QG ou un entrepôt
+              qui lève l'infanterie, elle forme au niveau 1 (ADR 0047 §2) : le gain n'est pas le sien. */}
+          {siteSpeedsUp(building.key, view.mode)
+            ? fr.common.levelSpeed(next)
+            : fr.upgrade.toLevel(next)}
         </span>
         <button
           type="button"

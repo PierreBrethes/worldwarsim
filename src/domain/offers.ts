@@ -46,7 +46,8 @@ import {
   carrierIn,
   marchingTroopIds,
   type MarchStation,
-  projectionKeyOf,
+  formingSiteOf,
+  listsRole,
   recruitRefusalOf,
   stationKeyOf,
   troopsAt,
@@ -432,13 +433,14 @@ function buildingOffers(
   const workshop = target.workshop;
   if (workshop !== undefined) {
     const stocks = stocksAt(view, ctx.now);
+    const site = { ...formingSiteOf(view, standing), integrity: standing.integrity };
     const siteQueue = workshop.facilities.find((one) => one.id === standing.id)?.queue.length ?? 0;
     for (const entry of workshop.grid) {
-      if (projectionKeyOf(entry.role) !== standing.key) continue;
+      if (!listsRole(site, entry.role)) continue;
       const cards = [{ tier: 1 as UnitTier, costs: entry.unit.costs }];
       if (entry.unitTier2 !== null) cards.push({ tier: 2, costs: entry.unitTier2.costs });
       for (const card of cards) {
-        const refusal = recruitRefusalOf(entry.role, card.tier, standing, {
+        const refusal = recruitRefusalOf(entry.role, card.tier, site, {
           researched: view.me.research.researched,
           army: workshop.troopsInService + workshop.troopsQueued,
           siteQueue,

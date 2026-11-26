@@ -332,8 +332,8 @@ export const fr = {
     china: 'Chine',
   } satisfies Record<Nation, string>,
 
-  /** **L'atout d'une nation, en clair** (ADR 0039 §1) : un nom et la règle qu'il casse. Quatre
-   *  atouts seulement ; la table qui dit à qui ils vont est `ASSET_BY_NATION`. */
+  /** **L'atout d'une nation, en clair** (ADR 0039 §1) : un nom et la règle qu'il casse. La
+   *  table qui dit à qui ils vont est `ASSET_BY_NATION`. */
   nationAssets: {
     lendLease: {
       name: 'Prêt-bail',
@@ -346,6 +346,14 @@ export const fr = {
     industrialEvacuation: {
       name: 'Évacuation industrielle',
       rule: 'un bâtiment rasé laisse son niveau en réserve : la prochaine pose du même type coûte un niveau 1 et sort au niveau gardé',
+    },
+    massLevy: {
+      name: 'Levée en masse',
+      rule: 'l’infanterie MK1 se forme dans tout bâtiment chinois du sol national, à la durée d’une caserne neuve',
+    },
+    ultra: {
+      name: 'Ultra',
+      rule: 'une station d’écoute qui relève une colonne navale en lit la destination',
     },
     blitzkrieg: {
       name: 'Guerre éclair',
@@ -930,6 +938,8 @@ export const fr = {
       'une capture court sur ce point ou un bâtiment qu’il ancre : il ne se démantèle pas',
     WRONG_PROJECTION_BUILDING: (d) =>
       `ce rôle se forme dans ${buildingName(d.expected)}, pas dans ${buildingName(d.found)}`,
+    LEVY_FIRST_TIER_ONLY: () =>
+      'la levée en masse ne forme que l’infanterie MK1 : le MK2 se forme à la caserne',
     SINGLE_TIER_ROLE: () => 'ce rôle n’a qu’un seul palier',
     QUEUE_FULL: () => 'la file de ce site est pleine',
     UNKNOWN_BATCH: () => 'lot inconnu',
@@ -5490,6 +5500,7 @@ export const fr = {
     estimatedTime: (time: string) => `~${time}`,
     heading: 'cap',
     headingAtMe: 'sur nous · estimé',
+    ultraDestination: 'destination · Ultra',
   },
 
   labels: {
@@ -5532,6 +5543,8 @@ export const fr = {
     /** Le fanion du piquet de chantier d'une élévation : le niveau qui monte. */
     pennant: (level: number) => `niv. ${level}`,
     estimated: 'estimé',
+    /** **Ultra** (ADR 0047 §3) : la destination qu'une station britannique a entendue. */
+    ultraBound: (place: string) => `Ultra · vers ${place}`,
     /** **Une pile figée se date** (ADR 0037 §5) : hors de la vue du Guet, elle a pu changer. */
     readAt: (time: string) => `lu à ${time}`,
     /** La colonne est au bout du fil et n'avance plus : ce qui reste à dire est l'heure de la

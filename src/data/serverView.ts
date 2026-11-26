@@ -355,6 +355,14 @@ function asDetectedArc(
     detector: seen.detector,
     detectorRegion: seen.detectorRegion,
     ...(seen.nation === undefined ? {} : { nation: seen.nation }),
+    ...(seen.destination === undefined
+      ? {}
+      : {
+          destination: {
+            lonLat: [seen.destination.point.lon, seen.destination.point.lat] as LonLat,
+            label: placeLabel(seen.destination.name),
+          },
+        }),
     headingDegrees: seen.headingDegrees,
     identification: seen.identification,
   };

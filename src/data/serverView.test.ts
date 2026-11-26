@@ -118,6 +118,30 @@ describe('adaptServerView', () => {
     expect(arcProgressAt(later!, NOW + 5 * MINUTE)).toBe(0.25);
   });
 
+  /** **Ultra** (ADR 0047 §3) : la destination servie passe sur l'arc, nommée comme la sienne,
+   *  et y reste une fois la colonne perdue de vue ; un arc sans elle n'en porte aucune. */
+  it('carries the destination a British station heard, live and remembered', () => {
+    const heard = (loadedAt: number) => {
+      const view = answer(loadedAt);
+      return {
+        ...view,
+        detected: [
+          { ...view.detected![0]!, destination: { point: { lon: 3, lat: 2 }, name: 'GBR' } },
+        ],
+      } as ServerView;
+    };
+    const destination = { lonLat: [3, 2], label: 'Royaume-Uni' };
+    expect(adaptServerView(heard(NOW)).arcs[1]).toMatchObject({
+      state: 'enemyDetected',
+      destination,
+    });
+    expect(adaptServerView(heard(NOW + 11 * MINUTE)).arcs[1]).toMatchObject({
+      state: 'lastKnown',
+      destination,
+    });
+    expect(adaptServerView(answer(NOW)).arcs[1]).not.toHaveProperty('destination');
+  });
+
   /** **L'atout se dérive de la nation servie** (ADR 0039) : rien pour une nation sans atout, rien
    *  en Blitz, pour moi comme pour un adversaire. */
   it('reads the asset from the nation, in a Mondiale only', () => {
