@@ -83,6 +83,8 @@ import { articulatedOf, type Cue, type Sequence, SequenceLayer } from './sequenc
 import { type PlaneFile, planeFileOf } from './figurines/plane-rig';
 import { FlagWindLayer } from './flag-wind';
 import { type BeamPoint, LookoutBeams, MAX_BEAMS } from './lookout-beams';
+import { BattleTraces } from './battle-traces';
+import type { BattleTrace } from '@/domain/battle-traces';
 import { MAX_LIVING, SiteLoopLayer } from './site-loops';
 import { departureOf, touchOf } from './mooring';
 import { Moorings } from './moorings';
@@ -732,6 +734,8 @@ export class MapEngine {
   /** My sites at work, alive at rest (#273): an ambience that borrows their copies. */
   private readonly loops: SiteLoopLayer;
   private readonly beams: LookoutBeams;
+  /** **Les cratères de mes combats** (#642), posés à chaque vue. */
+  private readonly traces: BattleTraces;
   /** **The hawsers of the hulls at a port** (#500). */
   private readonly moorings: Moorings;
   /** The pieces' articulated copies, for the length of a sequence (ADR 0036). */
@@ -1346,6 +1350,8 @@ export class MapEngine {
       this.touch ? MAX_BEAMS.touch : MAX_BEAMS.desk,
     );
     this.scene.add(this.beams.object);
+    this.traces = new BattleTraces(this.frame, this.night.uniforms);
+    this.scene.add(this.traces.object);
     this.ambience.add(this.beams);
     this.moorings = new Moorings({
       hulls: () => this.standing.mooredHulls(),
@@ -2743,6 +2749,12 @@ export class MapEngine {
     this.beams.show(points);
   }
 
+  /** **Le champ de bataille se souvient** (#642) : les cratères de mes combats sur terre. */
+  showBattleTraces(traces: ReadonlyArray<BattleTrace>): void {
+    this.invalidate();
+    this.traces.show(traces);
+  }
+
   /** **La liaison tracée sous le pointeur** (#376), par les clés de ses deux points, ou `null`. */
   liaisonAt(clientX: number, clientY: number): readonly [string, string] | null {
     if (!this.castAt(clientX, clientY)) return null;
@@ -2861,6 +2873,7 @@ export class MapEngine {
     this.veil.dispose();
     this.halos.dispose();
     this.beams.dispose();
+    this.traces.dispose();
     this.scene.traverse(disposeNode);
     this.scene.clear();
 

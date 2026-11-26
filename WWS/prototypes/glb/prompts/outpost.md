@@ -136,3 +136,27 @@ ni soldat, ni véhicule, ni avion, ni bateau, ni canon de campagne.
 - Dans la page, quatre boutons pour montrer un seul accessoire ou aucun (généraliste, Magasin,
   Guet, Fort) et le compte de triangles de chaque état : moins de 1 500 dans tous, 150 au plus
   par accessoire.
+
+## Du 26/11 : l'antenne télescopique et le projecteur du Guet (#468, #644)
+
+**À recoller dans la conversation Claude Design de l'avant-poste.** Le reste du modèle ne change
+pas ; seul le groupe `guet` est repris, pour que le jeu puisse monter l'antenne à la
+spécialisation et faire partir le faisceau de nuit du projecteur.
+
+- **L'antenne en trois tronçons emboîtés**, chacun son nœud, enfants du groupe `guet` dans cet
+  ordre : `antenne_1` (le tronçon du bas, 3 m, Ø 0,20 m, posé sur le trépied), `antenne_2` (3 m,
+  Ø 0,15 m) et `antenne_3` (3 m, Ø 0,10 m). **Pivot de chacun à son pied**, sur l'axe du mât
+  télescopique ; déployée, l'antenne mesure 7 m comme avant (les tronçons se recouvrent de 1 m).
+  Le jeu les rentre l'un dans l'autre en les descendant le long de y : chaque tronçon doit tenir
+  entier dans celui du dessous, rien ne doit dépasser sur le côté.
+- **`cadre`** : le cadre carré de 1,5 m, enfant de `antenne_3`, à son sommet. Il monte avec lui.
+- **`projecteur`** : un projecteur de campagne de 0,8 m de diamètre sur un poteau de 2 m, posé à
+  2 m de l'antenne côté +x, dans la zone des accessoires. Pivot au pied du poteau, sur son axe : le
+  jeu le fait tourner autour de y. Sa lentille regarde +z au repos, inclinée de 10° vers le sol.
+- **`fx_faisceau`**, repère vide enfant de `projecteur`, au centre de la lentille, orienté dans
+  l'axe du faisceau. C'est de là que part la lumière de nuit.
+- Budget : le groupe `guet` reste à 150 triangles au plus ; simplifier la table et la caisse
+  radio plutôt que l'antenne.
+- Dans la page, un curseur qui rentre et sort l'antenne, pour vérifier que rien ne dépasse.
+- À la vérification : `antenne_1`, `antenne_2`, `antenne_3`, `cadre`, `projecteur` et
+  `fx_faisceau` présents à l'identique, chacun sur un seul nœud.

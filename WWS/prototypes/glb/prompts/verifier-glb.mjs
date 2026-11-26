@@ -119,8 +119,8 @@ const EXPECT = {
     // le cercle de sacs de 30 m, 0,5 m de jeu et le liseré de 3 m : 37 m, mesurés dans les deux sens (un rond)
     measure: ['socle', 'xz', 37, 0.04], texture: 512, materials: ['lisere', 'feux'],
     triangles: 1500, groups: ['magasin', 'guet', 'fort'], fixed: [['socle', 'lisere', 'signe', 'hampe', 'drapeau'], 500], rest: 850,
-    names: ['socle', 'lisere', 'sacs', 'signe', 'magasin', 'guet', 'fort', ...FLAG.names],
-    pivots: { ...FLAG.pivots },
+    names: ['socle', 'lisere', 'sacs', 'signe', 'magasin', 'guet', 'fort', 'antenne_1', 'antenne_2', 'antenne_3', 'cadre', 'projecteur', 'fx_faisceau', ...FLAG.names],
+    pivots: { 'antenne_*': 'pied', projecteur: 'pied', ...FLAG.pivots },
     absent: ['fx_rang', 'cour', 'niveau_1', 'niveau_2', 'niveau_3', 'chantier', 'ruines'],
   },
   city: {
@@ -197,6 +197,11 @@ const EXPECT = {
     roots: { mole_troncon: [20, 10, 500], mole_tete: [24, 24, 800] }, floor: -1.05, materials: ['feux'],
     names: ['mole_troncon', 'bitte', 'defense', 'lampadaire', 'mole_tete', 'feu_musoir', 'fx_amarre', 'fx_amarre_tete'],
     pivots: { bitte: 'pied', lampadaire: 'pied', defense: 'haut' },
+  },
+  // #642, #643 : restes de combat, fixes, sans nation.
+  traces: {
+    roots: { carcasse: [4.5, 7, 400], epave: [14, 40, 600] }, floor: -3.05,
+    names: ['carcasse', 'epave', 'fx_fumee', 'fx_remous'],
   },
   manche: {
     measure: ['mat_manche', 'y', 6, 0.06], triangles: 1200, materials: ['feux'],
