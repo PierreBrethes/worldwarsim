@@ -28,7 +28,7 @@ const report = (
 describe('battleTracesOf (#642)', () => {
   it('pose une trace au point de chaque combat sur terre, à l’encre pleine quand il est frais', () => {
     expect(battleTracesOf([report('a', NOON)], NOON)).toEqual([
-      { id: 'a', point: [2.35, 48.85], craters: 2, ink: 1 },
+      { id: 'a', point: [2.35, 48.85], craters: 2, wreck: null, ink: 1 },
     ]);
   });
 
@@ -39,8 +39,23 @@ describe('battleTracesOf (#642)', () => {
     expect(TRACE_MS).toBe(24 * HOUR);
   });
 
-  it('ne pose rien en mer : les épaves sont une autre trace (#643)', () => {
+  it('ne pose rien en mer quand rien n’y a coulé', () => {
     expect(battleTracesOf([report('a', NOON, [5, 5], { atSea: true })], NOON)).toEqual([]);
+  });
+
+  it('pose une épave sans cratère là où un engin a été détruit en mer (#643)', () => {
+    const sunk = report('a', NOON, [5, 5], {
+      atSea: true,
+      theirs: { troops: 1, lost: 5, routed: 0, destroyed: 1 },
+    });
+    expect(battleTracesOf([sunk], NOON)[0]).toMatchObject({ craters: 0, wreck: 'epave' });
+  });
+
+  it('ajoute une carcasse aux cratères là où un engin a été détruit sur terre', () => {
+    const burnt = report('a', NOON, [5, 5], {
+      mine: { troops: 1, lost: 5, routed: 0, destroyed: 1 },
+    });
+    expect(battleTracesOf([burnt], NOON)[0]).toMatchObject({ craters: 2, wreck: 'carcasse' });
   });
 
   it('pose le bombardement au point visé, chez l’attaquant comme chez la cible', () => {

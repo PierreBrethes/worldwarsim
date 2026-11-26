@@ -1350,7 +1350,7 @@ export class MapEngine {
       this.touch ? MAX_BEAMS.touch : MAX_BEAMS.desk,
     );
     this.scene.add(this.beams.object);
-    this.traces = new BattleTraces(this.frame, this.night.uniforms);
+    this.traces = new BattleTraces(this.frame, this.night.uniforms, () => this.invalidate());
     this.scene.add(this.traces.object);
     this.ambience.add(this.beams);
     this.moorings = new Moorings({

@@ -17,11 +17,16 @@ export const TRACE_MS = 24 * 3_600_000;
 const CRATER_STEPS = [10, 40, 100, 250] as const;
 export const MAX_CRATERS = CRATER_STEPS.length + 1;
 
-/** Une trace de combat à poser : un lieu, un nombre de cratères, une encre de 1 (frais) à 0. */
+/** **Ce qui reste d'un engin détruit** (#642, #643) : une carcasse sur terre, une épave en mer. */
+export type Wreck = 'carcasse' | 'epave';
+
+/** Une trace de combat à poser : un lieu, ses cratères (aucun en mer), son reste, son encre de
+ *  1 (frais) à 0. */
 export type BattleTrace = {
   readonly id: string;
   readonly point: LonLat;
   readonly craters: number;
+  readonly wreck: Wreck | null;
   readonly ink: number;
 };
 
@@ -31,24 +36,29 @@ export const cratersOf = (report: CombatReport): number => {
 };
 
 /**
- * **Le champ de bataille se souvient** (#642) : mes comptes rendus de combats livrés sur terre,
- * vus à `now`, rendent chacun sa trace — plus récente, plus noire ; à `TRACE_MS`, elle est partie.
- * Ce sont les comptes rendus servis au joueur et eux seuls : un combat d'autrui n'en a pas. Un
- * bombardement laisse la sienne au point visé, chez l'un comme chez l'autre. La mer attend ses
- * épaves (#643).
+ * **Le champ de bataille se souvient** (#642, #643) : mes comptes rendus vus à `now` rendent
+ * chacun sa trace — plus récente, plus noire ; à `TRACE_MS`, elle est partie. Sur terre, des
+ * cratères, et une carcasse quand un engin y a été détruit ; en mer, une épave, et seulement quand
+ * un engin y a été détruit. Elle ne dit ni la nation ni le type de ce qui a été détruit. Ce sont
+ * les comptes rendus servis au joueur et eux seuls : un combat d'autrui n'en a pas. Un
+ * bombardement laisse la sienne au point visé, chez l'un comme chez l'autre.
  */
 export function battleTracesOf(reports: ReadonlyArray<CombatReport>, now: number): BattleTrace[] {
   const seen = new Set<string>();
   return reports.flatMap((report) => {
     // Une horloge un peu en retard sur le serveur voit un combat frais, pas aucun.
     const age = Math.max(0, now - report.at);
-    if (report.atSea === true || age >= TRACE_MS || seen.has(report.id)) return [];
+    if (age >= TRACE_MS || seen.has(report.id)) return [];
     seen.add(report.id);
+    const atSea = report.atSea === true;
+    const destroyed = report.mine.destroyed + report.theirs.destroyed > 0;
+    if (atSea && !destroyed) return [];
     return [
       {
         id: report.id,
         point: [report.point.lon, report.point.lat] as const,
-        craters: cratersOf(report),
+        craters: atSea ? 0 : cratersOf(report),
+        wreck: destroyed ? (atSea ? 'epave' : 'carcasse') : null,
         ink: 1 - age / TRACE_MS,
       },
     ];
