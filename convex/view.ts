@@ -80,7 +80,7 @@ import { isReached, sitesOf, type Site, type Sites } from './sites';
 import { movementsOf, outpostsOf, pointOf, isServed } from './movement/forces';
 import { marchingForce } from './movement/detection';
 import { groundOf, linkedOn } from './holding';
-import { regionNameAt } from './placeNames';
+import { destinationOf, regionNameAt } from './placeNames';
 import { restHoldOf } from './movement/rest';
 import {
   capitalRegionOf,
@@ -991,12 +991,6 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
             : (movementBuildings.get(movement.fromBuildingId) ?? null);
         const origin = barracks === null ? null : regionFacts(barracks.regionId);
         const departurePoint = pointOf(movement.from);
-        const destination =
-          movement.target.kind === 'region'
-            ? regionFacts(movement.target.regionId)
-            : movement.target.kind === 'building'
-              ? regionFacts(movementBuildings.get(movement.target.buildingId)?.regionId ?? '')
-              : null;
         const carriers = movement.troopIds.flatMap((troopId) => {
           const troop = troopById.get(troopId);
           return troop === undefined ? [] : [troop];
@@ -1038,14 +1032,12 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           /** Une colonne partie d'un point n'a pas de caserne : elle se nomme par la région et le
            *  pays de ce point, et non par le pays d'arrivée, que ce repli écrivait faute de mieux. */
           originName: origin?.name ?? regionNameAt(departurePoint) ?? hostAtPoint(departurePoint),
-          /** Une marche vers un point nu prend le nom de la région sous lui, et le code du pays
-           *  seulement en mer — un code que le client traduit (ADR 0016). */
-          destinationName:
-            destination?.name ??
-            (movement.target.kind === 'point'
-              ? regionNameAt(pointOf(movement.target.point))
-              : null) ??
-            movement.hostCountry,
+          destinationName: destinationOf(
+            movement,
+            movement.target.kind === 'building'
+              ? movementBuildings.get(movement.target.buildingId)?.regionId
+              : undefined,
+          ).name,
           /** The troops it carries: they keep their address, so the board has to know which
            *  ones are on the road before it offers them to a second order. */
           troopIds: movement.troopIds,
@@ -1454,13 +1446,19 @@ function placed(notice: Doc<'notices'>) {
  * table (`WWS/docs/technique/brouillard-et-fanout.md`).
  *
  * **What travels is the stretch the window covers**, its media, its heading on leaving the radius
- * and the estimated arrival (design sheet 04, decision 4a of 13/09/2026). Not the whole thread,
- * and therefore not the destination: serving both declared endpoints taught the first sentry
- * where the column was going, which is the one thing the fog is there to keep. **Neither the type
- * nor the composition nor the nation is here** either, and none of them is fetched. A sentry
- * watches a column go past; it does not read its flag, and it does not read its orders.
+ * and the estimated arrival (design sheet 04, decision 4a of 13/09/2026). Not the whole thread:
+ * `from` and `to` stay the two ends of the stretch, because serving both declared endpoints taught
+ * the first sentry where the column was going, which is the one thing the fog is there to keep.
+ * **Neither the type nor the composition nor the nation is here** either, and none of them is
+ * fetched. A sentry watches a column go past; it does not read its flag, and it does not read its
+ * orders.
  *
- * `headingAtMe` is the third ink of design sheet 04 and, without a destination, an **estimate**:
+ * **Ultra breaks it once** (ADR 0047 §3), the third breach after Lisbon and the Lend-Lease
+ * dispatch: a naval column a British station has heard carries its `destination`, a field of its
+ * own — the point and the name its owner reads, nothing else — served past `ultraFrom` and only
+ * on the British observer's own row. The row writes it; this reads it and filters nothing.
+ *
+ * `headingAtMe` is the third ink of design sheet 04 and, Ultra or not, an **estimate**:
  * the heading is prolonged over what the column has left to walk, and the ink turns critical if
  * any of those points falls on ground the player recognises — his own soil, or the reach of one
  * of his outposts (`isAnchored`, the same reading the aim already gives him). A column that
@@ -1539,6 +1537,7 @@ async function detectedArcs(
         detector: sighting.detector,
         detectorRegion: await regionOfStation(ctx, sighting),
         ...lisbonNation(nationOf, sighting.ownerId),
+        ...(frozen.destination === undefined ? {} : { destination: frozen.destination }),
         identification: compositionOf(sighting),
       });
       continue;
@@ -1569,6 +1568,9 @@ async function detectedArcs(
       detector: sighting.detector,
       detectorRegion: await regionOfStation(ctx, sighting),
       ...lisbonNation(nationOf, movement.playerId),
+      ...(sighting.ultraFrom !== undefined && sighting.ultraFrom <= now
+        ? { destination: destinationOf(movement) }
+        : {}),
       identification: compositionOf(sighting),
     });
   }
@@ -1609,10 +1611,11 @@ function seenReprise(force: MarchingForce, sighting: SightWindow) {
 }
 
 /**
- * **« Cap sur moi », estimated** (rule 5 of decision 4a). Without a destination the question is
- * answered by prolonging the heading from the last point seen, over the distance the column has
- * left to walk, at the mesh of the very grid that says whose ground a point is. The point seen
- * counts too: a column caught standing on my soil is coming for me whatever it does next.
+ * **« Cap sur moi », estimated** (rule 5 of decision 4a). Without a destination — Ultra's is not
+ * read here (#686) — the question is answered by prolonging the heading from the last point seen,
+ * over the distance the column has left to walk, at the mesh of the very grid that says whose
+ * ground a point is. The point seen counts too: a column caught standing on my soil is coming for
+ * me whatever it does next.
  */
 function headingReachesMe(
   force: MarchingForce,

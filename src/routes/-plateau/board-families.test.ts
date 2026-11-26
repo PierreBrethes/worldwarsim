@@ -3,7 +3,7 @@ import { familiesOf, liftsAsPile } from './board-families';
 
 const troop = (id: string, stationedAt: unknown) => ({ id, stationedAt });
 const view = (mode: 'mondiale' | 'blitz', troops: unknown[] = []) =>
-  ({ mode, me: { troops } }) as never;
+  ({ mode, me: { troops, nation: 'france', regions: [] } }) as never;
 const markers = [
   { kind: 'stack', id: 's1', lonLat: [4, 4], station: { kind: 'point', lonLat: [4, 4] } },
   { kind: 'building', id: 'b1', buildingId: 'b1', key: 'barracks', lonLat: [1, 1] },

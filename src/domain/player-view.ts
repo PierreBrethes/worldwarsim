@@ -71,6 +71,13 @@ export type Composition =
       readonly readAt: number | null;
     };
 
+/**
+ * **Ultra** (ADR 0047 §3) : où va une colonne navale qu'une station britannique a entendue — le
+ * point visé et le nom du lieu, tels que son propriétaire les lit, et rien d'autre. Un champ à
+ * part : `to` reste le bout du tronçon vu.
+ */
+export type ArcDestination = { readonly lonLat: LonLat; readonly label: string };
+
 /** Une pile comptée par rôle, depuis un rôle par troupe. */
 export const stackOf = (roles: ReadonlyArray<UnitRole>): Stack =>
   roles.reduce<Stack>((counted, role) => ({ ...counted, [role]: (counted[role] ?? 0) + 1 }), {});
@@ -85,8 +92,8 @@ export const stackOf = (roles: ReadonlyArray<UnitRole>): Stack =>
  * and the composition stay out of reach.
  * `from` and `to` remain alongside: on a movement of mine they are the declared endpoints, not the
  * polyline followed. **On an enemy arc they are the two ends of the stretch that was watched** —
- * the destination is not served at all (design sheet 04, decision 4a of 13/09/2026), and the two
- * states below carry nothing that could be mistaken for one.
+ * the destination is not served (design sheet 04, decision 4a of 13/09/2026), except as
+ * `destination` to the British observer a station heard (Ultra, ADR 0047 §3).
  */
 export type ArcView =
   | {
@@ -148,13 +155,16 @@ export type ArcView =
       readonly detectorRegion: string | null;
       /** La nation de la colonne, servie au seul teneur de Lisbonne (P11). */
       readonly nation?: string;
+      /** **Ultra** : sa destination, à l'observateur britannique qu'une station a entendu. */
+      readonly destination?: ArcDestination;
       /** Where the column was pointing **as it left the radius**, which is what a window's close
        *  reveals: the far end of the thread served is not a destination. */
       readonly headingDegrees: number;
       /**
        * The heading, prolonged over what the column has left to walk, falls on my territory or
        * one of my outposts: the card turns critical. An **estimate** since decision 4a — no
-       * destination is served — and the card already says « estimé ».
+       * destination is served, and Ultra's (`destination`) does not feed it — and the card
+       * already says « estimé ».
        */
       readonly headingAtMe: boolean;
       readonly identification: Composition;
@@ -178,6 +188,8 @@ export type ArcView =
       readonly detector: Detector;
       readonly detectorRegion: string | null;
       readonly nation?: string;
+      /** Ce qui a été entendu reste su : la destination de l'instant où le fil s'est figé. */
+      readonly destination?: ArcDestination;
       readonly headingDegrees: number;
       /** La dernière pile qu'un Guet a lue, figée avec le fil. */
       readonly identification: Composition;

@@ -595,13 +595,20 @@ function recruitCall(
   const stocks = Object.fromEntries(
     RESOURCES.map((key) => [key, currentStock(view.me.resources[key], view.loadedAt, now)]),
   ) as Record<ResourceKey, number>;
-  const refusal = recruitRefusalOf(role, 1, site, {
-    researched: view.me.research.researched,
-    army: freeArmyOf(view, workshop),
-    siteQueue: site.queue.length,
-    costs: unit.costs,
-    stocks,
-  });
+  /** Le bot ne forme qu'à sa caserne, que le sol ne change pas : la Levée en masse chinoise
+   *  (ADR 0047) n'est pas lue, il ne cherche que `barracks`. */
+  const refusal = recruitRefusalOf(
+    role,
+    1,
+    { key: site.key, nation: view.me.nation, mode: view.mode, onNationalSoil: false },
+    {
+      researched: view.me.research.researched,
+      army: freeArmyOf(view, workshop),
+      siteQueue: site.queue.length,
+      costs: unit.costs,
+      stocks,
+    },
+  );
   if (refusal !== null) return { refused: refusal.code };
   return { want, order: { fn: 'troops.recruit', args: { buildingId: site.id, role, tier: 1 } } };
 }

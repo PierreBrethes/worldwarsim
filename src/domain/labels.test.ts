@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fr } from '@/i18n/fr';
+import type { LonLat } from './geo';
 import {
   abbreviateStack,
   buildLabels,
@@ -212,6 +213,37 @@ describe('buildLabels', () => {
       dueAt: LOADED_AT + 100 * 60_000,
       prefix: '~',
     });
+  });
+
+  /** **Ultra** (ADR 0047 §3) : la destination entendue, sur le cartouche et sous un drapeau. */
+  it('says and flags the destination a British station heard, live or remembered', () => {
+    const destination = { lonLat: [3, 2] as LonLat, label: 'Malte' };
+    const remembered: ArcView = {
+      state: 'lastKnown',
+      detector: 'station',
+      detectorRegion: 'Kent',
+      identification: { pierced: false },
+      id: 'old',
+      from: [0, 0],
+      to: [1, 1],
+      route: directRoute([0, 0], [1, 1], 'sea', 10),
+      headingDegrees: 10,
+      lastSeenAt: LOADED_AT - 5 * MINUTE,
+      destination,
+    };
+    const labels = buildLabels(viewWith([detectedArc({ destination }), remembered]), []);
+    for (const id of ['mv-x', 'old']) {
+      expect(labels.find((label) => label.id === id)!.lines).toContainEqual({
+        role: 'mention',
+        text: fr.labels.ultraBound('Malte'),
+      });
+      expect(labels.find((label) => label.id === `ultra-${id}`)).toMatchObject({
+        type: 'arrival',
+        ink: null,
+        anchor: { kind: 'ground', lonLat: [3, 2] },
+        lines: [{ role: 'nature', text: 'Malte' }],
+      });
+    }
   });
 
   it('says the hold instead of counting down an arrival that will not happen', () => {

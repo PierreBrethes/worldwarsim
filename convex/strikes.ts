@@ -183,7 +183,9 @@ async function strikeBuilding(
   const storageLost = raidsStock(target.key)
     ? await clipToStorage(ctx, target.playerId, now, spared)
     : emptyStocks();
-  if (target.key === 'barracks') await freezeQueue(ctx, target._id, now);
+  /** Tout bâtiment qui forme (la Levée en masse, ADR 0047 §2) : `freezeQueue` ne fait rien d'une
+   *  file vide, et une file ne se tient que dans un bâtiment qui forme pour son tenant. */
+  await freezeQueue(ctx, target._id, now);
   /** **Le QG et le Centre désactivés** (ADR 0046 §8) : ses chantiers attendent, sa carte aussi. */
   if (target.key === 'hq' && hqDisabledIn(await playerBuildings(ctx, target.playerId), now))
     await freezeWorks(ctx, target.playerId, now);

@@ -162,6 +162,16 @@ describe('le bot facile, son ouverture', () => {
     ]);
   });
 
+  it('ne lève pas la Levée en masse : un bot chinois forme à sa caserne, pas à son entrepôt (ADR 0047)', () => {
+    const view = viewOf({ hqLevel: 1, buildings: [hqStanding], nation: 'china' });
+    const warehouse = { id: 'w-1', key: 'warehouse' as const, queue: [] };
+    const barracks = { id: 'b-1', key: 'barracks' as const, queue: [] };
+    expect(turn(view, workshopOf({ facilities: [warehouse, barracks] }))).toEqual([
+      { fn: 'troops.recruit', args: { buildingId: 'b-1', role: 'infantry', tier: 1 } },
+    ]);
+    expect(turn(view, workshopOf({ facilities: [warehouse] }))).toEqual([]);
+  });
+
   it('cesse de recruter à la cible, ou sans les stocks', () => {
     const view = viewOf({ hqLevel: 1, buildings: [hqStanding] });
     const barracks = { id: 'b-1', key: 'barracks' as const, queue: [] };

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { levelGain, levelSpeed, spedMinutes, speedsUp } from './level-speed';
+import {
+  formedMinutes,
+  siteSpeedsUp,
+  levelGain,
+  levelSpeed,
+  spedMinutes,
+  speedsUp,
+} from './level-speed';
 
 describe('the duration factor of a level (ADR 0031)', () => {
   it('leaves the first level at the base, then takes 20 % per level, multiplied', () => {
@@ -30,5 +37,32 @@ describe('the duration factor of a level (ADR 0031)', () => {
       (['hq', 'barracks', 'port', 'airfield', 'researchCenter'] as const).every(speedsUp),
     ).toBe(true);
     expect(speedsUp('mine')).toBe(false);
+  });
+});
+
+describe('the duration of a formation (ADR 0047 §2)', () => {
+  it('speeds a site of projection up by its level, for the role it is the site of', () => {
+    expect(formedMinutes(100, 'barracks', 'infantry', 3)).toBe(spedMinutes(100, 3));
+    expect(formedMinutes(100, 'port', 'cargo', 3)).toBe(spedMinutes(100, 3));
+  });
+
+  it('forms the levied infantry at level 1 wherever it is not a barracks, a port included', () => {
+    expect(formedMinutes(100, 'warehouse', 'infantry', 5)).toBe(100);
+    expect(formedMinutes(100, 'hq', 'infantry', 5)).toBe(100);
+    expect(formedMinutes(100, 'port', 'infantry', 5)).toBe(100);
+    expect(formedMinutes(100, 'depot', 'infantry', 5)).toBe(100);
+  });
+});
+
+describe('the « −x % » of a site sheet', () => {
+  it('stays where it was: the sites of projection, and the Blitz headquarters', () => {
+    expect(siteSpeedsUp('barracks', 'mondiale')).toBe(true);
+    expect(siteSpeedsUp('hq', 'blitz')).toBe(true);
+  });
+
+  it('is not promised by a Mondiale headquarters or centre that forms the levy at level 1', () => {
+    expect(siteSpeedsUp('hq', 'mondiale')).toBe(false);
+    expect(siteSpeedsUp('researchCenter', 'mondiale')).toBe(false);
+    expect(siteSpeedsUp('warehouse', 'mondiale')).toBe(false);
   });
 });

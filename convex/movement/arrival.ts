@@ -40,6 +40,7 @@ import { reportChange, scheduleRestore, settleBeforeChange } from '../production
 import { regionAtPoint } from '../regionGeometry';
 import { capitalRegionOf, pointOfBuilding, regionFacts } from '../regions';
 import { hostAtPoint, routeBetween } from '../routes';
+import { destinationOf } from '../placeNames';
 import {
   asPoint,
   defenceOf,
@@ -115,6 +116,7 @@ async function dropMovement(
      *  Une réapparition non plus (#412). */
     if (sighting.readJobId !== undefined) await cancelJob(ctx, sighting.readJobId);
     if (sighting.openJobId !== undefined) await cancelJob(ctx, sighting.openJobId);
+    if (sighting.ultraJobId !== undefined) await cancelJob(ctx, sighting.ultraJobId);
     /** **La dernière fenêtre ouverte se fige** (#412), et celles à venir partent avec la colonne. */
     const served = servedWindow(windowsOf(sighting), now);
     if (served === null || movement === null) {
@@ -131,6 +133,8 @@ async function dropMovement(
     const closedAt = Math.min(served.to, now);
     const segment = seenSegment(marchingForce(movement), served.from, closedAt);
     const { readAt } = lostReading(sighting, closedAt);
+    /** **Ce qui a été entendu reste su** (Ultra, ADR 0047 §3) : la destination de l'instant. */
+    const heard = sighting.ultraFrom !== undefined && sighting.ultraFrom <= now;
     await ctx.db.patch(sighting._id, {
       to: closedAt,
       windows: storedWindows(sighting.from, [{ from: served.from, to: closedAt }]),
@@ -138,6 +142,7 @@ async function dropMovement(
       openJobAt: undefined,
       readJobId: undefined,
       readJobAt: undefined,
+      ultraJobId: undefined,
       reads: undefined,
       ...(readAt === undefined ? {} : { readAt }),
       frozen: {
@@ -147,6 +152,7 @@ async function dropMovement(
         costUnits: segment.costUnits,
         headingDegrees: segment.headingDegrees,
         closedAt,
+        ...(heard ? { destination: destinationOf(movement) } : {}),
       },
     });
   }

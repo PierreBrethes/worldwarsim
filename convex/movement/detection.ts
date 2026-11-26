@@ -37,7 +37,10 @@ import {
   type SightWindow,
 } from '../../src/domain/sighting-windows';
 import { RESOURCES, type ResourceKey, type UnitRole } from '../../src/domain/ids';
+import { assetOf } from '../../src/domain/nation-assets';
 import { isNation } from '../../src/domain/nations';
+import { modeOf } from '../../src/domain/season-mode';
+import { carriesHull } from '../../src/domain/troops';
 import {
   effectiveSpecialty,
   fortWatches,
@@ -104,6 +107,9 @@ type Caught = {
   /** **Les franchissements de lignes de guet à venir** (#377), un par ronde : chacun sa dépêche,
    *  même sur une colonne déjà relevée (Décisions du 02/11). */
   readonly crossings?: ReadonlyArray<Crossing>;
+  /** **Ultra** (ADR 0047 §3) : la première ouverture d'une station britannique sur une colonne
+   *  navale ; absent pour tout autre détecteur. */
+  readonly ultraFrom?: number;
 };
 
 type Crossing = {
@@ -113,9 +119,12 @@ type Crossing = {
 };
 
 type PassiveWatcher = Watcher &
-  Omit<Caught, 'windows' | 'readWindows'> & {
+  Omit<Caught, 'windows' | 'readWindows' | 'ultraFrom'> & {
     /** Un Guet : ses relevés livrent la pile (`readsComposition`). */
     readonly reads: boolean;
+    /** **Une station britannique** (Ultra, ADR 0047 §3) : elle entend la destination d'une
+     *  colonne navale. L'atout suit la nation du teneur de la station, capturée comprise. */
+    readonly hearsUltra?: true;
   };
 
 /**
@@ -257,14 +266,24 @@ export async function refreshLootCrateDetection(
   await reassessLootCrateDetection(ctx, prediction.seasonId, now);
 }
 
-/** A future sighting files its dispatch only when its window truly opens. */
+/**
+ * A future sighting files its dispatch only when its window truly opens. **A row born told** (a
+ * changed course, a second leg) files none, but its opening is still written: a cached view does
+ * not read the hour, and would serve the arc — and Ultra's destination, which opens with it — at
+ * the next unrelated write.
+ */
 export async function revealSighting(
   ctx: MutationCtx,
   sightingId: Id<'sightings'>,
   now = Date.now(),
 ): Promise<void> {
   const sighting = await ctx.db.get(sightingId);
-  if (sighting === null || sighting.noticeFiled === true || sighting.from > now) return;
+  if (sighting === null || sighting.from > now) return;
+  if (sighting.noticeFiled === true) {
+    if (sighting.revealJobId !== undefined)
+      await ctx.db.patch(sighting._id, { revealJobId: undefined });
+    return;
+  }
   const movement = await ctx.db.get(sighting.movementId);
   if (movement === null) return;
   const season = await ctx.db.get(movement.seasonId);
@@ -348,7 +367,9 @@ async function detectionBoard(
   /** The players whose economy this event may have moved; `null` reads every verdict off its row. */
   touched: ReadonlySet<Id<'players'>> | null = null,
 ) {
-  const theatre = seasonTheatre(await ctx.db.get(seasonId));
+  const season = await ctx.db.get(seasonId);
+  const theatre = seasonTheatre(season);
+  const mode = modeOf(season?.mode);
   const [troops, buildings, outposts, players] = await Promise.all([
     seasonTroops(ctx, seasonId),
     seasonBuildings(ctx, seasonId),
@@ -480,6 +501,9 @@ async function detectionBoard(
       detectorHostCountry: facts.country,
       detectorRegion: facts.name,
       reads: false,
+      ...(assetOf(playerById.get(building.playerId)?.nation ?? null, mode) === 'ultra'
+        ? { hearsUltra: true as const }
+        : {}),
     });
   }
 
@@ -1121,7 +1145,13 @@ async function sightingsFor(
             ? { from: now, to: pass.to }
             : pass,
         );
-    caught.push({ ...watcher, windows: seen, readWindows });
+    const { hearsUltra, ...caughtBy } = watcher;
+    caught.push({
+      ...caughtBy,
+      windows: seen,
+      readWindows,
+      ...(hearsUltra && carriesHull(target.roles) ? { ultraFrom: seen[0]!.from } : {}),
+    });
   }
 
   /** **Une ligne de guet relève au franchissement** (ADR 0037 §10), terre, mer et air, sans lire
@@ -1265,12 +1295,16 @@ async function syncSightings(
     const held = desired.get(candidate.playerId);
     if (held === undefined) desired.set(candidate.playerId, candidate);
     else {
-      const first = earlier(held, candidate);
+      const { ultraFrom: _first, ...first } = earlier(held, candidate);
+      /** **Une station suffit** (ADR 0047 §3) : le détecteur gardé est le premier, Ultra le plus
+       *  tôt de ceux qui l'entendent, quel que soit leur rang. */
+      const heard = [held.ultraFrom, candidate.ultraFrom].filter((at) => at !== undefined);
       desired.set(candidate.playerId, {
         ...first,
         windows: mergeWindows([...held.windows, ...candidate.windows], step),
         readWindows: [...held.readWindows, ...candidate.readWindows],
         crossings: [...(held.crossings ?? []), ...(candidate.crossings ?? [])],
+        ...(heard.length === 0 ? {} : { ultraFrom: Math.min(...heard) }),
       });
     }
   }
@@ -1358,6 +1392,58 @@ export async function wakeSighting(
     openJobId: job.openJobId,
     openJobAt: job.openJobAt,
   });
+}
+
+/**
+ * **Ultra sur la ligne** (ADR 0047 §3) : l'instant où une station britannique commence d'entendre,
+ * et son réveil. Passé, il ne se retire plus — ni la station prise ou rasée, ni la coque perdue
+ * n'effacent ce qui a été entendu ; à venir, il suit la carte. Le réveil se pose quand aucune
+ * ouverture de fenêtre ne réveille déjà la ligne à cet instant : une vue en cache ne relit pas
+ * l'heure, et servirait la destination à la prochaine écriture sans rapport. Rend le patch, vide
+ * si rien ne change.
+ */
+async function keepUltra(
+  ctx: MutationCtx,
+  row: {
+    readonly _id: Id<'sightings'>;
+    readonly ultraFrom?: number | undefined;
+    readonly ultraJobId?: Id<'_scheduled_functions'> | undefined;
+  },
+  heard: number | undefined,
+  windows: ReadonlyArray<SightWindow>,
+  now: number,
+): Promise<{
+  ultraFrom?: number | undefined;
+  ultraJobId?: Id<'_scheduled_functions'> | undefined;
+}> {
+  const ultraFrom = row.ultraFrom !== undefined && row.ultraFrom <= now ? row.ultraFrom : heard;
+  const patch = ultraFrom === row.ultraFrom ? {} : { ultraFrom };
+  const wakes =
+    ultraFrom !== undefined &&
+    ultraFrom > now &&
+    !windows.some((window) => window.from === ultraFrom);
+  if (row.ultraJobId !== undefined && wakes && ultraFrom === row.ultraFrom) return patch;
+  if (row.ultraJobId !== undefined) await cancelJob(ctx, row.ultraJobId);
+  if (!wakes) return row.ultraJobId === undefined ? patch : { ...patch, ultraJobId: undefined };
+  const ultraJobId = await ctx.scheduler.runAt(ultraFrom, internal.movements.wakeUltra, {
+    sightingId: row._id,
+    expectedAt: ultraFrom,
+  });
+  return { ...patch, ultraJobId };
+}
+
+/** **Le réveil d'Ultra** : la ligne se réécrit, et la vue sert la destination. Un job périmé — la
+ *  date a bougé depuis — ne fait rien. */
+export async function wakeUltra(
+  ctx: MutationCtx,
+  sightingId: Id<'sightings'>,
+  expectedAt: number,
+  now = Date.now(),
+): Promise<void> {
+  const row = await ctx.db.get(sightingId);
+  if (row === null || row.ultraJobId === undefined || row.ultraFrom !== expectedAt) return;
+  if (now < expectedAt) return;
+  await ctx.db.patch(row._id, { ultraJobId: undefined });
 }
 
 /**
@@ -1456,6 +1542,7 @@ async function replaceSighting(
         ? {}
         : { windows: storedWindows(row.from, windows) }),
       ...(await keepOpenJob(ctx, row, row.from, windows, now)),
+      ...(await keepUltra(ctx, row, next?.ultraFrom, windows, now)),
       ...reading,
       ...crossings,
     };
@@ -1467,15 +1554,16 @@ async function replaceSighting(
    *  sa ligne et son rendez-vous, sans réécriture ni job replanifié. */
   const fields = sightingFields(next);
   const open = await keepOpenJob(ctx, row, fields.from, next.windows, now);
+  const ultra = await keepUltra(ctx, row, next.ultraFrom, next.windows, now);
   if (
-    (row.revealJobId !== undefined || row.noticeFiled === true) &&
+    row.revealJobId !== undefined &&
     (Object.keys(fields) as Array<keyof typeof fields>).every(
       (key) => key === 'windows' || row[key] === fields[key],
     ) &&
     sameWindows(windowsOf(row), next.windows) &&
     Object.keys(reading).length === 0
   ) {
-    const patch = { ...open, ...crossings };
+    const patch = { ...open, ...ultra, ...crossings };
     if (Object.keys(patch).length > 0) await ctx.db.patch(row._id, patch);
     return;
   }
@@ -1483,6 +1571,7 @@ async function replaceSighting(
   await ctx.db.patch(row._id, {
     ...fields,
     ...open,
+    ...ultra,
     ...reading,
     ...crossings,
     revealJobId: undefined,
@@ -1490,10 +1579,10 @@ async function replaceSighting(
       ? { noticeFiled: true }
       : {}),
   });
+  /** **Toute ligne à venir tient le réveil de son ouverture**, dite ou non : la dépêche, ou la
+   *  seule écriture qui rafraîchit la vue. */
   if (fields.from <= now) await revealSighting(ctx, row._id, now);
-  else if (row.noticeFiled !== true && row.revealJobId !== undefined) {
-    await scheduleReveal(ctx, row._id, fields.from);
-  }
+  else await scheduleReveal(ctx, row._id, fields.from);
 }
 
 async function insertSighting(
@@ -1502,7 +1591,8 @@ async function insertSighting(
   sighting: Caught,
   now: number,
   roles: ReadonlyArray<UnitRole>,
-  /** Déjà dite : la dépêche de l'ancien mouvement vaut pour le neuf (`revealSighting` se tait). */
+  /** Déjà dite : la dépêche de l'ancien mouvement vaut pour le neuf (`revealSighting` ne fait
+   *  que réécrire la ligne à son ouverture). */
   told = false,
 ): Promise<void> {
   const owner = (await ctx.db.get(movementId))?.playerId;
@@ -1522,7 +1612,14 @@ async function insertSighting(
   );
   const crossings = await keepCrossings(ctx, { _id: sightingId }, sighting.crossings ?? [], now);
   const open = await keepOpenJob(ctx, { _id: sightingId }, fields.from, sighting.windows, now);
-  const patch = { ...reading, ...crossings, ...open };
+  const ultra = await keepUltra(
+    ctx,
+    { _id: sightingId },
+    sighting.ultraFrom,
+    sighting.windows,
+    now,
+  );
+  const patch = { ...reading, ...crossings, ...open, ...ultra };
   if (Object.keys(patch).length > 0) await ctx.db.patch(sightingId, patch);
   if (fields.from <= now) await revealSighting(ctx, sightingId, now);
   else await scheduleReveal(ctx, sightingId, fields.from);
@@ -1555,6 +1652,7 @@ async function deleteSighting(ctx: MutationCtx, sighting: Doc<'sightings'>): Pro
   if (sighting.revealJobId !== undefined) await cancelJob(ctx, sighting.revealJobId);
   if (sighting.readJobId !== undefined) await cancelJob(ctx, sighting.readJobId);
   if (sighting.openJobId !== undefined) await cancelJob(ctx, sighting.openJobId);
+  if (sighting.ultraJobId !== undefined) await cancelJob(ctx, sighting.ultraJobId);
   for (const { jobId } of sighting.crossings ?? [])
     if (jobId !== undefined) await cancelJob(ctx, jobId);
   await ctx.db.delete(sighting._id);
