@@ -2761,6 +2761,12 @@ export class MapEngine {
     this.masts.show(points);
   }
 
+  /** **The flame of a taken point goes down and up** (#682), for the absence tour that replays a view already served with the new holder. */
+  swapMast(at: LonLat, fromInk: string | null): void {
+    this.invalidate();
+    this.masts.swapAt(at, fromInk);
+  }
+
   /** **Le champ de bataille se souvient** (#642) : les cratères de mes combats sur terre. */
   showBattleTraces(traces: ReadonlyArray<BattleTrace>): void {
     this.invalidate();

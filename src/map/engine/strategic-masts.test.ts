@@ -292,6 +292,92 @@ describe('the strategic masts layer', () => {
     });
   });
 
+  describe('the swap played by the absence tour (#682)', () => {
+    const germany = { holder: { nation: 'germany' as const, heldMs: 0 } };
+    const flame = (layer: StrategicMasts) => {
+      const mesh = meshes(layer)[4]!;
+      return {
+        rise:
+          new Vector3()
+            .setFromMatrixPosition(matrixOf(mesh, 0))
+            .applyMatrix4(matrixOf(meshes(layer)[2]!, 0).invert()).y / MAST_UNITS.height,
+        hex: colorOf(mesh, 0).getHex(),
+      };
+    };
+    const ink = new Color(mastOf(view(germany), false).ink).getHex();
+
+    it('lowers and raises the flame of a point already in its new ink, with no false holder', () => {
+      const { layer, clock } = setup();
+      layer.frame(0, 'full');
+      layer.show([stand('a', 1, germany)]);
+      expect(layer.swapping).toBe(false);
+      layer.swapAt([1, 40], null);
+      expect(layer.swapping).toBe(true);
+      clock.ms += FLAG_SWAP_MS / 2;
+      orient(layer);
+      expect(flame(layer)).toEqual({ rise: expect.closeTo(FLAG_FOOT, 5), hex: ink });
+      clock.ms += FLAG_SWAP_MS / 2;
+      orient(layer);
+      expect(layer.swapping).toBe(false);
+      expect(flame(layer)).toEqual({ rise: expect.closeTo(1, 5), hex: ink });
+    });
+
+    it('goes down in the ink it is given, when the old holder is known', () => {
+      const { layer } = setup();
+      layer.frame(0, 'full');
+      layer.show([stand('a', 1, germany)]);
+      layer.swapAt([1, 40], '#336699');
+      orient(layer);
+      expect(flame(layer).hex).toBe(new Color('#336699').getHex());
+    });
+
+    it('leaves a place with no mast alone', () => {
+      const { layer } = setup();
+      layer.show([stand('a', 1, germany)]);
+      layer.swapAt([9, 9], null);
+      expect(layer.swapping).toBe(false);
+    });
+  });
+
+  describe('the swap bounds', () => {
+    const germany = { holder: { nation: 'germany' as const, heldMs: 0 } };
+    const britain = { holder: { nation: 'britain' as const, heldMs: 0 } };
+    const france = { holder: { nation: 'france' as const, heldMs: 0 } };
+
+    it('never takes a ralenti under 1 nor one that is not a number', () => {
+      for (const rate of [0.1, -5, Number.NaN]) {
+        const { layer, clock } = setup();
+        (globalThis as { __ralenti?: number }).__ralenti = rate;
+        try {
+          layer.frame(0, 'full');
+          layer.show([stand('a', 1, germany)]);
+          layer.show([stand('a', 1, britain)]);
+          clock.ms += FLAG_SWAP_MS;
+          orient(layer);
+          expect(layer.swapping).toBe(false);
+        } finally {
+          delete (globalThis as { __ralenti?: number }).__ralenti;
+        }
+      }
+    });
+
+    it('restarts from what is shown when the ink changes again mid-swap', () => {
+      const { layer, clock } = setup();
+      layer.frame(0, 'full');
+      layer.show([stand('a', 1, germany)]);
+      layer.show([stand('a', 1, britain)]);
+      clock.ms += FLAG_SWAP_MS / 4;
+      orient(layer);
+      const mesh = meshes(layer)[4]!;
+      const shown = new Vector3().setFromMatrixPosition(matrixOf(mesh, 0)).y;
+      const hex = colorOf(mesh, 0).getHex();
+      layer.show([stand('a', 1, france)]);
+      orient(layer);
+      expect(new Vector3().setFromMatrixPosition(matrixOf(mesh, 0)).y).toBeCloseTo(shown, 5);
+      expect(colorOf(mesh, 0).getHex()).toBe(hex);
+    });
+  });
+
   it('rings only the contested points, and the ring turns at full motion only', () => {
     const { layer } = setup();
     layer.show([stand('a', 1), stand('b', 2, { contested: true })]);

@@ -31,6 +31,7 @@ function fakeEngine() {
     ),
     poseCamera: vi.fn(),
     inkBurst: vi.fn(),
+    swapMast: vi.fn(),
     liftStamps: vi.fn(),
     landAt: () => true,
     settlesIn: vi.fn(() => 0),
@@ -135,6 +136,22 @@ describe('useAbsenceTour', () => {
     act(() => void vi.advanceTimersByTime(10_000));
     expect(engine.inkBurst).not.toHaveBeenCalled();
     expect(onSeen).toHaveBeenCalledTimes(1);
+  });
+
+  /** The view it replays already serves the new holder: the taken point's flame is pressed at its
+   *  stamp, with no old ink the dispatch does not carry. */
+  it('presses the flame of a taken point when its seal lands, and of no other stamp', () => {
+    const engine = fakeEngine();
+    const seal = { kind: 'seal', at: [5, 45] } as const;
+    const taken: AbsenceTour = {
+      ...tour,
+      stops: [tour.stops[0]!, { ...tour.stops[1]!, stamps: [seal] }],
+    };
+    play(engine, { queue: vi.fn(() => taken) });
+    act(() => void vi.advanceTimersByTime(1400 + 700));
+    expect(engine.swapMast).not.toHaveBeenCalled();
+    act(() => void vi.advanceTimersByTime(1600));
+    expect(engine.swapMast).toHaveBeenCalledExactlyOnceWith([5, 45], null);
   });
 
   it('flies to each place, stamps it, then returns where the player was and marks it seen', () => {

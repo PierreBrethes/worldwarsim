@@ -258,7 +258,10 @@ type Swap = { readonly since: number; readonly fromAt: number; readonly fromInk:
  * `ralenti=10` of `scripts/capture.mjs` sets this on the page, to catch the middle of a swap: the
  * CDP animation rate it also sets only reaches CSS.
  */
-const slowdown = (): number => (globalThis as { __ralenti?: number }).__ralenti ?? 1;
+const slowdown = (): number => {
+  const rate = (globalThis as { __ralenti?: number }).__ralenti;
+  return typeof rate === 'number' && Number.isFinite(rate) ? Math.max(1, rate) : 1;
+};
 
 type Placed = {
   readonly id: string;
@@ -283,7 +286,6 @@ const object = new Object3D();
 const local = new Matrix4();
 const scratch = new Matrix4();
 const paint = new Color();
-const swapInk = new Color();
 const pen = new Color(PEN);
 const UP = new Vector3(0, 1, 0);
 const middle = new Vector3();
@@ -355,12 +357,13 @@ export class StrategicMasts implements AmbientLayer {
     this.points = points.slice(0, CAPACITY).map((point) => {
       const ink = new Color(point.mast.ink);
       const old = before.get(point.id);
+      // Another holder mid-swap starts from what the screen shows, not from the target it left.
       const swap =
         old === undefined
           ? null
           : old.ink.equals(ink)
             ? old.swap
-            : { since: now, fromAt: old.flameAt, fromInk: old.ink };
+            : { since: now, ...this.shown(old, now) };
       const at = this.board.projectLonLat(point.lonLat);
       const km = this.board.projectLonLat(lonLatAround(point.lonLat, 1, 0));
       const north = new Vector3(km.x - at.x, 0, km.z - at.z).normalize();
@@ -382,6 +385,41 @@ export class StrategicMasts implements AmbientLayer {
         ),
       };
     });
+  }
+
+  /**
+   * **The absence tour presses a taken point's flame** (#682): the view it replays already serves
+   * the new holder, so the flame goes down in `fromInk` — the old holder's, when the dispatch says
+   * it, else the ink it wears — and rises. Nothing for a place with no mast.
+   */
+  swapAt(at: LonLat, fromInk: string | null): void {
+    const point = this.points.find(
+      (candidate) =>
+        Math.abs(candidate.lonLat[0] - at[0]) < 1e-6 &&
+        Math.abs(candidate.lonLat[1] - at[1]) < 1e-6,
+    );
+    if (point === undefined) return;
+    point.swap = {
+      since: this.now(),
+      fromAt: point.flameAt,
+      fromInk: fromInk === null ? point.ink : new Color(fromInk),
+    };
+  }
+
+  /** The flame's height and ink as the screen has them at `now`; a swap that has run is over. */
+  private shown(point: Placed, now: number): { fromAt: number; fromInk: Color } {
+    if (point.swap !== null) {
+      const elapsed = (now - point.swap.since) / slowdown();
+      if (elapsed >= flagSwapMs(this.motion)) point.swap = null;
+      else {
+        const swap = flagSwapAt(elapsed, this.motion, point.swap.fromAt, point.flameAt);
+        return {
+          fromAt: swap.flameAt,
+          fromInk: new Color().copy(point.swap.fromInk).lerp(point.ink, swap.mix),
+        };
+      }
+    }
+    return { fromAt: point.flameAt, fromInk: point.ink };
   }
 
   idle(): boolean {
@@ -414,17 +452,7 @@ export class StrategicMasts implements AmbientLayer {
     let rings = 0;
     const now = this.now();
     points.forEach((point, k) => {
-      let flameAt = point.flameAt;
-      let flameInk = point.ink;
-      if (point.swap !== null) {
-        const elapsed = (now - point.swap.since) / slowdown();
-        if (elapsed >= flagSwapMs(this.motion)) point.swap = null;
-        else {
-          const swap = flagSwapAt(elapsed, this.motion, point.swap.fromAt, point.flameAt);
-          flameAt = swap.flameAt;
-          flameInk = swapInk.copy(point.swap.fromInk).lerp(point.ink, swap.mix);
-        }
-      }
+      const { fromAt: flameAt, fromInk: flameInk } = this.shown(point, now);
       // Past the socle and past the ring a camp wears, so that a garrison stays in front.
       const camp =
         RING_RADIUS * troopScale(point.at.distanceTo(eye), ANONYMOUS_SPAN, ANONYMOUS_SPAN);
