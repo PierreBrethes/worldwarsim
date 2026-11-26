@@ -71,6 +71,7 @@ accélération. Le jeu est en français ; l'anglais viendra par un `en.ts` typé
   plein, il est avancé à une heure ronde au moins 1 h plus tard.
 - **La diplomatie reste déclarative** : jamais d'alliance formelle, ni de victoire commune.
 - **La saison test** se joue à huit nations, sans atout national.
+  *(Révisé le 26/11/2026 par l'ADR 0047 : la saison test se joue avec les atouts codés à sa date.)*
 
 ### 5. L'économie est le seul frein
 
