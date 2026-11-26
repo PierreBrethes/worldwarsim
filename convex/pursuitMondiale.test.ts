@@ -204,6 +204,32 @@ describe('a pursuit in a Mondiale (#655)', () => {
     ).toHaveLength(1);
   });
 
+  /** Décision de Pierre du 26/11 : une Guerre éclair ne prend pas une colonne poursuivie. */
+  it('refuses a Guerre éclair whose first target is a column it chases', async () => {
+    const t = boot();
+    const { seat, guest } = await mondiale(t);
+    const from = { lon: 6.2, lat: 50.9 };
+    const ours = await troop(t, seat, from);
+    const at = { lon: 6.0, lat: 50.6 };
+    const tanks = await troop(t, guest, at, 'armor');
+    await t.mutation(api.movements.marchTo, {
+      ...seat,
+      origin: { kind: 'point', point: from },
+      troopIds: [ours],
+      point: { lon: 3.5, lat: 50.9 },
+    });
+    await expect(
+      t.mutation(api.movements.attack, {
+        ...guest,
+        origin: { kind: 'point', point: at },
+        troopIds: [tanks],
+        target: { kind: 'track', movementId: await trackOf(t, guest) },
+        then: { kind: 'point', point: { lon: 5.6, lat: 50.6 } },
+      }),
+    ).rejects.toThrow(/CHAIN_POSITION_ONLY/);
+    expect(await movementOf(t, tanks)).toBeNull();
+  });
+
   it('aims at a camp posed in sight as at a position, as before', async () => {
     const t = boot();
     const { seat, guest } = await mondiale(t);

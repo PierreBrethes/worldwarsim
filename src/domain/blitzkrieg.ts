@@ -12,14 +12,22 @@ export type ChainRefusal =
   /** Une marche, un raid, une capture n'enchaînent pas : la Guerre éclair est une attaque. */
   | 'CHAIN_ATTACK_ONLY'
   /** « À terre » (décision de Pierre du 04/11) : des routes sans passage en mer ni en l'air. */
-  | 'CHAIN_ASHORE_ONLY';
+  | 'CHAIN_ASHORE_ONLY'
+  /** **Une colonne poursuivie n'est pas un lieu** (décision de Pierre du 26/11) : la poursuite
+   *  finit où la cible est rattrapée, et la seconde jambe n'aurait nulle part d'où partir. */
+  | 'CHAIN_POSITION_ONLY';
 
 export type SecondTargetRefusal = ChainRefusal | 'SAME_TARGET' | OrderRefusal;
 
 type Legs = ReadonlyArray<{ readonly medium: Medium }>;
 
-/** L'ordre tel que la rose le propose : une attaque sans mission, ou autre chose. */
-type ChainOrder = { readonly type: MovementType; readonly mission: { readonly kind: string } };
+/** L'ordre tel que la rose le propose : une attaque sans mission, ou autre chose ; sa cible quand
+ *  elle est connue. */
+type ChainOrder = {
+  readonly type: MovementType;
+  readonly mission: { readonly kind: string };
+  readonly aim?: { readonly kind: string };
+};
 
 /** `legs` : la route de la jambe, `null` tant que l'aperçu ne l'a pas rendue. */
 export function chainRefusalOf(
@@ -29,6 +37,7 @@ export function chainRefusalOf(
 ): ChainRefusal | null {
   if (asset !== 'blitzkrieg') return 'NO_BLITZKRIEG';
   if (order.type !== 'attack' || order.mission.kind !== 'march') return 'CHAIN_ATTACK_ONLY';
+  if (order.aim?.kind === 'track') return 'CHAIN_POSITION_ONLY';
   return legs === null || legs.every((leg) => leg.medium === 'land') ? null : 'CHAIN_ASHORE_ONLY';
 }
 
@@ -68,7 +77,11 @@ export function secondTargetRefusalOf(
   second: MovementAim,
   column: Column,
 ): SecondTargetRefusal | null {
-  const chain = chainRefusalOf(asset, { type: 'attack', mission: { kind: 'march' } }, first.legs);
+  const chain = chainRefusalOf(
+    asset,
+    { type: 'attack', mission: { kind: 'march' }, ...(first.aim ? { aim: first.aim } : {}) },
+    first.legs,
+  );
   if (chain !== null) return chain;
   if (first.aim !== undefined && keyOf(first.aim) === keyOf(second)) return 'SAME_TARGET';
   return refusalOf('attack', second, column);

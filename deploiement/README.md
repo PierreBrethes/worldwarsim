@@ -93,10 +93,11 @@ déploiement qui a des saisons (elle remplace celle de #633, qu'il n'est plus ut
 npx convex run dev:backfillOutpostServing
 ```
 
-Elle rend `{ "seasons": N, "more": … }` et planifie une relecture par saison, page de points par
-page de points, puis la page de saisons suivante tant que `more` vaut `true`. Une fois passée
-partout, `servedBy` peut sortir du schéma : tant qu'un document le porte, la poussée est refusée.
-**Idempotente**.
+Elle rend `{ "scheduled": true }` et ne fait que planifier la première page : chaque page de
+points se relit seule puis planifie la suivante. `npx convex logs` imprime une ligne par page,
+`backfillOutpostServing: N points, more`, et la dernière finit par `done`. Une page qui échoue
+s'annule en entier ; relancer reprend du début, sans risque. Une fois passée partout, `servedBy`
+peut sortir du schéma : tant qu'un document le porte, la poussée est refusée.
 
 ### Comptes — récupération administrateur
 

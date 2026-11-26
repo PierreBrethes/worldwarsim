@@ -129,6 +129,7 @@ export type ErrorCode =
   | 'NO_BLITZKRIEG'
   | 'CHAIN_ATTACK_ONLY'
   | 'CHAIN_ASHORE_ONLY'
+  | 'CHAIN_POSITION_ONLY'
   | 'SAME_TARGET'
   | 'NO_ROUNDS'
   | 'UNKNOWN_TROOP'

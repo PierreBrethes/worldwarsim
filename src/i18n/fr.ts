@@ -970,6 +970,8 @@ export const fr = {
       `${d.type === 'march' ? 'une marche' : d.type === 'raid' ? 'un raid' : 'une capture'} n’enchaîne pas — la Guerre éclair est une attaque à terre`,
     CHAIN_ASHORE_ONLY: () =>
       'la Guerre éclair est une attaque à terre : ni mer ni air sur ses deux routes',
+    CHAIN_POSITION_ONLY: () =>
+      'une colonne poursuivie n’est pas un lieu : la Guerre éclair enchaîne deux positions',
     SAME_TARGET: () => 'la seconde cible n’est pas la première',
     NOT_A_TRANSPORT: () => 'seuls un camion, un cargo ou un avion de transport se chargent',
     LOAD_NOT_A_SUPPLY: () =>
