@@ -83,9 +83,12 @@ async function carry(page: Page, from: readonly [number, number], to: readonly [
 }
 
 /** Où une pièce de la pile tombe à l'écran, sur la carte nue (ni mât, ni bandeau devant) : la
- *  pile se dresse quand ses figurines sont chargées, on l'attend. */
+ *  pile se dresse quand ses figurines sont chargées, on l'attend. Une pièce pas encore posée
+ *  (`box` nul) ou qui bouge encore (la garnison sort du QG) n'est pas une cible : la main la
+ *  manquerait. On attend deux relevés au même pixel. */
 async function pieceOnScreen(page: Page, pileId: string): Promise<readonly [number, number]> {
   const deadline = Date.now() + 30_000;
+  let last: readonly [number, number] | null = null;
   for (;;) {
     const at = await page.evaluate((pileId) => {
       const engine = (globalThis as unknown as { mapEngine: Engine }).mapEngine;
@@ -94,7 +97,7 @@ async function pieceOnScreen(page: Page, pileId: string): Promise<readonly [numb
       const groups = engine.standing.dressed.get(pileId)?.pieces.groups ?? [];
       for (const k of groups.keys()) {
         const drawn = engine.standing.pieceOf(`${pileId}/${k}`)?.box;
-        if (drawn === undefined) continue;
+        if (drawn == null) continue;
         const ndc = drawn.getCenter(drawn.min.clone()).project(engine.camera);
         const x = box.left + ((ndc.x + 1) / 2) * box.width;
         const y = box.top + ((1 - ndc.y) / 2) * box.height;
@@ -102,8 +105,10 @@ async function pieceOnScreen(page: Page, pileId: string): Promise<readonly [numb
       }
       return null;
     }, pileId);
-    if (at !== null) return at;
-    if (Date.now() > deadline) throw new Error(`la pile ${pileId} n’est pas dessinée à nu`);
+    if (at !== null && last !== null && Math.hypot(at[0] - last[0], at[1] - last[1]) < 1) return at;
+    last = at;
+    if (Date.now() > deadline)
+      throw new Error(`la pile ${pileId} n’est pas dessinée à nu au repos`);
     await page.waitForTimeout(500);
   }
 }
