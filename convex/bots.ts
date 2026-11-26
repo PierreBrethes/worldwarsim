@@ -102,6 +102,8 @@ export const remove = mutation({
     await ctx.db.delete(playerId);
     await eraseBot(ctx, bot!);
     await ctx.db.patch(season._id, { playerCount: (await seatsOf(ctx, season._id)).length });
+    /** Relu comme à l'ajout ; `departureOf` ne défixe ni ne recule un départ (#654). */
+    await planDeparture(ctx, season._id);
   },
 });
 
