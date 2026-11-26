@@ -13,6 +13,7 @@ import {
   BASE_CAP,
   depotCapacity,
   FORT_SLOWDOWN_MULTIPLIER,
+  FOUNDATION_NATIONAL_LEVELS,
   DAKAR_SPARED_PER_RESOURCE,
   DETECTION_RANGE_KM,
   NARVIK_UNLINKED_SHARE,
@@ -3169,8 +3170,7 @@ export const fr = {
             ? ''
             : ` ; ${skipped} exploitation${plural(skipped, ' sautée', 's sautées')} (perdue${plural(skipped, '', 's')} ou désactivée${plural(skipped, '', 's')})`
         }.`,
-      harvestCommissioned:
-        'Nouvelle règle — la récolte se rapporte : chaque exploitation entasse sa production à son pied, et un transport en tournée la ramasse pour la verser au stock. Les exploitations de fondation versent seules le débit d’un niveau 1.',
+      harvestCommissioned: `Nouvelle règle — la récolte se rapporte : chaque exploitation entasse sa production à son pied, et un transport en tournée la ramasse pour la verser au stock. Les exploitations de fondation versent seules le débit de leurs niveaux, jusqu’au niveau ${FOUNDATION_NATIONAL_LEVELS}.`,
       supplyDelivered: (country: string, delivered: string, kept: string) =>
         delivered === ''
           ? `Livraison sans place — ${country} : le dépôt était plein, ${kept} encore à bord. Le transport rentre.`
@@ -3346,7 +3346,7 @@ export const fr = {
         case 'heapEmpty':
           return `tas vide à cette heure · ${Math.round(reason.perHour)} / h`;
         case 'noHeap':
-          return 'fondation : verse seule son niveau 1 au stock, rien ne s’y entasse';
+          return `fondation : verse seule ses niveaux au stock jusqu’au niveau ${FOUNDATION_NATIONAL_LEVELS}, rien ne s’y entasse`;
         case 'heapStill':
           return `tas ${reason.heap} sur ${reason.cap} · ne grossit plus`;
         case 'aboardFull':
@@ -4282,7 +4282,7 @@ export const fr = {
    * au téléphone. Toujours nommé en entier — « le plateau » seul désigne la table.
    */
   /** **Le tas au pied d'une exploitation** (ADR 0041, #548) : sur la carte, au plateau personnel,
-   *  dans la fiche. Une exploitation de fondation verse seule le débit d'un niveau 1. */
+   *  dans la fiche. Une exploitation de fondation verse seule ses premiers niveaux (ADR 0041 §3). */
   heap: {
     full: 'PLEIN · ARRÊTÉE',
     since: (span: string) => `depuis ${span}`,
@@ -4290,7 +4290,7 @@ export const fr = {
       `rapporte seule · ${perHour} ${fr.resources[resource]} / h`,
     aloneBeside: (perHour: number) => `+ ${perHour} / h seul`,
     seal: 'F',
-    sealTitle: 'Exploitation de fondation : son niveau 1 verse seul au stock',
+    sealTitle: `Exploitation de fondation : ses niveaux versent seuls au stock jusqu’au niveau ${FOUNDATION_NATIONAL_LEVELS}`,
     title: (resource: ResourceKey, amount: number, cap: number) =>
       `Tas de ${fr.resources[resource]} au pied : ${amount} sur ${cap}`,
     board: {

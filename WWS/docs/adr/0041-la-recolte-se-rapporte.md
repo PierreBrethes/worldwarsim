@@ -86,6 +86,13 @@ niveau 1 ; le surplus de ses niveaux va à son tas, et se ramasse. Sinon, éleve
 exploitations de fondation sans fin dispenserait de tout transport, puisque le débit croît avec
 le niveau sans plafond (`EXTRACTION_PER_HOUR` × niveau).
 
+> **Précisée le 26/11/2026 (#652, accord de Pierre : « C ok ») : le socle verse ses trois premiers
+> niveaux** (`FOUNDATION_NATIONAL_LEVELS`, `@a-mesurer`) ; au-delà, le surplus va au tas. À un
+> seul niveau, la série de bots s'affamait avant H48 : les fermes pleines à leur pied (576 vivres),
+> le stock à zéro, parce que le goulot était le transport, pas la production. Le socle devient un
+> revenu sûr qu'on monte jusqu'au niveau 3, et le reste un revenu qu'on va chercher. Le plafond
+> garde son objet : on n'élève pas le socle sans fin pour se dispenser de transport.
+
 ### 4. Les règles de bord
 
 - **Slot** : une tournée qui reste sur le sol national n'en prend pas (amendement du 23/11 de

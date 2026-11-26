@@ -1,4 +1,9 @@
-import { EXTRACTION_PER_HOUR, HEAP_CAP_HOURS, NARVIK_UNLINKED_SHARE } from '../../convex/constants';
+import {
+  EXTRACTION_PER_HOUR,
+  FOUNDATION_NATIONAL_LEVELS,
+  HEAP_CAP_HOURS,
+  NARVIK_UNLINKED_SHARE,
+} from '../../convex/constants';
 import {
   canonicalBuildingKey,
   RESOURCES,
@@ -344,13 +349,20 @@ export type HarvestSite = {
   readonly foundation: boolean;
 };
 
-/** Les niveaux dont la production s'entasse : tous, sauf le premier d'une fondation (§3). */
-const heapedLevels = ({ level, foundation }: Pick<HarvestSite, 'level' | 'foundation'>): number =>
-  foundation ? Math.max(0, level - 1) : level;
+/** Les niveaux qui versent au stock national : ceux du socle, jusqu'à `FOUNDATION_NATIONAL_LEVELS` (§3). */
+const nationalLevels = ({
+  level,
+  foundation,
+}: Pick<HarvestSite, 'level' | 'foundation'>): number =>
+  foundation ? Math.min(level, FOUNDATION_NATIONAL_LEVELS) : 0;
+
+/** Les niveaux dont la production s'entasse : tous les autres. */
+const heapedLevels = (site: Pick<HarvestSite, 'level' | 'foundation'>): number =>
+  site.level - nationalLevels(site);
 
 /**
- * **Où va le débit d'une exploitation** (ADR 0041 §1, §3) : au tas, sauf le niveau 1 d'une
- * fondation, qui verse seul au stock national. En Blitz, tout au national, comme avant.
+ * **Où va le débit d'une exploitation** (ADR 0041 §1, §3) : au tas, sauf les premiers niveaux d'une
+ * fondation, qui versent seuls au stock national. En Blitz, tout au national, comme avant.
  */
 export function outputSplitOf(
   site: HarvestSite,
@@ -360,7 +372,7 @@ export function outputSplitOf(
   const perLevel = EXTRACTION_PER_HOUR[site.deposit] * site.share;
   if (mode === 'blitz') return { national: perLevel * site.level, heap: 0 };
   return {
-    national: site.foundation ? perLevel : 0,
+    national: perLevel * nationalLevels(site),
     heap: perLevel * heapedLevels(site),
   };
 }
