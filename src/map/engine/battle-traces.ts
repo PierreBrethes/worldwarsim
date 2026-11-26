@@ -149,7 +149,7 @@ const wrecksOf = (): Promise<Readonly<Record<Wreck, Object3D>>> =>
   }));
 
 /** **Où et comment se pose le reste d'une trace**, en diamètres de cratère autour de son point. */
-export function wreckAround(id: string): { dx: number; dz: number; turn: number } {
+function wreckAround(id: string): { dx: number; dz: number; turn: number } {
   const angle = seeded(id, 97) * Math.PI * 2;
   return {
     dx: Math.cos(angle) * WRECK_AWAY,
