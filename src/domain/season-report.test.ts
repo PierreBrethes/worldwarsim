@@ -198,6 +198,7 @@ describe('isolation', () => {
 describe('assets', () => {
   it('lays one usage line per national asset, at zero while none is coded', () => {
     expect(seasonReportOf(input()).assets).toEqual([
+      { nation: 'uk', asset: 'ultra', uses: 0 },
       { nation: 'usa', asset: 'lendLease', uses: 0 },
       { nation: 'ussr', asset: 'industrialEvacuation', uses: 0 },
       { nation: 'germany', asset: 'blitzkrieg', uses: 0 },

@@ -80,7 +80,7 @@ import { isReached, sitesOf, type Site, type Sites } from './sites';
 import { movementsOf, outpostsOf, pointOf, isServed } from './movement/forces';
 import { marchingForce } from './movement/detection';
 import { groundOf, linkedOn } from './holding';
-import { regionNameAt } from './placeNames';
+import { destinationOf, regionNameAt } from './placeNames';
 import { restHoldOf } from './movement/rest';
 import {
   capitalRegionOf,
@@ -1391,28 +1391,6 @@ function named(notice: Doc<'notices'>) {
   }
 }
 
-/**
- * **Où va une colonne** : le point visé et le lieu qui le nomme — la région de sa cible quand
- * elle en est une. Une marche vers un point nu prend le nom de la région sous lui, et le code du
- * pays seulement en mer — un code que le client traduit (ADR 0016).
- */
-function destinationOf(movement: Doc<'movements'>, buildingRegionId: string | undefined) {
-  const { target } = movement;
-  const region =
-    target.kind === 'region'
-      ? regionFacts(target.regionId)
-      : target.kind === 'building'
-        ? regionFacts(buildingRegionId ?? '')
-        : null;
-  return {
-    point: movement.to,
-    name:
-      region?.name ??
-      (target.kind === 'point' ? regionNameAt(pointOf(target.point)) : null) ??
-      movement.hostCountry,
-  };
-}
-
 /** **Mon bâtiment frappé** (ADR 0046 §7), et à moi seul : absent, il est intact. */
 function integrityView(building: Doc<'buildings'>, now: number) {
   const integrity = integrityOf(building, now);
@@ -1468,13 +1446,19 @@ function placed(notice: Doc<'notices'>) {
  * table (`WWS/docs/technique/brouillard-et-fanout.md`).
  *
  * **What travels is the stretch the window covers**, its media, its heading on leaving the radius
- * and the estimated arrival (design sheet 04, decision 4a of 13/09/2026). Not the whole thread,
- * and therefore not the destination: serving both declared endpoints taught the first sentry
- * where the column was going, which is the one thing the fog is there to keep. **Neither the type
- * nor the composition nor the nation is here** either, and none of them is fetched. A sentry
- * watches a column go past; it does not read its flag, and it does not read its orders.
+ * and the estimated arrival (design sheet 04, decision 4a of 13/09/2026). Not the whole thread:
+ * `from` and `to` stay the two ends of the stretch, because serving both declared endpoints taught
+ * the first sentry where the column was going, which is the one thing the fog is there to keep.
+ * **Neither the type nor the composition nor the nation is here** either, and none of them is
+ * fetched. A sentry watches a column go past; it does not read its flag, and it does not read its
+ * orders.
  *
- * `headingAtMe` is the third ink of design sheet 04 and, without a destination, an **estimate**:
+ * **Ultra breaks it once** (ADR 0047 §3), the third breach after Lisbon and the Lend-Lease
+ * dispatch: a naval column a British station has heard carries its `destination`, a field of its
+ * own — the point and the name its owner reads, nothing else — served past `ultraFrom` and only
+ * on the British observer's own row. The row writes it; this reads it and filters nothing.
+ *
+ * `headingAtMe` is the third ink of design sheet 04 and, Ultra or not, an **estimate**:
  * the heading is prolonged over what the column has left to walk, and the ink turns critical if
  * any of those points falls on ground the player recognises — his own soil, or the reach of one
  * of his outposts (`isAnchored`, the same reading the aim already gives him). A column that
@@ -1553,6 +1537,7 @@ async function detectedArcs(
         detector: sighting.detector,
         detectorRegion: await regionOfStation(ctx, sighting),
         ...lisbonNation(nationOf, sighting.ownerId),
+        ...(frozen.destination === undefined ? {} : { destination: frozen.destination }),
         identification: compositionOf(sighting),
       });
       continue;
@@ -1583,6 +1568,9 @@ async function detectedArcs(
       detector: sighting.detector,
       detectorRegion: await regionOfStation(ctx, sighting),
       ...lisbonNation(nationOf, movement.playerId),
+      ...(sighting.ultraFrom !== undefined && sighting.ultraFrom <= now
+        ? { destination: destinationOf(movement) }
+        : {}),
       identification: compositionOf(sighting),
     });
   }

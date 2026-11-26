@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_QUEUED_BATCHES, MONDIALE_TROOP_BOUND } from '../../convex/constants';
 import {
+  carriesHull,
   formsHere,
   hasSiteSheet,
   type FormingSite,
@@ -588,5 +589,17 @@ describe('Levée en masse : what recruitRefusalOf says on a building that is not
     expect(recruitRefusalOf('infantry', 1, { ...farm, integrity: 'disabled' }, situation)).toEqual({
       code: 'BUILDING_DISABLED',
     });
+  });
+});
+
+/** **Ultra** (ADR 0047 §3) : ce qu'une station britannique écoute, une colonne qui porte une coque. */
+describe('a column that carries a hull', () => {
+  it('counts a single ship, a loaded cargo included, and no land or air stack', () => {
+    expect(carriesHull(['armor', 'infantry', 'cargo'])).toBe(true);
+    expect(carriesHull(['escort'])).toBe(true);
+    expect(carriesHull(['carrier', 'fighter'])).toBe(true);
+    expect(carriesHull(['infantry', 'armor'])).toBe(false);
+    expect(carriesHull(['bomber', 'airTransport'])).toBe(false);
+    expect(carriesHull([])).toBe(false);
   });
 });

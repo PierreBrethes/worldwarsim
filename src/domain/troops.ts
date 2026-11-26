@@ -40,6 +40,11 @@ export const DOMAIN_BY_ROLE: Readonly<Record<UnitRole, UnitDomain>> = {
   carrier: 'sea',
 };
 
+/** **Une colonne navale** (Ultra, ADR 0047 §3) : une coque au moins, des chars à bord d'un cargo
+ *  compris — Ultra lit le plan d'un débarquement. */
+export const carriesHull = (roles: ReadonlyArray<UnitRole>): boolean =>
+  roles.some((role) => DOMAIN_BY_ROLE[role] === 'sea');
+
 /**
  * Which building forms a domain's troops (ADR 0015). It names a **key**, never an instance:
  * every barracks holds its own queue, which is what makes a second one worth building.

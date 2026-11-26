@@ -1433,6 +1433,14 @@ export default defineSchema({
      * written before reassessment existed. */
     detectorHostCountry: v.optional(v.string()),
     detectorRegion: v.optional(v.union(v.string(), v.null())),
+    /**
+     * **Ultra** (ADR 0047 §3) : l'instant où une station britannique a commencé d'entendre cette
+     * colonne navale, quel que soit le détecteur gardé plus haut. La vue sert la destination
+     * passé cet instant ; une date passée ne se retire plus, ce qui a été entendu reste su.
+     * `ultraJobId` réveille la ligne à cet instant quand aucune ouverture de fenêtre ne le fait.
+     */
+    ultraFrom: v.optional(v.number()),
+    ultraJobId: v.optional(v.id('_scheduled_functions')),
     /** A future window takes one cancellable appointment to file its dispatch at opening. */
     revealJobId: v.optional(v.id('_scheduled_functions')),
     noticeFiled: v.optional(v.boolean()),
@@ -1455,6 +1463,8 @@ export default defineSchema({
         costUnits: v.number(),
         headingDegrees: v.number(),
         closedAt: v.number(),
+        /** **Ultra** : la destination entendue, gardée avec le souvenir. */
+        destination: v.optional(v.object({ point: LON_LAT, name: v.string() })),
       }),
     ),
     /**

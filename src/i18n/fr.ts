@@ -350,6 +350,10 @@ export const fr = {
       name: 'Levée en masse',
       rule: 'l’infanterie MK1 se forme dans tout bâtiment chinois du sol national, à la durée d’une caserne neuve',
     },
+    ultra: {
+      name: 'Ultra',
+      rule: 'une station d’écoute qui relève une colonne navale en lit la destination',
+    },
     blitzkrieg: {
       name: 'Guerre éclair',
       rule: 'une attaque à terre porte deux cibles, la seconde ne part qu’après une victoire à la première',

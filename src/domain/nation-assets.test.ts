@@ -3,9 +3,9 @@ import { ASSET_BY_NATION, assetOf, ASSETS } from './nation-assets';
 import { NATIONS } from './nations';
 
 describe('the one table of national assets (ADR 0039)', () => {
-  it('gives five nations an asset and the three others none', () => {
+  it('gives six nations an asset and the two others none', () => {
     const held = NATIONS.filter((nation) => ASSET_BY_NATION[nation] !== null);
-    expect(held.sort()).toEqual(['china', 'germany', 'japan', 'ussr', 'usa'].sort());
+    expect(held.sort()).toEqual(['china', 'germany', 'japan', 'uk', 'ussr', 'usa'].sort());
     expect(new Set(held.map((nation) => ASSET_BY_NATION[nation])).size).toBe(ASSETS.length);
   });
 
@@ -14,6 +14,8 @@ describe('the one table of national assets (ADR 0039)', () => {
     expect(assetOf('usa', 'blitz')).toBeNull();
     expect(assetOf('china', 'mondiale')).toBe('massLevy');
     expect(assetOf('china', 'blitz')).toBeNull();
+    expect(assetOf('uk', 'mondiale')).toBe('ultra');
+    expect(assetOf('uk', 'blitz')).toBeNull();
     expect(assetOf('france', 'mondiale')).toBeNull();
     expect(assetOf(null, 'mondiale')).toBeNull();
   });

@@ -99,6 +99,7 @@ import {
   reassessDetection,
   revealSighting as revealScheduledSighting,
   wakeSighting as wakeSightingAt,
+  wakeUltra as wakeUltraAt,
 } from './movement/detection';
 import { nearestRegion, regionFacts } from './regions';
 import { surveyAlongRoute } from './surveys';
@@ -1503,6 +1504,12 @@ export const revealSighting = internalMutation({
 export const wakeSighting = internalMutation({
   args: { sightingId: v.id('sightings'), expectedAt: v.number() },
   handler: (ctx, { sightingId, expectedAt }) => wakeSightingAt(ctx, sightingId, expectedAt),
+});
+
+/** **Ultra** (ADR 0047 §3) : une station britannique commence d'entendre une ligne déjà ouverte. */
+export const wakeUltra = internalMutation({
+  args: { sightingId: v.id('sightings'), expectedAt: v.number() },
+  handler: (ctx, { sightingId, expectedAt }) => wakeUltraAt(ctx, sightingId, expectedAt),
 });
 
 /** **Un franchissement de ligne de guet à son heure** (#377), relu sur sa ligne de relevé. */
