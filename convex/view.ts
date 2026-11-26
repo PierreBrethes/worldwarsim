@@ -991,12 +991,6 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
             : (movementBuildings.get(movement.fromBuildingId) ?? null);
         const origin = barracks === null ? null : regionFacts(barracks.regionId);
         const departurePoint = pointOf(movement.from);
-        const destination =
-          movement.target.kind === 'region'
-            ? regionFacts(movement.target.regionId)
-            : movement.target.kind === 'building'
-              ? regionFacts(movementBuildings.get(movement.target.buildingId)?.regionId ?? '')
-              : null;
         const carriers = movement.troopIds.flatMap((troopId) => {
           const troop = troopById.get(troopId);
           return troop === undefined ? [] : [troop];
@@ -1038,14 +1032,12 @@ export async function viewOf(ctx: QueryCtx, token: string, seasonId: Id<'seasons
           /** Une colonne partie d'un point n'a pas de caserne : elle se nomme par la région et le
            *  pays de ce point, et non par le pays d'arrivée, que ce repli écrivait faute de mieux. */
           originName: origin?.name ?? regionNameAt(departurePoint) ?? hostAtPoint(departurePoint),
-          /** Une marche vers un point nu prend le nom de la région sous lui, et le code du pays
-           *  seulement en mer — un code que le client traduit (ADR 0016). */
-          destinationName:
-            destination?.name ??
-            (movement.target.kind === 'point'
-              ? regionNameAt(pointOf(movement.target.point))
-              : null) ??
-            movement.hostCountry,
+          destinationName: destinationOf(
+            movement,
+            movement.target.kind === 'building'
+              ? movementBuildings.get(movement.target.buildingId)?.regionId
+              : undefined,
+          ).name,
           /** The troops it carries: they keep their address, so the board has to know which
            *  ones are on the road before it offers them to a second order. */
           troopIds: movement.troopIds,
@@ -1397,6 +1389,28 @@ function named(notice: Doc<'notices'>) {
     default:
       return notice;
   }
+}
+
+/**
+ * **Où va une colonne** : le point visé et le lieu qui le nomme — la région de sa cible quand
+ * elle en est une. Une marche vers un point nu prend le nom de la région sous lui, et le code du
+ * pays seulement en mer — un code que le client traduit (ADR 0016).
+ */
+function destinationOf(movement: Doc<'movements'>, buildingRegionId: string | undefined) {
+  const { target } = movement;
+  const region =
+    target.kind === 'region'
+      ? regionFacts(target.regionId)
+      : target.kind === 'building'
+        ? regionFacts(buildingRegionId ?? '')
+        : null;
+  return {
+    point: movement.to,
+    name:
+      region?.name ??
+      (target.kind === 'point' ? regionNameAt(pointOf(target.point)) : null) ??
+      movement.hostCountry,
+  };
 }
 
 /** **Mon bâtiment frappé** (ADR 0046 §7), et à moi seul : absent, il est intact. */
