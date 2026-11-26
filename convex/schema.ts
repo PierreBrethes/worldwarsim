@@ -87,6 +87,9 @@ export default defineSchema({
     pushTestAt: v.optional(v.number()),
     /** La dernière tentative de connexion **examinée** sur ce pseudo (`LOGIN_MIN_INTERVAL_MS`). */
     loginAttemptAt: v.optional(v.number()),
+    /** **Un compte de bot** (#704) : créé par le serveur, sans mot de passe, il n'ouvre aucune
+     *  connexion par pseudo (`accounts.passwordDigest`). Absent vaut « un joueur ». */
+    bot: v.optional(v.literal(true)),
   }).index('byNicknameKey', ['nicknameKey']),
 
   /** **Le dernier passage de l'inscription** (clé `register`, une seule ligne). */
@@ -244,6 +247,9 @@ export default defineSchema({
      * exactement comme une autre, et c'est tout l'intérêt (ADR 0019 §3).
      */
     irregular: v.optional(v.boolean()),
+    /** **Cette place est un bot** (#704), assis par le fondateur et joué par le serveur
+     *  (`convex/bots.ts`). Le salon le marque ; le jeu, lui, ne le distingue pas d'un joueur. */
+    bot: v.optional(v.literal(true)),
     /**
      * **Le pseudo du compte, copié à l'entrée et figé pour la saison.** Ce n'est pas une
      * dénormalisation par confort : une saison se relit après coup, et un compte renommé
@@ -1686,4 +1692,18 @@ export default defineSchema({
     editionId: v.id('finalEditions'),
     concludedAt: v.number(),
   }).index('byAccountAt', ['accountId', 'concludedAt']),
+
+  /**
+   * **Le jeton en clair d'un bot** (#704) : les sessions n'en gardent que l'empreinte
+   * (`convex/sessions.ts`), et le serveur en a besoin pour jouer le bot par la porte d'un joueur.
+   * Table interne : aucune query publique ne la lit.
+   */
+  bots: defineTable({
+    seasonId: v.id('seasons'),
+    playerId: v.id('players'),
+    accountId: v.id('accounts'),
+    token: v.string(),
+  })
+    .index('bySeason', ['seasonId'])
+    .index('byPlayer', ['playerId']),
 });

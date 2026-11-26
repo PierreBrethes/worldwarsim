@@ -34,7 +34,8 @@ export const passwordDigest = internalQuery({
       .query('accounts')
       .withIndex('byNicknameKey', (q) => q.eq('nicknameKey', nicknameKey))
       .unique();
-    if (!account) return null;
+    /** Un bot n'a pas de mot de passe : son pseudo répond comme un pseudo que personne ne tient. */
+    if (!account || account.bot === true) return null;
     return {
       accountId: account._id,
       passwordHash: account.passwordHash,

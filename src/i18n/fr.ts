@@ -855,6 +855,9 @@ export const fr = {
     UNKNOWN_THEATRE: () => 'théâtre inconnu',
     THEATRE_ONLY_IN_BLITZ: () => 'seule une Blitz se joue sur un théâtre',
     NO_FREE_NATION: () => 'plus aucune nation libre dans ce théâtre — la saison est complète',
+    BOTS_MONDIALE_ONLY: () => 'une Blitz se joue sans bot',
+    BOTS_FOUNDER_ONLY: () => 'seul le fondateur assoit ou retire un bot',
+    NOT_A_BOT: () => 'seul un bot se retire de la table',
     NOT_AT_WAR: () => 'vous n’êtes pas encore entré en guerre — choisissez votre nation au salon',
     UNKNOWN_NATION: () => 'nation inconnue',
     NATION_TAKEN: (d) => `${nationName(d.nation)} est déjà prise par ${str(d.nickname)}`,
@@ -1741,17 +1744,24 @@ export const fr = {
       nickname: string;
       mine: boolean;
       founder: boolean;
+      bot: boolean;
       nation: string | null;
       blitz: boolean;
       presence: string;
       ready: boolean;
     }) =>
       [
-        `${seat.nickname}${seat.mine ? ' (vous)' : ''}${seat.founder ? ', fondateur' : ''}`,
+        `${seat.nickname}${seat.mine ? ' (vous)' : ''}${seat.founder ? ', fondateur' : ''}${seat.bot ? ', bot joué par le serveur' : ''}`,
         seat.nation ?? (seat.blitz ? 'sans drapeau' : 'sans nation'),
         seat.presence,
         seat.ready ? 'prêt' : 'pas prêt',
       ].join(' — '),
+    /** Les bots du salon (#704) : un adversaire facile que le serveur joue. */
+    addBot: 'ajouter un bot',
+    addBotNote: 'un adversaire facile, joué par le serveur',
+    bot: 'bot',
+    removeBot: (nickname: string) => `retirer ${nickname} de la table`,
+    removeBotShort: 'retirer',
     yourFlag: 'votre drapeau',
     yourNation: 'votre nation',
     takenBy: (nickname: string) => `prise par ${nickname}`,
