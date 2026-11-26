@@ -14,6 +14,7 @@ import {
 } from 'three';
 import type { LonLat } from '@/domain/geo';
 import type { MapMotion } from '@/domain/map-motion';
+import { flagSwapAt, flagSwapMs } from '@/domain/flag-swap';
 import { MAST_PX, MAST_UNITS, mastPx, type Mast } from '@/domain/strategic-mast';
 import { RING_RADIUS } from './annotations';
 import type { AmbientLayer } from './ambience';
@@ -250,6 +251,15 @@ function instanced(
   return mesh;
 }
 
+/** A flame being swapped (#682): where it started, the ink it leaves and when the new holder was served. */
+type Swap = { readonly since: number; readonly fromAt: number; readonly fromInk: Color };
+
+/**
+ * `ralenti=10` of `scripts/capture.mjs` sets this on the page, to catch the middle of a swap: the
+ * CDP animation rate it also sets only reaches CSS.
+ */
+const slowdown = (): number => (globalThis as { __ralenti?: number }).__ralenti ?? 1;
+
 type Placed = {
   readonly id: string;
   readonly lonLat: LonLat;
@@ -258,9 +268,11 @@ type Placed = {
   readonly north: Vector3;
   readonly ring: boolean;
   readonly star: boolean;
-  /** **What #682 drives**: the flame's height (share of the mast) and its ink, set again by each `show`. */
+  /** The flame's resting height (share of the mast) and ink, set again by each `show`. */
   flameAt: number;
   ink: Color;
+  /** Set when a `show` serves another holder; cleared by `orient` once the flame has risen. */
+  swap: Swap | null;
   /** Where it stands and how big as last drawn: what a click and the idle check read. */
   foot: Vector3;
   height: number;
@@ -271,6 +283,7 @@ const object = new Object3D();
 const local = new Matrix4();
 const scratch = new Matrix4();
 const paint = new Color();
+const swapInk = new Color();
 const pen = new Color(PEN);
 const UP = new Vector3(0, 1, 0);
 const middle = new Vector3();
@@ -303,12 +316,14 @@ export class StrategicMasts implements AmbientLayer {
   private points: ReadonlyArray<Placed> = [];
   private clock = 0;
   private moving = false;
+  private motion: MapMotion = 'full';
 
   constructor(
     private readonly board: Pick<WorldFrame, 'projectLonLat'>,
     /** Whether the box is in the eye's field and at least `px` on screen. */
     private readonly sees: (box: Box3, px: number) => boolean,
     private readonly touch: boolean,
+    private readonly now: () => number = () => performance.now(),
   ) {
     this.geometries = [mastGeometry(), pennant(PENNANT), rim(), socle(), dashedRing()];
     const [mastShape, flameShape, rimShape, socleShape, ringShape] = this.geometries as [
@@ -328,9 +343,24 @@ export class StrategicMasts implements AmbientLayer {
     this.object.visible = false;
   }
 
-  /** Every point's mast, at each view: the flame and the ink are read again from `mast`. */
+  /**
+   * Every point's mast, at each view: the flame and the ink are read again from `mast`. A point
+   * that was standing with another ink starts its swap (#682): the view serves the new holder, so
+   * the sequence never shows who attacks before the capture. Nothing swaps on the first view, nor
+   * for a point that was not there.
+   */
   show(points: ReadonlyArray<MastPoint>): void {
+    const before = new Map(this.points.map((point) => [point.id, point]));
+    const now = this.now();
     this.points = points.slice(0, CAPACITY).map((point) => {
+      const ink = new Color(point.mast.ink);
+      const old = before.get(point.id);
+      const swap =
+        old === undefined
+          ? null
+          : old.ink.equals(ink)
+            ? old.swap
+            : { since: now, fromAt: old.flameAt, fromInk: old.ink };
       const at = this.board.projectLonLat(point.lonLat);
       const km = this.board.projectLonLat(lonLatAround(point.lonLat, 1, 0));
       const north = new Vector3(km.x - at.x, 0, km.z - at.z).normalize();
@@ -342,7 +372,8 @@ export class StrategicMasts implements AmbientLayer {
         ring: point.mast.ring,
         star: point.mast.star,
         flameAt: point.mast.flameAt,
-        ink: new Color(point.mast.ink),
+        ink,
+        swap,
         foot: at.clone(),
         height: MAST_UNITS.height,
         box: new Box3().setFromCenterAndSize(
@@ -357,7 +388,13 @@ export class StrategicMasts implements AmbientLayer {
     return !this.points.some((point) => this.sees(point.box, LIVE_PX));
   }
 
+  /** A flame is going down or up: the loop draws every image until it has risen (`frame-demand.ts`). */
+  get swapping(): boolean {
+    return this.points.some((point) => point.swap !== null);
+  }
+
   frame(time: number, motion: MapMotion): void {
+    this.motion = motion;
     this.moving = motion === 'full';
     this.clock = this.moving ? time : 0;
   }
@@ -375,7 +412,19 @@ export class StrategicMasts implements AmbientLayer {
     const scale = mastScale(mastPx(distance, this.touch, screenHeight, fov), unitsPerPixel);
     const baseRadius = baseRadiusOf(scale);
     let rings = 0;
+    const now = this.now();
     points.forEach((point, k) => {
+      let flameAt = point.flameAt;
+      let flameInk = point.ink;
+      if (point.swap !== null) {
+        const elapsed = (now - point.swap.since) / slowdown();
+        if (elapsed >= flagSwapMs(this.motion)) point.swap = null;
+        else {
+          const swap = flagSwapAt(elapsed, this.motion, point.swap.fromAt, point.flameAt);
+          flameAt = swap.flameAt;
+          flameInk = swapInk.copy(point.swap.fromInk).lerp(point.ink, swap.mix);
+        }
+      }
       // Past the socle and past the ring a camp wears, so that a garrison stays in front.
       const camp =
         RING_RADIUS * troopScale(point.at.distanceTo(eye), ANONYMOUS_SPAN, ANONYMOUS_SPAN);
@@ -400,12 +449,12 @@ export class StrategicMasts implements AmbientLayer {
 
       // The pennant hangs from `flameAt` of the mast, swaying about where it is fixed.
       const sway = this.moving ? Math.sin(this.clock * SWAY_PACE + k) * SWAY : 0;
-      local.makeTranslation(0, point.flameAt * MAST_UNITS.height, 0);
+      local.makeTranslation(0, flameAt * MAST_UNITS.height, 0);
       local.multiply(scratch.makeRotationZ(sway));
       scratch.multiplyMatrices(object.matrix, local);
       this.flame.setMatrixAt(k, scratch);
 
-      this.flame.setColorAt(k, nightInk(point.ink, night, paint));
+      this.flame.setColorAt(k, nightInk(flameInk, night, paint));
       this.mast.setColorAt(k, nightInk(pen, night, paint));
       this.socle.setColorAt(k, nightInk(pen, night, paint));
 
@@ -416,7 +465,7 @@ export class StrategicMasts implements AmbientLayer {
       this.socle.setMatrixAt(k, object.matrix);
       // The socle's edge is inked as the point is: white when neutral.
       this.rim.setMatrixAt(k, object.matrix);
-      this.rim.setColorAt(k, nightInk(point.ink, night, paint));
+      this.rim.setColorAt(k, nightInk(flameInk, night, paint));
 
       if (point.ring) {
         object.rotation.set(0, this.moving ? this.clock * RING_TURN * 2 * Math.PI : 0, 0);

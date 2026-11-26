@@ -6449,6 +6449,7 @@ export class MapEngine {
       this.ink.active ||
       this.parachutes.active ||
       this.airdrops.active ||
+      this.masts.swapping ||
       this.maquettes.settling ||
       this.sequences.active ||
       this.walks.length > 0 ||

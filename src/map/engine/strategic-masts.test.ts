@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { Box3, Color, InstancedMesh, Matrix4, Raycaster, Vector3 } from 'three';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { LonLat } from '@/domain/geo';
+import { FLAG_FADE_MS, FLAG_FOOT } from '@/domain/flag-swap';
+import { FLAG_SWAP_MS } from '@/domain/ink-bursts';
 import { MAST_PX, MAST_UNITS, mastOf, mastPx } from '@/domain/strategic-mast';
 import type { StrategicPointView } from '@/domain/player-view';
 import { STRATEGIC_POINTS } from '@/domain/strategic-points';
@@ -46,6 +48,7 @@ const stand = (id: string, lon: number, over: Partial<StrategicPointView> = {}):
 
 function setup(options: { sees?: boolean; touch?: boolean } = {}) {
   const asked: number[] = [];
+  const clock = { ms: 1000 };
   const layer = new StrategicMasts(
     frame,
     (_box: Box3, px) => {
@@ -53,8 +56,9 @@ function setup(options: { sees?: boolean; touch?: boolean } = {}) {
       return options.sees ?? true;
     },
     options.touch ?? false,
+    () => clock.ms,
   );
-  return { layer, asked };
+  return { layer, asked, clock };
 }
 
 const meshes = (layer: StrategicMasts) => layer.object.children as InstancedMesh[];
@@ -156,7 +160,7 @@ describe('the strategic masts layer', () => {
   });
 
   it('puts the flame at its height and in its ink, per point, read again by each show', () => {
-    const { layer } = setup();
+    const { layer, clock } = setup();
     layer.show([
       stand('a', 1, { holder: { nation: 'germany', heldMs: 0 } }),
       stand('b', 2, { holder: { nation: 'germany', heldMs: 0 }, contested: true }),
@@ -173,10 +177,119 @@ describe('the strategic masts layer', () => {
     expect(colorOf(flame, 0).getHex()).toBe(
       new Color(mastOf(view({ holder: { nation: 'germany', heldMs: 0 } }), false).ink).getHex(),
     );
+    // Served again with no holder: the swap (below) has played by the time the mast is drawn.
     layer.show([stand('a', 1), stand('b', 2)]);
+    clock.ms += FLAG_SWAP_MS;
     orient(layer);
     expect(colorOf(flame, 0).getHex()).toBe(0xffffff);
     expect(rise(1)).toBeCloseTo(1, 5);
+  });
+
+  describe('the swap of a taken point (#682)', () => {
+    const germany = { holder: { nation: 'germany' as const, heldMs: 0 } };
+    const britain = { holder: { nation: 'britain' as const, heldMs: 0 } };
+    const flameOf = (layer: StrategicMasts, k = 0) => {
+      const flame = meshes(layer)[4]!;
+      return {
+        rise:
+          new Vector3()
+            .setFromMatrixPosition(matrixOf(flame, k))
+            .applyMatrix4(matrixOf(meshes(layer)[2]!, k).invert()).y / MAST_UNITS.height,
+        hex: colorOf(flame, k).getHex(),
+      };
+    };
+    const inkOf = (over: Partial<StrategicPointView>) => new Color(mastOf(view(over), false).ink);
+
+    it('stands still on the first view, for a new point and while the holder is the same', () => {
+      const { layer } = setup();
+      layer.show([stand('a', 1, germany)]);
+      expect(layer.swapping).toBe(false);
+      layer.show([stand('a', 1, germany), stand('b', 2, britain)]);
+      expect(layer.swapping).toBe(false);
+    });
+
+    it('goes down in the old ink, changes ink at the foot, and rises in the new one', () => {
+      const { layer, clock } = setup();
+      layer.frame(0, 'full');
+      layer.show([stand('a', 1, germany)]);
+      layer.show([stand('a', 1, britain)]);
+      expect(layer.swapping).toBe(true);
+      orient(layer);
+      expect(flameOf(layer)).toEqual({ rise: expect.closeTo(1, 5), hex: inkOf(germany).getHex() });
+      clock.ms += FLAG_SWAP_MS / 4;
+      orient(layer);
+      expect(flameOf(layer).rise).toBeLessThan(1);
+      expect(flameOf(layer).hex).toBe(inkOf(germany).getHex());
+      clock.ms += FLAG_SWAP_MS / 4;
+      orient(layer);
+      expect(flameOf(layer).rise).toBeCloseTo(FLAG_FOOT, 5);
+      expect(flameOf(layer).hex).toBe(inkOf(britain).getHex());
+    });
+
+    it('asks the loop for frames until the flame has risen, and for none after', () => {
+      const { layer, clock } = setup();
+      layer.frame(0, 'full');
+      layer.show([stand('a', 1, germany)]);
+      layer.show([stand('a', 1, britain)]);
+      clock.ms += FLAG_SWAP_MS - 1;
+      orient(layer);
+      expect(layer.swapping).toBe(true);
+      clock.ms += 1;
+      orient(layer);
+      expect(layer.swapping).toBe(false);
+      expect(flameOf(layer)).toEqual({ rise: expect.closeTo(1, 5), hex: inkOf(britain).getHex() });
+    });
+
+    it('is not restarted by a view that serves the same holder again', () => {
+      const { layer, clock } = setup();
+      layer.frame(0, 'full');
+      layer.show([stand('a', 1, germany)]);
+      layer.show([stand('a', 1, britain)]);
+      clock.ms += FLAG_SWAP_MS / 2;
+      layer.show([stand('a', 1, britain)]);
+      clock.ms += FLAG_SWAP_MS / 2;
+      orient(layer);
+      expect(layer.swapping).toBe(false);
+    });
+
+    it('fades the ink in reduced motion and cuts it with motion off', () => {
+      for (const [motion, ms] of [
+        ['reduced', FLAG_FADE_MS],
+        ['off', 0],
+      ] as const) {
+        const { layer, clock } = setup();
+        layer.frame(0, motion);
+        layer.show([stand('a', 1, germany)]);
+        layer.show([stand('a', 1, britain)]);
+        orient(layer);
+        const start = flameOf(layer);
+        expect(start.rise).toBeCloseTo(1, 5);
+        expect(start.hex).toBe(ms === 0 ? inkOf(britain).getHex() : inkOf(germany).getHex());
+        clock.ms += ms / 2;
+        orient(layer);
+        expect(flameOf(layer).rise).toBeCloseTo(1, 5);
+        clock.ms += ms;
+        orient(layer);
+        expect(layer.swapping).toBe(false);
+        expect(flameOf(layer).hex).toBe(inkOf(britain).getHex());
+      }
+    });
+
+    it('plays ralenti times slower, as the capture asks', () => {
+      const { layer, clock } = setup();
+      (globalThis as { __ralenti?: number }).__ralenti = 10;
+      try {
+        layer.frame(0, 'full');
+        layer.show([stand('a', 1, germany)]);
+        layer.show([stand('a', 1, britain)]);
+        clock.ms += FLAG_SWAP_MS * 5;
+        orient(layer);
+        expect(layer.swapping).toBe(true);
+        expect(flameOf(layer).hex).toBe(inkOf(britain).getHex());
+      } finally {
+        delete (globalThis as { __ralenti?: number }).__ralenti;
+      }
+    });
   });
 
   it('rings only the contested points, and the ring turns at full motion only', () => {
@@ -371,6 +484,10 @@ describe('the engine wiring', () => {
     expect(body('private carryTargetAt')).toMatch(
       /pick === null \? this\.masts\.under\(this\.ray\)/,
     );
+  });
+
+  it('declares a swap to the loop, so that it draws every image until the flame has risen', () => {
+    expect(source).toMatch(/this\.masts\.swapping \|\|/);
   });
 
   it('lights, orients and disposes with the other layers', () => {
