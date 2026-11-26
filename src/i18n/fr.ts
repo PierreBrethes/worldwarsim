@@ -1428,7 +1428,8 @@ export const fr = {
     edition: (nickname: string) => `le monde en jeu — édition ${ofName(nickname)}`,
     onTheFront: 'à la une',
     emptyHeadline: 'Aucune partie à votre nom',
-    emptyStand: 'Composez la vôtre, ou ouvrez le code qu’on vous a envoyé.',
+    emptyStand:
+      'Composez la vôtre, ouvrez le code qu’on vous a envoyé, ou prenez place à une petite annonce.',
     adsLabel: 'petites annonces',
     adCorner: 'petite annonce',
     foundTitle: 'Fonder une partie',
