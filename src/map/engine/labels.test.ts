@@ -4,6 +4,7 @@ import type { LonLat } from '@/domain/geo';
 import { PROJECTION, WorldFrame } from './frame';
 import { LabelLayer } from './labels';
 import { pieceScale } from './piece-scale';
+import { ANONYMOUS_SPAN } from './figurines/figurine';
 
 // The geometry and the thresholds are read at the full common scale: the share pieces are drawn
 // at multiplies every size alike, and has its own tests (`figurine.test.ts`).
@@ -88,5 +89,33 @@ describe('the name of a deposit', () => {
     const { fade } = nameAt(13);
     expect(fade).toBeGreaterThan(0);
     expect(fade).toBeLessThan(1);
+  });
+});
+
+/** **Le cartouche d'un mât s'accroche à son sommet** (#683) : la projection part du sommet que le
+ *  moteur dit, et la distance reste celle du pied. */
+describe('the label of a mast', () => {
+  it('lands where the head of its mast is, not on its foot', () => {
+    const head = frame.projectLonLat(paris).add(new Vector3(0, 0.5, 0));
+    const project = (raised: boolean) => {
+      const layer = new LabelLayer(
+        frame,
+        () => null,
+        () => 1,
+        () => false,
+        () => null,
+        () => ANONYMOUS_SPAN,
+        (id) => (raised && id === 'mast' ? head : null),
+      );
+      layer.setAnchors([
+        { id: 'mast', anchor: { kind: 'ground', lonLat: paris }, withRegionLayer: false },
+      ]);
+      const [at] = layer.project(eyeOver(paris, 20), W, H, new Map());
+      return { y: at!.y, distance: at!.distance };
+    };
+    const foot = project(false);
+    const lifted = project(true);
+    expect(lifted.y).toBeLessThan(foot.y);
+    expect(lifted.distance).toBeCloseTo(foot.distance);
   });
 });

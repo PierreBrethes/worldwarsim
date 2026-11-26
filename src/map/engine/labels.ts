@@ -122,6 +122,9 @@ export class LabelLayer {
     /** What its piece gives way to its pin by (`pieceStands`): a span or a socle, `null` for what has no piece:
      *  it gives way with the regions' fade. */
     private readonly spanOf: (id: string) => PinnedBy | null = () => ANONYMOUS_SPAN,
+    /** Where its mast's head stands when the board draws one over the point (#683): the label hangs
+     *  from there, `null` on the point itself. Read at once, not kept. */
+    private readonly headOf: (id: string) => Vector3 | null = () => null,
   ) {}
 
   setAnchors(anchors: ReadonlyArray<NamedAnchor>): void {
@@ -210,7 +213,7 @@ export class LabelLayer {
       // Behind the camera, the perspective projection returns the symmetric point: without
       // this straightening, an indicator would head to the edge opposite its entity.
       const behind = this.toward.copy(position).sub(camera.position).dot(this.gaze) < 0;
-      this.normalized.copy(position).project(camera);
+      this.normalized.copy(this.headOf(projection.id) ?? position).project(camera);
       const inFrame =
         !behind &&
         this.normalized.z < 1 &&

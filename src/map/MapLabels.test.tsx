@@ -165,34 +165,46 @@ describe('MapLabels', () => {
   });
 });
 
-/** **Un des Sept change de mains** (#442) : le drapeau du perdant descend, celui du preneur
- *  monte ; depuis le neutre, il monte seulement. En direct seulement : rien à l'ouverture. */
-describe('the flag on a strategic mast', () => {
+/** **Un des Sept est son mât de la toile** (#683) : l'étiquette ne dessine plus de fanion, ne
+ *  prend plus le pointeur et ne joue plus la descente du drapeau (elle passe à la flamme, #682). */
+describe('the label of a strategic point', () => {
   const mast = (ink: string | null) =>
-    ({
-      ...outpost('narvik', 'Narvik'),
-      type: 'strategic',
-      pictogram: 'strategic',
-      ink,
-    }) as MapLabel;
+    ({ ...outpost('narvik', 'Narvik'), type: 'strategic', pictogram: null, ink }) as MapLabel;
   const root = () => document.querySelector('[data-label-id="narvik"]')!;
 
-  it('changes hands on the mast, the loser’s ink first, then lets the swap go', () => {
-    vi.useFakeTimers();
-    const { rerender } = render(layer([mast('#a83f68')]));
-    expect(root().className).not.toMatch(/label--flag/);
-    rerender(layer([mast('#2b6974')]));
-    expect(root().className).toContain('label--flag-swap');
-    expect((root() as HTMLElement).style.getPropertyValue('--flag-from')).toBe('#a83f68');
-    act(() => vi.advanceTimersByTime(1600));
-    expect(root().className).not.toMatch(/label--flag/);
-    vi.useRealTimers();
+  it('is a pinned label with no flag of its own', () => {
+    render(layer([mast('#a83f68')]));
+    expect(root().className).toContain('label--pinned');
+    expect(root().querySelector('.label-pictogram')).toBeNull();
   });
 
-  it('only rises from neutral', () => {
-    const { rerender } = render(layer([mast(null)]));
+  /** The mast has no pin (`markerPin` serves none): a label that gives way to its pin from
+   *  d ≈ 11 would leave its cartouche nowhere at the Europe and world zoom. */
+  it('is never sent to the engine as pinned, its cartouche stays at every zoom', () => {
+    const sent: Array<{ id: string; pinned?: boolean }> = [];
+    const engine = {
+      setLabelAnchors: (anchors: typeof sent) => sent.push(...anchors),
+      subscribeRest: () => () => {},
+      atZoomFloor: () => false,
+      invalidate: () => {},
+      nameSpots: () => ({ cities: [], rivers: [], seas: [], pins: [], night: 0 }),
+      pieceRect: () => null,
+      cameraDistance: () => 100,
+      heldRects: () => [],
+    };
+    render(
+      <MapLabels
+        {...(layer([mast('#a83f68')]).props as React.ComponentProps<typeof MapLabels>)}
+        engine={engine as never}
+      />,
+    );
+    expect(sent.find(({ id }) => id === 'narvik')?.pinned).toBe(false);
+  });
+
+  it('plays no swap when the point changes hands', () => {
+    const { rerender } = render(layer([mast('#a83f68')]));
     rerender(layer([mast('#2b6974')]));
-    expect(root().className).toContain('label--flag-rise');
+    expect(root().className).not.toMatch(/label--flag/);
   });
 });
 

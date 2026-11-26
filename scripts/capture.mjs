@@ -549,6 +549,8 @@ try {
       const devtools = await page.context().newCDPSession(page);
       await devtools.send('Animation.enable');
       await devtools.send('Animation.setPlaybackRate', { playbackRate: 1 / x });
+      // La séquence des mâts (#682) se joue au canvas, que le rythme des animations CDP n'atteint pas.
+      await page.evaluate((rate) => (globalThis.__ralenti = rate), x);
     } else throw new Error(`--geste inconnu : ${gesture}`);
     await page.waitForTimeout(400);
   }

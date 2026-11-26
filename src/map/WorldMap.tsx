@@ -40,6 +40,7 @@ import type { DisbandGround } from '@/domain/movement-orders';
 import type { Ground } from '@/domain/routing';
 import type { Atlas } from '@/domain/atlas';
 import type { Foundation } from './engine/sea';
+import type { MastPoint } from './engine/strategic-masts';
 import { loadNearAtlas } from '@/data/atlas';
 import type { Theatre } from '@/domain/theatres';
 import type { MapLabel, Reach } from '@/domain/labels';
@@ -194,6 +195,8 @@ type Props = {
    * en Blitz, où le calque ne dessine rien.
    */
   outpostZones?: OutpostZonesView | null;
+  /** **Le mât de chaque point stratégique** (#683), relevé ou non ; aucun en Blitz. */
+  strategicMasts?: ReadonlyArray<MastPoint>;
   /**
    * **Une troupe de ronde en main** (#376) : les liaisons se montrent calque éteint et se visent ;
    * la fonction nomme une liaison par ses deux avant-postes. `null` hors de ce geste.
@@ -507,6 +510,7 @@ export type PlacingBuilding = {
 };
 
 const NO_CONTACTS: ReadonlyArray<Contact> = [];
+const NO_MASTS: ReadonlyArray<MastPoint> = [];
 
 /** The value of the last render when this one is equal to it (`shareUnchanged`), so that the
  *  effects that read it do not run again for nothing. */
@@ -597,6 +601,7 @@ export function WorldMap({
   selectedLabel = null,
   openStation = null,
   outpostZones = null,
+  strategicMasts = NO_MASTS,
   patrolHand = null,
   selectedLootLabel = null,
   heldLabel = null,
@@ -1845,6 +1850,9 @@ export function WorldMap({
   useEffect(() => {
     readyEngine?.showLookoutBeams(outpostZones?.points ?? []);
   }, [readyEngine, outpostZones]);
+  useEffect(() => {
+    readyEngine?.showStrategicMasts(strategicMasts);
+  }, [readyEngine, strategicMasts]);
   // Les cratères de mes combats (#642), relus à chaque vue : une scène qui se joue retient sa
   // dépêche (`withoutHeld`), et son cratère avec elle, jusqu'à son règlement.
   useEffect(() => {

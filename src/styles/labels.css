@@ -1207,59 +1207,24 @@
   pointer-events: auto;
 }
 
-/* **Le drapeau d'un des Sept** (#442) : à l'encre de son teneur. Quand il change de mains, celui
-   du perdant descend la hampe et celui du preneur monte, 0,8 s chacun ; du neutre, il ne fait que
-   monter. Réduites et coupées : d'un coup. */
-.label--strategic .label-pictogram {
-  color: var(--label-ink);
+/* **Un des Sept est son mât de la toile** (#683) : le cartouche s'accroche 8 px au-dessus du
+   sommet, que le moteur donne pour ancre ; ni fanion, ni mât, ni flaque ne sont à lui. */
+.label--strategic {
+  --label-callout: calc(8px + var(--label-stagger));
+  --label-sink: 0px;
 }
 
-.label--flag-swap .label-pictogram {
-  animation: flag-swap 1.6s ease-in-out both;
-}
-
-.label--flag-rise .label-pictogram {
-  animation: flag-rise 0.8s 0.8s ease-out both;
-}
-
-:root:is([data-motion='reduced'], [data-motion='off']) .label-pictogram {
-  animation: none;
-}
-
-@keyframes flag-swap {
-  0% {
-    color: var(--flag-from);
-  }
-
-  50% {
-    color: var(--flag-from);
-    opacity: 0;
-    translate: 0 14px;
-  }
-
-  50.1% {
-    color: var(--label-ink);
-  }
-}
-
-@keyframes flag-rise {
-  from {
-    opacity: 0;
-    translate: 0 14px;
-  }
-}
-
-/* **Au loin, un signe pèse ce que pèse une épingle** (#234) : le coffre d'un objectif, le drapeau
-   d'un point stratégique et celui d'une arrivée prennent la taille d'une épingle de bâtiment,
+/* **Au loin, un signe pèse ce que pèse une épingle** (#234) : le coffre d'un objectif et le
+   drapeau d'une arrivée prennent la taille d'une épingle de bâtiment,
    à l'encre, sans flaque ni mât. Lisibles, ils ne dominent plus les pièces. */
 /* The sign is a mask sized inline (`Pictogram`): only !important overrides an inline size. */
-.label-anchor--far :is(.label--objective, .label--strategic) .label-pictogram .picto {
+.label-anchor--far .label--objective .label-pictogram .picto {
   width: 13px !important;
   height: 13px !important;
 }
 
-.label-anchor--far :is(.label--objective, .label--strategic)::before,
-.label-anchor--far :is(.label--objective, .label--strategic) .label-bar {
+.label-anchor--far .label--objective::before,
+.label-anchor--far .label--objective .label-bar {
   display: none;
 }
 

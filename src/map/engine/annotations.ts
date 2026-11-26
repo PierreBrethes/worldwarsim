@@ -189,7 +189,7 @@ type Placed = {
 };
 
 /** The ring round an annotation, in its model's units: just outside its dotted circle. */
-const RING_RADIUS = (SIDE / 2) * FIGURINE_SCALE * 1.05;
+export const RING_RADIUS = (SIDE / 2) * FIGURINE_SCALE * 1.05;
 
 /**
  * **The enemy's surveyed camps, annotated in ink** (F2, révision de l'ADR 0026 §4): up close the

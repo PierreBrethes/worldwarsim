@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : f8c2002 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 7c65dc9 -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ Les issues portent les questions, les prompts portent le travail. Quand le simul
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-190 valeurs marquées dans `convex/` et `src/domain/`.
+194 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `FACTORY_LINES` et leurs voisines : l'en-tête de `convex/constants.ts` les
@@ -142,6 +142,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `SWEEP_MS` | `3000` | `src/domain/deposit-sweep.ts:19` | décisions du 23/10 sur #249 : assez long pour suivre le front |
 | `BUILDING_SPACING_KM` | `30` | `src/domain/economy.ts:101` | l'ordre de grandeur de l'ADR 0029, à rejouer sur une saison test |
 | `FRAMES` | `{ world: [0, 0, 400, 208], europe: [187, 14, 248, 61], 'europe-med': [180, 14, 271, 89] }` | `src/domain/final-edition-read.ts:66` | cadres posés à l'œil, sans capture |
+| `FLAG_FADE_MS` | `600` | `src/domain/flag-swap.ts:9` | the ink's fade in reduced motion, where the flame stays put (#682) |
 | `NEAR_KM` | `250` | `src/domain/front-sound.ts:43` | 250 et 550 km, maquette D du 02/11, jamais jouée |
 | `MID_KM` | `550` | `src/domain/front-sound.ts:44` | 250 et 550 km, maquette D du 02/11, jamais jouée |
 | `QUEUE_MAX` | `6` | `src/domain/front-sound.ts:148` | six en file, trois au retour, six secondes entre deux phrases (maquette D) |
@@ -200,6 +201,9 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `DRY_SOON_HOURS` | `24` | `src/domain/resource-band.ts:72` | a day ahead: one evening's glance covers the night. |
 | `COST_BY_MEDIUM` | `{ land: 1.6, landMotorized: 1.15, sea: 1.0 }` | `src/domain/routing.ts:93` | relative prices chosen for their ordering; only the foot pace behind them is measured |
 | `THREAD_PIECE_CELLS` | `2` | `src/domain/routing.ts:978` | measured against the medium on 340 routes (#231), not against a play need |
+| `CONTESTED_FLAME_AT` | `0.42` | `src/domain/strategic-mast.ts:20` | lavis.html (cap #668): where a contested flame sits on the mast |
+| `MAST_UNITS` | `{ height: 0.46, flame: 0.6 * 0.32, baseRadius: 0.17 }` | `src/domain/strategic-mast.ts:35` | lavis.html (cap #668): `flame` (0.6 x 0.32 of the mast) and `baseRadius` |
+| `MAST_PX` | `{ near: 56, nearDistance: 53, far: 30, farDistance: 136, phone: 0.7, baseMinShare: 0.16 }` | `src/domain/strategic-mast.ts:46` | lavis.html (cap #668): `near` (floor up to |
 | `POINT_TRAITS` | `{ tangier: { family: 'economy', stars: 2 }, istanbul: { family: 'intel', stars: 2 }, rangoon: { family: 'diplomacy', stars: 1 }, hongKong: { family: 'intel', stars: 1 }, halifax: { family: 'sea', stars: 1 }, narvik: { family: 'economy', stars: 2 }, lisbon: { family: 'intel', stars: 2 }, baku: { family: 'supply', stars: 3 }, dakar: { family: 'economy', stars: 2 }, singapore: { family: 'supply', stars: 1 } } as const satisfies Record<StrategicPointKey, { family: PointFamily; stars: 1 \| 2 \| 3 }>` | `src/domain/strategic-points.ts:40` | familles et étoiles posées par jugement, aucune doc ne les fixait |
 | `TANGIER_LOT` | `{ give: 300, get: 100 } as const` | `src/domain/strategic-points.ts:150` | posé pour la saison test ; rien ne mesure ce que vaut un échange par édition |
 | `SURVEY_INK_FADED` | `0.2` | `src/domain/survey-ink.ts:4` | the ink left on a survey nobody renewed, the day it is wiped: a trace, read by eye. |

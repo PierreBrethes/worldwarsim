@@ -120,7 +120,12 @@ export function useAbsenceTour(
         if (motion === 'full')
           engine.poseCamera(engine.cameraPose([stop.at], from().distance), FLY_MS, lift);
         else engine.poseCamera(wide(), 0, lift);
-      } else if (does === 'stamp') for (const burst of stop.stamps) engine.inkBurst(burst);
+      } else if (does === 'stamp')
+        for (const burst of stop.stamps) {
+          engine.inkBurst(burst);
+          // The map serves the new holder already: the flame still goes down and up under the seal.
+          if (burst.kind === 'seal') engine.swapMast(burst.at, null);
+        }
       else if (does === 'return') {
         // Over from here: a gesture over the end band stops nothing, and marks nothing twice.
         state.current = 'over';

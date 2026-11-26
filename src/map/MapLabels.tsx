@@ -31,7 +31,6 @@ import {
 } from 'react';
 import { asDuration, reloadClock } from '@/domain/duration';
 import { fr } from '@/i18n/fr';
-import { FLAG_SWAP_MS } from '@/domain/ink-bursts';
 import { useMapMotion } from '@/data/mapMotion';
 import { shareUnchanged } from '@/data/shareUnchanged';
 import { CaptureGauge, LoadingGauge, MarchGauge, RaceGauge, ResearchLine } from './LoadingGauge';
@@ -239,7 +238,6 @@ export function MapLabels({
   groupFar?: boolean;
 }) {
   const labels = useSameLabels(served);
-  const flags = useFlagSwaps(labels);
   const anchors = useRef(new Map<string, HTMLElement>());
   const roots = useRef(new Map<string, HTMLElement>());
   const blocks = useRef(new Map<string, HTMLElement>());
@@ -744,7 +742,7 @@ export function MapLabels({
         id,
         anchor,
         withRegionLayer: type === 'deposit',
-        pinned: PINNED.has(type),
+        pinned: PINNED.has(type) && type !== 'strategic',
       })),
     );
   }, [engine, labels]);
@@ -1266,7 +1264,6 @@ export function MapLabels({
           inHand={!narrow && label.id === heldLabel}
           gestures={gestures}
           nodes={nodes}
-          flagFrom={flags.get(label.id)}
         />
       ))}
       {groups.map((group) => {
@@ -1410,9 +1407,6 @@ type LabelNodeProps = {
   readonly inHand: boolean;
   readonly gestures: RefObject<LabelGestures>;
   readonly nodes: LabelNodes;
-  /** **Le drapeau d'un des Sept change de mains** (#442) : l'encre qui descend, `null` du neutre
-   *  (il ne fait que monter) ; absent hors d'un changement. */
-  readonly flagFrom: string | null | undefined;
 };
 
 /**
@@ -1436,7 +1430,6 @@ const LabelNode = memo(function LabelNode({
   inHand,
   gestures,
   nodes,
-  flagFrom,
 }: LabelNodeProps) {
   return (
     <div
@@ -1464,18 +1457,11 @@ const LabelNode = memo(function LabelNode({
         ref={(node) => {
           register(nodes.roots.current, label.id, node);
         }}
-        className={`${classesOf(label, selected)}${flagFrom === undefined ? '' : flagFrom === null ? ' label--flag-rise' : ' label--flag-swap'}`}
+        className={classesOf(label, selected)}
         role={label.lootSightingId === null ? undefined : 'button'}
         tabIndex={label.lootSightingId === null ? undefined : 0}
         aria-label={label.lootSightingId === null ? undefined : fr.loot.openMarker}
-        style={
-          label.ink === null && !flagFrom
-            ? undefined
-            : ({
-                ...(label.ink === null ? {} : { '--label-ink': label.ink }),
-                ...(flagFrom ? { '--flag-from': flagFrom } : {}),
-              } as CSSProperties)
-        }
+        style={label.ink === null ? undefined : ({ '--label-ink': label.ink } as CSSProperties)}
         onPointerEnter={(event) => gestures.current.enter(label, event)}
         onPointerMove={(event) => gestures.current.move(label, event)}
         onPointerLeave={(event) => gestures.current.leave(label, event)}
@@ -1902,8 +1888,6 @@ const PICTOGRAM_OF_LABEL: Readonly<Record<LabelPictogram, PictogramName>> = {
   /** Le tas de caisses : un objectif neutre *est* une réserve, et c'est ce que le mât dit tant
    *  que la planche de son archétype n'est pas dessinée. */
   objective: 'supply',
-  /** Le drapeau : un point stratégique *est* une possession disputée. */
-  strategic: 'nation',
 };
 
 type RenderState = {
@@ -1971,51 +1955,12 @@ const PINNED: ReadonlySet<MapLabel['type']> = new Set([
   'my-movement',
   'inbound-movement',
   'intel',
+  // Dressed as a pin for its look only: the mast has no pin, so the engine never hides its cartouche.
+  'strategic',
 ]);
 
 /** How long a transport's sheet waits before folding once the pointer has left. @a-mesurer */
 const SHEET_FOLD_MS = 300;
-
-/**
- * **Le drapeau d'un des Sept qui change de mains** (#442), d'après les vues successives : l'encre
- * d'avant, le temps que le CSS le descende et monte l'autre. En direct seulement — rien à
- * l'ouverture — et sans image de carte : c'est du DOM.
- */
-function useFlagSwaps(labels: ReadonlyArray<MapLabel>): ReadonlyMap<string, string | null> {
-  const inks = useRef<ReadonlyMap<string, string | null> | null>(null);
-  const [swaps, setSwaps] = useState<ReadonlyMap<string, string | null>>(new Map());
-  const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
-  useLayoutEffect(() => {
-    const before = inks.current;
-    const masts = labels.filter((label) => label.type === 'strategic');
-    inks.current = new Map(masts.map((label) => [label.id, label.ink]));
-    if (before === null) return;
-    const changed = masts.filter(
-      (label) => before.has(label.id) && before.get(label.id) !== label.ink,
-    );
-    if (changed.length === 0) return;
-    setSwaps(
-      (current) =>
-        new Map([
-          ...current,
-          ...changed.map((label) => [label.id, before.get(label.id)!] as const),
-        ]),
-    );
-    const timer = setTimeout(() => {
-      timers.current.delete(timer);
-      setSwaps(
-        (current) =>
-          new Map([...current].filter(([id]) => !changed.some((label) => label.id === id))),
-      );
-    }, FLAG_SWAP_MS);
-    timers.current.add(timer);
-  }, [labels]);
-  useEffect(() => {
-    const pending = timers.current;
-    return () => pending.forEach(clearTimeout);
-  }, []);
-  return swaps;
-}
 
 function classesOf(label: MapLabel, selected: boolean): string {
   return [

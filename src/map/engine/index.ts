@@ -83,6 +83,7 @@ import { articulatedOf, type Cue, type Sequence, SequenceLayer } from './sequenc
 import { type PlaneFile, planeFileOf } from './figurines/plane-rig';
 import { FlagWindLayer } from './flag-wind';
 import { type BeamPoint, LookoutBeams, MAX_BEAMS } from './lookout-beams';
+import { type MastPoint, StrategicMasts } from './strategic-masts';
 import { GEAR_MS, gearCues } from './outpost-gear';
 import { BattleTraces } from './battle-traces';
 import type { BattleTrace } from '@/domain/battle-traces';
@@ -735,6 +736,7 @@ export class MapEngine {
   /** My sites at work, alive at rest (#273): an ambience that borrows their copies. */
   private readonly loops: SiteLoopLayer;
   private readonly beams: LookoutBeams;
+  private readonly masts: StrategicMasts;
   /** **Les cratères de mes combats** (#642), posés à chaque vue. */
   private readonly traces: BattleTraces;
   /** **The hawsers of the hulls at a port** (#500). */
@@ -1356,6 +1358,9 @@ export class MapEngine {
     this.traces = new BattleTraces(this.frame, this.night.uniforms, () => this.invalidate());
     this.scene.add(this.traces.object);
     this.ambience.add(this.beams);
+    this.masts = new StrategicMasts(this.frame, (box, px) => this.seenBig(box, px), this.touch);
+    this.scene.add(this.masts.object);
+    this.ambience.add(this.masts);
     this.moorings = new Moorings({
       hulls: () => this.standing.mooredHulls(),
       frameOf: (id) => {
@@ -1419,6 +1424,7 @@ export class MapEngine {
         this.standing.isDressed(id) || this.camps.isDressed(id) || this.maquettes.isDressed(id),
       (id) => this.maquettes.drawnAt(id),
       (id) => this.pieceSpanOf(id),
+      (id) => this.masts.headOf(id),
     );
 
     this.drawings = new TerrainDrawings(
@@ -2770,6 +2776,18 @@ export class MapEngine {
     this.beams.show(points);
   }
 
+  /** **Un mât à pavois par point stratégique** (#677), redressé à chaque vue : `id` est celui du marqueur. */
+  showStrategicMasts(points: ReadonlyArray<MastPoint>): void {
+    this.invalidate();
+    this.masts.show(points);
+  }
+
+  /** **The flame of a taken point goes down and up** (#682), for the absence tour that replays a view already served with the new holder. */
+  swapMast(at: LonLat, fromInk: string | null): void {
+    this.invalidate();
+    this.masts.swapAt(at, fromInk);
+  }
+
   /** **Le champ de bataille se souvient** (#642) : les cratères de mes combats sur terre. */
   showBattleTraces(traces: ReadonlyArray<BattleTrace>): void {
     this.invalidate();
@@ -2894,6 +2912,7 @@ export class MapEngine {
     this.veil.dispose();
     this.halos.dispose();
     this.beams.dispose();
+    this.masts.dispose();
     this.traces.dispose();
     this.scene.traverse(disposeNode);
     this.scene.clear();
@@ -3145,7 +3164,12 @@ export class MapEngine {
     if (pin?.kind === 'pin') return { kind: 'label', labelId: pin.id };
     const pick = this.standing.pick(this.ray, { under: true });
     // An enemy camp's annotation is aimed at by its label: the rose reads it there (POC, attack).
-    const camp = this.camps.under(this.ray);
+    // A pile under the pointer wins over a mast behind it, but the carried pile's own pale home
+    // is no pile to drop on: the mast takes a drop on bare ground or under it.
+    const camp = nearer(
+      this.camps.under(this.ray),
+      pick === null || pick.pileId === this.held?.pileId ? this.masts.under(this.ray) : null,
+    );
     if (
       camp !== null &&
       (pick === null || pick.pileId === this.held?.pileId || camp.distance < pick.distance)
@@ -3510,9 +3534,12 @@ export class MapEngine {
   private pieceUnder(ndc: Vector2 = this.pointer): PieceHit | null {
     const pin = this.pinUnder(ndc);
     if (pin !== null) return pin.kind === 'pin' ? { id: pin.id, distance: 0 } : null;
+    const pile = this.standing.under(this.ray);
     return [
-      this.standing.under(this.ray),
+      pile,
       this.camps.under(this.ray),
+      // A pile touched wins over the mast it stands by: the mast is taken only on bare ground.
+      pile === null ? this.masts.under(this.ray) : null,
       this.arcs.pawnUnder(this.ray),
       this.maquettes.under(this.ray),
     ].reduce(nearer, null);
@@ -6450,6 +6477,7 @@ export class MapEngine {
       this.ink.active ||
       this.parachutes.active ||
       this.airdrops.active ||
+      this.masts.swapping ||
       this.maquettes.settling ||
       this.sequences.active ||
       this.walks.length > 0 ||
@@ -6648,6 +6676,7 @@ export class MapEngine {
     this.lastFrame = now;
     this.veil.step(now);
     this.camps.orient(this.camera.position, yaw);
+    this.masts.orient(this.camera.position, distance, this.screenHeight, this.camera.fov, night);
     this.pins.hold(this.held?.pileId ?? null, this.held === null ? null : this.heldGround);
     const veils = this.veils;
     this.pins.veil(veils.length === 0 ? null : (at) => this.veiled(at, veils));
@@ -6714,6 +6743,7 @@ export class MapEngine {
         this.combats.lights(lit);
         this.razes.lights(lit);
         this.pins.lights(lit, this.unitsPerPixel(distance));
+        this.masts.lights(lit);
         const flare = brightest([
           ...this.combats.flashes(),
           ...(this.replay && shot ? [{ ...shot, reach: this.replay.reach }] : []),

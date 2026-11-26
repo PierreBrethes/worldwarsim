@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { PARACHUTE_MS } from './parachute';
 import { barracksDoors } from './timelines/barracks';
 import { RAZE_MS } from './timelines/raze';
+import { FLAG_SWAP_MS } from '@/domain/ink-bursts';
 import { SWEEP_MS } from '@/domain/deposit-sweep';
 import { REPLAY_MS } from '@/domain/replay';
 import {
@@ -291,6 +292,11 @@ describe('a sweep longer than the settle window is declared to the loop (#249)',
 describe('a sequence longer than the settle window is declared to the loop (ADR 0036)', () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const source = readFileSync(join(here, 'index.ts'), 'utf-8');
+
+  it('keeps the frames coming while a taken point swaps its flame (#682), none after', () => {
+    expect(FLAG_SWAP_MS).toBeGreaterThan(SETTLE_MS);
+    expect(source).toMatch(/this\.masts\.swapping \|\|\s+this\.maquettes\.settling/);
+  });
 
   it('keeps the frames coming while a copy plays, and a cue starts from a stirring method', () => {
     expect(barracksDoors({ caserne: [[0, 2000]] }).ms).toBeGreaterThan(SETTLE_MS);

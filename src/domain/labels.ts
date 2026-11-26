@@ -281,7 +281,7 @@ export type MapMarker =
  * One outpost pictogram whatever the specialization: three drawings for a distinction the
  * label already spells out would cost one more vocabulary to learn, for nothing.
  */
-export type LabelPictogram = 'outpost' | 'construction' | 'objective' | 'strategic';
+export type LabelPictogram = 'outpost' | 'construction' | 'objective';
 
 /**
  * **The ground a thing covers, in kilometres around a point** — a listening station's radius, a
@@ -1039,7 +1039,7 @@ function markerLabel(marker: MapMarker, loadedAt: number): MapLabel {
         ...common,
         type: 'strategic',
         priority: PRIORITY.strategic,
-        pictogram: 'strategic',
+        pictogram: null,
         strategic: { id: marker.pointId, name: marker.name },
         hostCountry: null,
         lines: [

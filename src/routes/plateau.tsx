@@ -125,6 +125,7 @@ import {
   campsShown,
   markerOfStation,
   markersOf,
+  mastPointsOf,
   objectiveMarkerId,
   strategicMarkerId,
   standingPilesOf,
@@ -1939,6 +1940,10 @@ function BoardContent({
     view.strategicPoints,
     view.season.outcome.concludedAt !== null,
   );
+  const strategicMasts = useMemo(
+    () => mastPointsOf(view.strategicPoints, view.season.outcome.concludedAt !== null),
+    [view.strategicPoints, view.season.outcome.concludedAt],
+  );
   const raceLead = useMemo(
     () =>
       raceLeadOf(
@@ -3518,6 +3523,7 @@ function BoardContent({
                   held={held}
                   outposts={reachedOutposts}
                   outpostZones={outpostZones}
+                  strategicMasts={strategicMasts}
                   patrolHand={patrolHand}
                   cut={cut}
                   selectedCountry={country ?? null}
