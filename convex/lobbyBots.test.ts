@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { api } from './_generated/api';
+import { api, internal } from './_generated/api';
 import { BOT_CADENCE_MS } from './constants';
 import { boot, MIDDAY } from './bot.fixture';
 import { foundSeat, joinSeat, type Seat } from './seats.fixture';
@@ -232,4 +232,60 @@ describe('les bots du salon', () => {
     }));
     expect(left).toEqual({ bots: [], accounts: ['Pierre'], sessions: 1 });
   });
+
+  /** Un passage plus long que la cadence (isolat froid, insulaire à 68 s) ne se double pas. */
+  it('saute la passe d’un bot dont le passage précédent tourne encore', async () => {
+    const t = boot();
+    const { seat: founder } = await foundSeat(t, 'Pierre');
+    await t.mutation(api.players.reserveNation, { ...founder, nation: 'france' });
+    await t.mutation(api.players.declareReady, { ...founder, ready: true });
+    await t.action(api.bots.add, founder);
+    await t.action(api.bots.add, founder);
+    await t.mutation(api.seasons.launch, founder);
+    const [slow, quick] = await t.run((ctx) => ctx.db.query('bots').collect());
+    // Le passage du lent ne finit pas : il reste planifié bien au-delà des deux pas.
+    await t.run(async (ctx) => {
+      const turnJobId = await ctx.scheduler.runAfter(100 * BOT_CADENCE_MS, internal.botTurns.turn, {
+        botId: slow!._id,
+      });
+      await ctx.db.patch(slow!._id, { turnJobId });
+    });
+    // Chaque pas laisse finir les passages qu'il a planifiés : seul le lent reste en cours.
+    for (let pass = 0; pass < 2; pass++) {
+      vi.advanceTimersByTime(BOT_CADENCE_MS);
+      await t.finishInProgressScheduledFunctions();
+      vi.advanceTimersByTime(1);
+      await t.finishInProgressScheduledFunctions();
+    }
+    const turnsOf = async (botId: string) =>
+      (await t.run((ctx) => ctx.db.system.query('_scheduled_functions').collect())).filter(
+        (job) => job.name === 'botTurns:turn' && job.args[0]?.botId === botId,
+      ).length;
+    expect(await turnsOf(slow!._id)).toBe(1);
+    expect(await turnsOf(quick!._id)).toBe(2);
+  }, 30_000);
+
+  it('ne tient qu’une boucle par saison, même si une seconde a été planifiée', async () => {
+    const t = boot();
+    const { seat: founder } = await foundSeat(t, 'Pierre');
+    await t.mutation(api.players.reserveNation, { ...founder, nation: 'france' });
+    await t.mutation(api.players.declareReady, { ...founder, ready: true });
+    await t.action(api.bots.add, founder);
+    await t.mutation(api.seasons.launch, founder);
+    await t.run((ctx) =>
+      ctx.scheduler.runAfter(BOT_CADENCE_MS, internal.bots.round, { seasonId: founder.seasonId }),
+    );
+    for (let pass = 0; pass < 2; pass++) {
+      vi.advanceTimersByTime(BOT_CADENCE_MS);
+      await t.finishInProgressScheduledFunctions();
+    }
+    const rounds = await t.run(async (ctx) =>
+      (await ctx.db.system.query('_scheduled_functions').collect()).filter(
+        (job) => job.name === 'bots:round' && job.state.kind === 'pending',
+      ),
+    );
+    expect(rounds).toHaveLength(1);
+    const season = await t.run((ctx) => ctx.db.get(founder.seasonId));
+    expect(season?.roundJobId).toBe(rounds[0]!._id);
+  }, 30_000);
 });

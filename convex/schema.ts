@@ -203,6 +203,9 @@ export default defineSchema({
     departureAt: v.optional(v.number()),
     /** Le travail du départ en attente, qu'un départ avancé annule (`planDeparture`). */
     departureJobId: v.optional(v.id('_scheduled_functions')),
+    /** La passe suivante des bots du salon (`bots.round`, #704) : une seule boucle par saison,
+     *  l'ancienne annulée avant que la nouvelle se planifie. */
+    roundJobId: v.optional(v.id('_scheduled_functions')),
   })
     .index('byCode', ['code'])
     .index('byListing', ['listed', 'status']),
@@ -1703,6 +1706,9 @@ export default defineSchema({
     playerId: v.id('players'),
     accountId: v.id('accounts'),
     token: v.string(),
+    /** Son dernier passage planifié (`bots.round`) : tant qu'il n'a pas fini, le bot saute la
+     *  passe, sans quoi deux passages en parallèle doubleraient ses ordres. */
+    turnJobId: v.optional(v.id('_scheduled_functions')),
   })
     .index('bySeason', ['seasonId'])
     .index('byPlayer', ['playerId']),

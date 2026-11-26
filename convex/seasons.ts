@@ -783,9 +783,24 @@ async function openSeason(
     { seasonId: season._id },
   );
   /** **Les bots du salon jouent dès la première passe** (#704) : le serveur les tient. */
-  if (present.some((entry) => entry.bot === true)) {
-    await ctx.scheduler.runAfter(BOT_CADENCE_MS, internal.bots.round, { seasonId: season._id });
+  if (present.some((entry) => entry.bot === true)) await planBotRound(ctx, season._id);
+}
+
+/**
+ * **La passe suivante des bots, et une seule par saison** (#704) : l'ancienne, si elle attend
+ * encore, est annulée avant que la nouvelle se planifie, comme le départ d'une annonce.
+ */
+export async function planBotRound(ctx: MutationCtx, seasonId: Id<'seasons'>): Promise<void> {
+  const season = await ctx.db.get(seasonId);
+  if (season === null) return;
+  if (season.roundJobId !== undefined) {
+    const job = await ctx.db.system.get(season.roundJobId);
+    if (job !== null && job.state.kind === 'pending') await ctx.scheduler.cancel(job._id);
   }
+  const roundJobId = await ctx.scheduler.runAfter(BOT_CADENCE_MS, internal.bots.round, {
+    seasonId,
+  });
+  await ctx.db.patch(seasonId, { roundJobId });
 }
 
 /**

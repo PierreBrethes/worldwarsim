@@ -1,12 +1,19 @@
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import { action, internalMutation, internalQuery, mutation } from './_generated/server';
-import { BOT_CADENCE_MS } from './constants';
 import { fail } from './errors';
 import { nicknameKey } from '../src/domain/account';
 import { botAdditionRefusalOf, botNicknameOf, botRemovalRefusalOf } from '../src/domain/lobby-bots';
 import { modeOf } from '../src/domain/season-mode';
-import { erasePlayer, eraseBot, freeNations, maximumOf, planDeparture, seat } from './seasons';
+import {
+  erasePlayer,
+  eraseBot,
+  freeNations,
+  maximumOf,
+  planBotRound,
+  planDeparture,
+  seat,
+} from './seasons';
 import { playerOf, seatsOf } from './seats';
 import { openSession } from './sessions';
 
@@ -101,7 +108,8 @@ export const remove = mutation({
 /**
  * **Une passe des bots** : chacun joue dans sa propre action (`botTurns.turn`), qui reste ainsi
  * sous les limites d'une action quel que soit leur nombre, puis la passe suivante se planifie.
- * Elle s'arrête d'elle-même quand la saison n'est plus lancée ; un bot défait ne joue plus.
+ * Elle s'arrête d'elle-même quand la saison n'est plus lancée ; un bot défait ne joue plus, et
+ * un bot dont le passage précédent n'a pas fini saute la passe.
  */
 export const round = internalMutation({
   args: { seasonId: v.id('seasons') },
@@ -114,9 +122,15 @@ export const round = internalMutation({
       .collect()) {
       const seated = await ctx.db.get(bot.playerId);
       if (seated === null || seated.defeated === true) continue;
-      await ctx.scheduler.runAfter(0, internal.botTurns.turn, { botId: bot._id });
+      if (bot.turnJobId !== undefined) {
+        const previous = await ctx.db.system.get(bot.turnJobId);
+        const kind = previous?.state.kind;
+        if (kind === 'pending' || kind === 'inProgress') continue;
+      }
+      const turnJobId = await ctx.scheduler.runAfter(0, internal.botTurns.turn, { botId: bot._id });
+      await ctx.db.patch(bot._id, { turnJobId });
     }
-    await ctx.scheduler.runAfter(BOT_CADENCE_MS, internal.bots.round, { seasonId });
+    await planBotRound(ctx, seasonId);
   },
 });
 
