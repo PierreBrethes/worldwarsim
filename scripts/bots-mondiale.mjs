@@ -74,14 +74,16 @@ if (preprod) console.log(`Pré-production : ${url}`);
 /** Le décideur est du TS sans extensions d'import : vite le charge, jamais Node tel quel. */
 const load = async (file) =>
   (
-    await runnerImport(`${root}src/${file}`, {
+    await runnerImport(`${root}${file}`, {
       configFile: false,
       root,
       resolve: { alias: { '@': `${root}src` } },
     })
   ).module;
-const { decideTurn, seaWaiting, worldFrom } = await load('domain/bot.ts');
-const { adaptServerView } = await load('data/serverView.ts');
+const { decideTurn, seaWaiting, worldFrom } = await load('src/domain/bot.ts');
+const { playerViewOf } = await load('src/domain/server-view.ts');
+/** La table fn → mutation que le serveur lit aussi (`convex/botOrders.ts`, #704). */
+const { submitBotOrder } = await load('convex/botOrders.ts');
 const read = (name) => JSON.parse(readFileSync(`${root}public/${name}`, 'utf8'));
 const world = worldFrom({
   projection: read('projection.json'),
@@ -280,65 +282,6 @@ if ((await lobbyOf())?.status === 'lobby') {
 playing = true;
 if (!stopped) console.log('Saison lancée : les bots jouent.');
 
-/** Un ordre du décideur → sa mutation publique. Les ids de la vue sont des `string` : le serveur les valide. */
-function submit(seat, order) {
-  const { fn, args } = order;
-  const origin = (o) =>
-    o.kind === 'building' ? { kind: 'building', buildingId: o.buildingId } : o;
-  switch (fn) {
-    case 'constructions.start':
-      return client.mutation(api.constructions.start, { ...seat, ...args });
-    case 'constructions.raiseOutpost':
-      return client.mutation(api.constructions.raiseOutpost, { ...seat, ...args });
-    case 'troops.recruit':
-      return client.mutation(api.troops.recruit, { ...seat, ...args });
-    case 'movements.attack':
-      return client.mutation(api.movements.attack, {
-        ...seat,
-        origin: origin(args.origin),
-        troopIds: args.troopIds,
-        target: { kind: 'camp', campId: args.target.campId },
-      });
-    case 'movements.capture':
-      return client.mutation(api.movements.capture, {
-        ...seat,
-        origin: origin(args.origin),
-        troopIds: args.troopIds,
-        target: { kind: 'point', pointId: args.target.pointId },
-      });
-    case 'movements.marchTo':
-      return client.mutation(api.movements.marchTo, {
-        ...seat,
-        origin: origin(args.origin),
-        troopIds: args.troopIds,
-        point: args.point,
-      });
-    case 'movements.enterGarrison':
-      return client.mutation(api.movements.enterGarrison, {
-        ...seat,
-        origin: origin(args.origin),
-        troopIds: args.troopIds,
-        buildingId: args.buildingId,
-      });
-    case 'movements.foundOutpostHere':
-      return client.mutation(api.movements.foundOutpostHere, { ...seat, ...args });
-    case 'movements.board':
-      return client.mutation(api.movements.board, {
-        ...seat,
-        troopIds: args.troopIds,
-        carrierId: args.carrierId,
-      });
-    case 'movements.disembark':
-      return client.mutation(api.movements.disembark, { ...seat, troopIds: args.troopIds });
-    case 'logistics.load':
-      return client.mutation(api.logistics.load, { ...seat, ...args });
-    case 'tours.start':
-      return client.mutation(api.tours.start, { ...seat, ...args });
-    default:
-      throw new Error(`ordre inconnu : ${fn}`);
-  }
-}
-
 /** Ce qu'un bot insulaire attend avant de prendre la mer (#631) : dit une fois, tant que la raison ne change pas. */
 const SEA_WAITS = {
   NO_BARRACKS: 'sa caserne avant son port',
@@ -366,7 +309,7 @@ while (!stopped) {
     let view;
     let workshop;
     try {
-      view = adaptServerView(await client.query(api.view.playerView, seat));
+      view = playerViewOf(await client.query(api.view.playerView, seat));
       workshop = await client.query(api.troops.workshop, seat);
     } catch (error) {
       if (String(error).includes('SEASON_CONCLUDED')) stopped = true;
@@ -387,7 +330,7 @@ while (!stopped) {
     }
     for (const order of orders) {
       try {
-        await submit(seat, order);
+        await submitBotOrder((mutation, args) => client.mutation(mutation, args), seat, order);
         console.log(`#${passNumber} ${name} : ${order.fn}`);
       } catch (error) {
         if (String(error).includes('SEASON_CONCLUDED')) stopped = true;

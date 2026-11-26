@@ -1009,6 +1009,26 @@ describe('scrapping a season', () => {
         });
       });
 
+      // A bot's token row (#704): it hangs from the season, with its own account.
+      await t.run(async (ctx) => {
+        const seat = await seatIn(ctx, creator);
+        const accountId = await ctx.db.insert('accounts', {
+          nickname: 'Bot1',
+          nicknameKey: 'bot1',
+          passwordHash: '',
+          salt: '',
+          iterations: 0,
+          createdAt: Date.now(),
+          bot: true,
+        });
+        await ctx.db.insert('bots', {
+          seasonId: seat.seasonId,
+          playerId: seat._id,
+          accountId,
+          token: 'jeton-du-bot',
+        });
+      });
+
       const tables = GAME_TABLES as ReadonlyArray<TableNames>;
       const before = await countRows(t, tables);
       // Every table carries something, or the emptiness below proves nothing about it.

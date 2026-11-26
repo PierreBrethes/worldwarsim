@@ -2,9 +2,9 @@ import { readFileSync } from 'node:fs';
 import { convexTest } from 'convex-test';
 import { expect, vi } from 'vitest';
 import { api } from './_generated/api';
-import type { Id } from './_generated/dataModel';
 import { decideTurn, worldFrom, type BotOrder } from '../src/domain/bot';
-import { adaptServerView } from '../src/data/serverView';
+import { submitBotOrder } from './botOrders';
+import { playerViewOf } from '../src/domain/server-view';
 import schema from './schema';
 import { modules } from './test.setup';
 import { foundSeat, joinSeat, neutralPoint, seatIn, unclocked, type Seat } from './seats.fixture';
@@ -28,90 +28,6 @@ export const HOUR = 3_600_000;
 
 export type Bench = ReturnType<typeof boot>;
 
-/** La conversion d'un ordre vers sa mutation : les ids viennent de la vue, en `string`. */
-export async function submit(t: Bench, seat: Seat, order: BotOrder): Promise<unknown> {
-  const ids = (list: ReadonlyArray<string>) => list as Array<Id<'troops'>>;
-  switch (order.fn) {
-    case 'constructions.start':
-      return t.mutation(api.constructions.start, { ...seat, ...order.args });
-    case 'constructions.raiseOutpost':
-      return t.mutation(api.constructions.raiseOutpost, {
-        ...seat,
-        ...order.args,
-        outpostId: order.args.outpostId as Id<'outposts'>,
-      });
-    case 'troops.recruit':
-      return t.mutation(api.troops.recruit, {
-        ...seat,
-        ...order.args,
-        buildingId: order.args.buildingId as Id<'buildings'>,
-      });
-    case 'movements.attack':
-      return t.mutation(api.movements.attack, {
-        ...seat,
-        origin: originOf(order.args.origin),
-        troopIds: ids(order.args.troopIds),
-        target: { kind: 'camp', campId: order.args.target.campId as Id<'campSightings'> },
-      });
-    case 'movements.capture':
-      return t.mutation(api.movements.capture, {
-        ...seat,
-        origin: originOf(order.args.origin),
-        troopIds: ids(order.args.troopIds),
-        target: { kind: 'point', pointId: order.args.target.pointId as Id<'strategicPoints'> },
-      });
-    case 'movements.marchTo':
-      return t.mutation(api.movements.marchTo, {
-        ...seat,
-        origin: originOf(order.args.origin),
-        troopIds: ids(order.args.troopIds),
-        point: order.args.point,
-      });
-    case 'movements.enterGarrison':
-      return t.mutation(api.movements.enterGarrison, {
-        ...seat,
-        origin: originOf(order.args.origin),
-        troopIds: ids(order.args.troopIds),
-        buildingId: order.args.buildingId as Id<'buildings'>,
-      });
-    case 'movements.foundOutpostHere':
-      return t.mutation(api.movements.foundOutpostHere, {
-        ...seat,
-        ...order.args,
-        troopIds: ids(order.args.troopIds),
-      });
-    case 'logistics.load':
-      return t.mutation(api.logistics.load, {
-        ...seat,
-        ...order.args,
-        troopId: order.args.troopId as Id<'troops'>,
-      });
-    case 'movements.board':
-      return t.mutation(api.movements.board, {
-        ...seat,
-        troopIds: ids(order.args.troopIds),
-        carrierId: order.args.carrierId as Id<'troops'>,
-      });
-    case 'movements.disembark':
-      return t.mutation(api.movements.disembark, { ...seat, troopIds: ids(order.args.troopIds) });
-    case 'tours.start':
-      return t.mutation(api.tours.start, {
-        ...seat,
-        troopId: order.args.troopId as Id<'troops'>,
-        stops: order.args.stops.map((stop) =>
-          typeof stop === 'string'
-            ? (stop as Id<'outposts'>)
-            : { kind: 'site' as const, id: stop.id as Id<'buildings'> },
-        ),
-      });
-  }
-}
-
-const originOf = (origin: Extract<BotOrder, { fn: 'movements.marchTo' }>['args']['origin']) =>
-  origin.kind === 'building'
-    ? { kind: 'building' as const, buildingId: origin.buildingId as Id<'buildings'> }
-    : origin;
-
 /** Un passage du bot : sa vue, son atelier, ses ordres, posés par la porte d'un joueur. */
 export async function pass(
   t: Bench,
@@ -119,12 +35,12 @@ export async function pass(
   refused: string[],
   played: string[] = [],
 ): Promise<BotOrder[]> {
-  const view = adaptServerView(await t.query(api.view.playerView, seat));
+  const view = playerViewOf(await t.query(api.view.playerView, seat));
   const workshop = await t.query(api.troops.workshop, seat);
   const orders = decideTurn({ view, workshop, world, now: Date.now() });
   for (const order of orders) {
     try {
-      await submit(t, seat, order);
+      await submitBotOrder((mutation, args) => t.mutation(mutation, args as never), seat, order);
       played.push(order.fn);
     } catch (error) {
       refused.push(`${order.fn}: ${String(error)}`);
@@ -168,7 +84,7 @@ export async function crossesToward(
     await pass(t, bot, refused, played);
     vi.advanceTimersByTime(HOUR);
     await t.finishInProgressScheduledFunctions();
-    const view = adaptServerView(await t.query(api.view.playerView, bot));
+    const view = playerViewOf(await t.query(api.view.playerView, bot));
     near = view.me.troops.some(
       ({ role, carriedBy, stationedAt }) =>
         role === 'infantry' &&

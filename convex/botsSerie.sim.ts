@@ -17,7 +17,7 @@ import { api, internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import { MONDIALE_TROOP_BOUND } from './constants';
 import { boot, pass, type Bench } from './bot.fixture';
-import { adaptServerView } from '../src/data/serverView';
+import { playerViewOf } from '../src/domain/server-view';
 import { joinSeat, signIn, type Seat } from './seats.fixture';
 import { seasonReportOf, type ReportInput } from '../src/domain/season-report';
 import { renderReport } from '../scripts/rapport-de-saison.mjs';
@@ -172,7 +172,7 @@ it(
         const lorries: Record<string, number> = {};
         for (const [k, seat] of seats.entries()) {
           try {
-            const { me } = adaptServerView(await t.query(api.view.playerView, seat));
+            const { me } = playerViewOf(await t.query(api.view.playerView, seat));
             sites[options.nations[k]!] = me.buildings.map(
               (b) =>
                 `${b.key}${b.level}${b.heap === undefined ? '' : `:${b.heap.resource}=${Math.round(b.heap.amount)}`}`,

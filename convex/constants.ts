@@ -48,6 +48,14 @@ export const EXTRACTION_PER_HOUR: Readonly<Record<DepositKey, number>> = {
 };
 
 /**
+ * **Le pas entre deux passes des bots du salon** (#704), que le serveur joue par la porte d'un
+ * joueur (`convex/bots.ts`). Le pilote Node part de 30 s ; un bot facile joue peu souvent
+ * (ADR 0042 §5).
+ * @a-mesurer 60 s, proposé par l'issue
+ */
+export const BOT_CADENCE_MS = 60_000;
+
+/**
  * **Les niveaux d'une exploitation du socle qui versent au stock national** (ADR 0041 §3, précision
  * du 26/11/2026) : les autres s'entassent, comme tout niveau d'une exploitation hors du socle. À
  * un seul niveau, la série de bots s'affamait avant H48, les fermes pleines au pied et le stock à

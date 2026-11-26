@@ -33,6 +33,7 @@ import {
 import { LISTED_MINIMUM, departureOf, listingRefusalOf } from '../src/domain/listing';
 import {
   DEFAULT_REST_WINDOW,
+  BOT_CADENCE_MS,
   FOUNDER_ABSENCE_HOURS,
   PRESS_EDITION_HOURS,
   STARTING_KIT,
@@ -82,7 +83,7 @@ const settingsOf = (season: Doc<'seasons'>): Settings => ({
   durationHours: modeOf(season.mode) === 'mondiale' ? season.durationHours : null,
 });
 
-const maximumOf = (season: Doc<'seasons'>): number => seatCapOf(settingsOf(season));
+export const maximumOf = (season: Doc<'seasons'>): number => seatCapOf(settingsOf(season));
 
 /** Ce que l'ordre d'opérations sert aux écrans, défauts compris. */
 const ordersOf = (season: Doc<'seasons'>) => ({
@@ -262,7 +263,9 @@ export const configure = mutation({
       seatCap: next.seatCap ?? undefined,
       ...(next.durationHours === null ? {} : { durationHours: next.durationHours }),
     });
-    for (const entry of present) if (entry.ready) await ctx.db.patch(entry._id, { ready: false });
+    /** Un bot n'a personne pour se redire prêt : il garde son tampon. */
+    for (const entry of present)
+      if (entry.ready && entry.bot !== true) await ctx.db.patch(entry._id, { ready: false });
     const patched = await ctx.db.get(season._id);
     if (patched !== null) await planReminder(ctx, patched);
     /** Publier un salon déjà au minimum, ou baisser les places jusqu'aux inscrits, fixe ou
@@ -282,7 +285,7 @@ const listingOf = (season: Doc<'seasons'>) =>
  * et à chaque ordre du fondateur, il ne change qu'en se fixant ou en avançant. Le travail
  * précédent est annulé, et `depart` relit encore l'heure à l'échéance.
  */
-async function planDeparture(ctx: MutationCtx, seasonId: Id<'seasons'>): Promise<void> {
+export async function planDeparture(ctx: MutationCtx, seasonId: Id<'seasons'>): Promise<void> {
   const season = await ctx.db.get(seasonId);
   if (season === null || season.listed !== true || season.status !== 'lobby') return;
   const present = await seatsOf(ctx, seasonId);
@@ -334,25 +337,29 @@ export const depart = internalMutation({
 
 /** **Une place, et le pseudo du compte copié dessus** — la seule écriture de `players` du jeu,
  *  partagée par les deux portes d'entrée pour qu'un champ neuf ne puisse pas en manquer une. */
-async function seat(
+export async function seat(
   ctx: MutationCtx,
   account: Doc<'accounts'>,
   seasonId: Id<'seasons'>,
   creator: boolean,
-): Promise<void> {
+  /** Un bot (#704) s'assoit avec sa nation, déjà prêt : personne ne choisira pour lui. */
+  bot: { readonly nation: string } | null = null,
+): Promise<Id<'players'>> {
   const season = await ctx.db.get(seasonId);
-  await ctx.db.insert('players', {
+  const playerId = await ctx.db.insert('players', {
     ...(season !== null && modeOf(season.mode) === 'blitz' ? { lobbySeenAt: Date.now() } : {}),
     seasonId,
     accountId: account._id,
     nickname: account.nickname,
     creator,
-    nation: null,
-    ready: false,
+    nation: bot?.nation ?? null,
+    ready: bot !== null,
+    ...(bot === null ? {} : { bot: true as const }),
     restWindow: DEFAULT_REST_WINDOW,
     enteredWarAt: null,
   });
   await countSeat(ctx, seasonId);
+  return playerId;
 }
 
 /**
@@ -360,8 +367,8 @@ async function seat(
  * compte sur l'écran d'accueil (`previewOf`) : recompté à la lecture, il y faisait un `collect()`
  * par ligne, en série, et c'est ce qui a fini par dépasser la seconde en production (12/09).
  *
- * **Il ne décroît jamais, et il n'a pas à le faire** : une place ne se quitte pas, elle
- * disparaît avec sa saison (`destroy`), qui emporte le compte avec elle.
+ * **Il ne décroît que d'un bot retiré au salon** (`bots.remove`, #704) : une place de joueur ne
+ * se quitte pas, elle disparaît avec sa saison (`destroy`), qui emporte le compte avec elle.
  *
  * Une saison d'avant ce champ se fait compter une fois, ici, plutôt que incrémentée à partir de
  * rien : le comptage est déjà fait quand on écrit, et la place neuve y est.
@@ -646,6 +653,7 @@ export const lobby = query({
         creator: entry.creator,
         nation: entry.nation,
         ready: entry.ready,
+        bot: entry.bot === true,
         mine: entry._id === player._id,
         restWindow: entry.restWindow,
         seenAt: seenAtOf(entry, season),
@@ -774,6 +782,25 @@ async function openSeason(
     modeOf(season.mode) === 'blitz' ? internal.blitz.place : internal.objectives.place,
     { seasonId: season._id },
   );
+  /** **Les bots du salon jouent dès la première passe** (#704) : le serveur les tient. */
+  if (present.some((entry) => entry.bot === true)) await planBotRound(ctx, season._id);
+}
+
+/**
+ * **La passe suivante des bots, et une seule par saison** (#704) : l'ancienne, si elle attend
+ * encore, est annulée avant que la nouvelle se planifie, comme le départ d'une annonce.
+ */
+export async function planBotRound(ctx: MutationCtx, seasonId: Id<'seasons'>): Promise<void> {
+  const season = await ctx.db.get(seasonId);
+  if (season === null) return;
+  if (season.roundJobId !== undefined) {
+    const job = await ctx.db.system.get(season.roundJobId);
+    if (job !== null && job.state.kind === 'pending') await ctx.scheduler.cancel(job._id);
+  }
+  const roundJobId = await ctx.scheduler.runAfter(BOT_CADENCE_MS, internal.bots.round, {
+    seasonId,
+  });
+  await ctx.db.patch(seasonId, { roundJobId });
 }
 
 /**
@@ -959,6 +986,13 @@ export const destroy = mutation({
       await erasePlayer(ctx, entry._id);
       await ctx.db.delete(entry._id);
     }
+    /** Un bot n'a pas d'autre saison : son compte, sa session et son jeton partent avec elle. */
+    for (const bot of await ctx.db
+      .query('bots')
+      .withIndex('bySeason', (q) => q.eq('seasonId', season._id))
+      .collect()) {
+      await eraseBot(ctx, bot);
+    }
     /** **Un objectif n'appartient à personne** — il pend à la saison et à rien d'autre, donc
      *  `erasePlayer` ne peut pas l'emporter : c'est ici qu'il tombe, ou nulle part. */
     for (const objective of await ctx.db
@@ -986,6 +1020,19 @@ export const destroy = mutation({
   },
 });
 
+/** **Un bot sans sa saison** (#704) : sa ligne de jeton, ses sessions et son compte. La place
+ *  elle-même reste à l'appelant, qui la retire avec ce qui pend à elle. */
+export async function eraseBot(ctx: MutationCtx, bot: Doc<'bots'>): Promise<void> {
+  for (const session of await ctx.db
+    .query('sessions')
+    .withIndex('byAccount', (q) => q.eq('accountId', bot.accountId))
+    .collect()) {
+    await ctx.db.delete(session._id);
+  }
+  await ctx.db.delete(bot.accountId);
+  await ctx.db.delete(bot._id);
+}
+
 /**
  * **Everything hanging from one player**, which is every table the schema indexes `byPlayer`
  * plus the engagements he opened. The list is not a memo of what the game held when this was
@@ -997,7 +1044,7 @@ export const destroy = mutation({
  * in the same season, `destroy` erases all of them, and every account has exactly one
  * attacker — going by defender as well would delete the same row twice.
  */
-async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<void> {
+export async function erasePlayer(ctx: MutationCtx, playerId: Id<'players'>): Promise<void> {
   const player = await ctx.db.get(playerId);
   const byPlayer = async (
     table:

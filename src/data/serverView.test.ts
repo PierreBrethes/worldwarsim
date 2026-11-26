@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { arcProgressAt } from '../domain/arc-timing';
-import { adaptServerView, type ServerView } from './serverView';
+import type { ServerView } from '../domain/server-view';
+import { adaptServerView } from './serverView';
 
 const NOW = 1_700_000_000_000;
 const MINUTE = 60_000;

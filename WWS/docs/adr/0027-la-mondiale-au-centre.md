@@ -51,7 +51,8 @@ parole** (télégraphe, ce qu'il a vu). Un mouvement de résistance viendra peut
   coups de pièces, prendre **une** décision d'économie, passer au télégraphe.
 - **La Blitz** a servi à mettre au point la manipulation. Elle est mise de côté : correctifs
   seulement. Ce qui touche aux pièces profite aux deux modes. Un bot Blitz viendra plus tard, une
-  vraie IA peut-être ensuite ; aucun bot en Mondiale. *(Révisé par ADR 0042 le 21/11 : des bots faciles en local, jamais en ligne.)*
+  vraie IA peut-être ensuite ; aucun bot en Mondiale. *(Révisé par ADR 0042 le 21/11 : des bots faciles en local, jamais en ligne ; puis le 26/11
+  (#704) : des bots que le fondateur d'une Mondiale assoit au salon, joués par le serveur.)*
 - **Mêmes pièces, mêmes gestes** dans les deux modes. Les escouades n'existent qu'en Mondiale.
 - **Le tutoriel** fait manipuler les fonctions principales. Ce n'est pas une partie complète.
 

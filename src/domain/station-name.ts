@@ -1,4 +1,4 @@
-import { countryLabel, fr } from '@/i18n/fr';
+import { countryLabel, fr } from '../i18n/fr';
 import type { LonLat } from './geo';
 import type { PlayerView, TroopStation } from './player-view';
 

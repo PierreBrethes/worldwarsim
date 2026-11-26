@@ -237,7 +237,29 @@
   text-transform: uppercase;
 }
 
+/* Le bouton du retrait d'un bot (#704) : au pied de sa carte, sous le tampon « prêt ». */
+.os .seat .unseat {
+  position: absolute;
+  right: 4px;
+  bottom: 2px;
+  min-height: 24px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  font: 600 9.5px var(--ui);
+  letter-spacing: 0.14em;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
 @media (hover: hover) {
+  .os .seat .unseat:hover {
+    color: var(--ink);
+  }
+
   .os .seat.empty:hover {
     border-color: var(--paper);
     background: color-mix(in srgb, var(--paper) 14%, transparent);

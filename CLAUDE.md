@@ -83,8 +83,10 @@ deploiement/     docker compose (Convex auto-hébergé + front), guide VPS et CI
   Une prise au tas (`takeHeap`, `convex/heaps.ts`) réécrit la ligne à l'instant de la prise ; la
   récolte à bord (`troops.harvest`) est versée par `bankHarvest` (`convex/tours.ts`), jamais au dépôt.
 - **Porte serveur.** Chaque fonction de jeu prend `{ token, seasonId }` et passe par `playerOf`
-  puis `requirePlayable` (`convex/seats.ts`) ; le serveur ne rend que des codes d'erreur
-  (`convex/errors.ts`), le texte vit dans `src/i18n/fr.ts`. Aucune phrase n'écrit « clic droit » :
+  puis `requirePlayable` (`convex/seats.ts`) ; un bot du salon aussi, avec le jeton en clair que
+  garde la table `bots`, qu'aucune query publique ne lit (`convex/botTurns.ts`, ADR 0042) ; le
+  serveur ne rend que des codes d'erreur (`convex/errors.ts`), le texte vit dans
+  `src/i18n/fr.ts`. Aucune phrase n'écrit « clic droit » :
   un seul endroit traduit un bouton en rôle, `roleOf` (`src/map/engine/index.ts`, test par grep).
   Le serveur ne croit aucune donnée géographique du client (région, point, cible) : il la recoupe
   sur sa grille. La terre et la région sous un point se lisent par `groundOf` et `regionOf`
