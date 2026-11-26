@@ -115,6 +115,13 @@ export const BUILDING_REACH_METRES: Readonly<Record<BuildingKey, number>> = {
 };
 
 /**
+ * **L'avant-poste en mètres** (#468, `outpost.glb`) : son cercle de sacs, ce que son modèle mesure
+ * comme un bâtiment se mesure à ses murs ; l'emprise de son socle rond, et sa portée, le rayon de
+ * ce socle. `maquettes.test.ts` les mesure sur le GLB.
+ */
+export const OUTPOST_METRES = { ring: 30, footprint: 37, reach: 18.5 } as const;
+
+/**
  * **La portée d'un site avec le kit que le moteur pose à côté** (ADR 0038 §10, #269-#270) : le coin
  * lointain de la piste de l'aérodrome, la tête du môle du port. L'anneau réserve cette emprise en
  * plus du socle. `kits.test.ts` la mesure sur le plan des kits.
@@ -169,6 +176,13 @@ export const buildingSpan = (key: BuildingKey): number =>
 /** **L'emprise d'un bâtiment sur le plateau**, en unités : ce dont l'anneau le sépare de ses voisins. */
 export const buildingFootprint = (key: BuildingKey): number =>
   onBoard(BUILDING_FOOTPRINT_METRES[key], key === 'port' ? SEA_SHARE : 1);
+
+/** **L'avant-poste sur le plateau**, en unités : sa mesure, son emprise et sa portée. */
+export const OUTPOST_ON_BOARD = {
+  span: onBoard(OUTPOST_METRES.ring),
+  footprint: onBoard(OUTPOST_METRES.footprint),
+  reach: onBoard(OUTPOST_METRES.reach),
+} as const;
 
 /** **La portée d'un site depuis son point**, en unités : ce dont l'anneau l'espace d'un voisin. */
 export const buildingReach = (key: BuildingKey): number =>

@@ -3,9 +3,18 @@ import { join } from 'node:path';
 import { Box3, Matrix4, Quaternion, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import type { BuildingKey } from '@/domain/ids';
-import { BUILDING_FOOTPRINT_METRES, BUILDING_REACH_METRES } from '@/domain/piece-size';
+import {
+  BUILDING_FOOTPRINT_METRES,
+  BUILDING_REACH_METRES,
+  OUTPOST_METRES,
+} from '@/domain/piece-size';
 import { RIG_PARTS } from './rigs';
-import { BUILDING_MAQUETTES, buildingMaquette } from './buildings/manifest';
+import {
+  BUILDING_MAQUETTES,
+  buildingMaquette,
+  OUTPOST_GEAR,
+  OUTPOST_MAQUETTE,
+} from './buildings/manifest';
 import { OBJECTIVE_MAQUETTES } from './objectives/manifest';
 
 /** The heaviest drawn on 13/10 is the shipyard, at 3 156; a site on its socle, in any one state
@@ -287,17 +296,8 @@ const objectives = [...new Set(Object.values(OBJECTIVE_MAQUETTES))].flatMap((url
   url === null ? [] : [url],
 );
 
-const trianglesOf = (gltf: Gltf): number =>
-  gltf.meshes
-    .flatMap((mesh) => mesh.primitives)
-    .reduce((sum, p) => sum + gltf.accessors[p.indices ?? p.attributes.POSITION]!.count / 3, 0);
-
-/**
- * **The triangles of each state a site shows** (ADR 0038 §9, as `verifier-glb.mjs` counts them):
- * at level 3 the building, its fixed parts and `niveau_1` to `niveau_3`; at work `niveau_1` and
- * `chantier`; in ruins `ruines` alone. A file without a socle shows one state, all of it.
- */
-function trianglesByState(gltf: Gltf): number[] {
+/** The triangles under the node of that name. */
+function trianglesUnder(gltf: Gltf, name: string): number {
   const under = (index: number): number => {
     const node = gltf.nodes[index]!;
     const own =
@@ -309,8 +309,21 @@ function trianglesByState(gltf: Gltf): number[] {
           );
     return own + (node.children ?? []).reduce((sum, child) => sum + under(child), 0);
   };
-  const named = (name: string) =>
-    gltf.nodes.reduce((sum, node, k) => sum + (node.name === name ? under(k) : 0), 0);
+  return gltf.nodes.reduce((sum, node, k) => sum + (node.name === name ? under(k) : 0), 0);
+}
+
+const trianglesOf = (gltf: Gltf): number =>
+  gltf.meshes
+    .flatMap((mesh) => mesh.primitives)
+    .reduce((sum, p) => sum + gltf.accessors[p.indices ?? p.attributes.POSITION]!.count / 3, 0);
+
+/**
+ * **The triangles of each state a site shows** (ADR 0038 §9, as `verifier-glb.mjs` counts them):
+ * at level 3 the building, its fixed parts and `niveau_1` to `niveau_3`; at work `niveau_1` and
+ * `chantier`; in ruins `ruines` alone. A file without a socle shows one state, all of it.
+ */
+function trianglesByState(gltf: Gltf): number[] {
+  const named = (name: string) => trianglesUnder(gltf, name);
   const total = trianglesOf(gltf);
   if (!gltf.nodes.some((node) => node.name === 'socle')) return [total];
   const [one, two, three, works, ruins] = GROUPS.map(named) as [
@@ -431,5 +444,80 @@ describe('maquettes', () => {
     const gltf = readGlb(buildingMaquette('mine', 'coal')!);
     for (const part of RIG_PARTS.mine)
       expect(gltf.nodes.filter((node) => node.name === part).length, part).toBe(1);
+  });
+});
+
+/**
+ * **The outpost on its round socle** (#468, `WWS/prototypes/glb/prompts/outpost.md`): its ring of
+ * sandbags, its mast and its flag, and the gear of each trade, one shown at a time. No yard, no
+ * rank, no level, no works and no ruins: its garrison stands beside it, its works are the
+ * engine's.
+ */
+describe('the outpost', () => {
+  const gltf = readGlb(OUTPOST_MAQUETTE);
+  const GEAR = Object.values(OUTPOST_GEAR).flatMap((group) => (group === null ? [] : [group]));
+  const NAMES = [
+    'socle',
+    'lisere',
+    'sacs',
+    'signe',
+    'hampe',
+    'drapeau',
+    'fx_tete_hampe',
+    ...GEAR,
+    // The lookout's antenna slides in three sections, its projector carries the beam (#644).
+    'antenne_1',
+    'antenne_2',
+    'antenne_3',
+    'cadre',
+    'projecteur',
+    'fx_faisceau',
+  ];
+  const byName = (name: string) => gltf.nodes.filter((node) => node.name === name);
+
+  it('carries each named part on one node, and none of a building yard', () => {
+    for (const name of NAMES) expect(byName(name), name).toHaveLength(1);
+    for (const name of ['fx_rang', 'cour', ...GROUPS]) expect(byName(name), name).toHaveLength(0);
+    const materials = new Set(gltf.materials?.map((material) => material.name));
+    for (const name of ['lisere', 'feux']) expect(materials.has(name), name).toBe(true);
+    for (const primitive of gltf.meshes.flatMap((mesh) => mesh.primitives))
+      expect(primitive.material).toBeTypeOf('number');
+  });
+
+  it('hangs each trade from the root, its frame atop the last section, its beam on its projector', () => {
+    const root = gltf.scenes[gltf.scene ?? 0]!.nodes;
+    const children = root.flatMap((index) => [index, ...(gltf.nodes[index]!.children ?? [])]);
+    for (const group of GEAR)
+      expect(children, group).toContain(gltf.nodes.findIndex((node) => node.name === group));
+    const childOf = (child: string, parent: string) =>
+      expect(byName(parent)[0]!.children, child).toContain(
+        gltf.nodes.findIndex((node) => node.name === child),
+      );
+    childOf('cadre', 'antenne_3');
+    childOf('fx_faisceau', 'projecteur');
+    for (const section of ['antenne_1', 'antenne_2', 'antenne_3', 'projecteur'])
+      childOf(section, 'guet');
+  });
+
+  it('keeps under 1 500 triangles whichever trade it shows', () => {
+    const shown = (group: string | null) =>
+      trianglesOf(gltf) -
+      GEAR.filter((each) => each !== group).reduce(
+        (sum, each) => sum + trianglesUnder(gltf, each),
+        0,
+      );
+    for (const group of [null, ...GEAR])
+      expect(shown(group), String(group)).toBeLessThanOrEqual(1500);
+  });
+
+  it('stands in metres: its ring of sandbags, its socle and its reach', () => {
+    const ring = boundsOf(gltf, 'sacs').getSize(new Vector3());
+    expect(Math.abs(Math.max(ring.x, ring.z) / OUTPOST_METRES.ring - 1)).toBeLessThan(0.04);
+    const socle = footprintOf(gltf);
+    expect(Math.abs(Math.max(socle.x, socle.z) / OUTPOST_METRES.footprint - 1)).toBeLessThan(0.02);
+    // Round, it reaches as far whichever way it turns: its radius, not a corner of its box.
+    expect(Math.abs(Math.max(socle.x, socle.z) / 2 / OUTPOST_METRES.reach - 1)).toBeLessThan(0.02);
+    const { min } = boundsOf(gltf);
+    expect(Math.abs(min.y)).toBeLessThan(0.02);
   });
 });

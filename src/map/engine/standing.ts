@@ -88,7 +88,8 @@ export type StandingPile = {
   /** The pile's label id (`stackLabelId`): the label reads whether its plate gives way. */
   readonly id: string;
   /** The label this pile hangs its tags from and is dropped on, when it is not its own: an
-   *  outpost's garrison stands at its point, and the outpost has no maquette to stand beside. */
+   *  outpost's garrison, served at its point, stands beside its maquette (`besideSites`, #468)
+   *  and is aimed at by the outpost's label. */
   readonly label?: string;
   /**
    * A point, or **a building's garrison**: the id of the maquette it stands at the foot of. It is

@@ -1,11 +1,13 @@
 import {
   BufferGeometry,
+  Color,
   Float32BufferAttribute,
   Group,
   LineBasicMaterial,
   LineSegments,
   Mesh,
   MeshStandardMaterial,
+  ShaderMaterial,
   Vector3,
 } from 'three';
 import type { Atlas, Detail } from '@/domain/atlas';
@@ -15,7 +17,7 @@ import type { HoveredRegion, RegionIdentity } from '@/domain/world';
 import { fillGeometry, lineGeometry } from './atlas-geometry';
 import { PALETTE, PEN_OPACITY, penOf } from './palette';
 import { ContourLayer } from './contours';
-import { inkDownAtNight, type NightUniforms } from './night-here';
+import { inkDownAtNight, NIGHT_HERE_GLSL, type NightUniforms } from './night-here';
 import { COUNTRY_THICKNESS, onLand, type WorldFrame } from './frame';
 
 type Sheet = Pick<WorldFrame, 'centerX' | 'centerY'>;
@@ -32,6 +34,57 @@ export const REGION_BORDER_OPACITY = 0.25;
 
 /** Below this share of the fade, the layer is not on screen — so it is not aimable either. */
 const VISIBLE_SHARE = 0.01;
+
+/** The zoomed-in layer's fade: full at `REGIONS_FULL_DISTANCE` and closer, gone from
+ *  `REGIONS_GONE_DISTANCE`. */
+export function regionsShare(cameraDistance: number): number {
+  return Math.min(
+    1,
+    Math.max(
+      0,
+      (REGIONS_GONE_DISTANCE - cameraDistance) / (REGIONS_GONE_DISTANCE - REGIONS_FULL_DISTANCE),
+    ),
+  );
+}
+
+/**
+ * **Le lavis prend la place que les régions quittent** (#679, ADR 0033 précisée le 26/11) : de loin,
+ * les tirets des contours ne se voient plus, et ce que je tiens ne se lisait plus. Son fondu est le
+ * complément exact de celui des régions, sur les mêmes bornes : une seule rampe, où l'aplat cède la
+ * feuille aux contours et aux maquettes à mesure qu'elles arrivent.
+ */
+export function washShare(cameraDistance: number): number {
+  return 1 - regionsShare(cameraDistance);
+}
+
+/** Le lavis d'un territoire à jour, à fond ; un relevé en prend la moitié, quel que soit son âge
+ *  (ADR 0033 §3 : l'âge est à la fiche). @a-mesurer */
+const WASH_OPACITY = 0.38;
+const SURVEYED_WASH = WASH_OPACITY / 2;
+/** La nuit, l'encre s'éclaircit sous le voile qui la multiplie (×1,25 dans la maquette). @a-mesurer */
+const WASH_NIGHT_LIFT = 1.25;
+/** Au-dessus de la hachure, que la possession couvre (ADR 0020 §7), sous les dessins de terrain
+ *  (0,2), les contours (0,5), les zones d'avant-poste (1,8) et le voile de nuit (2,5). */
+const WASH_RANK = 0.1;
+
+const WASH_VERTEX = `
+varying vec2 vWorld;
+void main() {
+  vec4 world = modelMatrix * vec4(position, 1.0);
+  vWorld = world.xz;
+  gl_Position = projectionMatrix * viewMatrix * world;
+}`;
+
+/** À plat, comme les contours : la lune ne teinte la feuille qu'une fois, par le voile. */
+const WASH_FRAGMENT = `
+${NIGHT_HERE_GLSL}
+uniform vec3 uColor; uniform float uOpacity, uShare;
+varying vec2 vWorld;
+void main() {
+  vec3 ink = min(uColor * mix(1.0, ${WASH_NIGHT_LIFT.toFixed(2)}, nightAtWorld(vWorld)), vec3(1.0));
+  gl_FragColor = vec4(ink, uOpacity * uShare);
+  #include <colorspace_fragment>
+}`;
 
 /** Stacking flush with the slab: hatch under the strokes, strokes under the hover and the borders. */
 const STROKE_LIFT = 0.003;
@@ -151,6 +204,9 @@ export class RegionLayer {
   readonly held = new Group();
   /** **Qui tient quoi, au contour** (ADR 0033). */
   readonly contours: ContourLayer;
+  /** **Et au lavis, de loin** (#679) : un maillage par encre et par état, au niveau « loin ». */
+  readonly wash = new Group();
+  private readonly washShared: { readonly uShare: { value: number } } & NightUniforms;
   readonly hoverOutline: LineSegments;
   private readonly lineMaterial: LineBasicMaterial;
   private readonly hoverMaterial: LineBasicMaterial;
@@ -180,6 +236,8 @@ export class RegionLayer {
     private atlas: Atlas,
   ) {
     this.contours = new ContourLayer(frame, touch, night);
+    this.washShared = { ...night, uShare: { value: 0 } };
+    this.wash.visible = false;
     this.lineMaterial = inkDownAtNight(
       new LineBasicMaterial({
         color: PALETTE.frontier,
@@ -264,6 +322,7 @@ export class RegionLayer {
       this.detail === 'near' ? ['far', 'near'] : ['far'],
     );
     this.rebuildHeld();
+    this.rebuildWash();
   }
 
   /** The hatches follow the data: new regions, everything redone. The contours need only the
@@ -304,6 +363,57 @@ export class RegionLayer {
       fill.receiveShadow = true;
       this.held.add(fill);
     }
+  }
+
+  /**
+   * **Le lavis ne lit que ce que la vue sert** (`control.held`) : mon sol et mes relevés, jamais le
+   * sol national d'une nation que je n'ai pas relevée (#668). Une région suspendue n'est pas une
+   * possession : elle garde sa seule hachure. Toujours au niveau « loin » : le lavis n'existe qu'au
+   * dézoom, où la feuille le montre, et le niveau « près » ne changerait rien à l'œil.
+   */
+  private rebuildWash(): void {
+    this.dropWash();
+    for (const claim of this.claims) {
+      const known = new Set(
+        claim.regions.filter(({ state }) => state !== 'suspended').map(({ id }) => id),
+      );
+      if (known.size === 0) continue;
+      const states = new Map(claim.regions.map(({ id, state }) => [id, state]));
+      const shapes = this.atlas.shapes((region) => states.get(region.id) ?? null, 'far', known);
+      for (const [state, polygons] of shapes) {
+        const material = onLand(
+          new ShaderMaterial({
+            vertexShader: WASH_VERTEX,
+            fragmentShader: WASH_FRAGMENT,
+            transparent: true,
+            depthWrite: false,
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -4,
+            uniforms: {
+              ...this.washShared,
+              uColor: { value: new Color(claim.ink) },
+              uOpacity: { value: state === 'surveyed' ? SURVEYED_WASH : WASH_OPACITY },
+            },
+          }),
+        );
+        const mesh = new Mesh(
+          fillGeometry(polygons, this.frame, COUNTRY_THICKNESS + SUSPENDED_LIFT),
+          material,
+        );
+        mesh.renderOrder = WASH_RANK;
+        this.wash.add(mesh);
+      }
+    }
+  }
+
+  private dropWash(): void {
+    for (const child of this.wash.children) {
+      const mesh = child as Mesh<BufferGeometry, ShaderMaterial>;
+      mesh.geometry.dispose();
+      mesh.material.dispose();
+    }
+    this.wash.clear();
   }
 
   /**
@@ -358,13 +468,11 @@ export class RegionLayer {
 
   /** Fade driven by camera→target distance; invisible, the layer costs nothing. */
   animate(cameraDistance: number, unitsPerPixel: number): void {
-    this.share = Math.min(
-      1,
-      Math.max(
-        0,
-        (REGIONS_GONE_DISTANCE - cameraDistance) / (REGIONS_GONE_DISTANCE - REGIONS_FULL_DISTANCE),
-      ),
-    );
+    this.share = regionsShare(cameraDistance);
+    const wash = washShare(cameraDistance);
+    this.washShared.uShare.value = wash;
+    // Nul, le lavis ne coûte aucun appel de dessin.
+    this.wash.visible = wash > VISIBLE_SHARE;
     this.lineMaterial.opacity = this.share * REGION_BORDER_OPACITY;
     this.lines.visible = this.share > 0.01;
     this.contours.animate(unitsPerPixel);
@@ -381,6 +489,8 @@ export class RegionLayer {
     }
     this.held.clear();
     this.held.removeFromParent();
+    this.dropWash();
+    this.wash.removeFromParent();
     this.contours.dispose();
     for (const geometry of Object.values(this.lineLevels)) geometry.dispose();
     this.hoverOutline.geometry.dispose();

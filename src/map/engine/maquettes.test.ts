@@ -43,6 +43,7 @@ import {
 } from './maquettes';
 import { GROUP_SPACING, pileLayout } from '@/domain/pile-layout';
 import { articulatedOf } from './sequences';
+import { GEAR_MS, GEAR_PARTS } from './outpost-gear';
 import { warmPieces } from './halo';
 import { sceneOfFile } from './gltf-scene.fixture';
 import { castShadows } from './lamp';
@@ -98,6 +99,7 @@ vi.mock('./figurines/figurine', async (original) => {
     const { sceneOfFile } = await import('./gltf-scene.fixture');
     if (url === 'socle.glb') return sceneOfFile('src/emblems/buildings/barracks.glb');
     if (url === 'port.glb') return sceneOfFile('src/emblems/buildings/port.glb');
+    if (url === 'outpost.glb') return sceneOfFile('src/emblems/buildings/outpost.glb');
     if (url.startsWith('airfield.glb')) {
       // With its runway laid as the engine lays it, a plain slab in its place (`dressedScene`),
       // as long as its url's fragment says (#493); none, an empty group, for no module.
@@ -960,6 +962,16 @@ describe('a site on its socle (ADR 0038)', () => {
     // Halfway down its time, slowly first: a quarter of the way.
     const down = new Vector3(0, -1, 0).applyMatrix4(at(sign, 0));
     expect(new Vector3().applyMatrix4(at(flag, 0)).distanceTo(down)).toBeLessThan(1e-6);
+  });
+
+  /** A site gone while its flag or its gear ran no longer holds the board's frames (#468). */
+  it('lets go of the motions of a site that is no longer served', async () => {
+    const layer = await layerOf([site(MINE, { side: 'mine', ink: '#2a5ba8', flag: '#2a5ba8' })]);
+    layer.runFlag(MINE, { from: 1, to: 0, start: Date.now(), ms: 60_000 });
+    layer.runGear(MINE, { from: null, to: 'guet', start: Date.now(), ms: 60_000 });
+    expect(layer.settling).toBe(true);
+    layer.display([]);
+    expect(layer.settling).toBe(false);
   });
 
   /** **The flag flies** (#422): each cloth carries its phase and whether it lives; a site out of
@@ -2200,5 +2212,158 @@ describe('worksLotKey', () => {
     const rising = worksLotKey('farm.glb', 'm-1', false, {});
     expect(worksLotKey('farm.glb', 'm-1', false, { frozenMinutesLeft: 12 })).not.toBe(rising);
     expect(worksLotKey('farm.glb', 'm-1', false, {})).toBe(rising);
+  });
+});
+
+/**
+ * **The outpost on its round socle** (#468): the gear of its trade alone, its ring of sandbags
+ * rising round its mast while it is founded, its gear going on and off, its beam from its
+ * projector, its garrison beside it.
+ */
+describe('an outpost on its round socle (#468)', () => {
+  const frame = {
+    projectLonLat: ([lon, lat]: readonly [number, number]) => new Vector3(lon, 0, lat),
+  } as unknown as WorldFrame;
+  const eye = new Vector3(0, 0.3, 0.3);
+  const outpost = (
+    id: string,
+    lon: number,
+    more: Partial<Parameters<MaquetteLayer['display']>[0][number]> = {},
+  ) => ({
+    id,
+    at: { lonLat: [lon, 0] as const },
+    url: 'outpost.glb',
+    span: 1,
+    metres: 30,
+    socle: true,
+    washed: false,
+    side: 'mine' as const,
+    ink: '#2a5ba8',
+    flag: '#2a5ba8',
+    gear: null,
+    ...more,
+  });
+  const layerOf = async (maquettes: Parameters<MaquetteLayer['display']>[0]) => {
+    const layer = new MaquetteLayer(
+      frame,
+      () => null,
+      () => {},
+      () => {},
+      () => true,
+    );
+    layer.display(maquettes);
+    await vi.waitFor(() => expect(maquettes.every(({ id }) => layer.isDressed(id))).toBe(true));
+    layer.orient(eye, null, 0);
+    return layer;
+  };
+  const meshes = (layer: MaquetteLayer) => {
+    const found: InstancedMesh[] = [];
+    layer.group.traverse((node) => {
+      if ((node as InstancedMesh).isInstancedMesh) found.push(node as InstancedMesh);
+    });
+    return found;
+  };
+  const placed = (mesh: InstancedMesh, k: number) => {
+    const out = new Matrix4();
+    mesh.getMatrixAt(k, out);
+    return out;
+  };
+  const shownOf = (layer: MaquetteLayer, k: number) =>
+    [
+      ...new Set(
+        meshes(layer)
+          .filter((mesh) => GEAR_PARTS.includes(mesh.name) && placed(mesh, k).determinant() !== 0)
+          .map((mesh) => mesh.name),
+      ),
+    ].sort();
+
+  it('shows the gear of its trade alone, and the generalist none, in one lot', async () => {
+    const layer = await layerOf([
+      outpost('outpost-a', 0, { gear: 'guet' }),
+      outpost('outpost-b', 10, { gear: null }),
+      outpost('outpost-c', 20, { gear: 'fort' }),
+    ]);
+    expect(shownOf(layer, 0)).toEqual(['antenne_2', 'antenne_3', 'guet']);
+    expect(shownOf(layer, 1)).toEqual([]);
+    expect(shownOf(layer, 2)).toEqual(['fort']);
+  });
+
+  it('stands its mast, its pole and its lantern whole while its ring of sandbags rises', async () => {
+    const works = {
+      phase: 'rising' as const,
+      level: 1,
+      finishesAt: null,
+      minutes: 5,
+      pennant: null,
+      stamp: null,
+    };
+    const layer = await layerOf([outpost('outpost-a', 0, { works })]);
+    // The works rise over the ring alone: the mast does not stretch them to its 17 m.
+    expect(dressed.box!.min.y).toBeCloseTo(SOCLE_TOP, 1);
+    expect(dressed.box!.max.y).toBeLessThan(4);
+    const cut = (mesh: InstancedMesh) =>
+      ((mesh.material as MeshStandardMaterial).clippingPlanes ?? []).length > 0;
+    const lamp = meshes(layer).filter(
+      (mesh) => (mesh.material as MeshStandardMaterial).name === 'feux' && mesh.name === '',
+    );
+    expect(lamp.length).toBeGreaterThan(0);
+    expect(lamp.some(cut)).toBe(false);
+    expect(meshes(layer).some(cut)).toBe(true);
+  });
+
+  it('takes the old gear off, then puts the new one on, its antenna drawn out last', async () => {
+    const layer = await layerOf([outpost('outpost-a', 0, { gear: 'guet' })]);
+    const guet = meshes(layer).find((mesh) => mesh.name === 'guet')!;
+    const top = meshes(layer).find((mesh) => mesh.name === 'antenne_3')!;
+    const fort = meshes(layer).find((mesh) => mesh.name === 'fort')!;
+    const site = layer.siteOf('outpost-a')!;
+    const metre = site.toBoard(new Vector3(0, 1, 0)).y - site.toBoard(new Vector3()).y;
+    expect(layer.settling).toBe(false);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      // Seven eighths through: the fort is off, the frame stands, the sections half out.
+      layer.runGear('outpost-a', {
+        from: 'fort',
+        to: 'guet',
+        start: Date.now() - (7 * GEAR_MS) / 8,
+        ms: GEAR_MS,
+      });
+      layer.orient(eye, null, 1);
+      expect(layer.settling).toBe(true);
+      expect(placed(fort, 0).determinant()).toBe(0);
+      const rise = (mesh: InstancedMesh) => new Vector3().applyMatrix4(placed(mesh, 0)).y;
+      // The upper section is drawn 4 m in at rest, half of it at half its slide.
+      expect((rise(guet) - rise(top)) / metre).toBeCloseTo(2, 1);
+      vi.setSystemTime(Date.now() + GEAR_MS);
+      layer.orient(eye, null, 2);
+      expect(rise(guet) - rise(top)).toBeCloseTo(0, 6);
+      expect(layer.settling).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("casts its lookout's beam from its projector's lens, and no other trade's", async () => {
+    const layer = await layerOf([
+      outpost('outpost-a', 0, { gear: 'guet' }),
+      outpost('outpost-b', 10, { gear: 'fort' }),
+    ]);
+    const site = layer.siteOf('outpost-a')!;
+    const source = layer.beamSourceOf('outpost-a')!;
+    expect(source.at.distanceTo(site.toBoard(site.marker('fx_faisceau')!))).toBeLessThan(1e-9);
+    // Its lens looks 10° down (`outpost.md`, « Du 26/11 »).
+    expect(source.dip).toBeCloseTo(Math.PI / 18, 3);
+    expect(layer.beamSourceOf('outpost-b')).toBeNull();
+    expect(layer.beamSourceOf('outpost-none')).toBeNull();
+  });
+
+  it('stands its garrison beside its socle, never on it, as a site whose garrison it keeps', async () => {
+    const layer = await layerOf([outpost('outpost-a', 0)]);
+    expect(layer.buildingPoints()).toEqual([{ id: 'outpost-a', at: [0, 0] }]);
+    const stand = layer.garrisonAt('outpost-a', 0.1)!;
+    expect(stand.rank).toBe(false);
+    const site = layer.siteOf('outpost-a')!;
+    const radius = site.toBoard(new Vector3(18.5, 0, 0)).distanceTo(site.toBoard(new Vector3()));
+    expect(Math.hypot(...stand.step)).toBeGreaterThan(radius);
   });
 });

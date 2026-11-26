@@ -9,6 +9,7 @@ import {
   Vector3,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { GEAR_PARTS } from './outpost-gear';
 
 export type Part = { readonly geometry: BufferGeometry; readonly material: Material };
 
@@ -16,12 +17,22 @@ export type Part = { readonly geometry: BufferGeometry; readonly material: Mater
  * **The diorama round a building** (ADR 0038 §1-§5): what stays whole while the building alone
  * is cut by its works — the socle and its liseré, the yard, the sign, and the kits the engine lays
  * beside it (§10, `dressedScene`): runway, windsock, mole. The rest of the scene is the building.
+ * An outpost's pole stands atop its mast without hanging from it (#468): it stands whole with
+ * the mast from the order on, while its ring of sandbags rises.
  */
-const DRESSING = new Set(['socle', 'lisere', 'cour', 'signe', 'piste', 'manche', 'mole']);
+const DRESSING = new Set(['socle', 'lisere', 'cour', 'signe', 'piste', 'manche', 'mole', 'hampe']);
 
 /** **The accessory groups of the yard** (ADR 0038 §5), baked apart: the engine shows them by
- *  level and state (`accessoriesShown`). */
-const ACCESSORIES = new Set(['niveau_1', 'niveau_2', 'niveau_3', 'chantier', 'ruines']);
+ *  level and state (`accessoriesShown`) — an outpost's, by its trade (#468), each section of its
+ *  antenna apart to slide. */
+const ACCESSORIES = new Set([
+  'niveau_1',
+  'niveau_2',
+  'niveau_3',
+  'chantier',
+  'ruines',
+  ...GEAR_PARTS,
+]);
 
 /** Which work a site is at: a plan in the queue, a first level rising, a level raised. */
 export type WorkPhase = 'queued' | 'rising' | 'raising';
@@ -85,7 +96,7 @@ export function bakedSite(scene: Object3D): {
   const accessories = new Map<string, Mesh[]>();
   const socle = onSocle(scene);
   const visit = (node: Object3D, kind: keyof typeof kinds, accessory: string | null) => {
-    const group = accessory ?? (socle && ACCESSORIES.has(node.name) ? node.name : null);
+    const group = socle && ACCESSORIES.has(node.name) ? node.name : accessory;
     const here =
       node.name === FLAG
         ? 'flag'

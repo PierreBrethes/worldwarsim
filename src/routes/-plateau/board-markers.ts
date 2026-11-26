@@ -494,7 +494,8 @@ function reloadOf(held: ReadonlyArray<TroopView>): { reloadUntil?: number } {
  * **Les garnisons de mes bâtiments et de mes avant-postes** (ADR 0026 §5). Mes troupes
  * seulement : la garnison d'un autre ne sort jamais du serveur. Un bâtiment se garnit au pied de
  * sa maquette, et n'en porte aucune quand elle n'est pas debout — chantier, bâtiments masqués ;
- * un avant-poste n'a pas de maquette, sa garnison se dresse à son point, chantier compris.
+ * un avant-poste sert la sienne à son point, chantier compris, et le plateau la pose à côté de son
+ * socle rond (`besideSites`, #468).
  */
 function garrisonPiles(
   me: PlayerView['me'],

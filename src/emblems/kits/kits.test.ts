@@ -36,6 +36,13 @@ describe('terrain kits', () => {
     for (const image of read(url).images ?? []) expect(image.mimeType).toBe('image/webp');
   });
 
+  it('the traces: a wreck on land and one at sea, each a root of its own (#642, #643)', () => {
+    const gltf = read(KITS.traces);
+    const names = new Set(gltf.nodes.map((node) => node.name));
+    for (const name of ['carcasse', 'epave', 'fx_fumee', 'fx_remous'])
+      expect(names.has(name), name).toBe(true);
+  });
+
   it('the runway: its modules lay 170 m, 30 m wide, with their lights and threshold', () => {
     const gltf = read(KITS.piste);
     const names = new Set(gltf.nodes.map((node) => node.name));

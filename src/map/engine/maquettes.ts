@@ -62,6 +62,14 @@ import {
 } from './site-marks';
 import { LAMP, lightRunway, splitRunway, withRunway } from './site-kits';
 import { RUNWAY_HALO_RADIUS, runwayHalos } from './runway-lights';
+import {
+  GEAR_PARTS,
+  gearOf,
+  gearPose,
+  gearShare,
+  type GearMotion,
+  TELESCOPE,
+} from './outpost-gear';
 
 export { SOCLE_TOP };
 
@@ -154,6 +162,9 @@ export type StandingMaquette = {
   /** **Out of service** (décision 5): its seals at this mark, in metres of its file, facing this
    *  turn, its planks so long (`BUILDING_SEALS`). */
   readonly seal?: readonly [x: number, y: number, z: number, yaw: number, length: number];
+  /** **An outpost's gear** (#468): the accessory group of the trade it plies now, `null` for the
+   *  generalist and for an outpost whose trade the view does not serve. Absent for a building. */
+  readonly gear?: string | null;
 };
 
 /** The socle's paper (ADR 0038 §1): a hollow liseré is its ink mixed into it. */
@@ -275,6 +286,9 @@ type Model = {
   /** How many modules of the runway its url asks for (#493): the whole runway's `RUNWAY_MODULES`
    *  without a fragment, and for a file with no runway. */
   readonly runwayModules: number;
+  /** **How far each section of an outpost's antenna slides into the one below** (#468), in its
+   *  own units: what its gear draws in. Empty for a file without one. */
+  readonly telescope: ReadonlyMap<string, number>;
   /** Set on a model in mirror (#476): the model it was mirrored from, in the frame its sequences
    *  and rests are written in. */
   readonly authored?: Model;
@@ -398,6 +412,7 @@ function modelOf(url: string, metres?: number, pose?: RestPose, mirrored = false
         fronts,
         crates,
         rank,
+        telescope: telescopeOf(scene),
         runway: scene.getObjectByName(RUNWAY) !== undefined,
         runwayModules: splitRunway(url).modules,
       };
@@ -407,6 +422,21 @@ function modelOf(url: string, metres?: number, pose?: RestPose, mirrored = false
     models.set(key, model);
   }
   return model;
+}
+
+/** Each section's slide down to the foot of the first (`Model.telescope`). */
+function telescopeOf(scene: Object3D): ReadonlyMap<string, number> {
+  const base = scene.getObjectByName('antenne_1');
+  if (base === undefined) return new Map();
+  const foot = base.getWorldPosition(new Vector3()).y;
+  return new Map(
+    TELESCOPE.flatMap((name) => {
+      const section = scene.getObjectByName(name);
+      return section === undefined
+        ? []
+        : [[name, section.getWorldPosition(new Vector3()).y - foot] as const];
+    }),
+  );
 }
 
 /**
@@ -739,6 +769,8 @@ type Placed = {
   readonly seal: NonNullable<StandingMaquette['seal']> | null;
   /** Its seals (`sealsOf`) once its model has landed, while it is out of service. */
   seals: Object3D | null;
+  /** An outpost's gear on show (`StandingMaquette.gear`), `null` for none. */
+  readonly gear: string | null;
   /** When it stood up under the eyes (`Date.now()`): it bounces once. */
   settledAt: number | null;
   /** How its runway sits on its land (`pose`, #493), `null` for none, or before the coast's
@@ -783,6 +815,11 @@ const matrix = new Matrix4();
 const MIRROR = new Matrix4().makeScale(-1, 1, 1);
 const shrunk = new Matrix4();
 const flagMatrix = new Matrix4();
+const gearMatrix = new Matrix4();
+const gearLocal = new Matrix4();
+/** **The lookout's projector** (#468, #644): the beam leaves its lens, in the lookout's gear. */
+const BEAM_SOURCE = 'fx_faisceau';
+const BEAM_GEAR = 'guet';
 const flagDown = new Matrix4();
 /** A black smoke's site placement (`puffBlasts`). */
 const puffedAt = new Matrix4();
@@ -820,6 +857,8 @@ export class MaquetteLayer implements SequenceHost {
   private drawn = '';
   /** **A flag running up or down its pole** (#279), by the maquette's id: kept over a rebuild. */
   private readonly flags = new Map<string, FlagMotion>();
+  /** **An outpost's gear going off and on** (#468), by the maquette's id: kept over a rebuild. */
+  private readonly fittings = new Map<string, GearMotion>();
   /** **Black smoke** out of a sabotaged site's chimneys (#279), from `start` (`Date.now`). */
   private readonly blasts = new Map<string, { readonly smokes: Smoke[]; readonly start: number }>();
   motion: MapMotion = 'full';
@@ -875,6 +914,9 @@ export class MaquetteLayer implements SequenceHost {
     const standing = new Set(this.maquettes.map(({ id }) => id));
     for (const id of this.mirrored) if (!standing.has(id)) this.mirrored.delete(id);
     for (const id of this.runways.keys()) if (!standing.has(id)) this.runways.delete(id);
+    // A site gone while its flag or its gear ran would hold the board's frames for good.
+    for (const id of this.flags.keys()) if (!standing.has(id)) this.flags.delete(id);
+    for (const id of this.fittings.keys()) if (!standing.has(id)) this.fittings.delete(id);
     for (const maquette of this.maquettes) {
       this.held.delete(maquette.id);
       const ground =
@@ -884,7 +926,11 @@ export class MaquetteLayer implements SequenceHost {
       if (ground === null) continue;
       ground.setY(COUNTRY_THICKNESS);
       // The level and the state: two barracks of two levels do not share their meshes.
-      const shown = accessoriesShown(maquette.level ?? 1, maquette.works?.phase);
+      // An outpost's lot draws every trade's gear: each instance shows its own (`gearShare`).
+      const shown =
+        maquette.gear === undefined
+          ? accessoriesShown(maquette.level ?? 1, maquette.works?.phase)
+          : GEAR_PARTS;
       const mirrored = this.mirrored.has(maquette.id);
       // An airfield with its runway cut short is another file's scene (#493).
       const url = withRunway(maquette.url, this.runways.get(maquette.id) ?? RUNWAY_MODULES);
@@ -953,6 +999,7 @@ export class MaquetteLayer implements SequenceHost {
         staple: null,
         seal: maquette.seal ?? null,
         seals: null,
+        gear: maquette.gear ?? null,
       };
       lot.items.push(item);
       this.byId.set(maquette.id, { item, lot });
@@ -1056,11 +1103,13 @@ export class MaquetteLayer implements SequenceHost {
     return this.held.get(id)?.lonLat ?? null;
   }
 
-  /** **The points my buildings' maquettes stand on**: a garrison handed back to the ground there
-   *  stands at their foot. An installation or an objective is not mine to garrison. */
+  /** **The points my buildings' and my outposts' maquettes stand on**: a garrison handed back to
+   *  the ground there, or posted at an outpost's point, stands at their foot. An installation or
+   *  an objective is not mine to garrison. */
   buildingPoints(): ReadonlyArray<{ readonly id: string; readonly at: LonLat }> {
     return this.maquettes.flatMap(({ id, at, capture }) =>
-      (id.startsWith('building-') || capture?.side === 'capturer') && 'lonLat' in at
+      (id.startsWith('building-') || id.startsWith('outpost-') || capture?.side === 'capturer') &&
+      'lonLat' in at
         ? [{ id, at: at.lonLat }]
         : [],
     );
@@ -1075,6 +1124,35 @@ export class MaquetteLayer implements SequenceHost {
     this.flags.set(id, motion);
     const dressed = this.byId.get(id);
     if (dressed !== undefined) dressed.item.near = -1;
+  }
+
+  /**
+   * **An outpost's gear goes off and on** (#468): `from` comes off, then `to` goes on, from
+   * `start` (`Date.now()`) over `ms`. Its frames are the board's while it runs (`settling`).
+   */
+  runGear(id: string, motion: GearMotion): void {
+    this.fittings.set(id, motion);
+    const dressed = this.byId.get(id);
+    if (dressed !== undefined) dressed.item.near = -1;
+  }
+
+  /**
+   * **Where my lookout's beam leaves its maquette** (#468, #644): the lens of its projector
+   * (`fx_faisceau`) as the site is drawn now, and how far it looks down. `null` while no
+   * lookout's gear is drawn there: the beam leaves its point.
+   */
+  beamSourceOf(id: string): { readonly at: Vector3; readonly dip: number } | null {
+    const dressed = this.byId.get(id);
+    const model = dressed?.lot.model;
+    const lens = model?.markers.get(BEAM_SOURCE);
+    if (dressed === undefined || !model || lens === undefined) return null;
+    const { item } = dressed;
+    if (item.gear !== gearOf(BEAM_GEAR) || item.near <= 0 || item.cleared) return null;
+    const size = item.near * sizeOf(model, item);
+    const at = new Vector3(flipOf(model) * lens.x, lens.y, lens.z).applyMatrix4(
+      new Matrix4().compose(item.at, item.turn, new Vector3().setScalar(size)),
+    );
+    return { at, dip: Math.asin(-(model.fronts.get(BEAM_SOURCE)?.y ?? 0)) };
   }
 
   private place(): void {
@@ -1864,8 +1942,18 @@ export class MaquetteLayer implements SequenceHost {
         // Its last height sets it at its top, or gone: one more placement, then still.
         if (running !== undefined && Date.now() >= running.start + running.ms)
           this.flags.delete(item.id);
+        const fitting = this.fittings.get(item.id);
+        if (fitting !== undefined && Date.now() >= fitting.start + fitting.ms)
+          this.fittings.delete(item.id);
         const still = near === item.near;
-        if (still && item.settledAt === null && !ending && running === undefined) return;
+        if (
+          still &&
+          item.settledAt === null &&
+          !ending &&
+          running === undefined &&
+          fitting === undefined
+        )
+          return;
         item.near = near;
         item.drawnNear = near;
         moved = true;
@@ -1888,7 +1976,22 @@ export class MaquetteLayer implements SequenceHost {
         const copy = this.copies.get(item.id);
         if (copy === undefined)
           for (const mesh of lot.meshes)
-            mesh.setMatrixAt(k, lot.flag.includes(mesh) ? flagMatrix : matrix);
+            mesh.setMatrixAt(
+              k,
+              lot.flag.includes(mesh)
+                ? flagMatrix
+                : lot.shown === GEAR_PARTS && lot.accessories.includes(mesh)
+                  ? gearMatrix.multiplyMatrices(
+                      matrix,
+                      gearPose(
+                        gearLocal,
+                        mesh.name,
+                        gearShare(gearOf(mesh.name), item.gear, fitting, Date.now()),
+                        lot.model!.telescope.get(mesh.name) ?? 0,
+                      ),
+                    )
+                  : matrix,
+            );
         else {
           // The copy is the file's own scene: in mirror, flipped in the file's metres (#476).
           copy.matrix.copy(matrix);
@@ -1984,11 +2087,13 @@ export class MaquetteLayer implements SequenceHost {
     },
   };
 
-  /** A site stood up under the eyes is bouncing, a flag runs on its pole: the board keeps
+  /** A site stood up under the eyes is bouncing, a flag runs on its pole, an outpost's gear goes
+   *  on or off: the board keeps
    *  drawing until it is still. */
   get settling(): boolean {
     return (
       this.flags.size > 0 ||
+      this.fittings.size > 0 ||
       this.blasts.size > 0 ||
       [...this.byId.values()].some(({ item }) => item.settledAt !== null)
     );

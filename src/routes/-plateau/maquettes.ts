@@ -2,7 +2,13 @@ import type { MapMarker } from '@/domain/labels';
 import { depositAt } from '@/domain/world';
 import { inService } from '@/domain/loot';
 import type { LonLat } from '@/domain/geo';
-import { BUILDING_SEALS, buildingMaquette } from '@/emblems/buildings/manifest';
+import {
+  BUILDING_SEALS,
+  buildingMaquette,
+  OUTPOST_GEAR,
+  OUTPOST_MAQUETTE,
+} from '@/emblems/buildings/manifest';
+import { effectiveSpecialty } from '@/domain/outposts';
 import type { CaptureView } from '@/domain/player-view';
 import { objectiveMaquette } from '@/emblems/objectives/manifest';
 import type { StandingMaquette } from '@/map/engine';
@@ -13,6 +19,8 @@ import {
   buildingReach,
   buildingSpan,
   objectiveSpan,
+  OUTPOST_METRES,
+  OUTPOST_ON_BOARD,
 } from '@/domain/piece-size';
 import { fr } from '@/i18n/fr';
 
@@ -21,7 +29,8 @@ import { fr } from '@/i18n/fr';
  * drawn today by its plate, and nothing more — my standing buildings, the installations I
  * surveyed, the neutral objectives. A site at work wears its works (mode chantier): a plan in
  * the queue, a first level rising, a raise scaffolded whole — what already stands is not raised
- * again.
+ * again. My outposts stand on their round socle (#468), founded round their mast, the gear of the
+ * trade they ply on show; an enemy's I surveyed stands hollow and bare, with no trade.
  */
 export function maquettesOf(
   markers: ReadonlyArray<MapMarker>,
@@ -36,6 +45,9 @@ export function maquettesOf(
     readonly captures: ReadonlyArray<CaptureView>;
     readonly sealed: ReadonlySet<string>;
   } = { captures: [], sealed: new Set() },
+  /** **How long a founding lasts** (`outpostFoundation.minutes`): what an outpost at work rises
+   *  over. The view serves it at today's HQ, not the one its order was paid at. */
+  foundationMinutes = 0,
 ): StandingMaquette[] {
   /** What a site I hold or surveyed wears of a capture, and of its seals. */
   const taken = (buildingId: string, key: keyof typeof BUILDING_SEALS) => {
@@ -129,6 +141,33 @@ export function maquettesOf(
             ...taken(marker.buildingId, marker.key),
           },
         );
+      case 'outpost':
+        return standing({ lonLat: marker.lonLat }, OUTPOST_MAQUETTE, OUTPOST_ON_BOARD.span, {
+          ...outpostSize,
+          side: 'mine',
+          ink: marker.ink,
+          flag: marker.ink,
+          // Its trade shows once it stands; a change of trade starts bare (ADR 0037 §7).
+          gear: marker.standsAt === null ? OUTPOST_GEAR[effectiveSpecialty(marker)] : null,
+          ...(marker.standsAt !== null && {
+            works: {
+              phase: 'rising',
+              level: 1,
+              finishesAt: Math.round(marker.standsAt),
+              minutes: foundationMinutes,
+              pennant: null,
+              stamp: { word: fr.stamps.finished, hour: asClockTime(marker.standsAt) },
+            },
+          }),
+        });
+      case 'foreignOutpost':
+        // A survey serves neither its trade nor its nation (ADR 0039 §3): bare, and no gear.
+        return standing({ lonLat: marker.lonLat }, OUTPOST_MAQUETTE, OUTPOST_ON_BOARD.span, {
+          ...outpostSize,
+          washed: marker.washed,
+          side: 'seen',
+          gear: null,
+        });
       case 'objective': {
         // Emptied, it stands whole as its plate does: the cartouche says it is empty.
         const key = objectiveKey(marker.objectiveId);
@@ -141,6 +180,14 @@ export function maquettesOf(
     }
   });
 }
+
+/** **L'avant-poste en mètres sur son socle rond** (#468) : sa portée est son rayon. */
+const outpostSize = {
+  metres: OUTPOST_METRES.ring,
+  footprint: OUTPOST_ON_BOARD.footprint,
+  socle: true,
+  reach: OUTPOST_ON_BOARD.reach,
+} as const;
 
 /** Ce que le point tient (ADR 0029). */
 const depositUnder = (lonLat: LonLat | null) =>
