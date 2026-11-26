@@ -266,14 +266,24 @@ export async function refreshLootCrateDetection(
   await reassessLootCrateDetection(ctx, prediction.seasonId, now);
 }
 
-/** A future sighting files its dispatch only when its window truly opens. */
+/**
+ * A future sighting files its dispatch only when its window truly opens. **A row born told** (a
+ * changed course, a second leg) files none, but its opening is still written: a cached view does
+ * not read the hour, and would serve the arc — and Ultra's destination, which opens with it — at
+ * the next unrelated write.
+ */
 export async function revealSighting(
   ctx: MutationCtx,
   sightingId: Id<'sightings'>,
   now = Date.now(),
 ): Promise<void> {
   const sighting = await ctx.db.get(sightingId);
-  if (sighting === null || sighting.noticeFiled === true || sighting.from > now) return;
+  if (sighting === null || sighting.from > now) return;
+  if (sighting.noticeFiled === true) {
+    if (sighting.revealJobId !== undefined)
+      await ctx.db.patch(sighting._id, { revealJobId: undefined });
+    return;
+  }
   const movement = await ctx.db.get(sighting.movementId);
   if (movement === null) return;
   const season = await ctx.db.get(movement.seasonId);
@@ -1546,7 +1556,7 @@ async function replaceSighting(
   const open = await keepOpenJob(ctx, row, fields.from, next.windows, now);
   const ultra = await keepUltra(ctx, row, next.ultraFrom, next.windows, now);
   if (
-    (row.revealJobId !== undefined || row.noticeFiled === true) &&
+    row.revealJobId !== undefined &&
     (Object.keys(fields) as Array<keyof typeof fields>).every(
       (key) => key === 'windows' || row[key] === fields[key],
     ) &&
@@ -1569,10 +1579,10 @@ async function replaceSighting(
       ? { noticeFiled: true }
       : {}),
   });
+  /** **Toute ligne à venir tient le réveil de son ouverture**, dite ou non : la dépêche, ou la
+   *  seule écriture qui rafraîchit la vue. */
   if (fields.from <= now) await revealSighting(ctx, row._id, now);
-  else if (row.noticeFiled !== true && row.revealJobId !== undefined) {
-    await scheduleReveal(ctx, row._id, fields.from);
-  }
+  else await scheduleReveal(ctx, row._id, fields.from);
 }
 
 async function insertSighting(
@@ -1581,7 +1591,8 @@ async function insertSighting(
   sighting: Caught,
   now: number,
   roles: ReadonlyArray<UnitRole>,
-  /** Déjà dite : la dépêche de l'ancien mouvement vaut pour le neuf (`revealSighting` se tait). */
+  /** Déjà dite : la dépêche de l'ancien mouvement vaut pour le neuf (`revealSighting` ne fait
+   *  que réécrire la ligne à son ouverture). */
   told = false,
 ): Promise<void> {
   const owner = (await ctx.db.get(movementId))?.playerId;

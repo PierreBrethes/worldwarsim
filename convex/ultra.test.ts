@@ -266,6 +266,69 @@ describe('Ultra (ADR 0047 §3)', () => {
     expect(woken!.ultraFrom).toBe(row!.ultraFrom);
   });
 
+  /** **Une ligne née dite** (un cap changé, une seconde jambe) s'ouvre sans dépêche, mais elle
+   *  s'écrit à son ouverture : une vue en cache ne relit pas l'heure, et Ultra s'ouvre souvent à
+   *  la même. La carte qui récrit ses fenêtres lui garde ce réveil. */
+  it('writes a row born told at its opening, without a second dispatch', async () => {
+    const t = boot();
+    const { uk, france } = await launchedSeason(t);
+    const ukId = await playerOf(t, uk);
+    const { movement, along } = await sailing(t, france);
+    await station(t, uk, along(0.5, 50), 'uk');
+    await t.run((ctx) =>
+      reassessDetection(ctx, uk.seasonId, Date.now(), undefined, {
+        movementId: movement._id,
+        by: new Set([ukId]),
+      }),
+    );
+    const [born] = await rowsOf(t, uk);
+    expect(born).toMatchObject({ noticeFiled: true, ultraFrom: born!.from });
+    expect(born!.from).toBeGreaterThan(Date.now());
+    const notices = () => t.run(async (ctx) => (await ctx.db.query('notices').collect()).length);
+    const told = await notices();
+    const opening = (await t.run((ctx) => ctx.db.system.get(born!.revealJobId!)))!;
+    expect(opening).toMatchObject({ name: 'movements:revealSighting', scheduledTime: born!.from });
+    at(born!.from);
+    await t.mutation(internal.movements.revealSighting, { sightingId: born!._id });
+    expect((await rowsOf(t, uk))[0]).not.toHaveProperty('revealJobId');
+    expect(await notices()).toBe(told);
+  });
+
+  it('keeps the opening wake of a row born told when its windows move', async () => {
+    const t = boot();
+    const { uk, france } = await launchedSeason(t);
+    const ukId = await playerOf(t, uk);
+    const { movement, along } = await sailing(t, france);
+    await station(t, uk, along(0.5, 50), 'uk');
+    await t.run((ctx) =>
+      reassessDetection(ctx, uk.seasonId, Date.now(), undefined, {
+        movementId: movement._id,
+        by: new Set([ukId]),
+      }),
+    );
+    const [born] = await rowsOf(t, uk);
+
+    /** Une ligne dite à venir écrite avant ce réveil n'en a pas : la passe suivante le lui pose. */
+    await t.run(async (ctx) => {
+      await ctx.scheduler.cancel(born!.revealJobId!);
+      await ctx.db.patch(born!._id, { revealJobId: undefined });
+    });
+    await reassess(t, uk);
+    const [mended] = await rowsOf(t, uk);
+    expect(mended).toMatchObject({ from: born!.from, noticeFiled: true });
+    expect(await t.run((ctx) => ctx.db.system.get(mended!.revealJobId!))).toMatchObject({
+      scheduledTime: born!.from,
+    });
+
+    await vigie(t, uk, along(0.4));
+    await reassess(t, uk);
+
+    const [rewritten] = await rowsOf(t, uk);
+    expect(rewritten!.from).toBeLessThan(born!.from);
+    const job = await t.run((ctx) => ctx.db.system.get(rewritten!.revealJobId!));
+    expect(job).toMatchObject({ scheduledTime: rewritten!.from, state: { kind: 'pending' } });
+  });
+
   it('cancels the wake with the movement, and with the row', async () => {
     const t = boot();
     const { uk, france } = await launchedSeason(t);

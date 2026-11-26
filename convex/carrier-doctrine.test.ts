@@ -272,7 +272,8 @@ describe('the carrier doctrine (ADR 0039 §4)', () => {
     const fresh = (await t.run((ctx) => ctx.db.query('sightings').collect())).find(
       (row) => row.movementId === turned.movementId,
     )!;
-    expect(fresh.ultraFrom).toBeDefined();
+    /** La ligne neuve s'ouvre au coude même : son insertion est l'écriture qui sert Ultra. */
+    expect(fresh).toMatchObject({ from: quarter, ultraFrom: quarter, noticeFiled: true });
     vi.setSystemTime(Math.max(quarter, fresh.ultraFrom!));
     const arcs = await heard();
     expect(arcs.find((arc) => arc.id === turned.movementId)?.destination?.point).toEqual(
