@@ -45,12 +45,18 @@ export function footedHit(
 /** **The least width a piece takes on screen**, in CSS pixels (ADR 0035 §4): a small piece stays
  *  easy to take. `@a-mesurer` */
 export const LEAST_TARGET_PX = 28;
+/** **The same, under a finger** (a mast is taken by it): wider than a pointer's. `@a-mesurer` */
+export const LEAST_TOUCH_PX = 34;
 
 /** **A piece small on screen is taken within half `LEAST_TARGET_PX` of its foot**: how far along
  *  `ray` that foot is, `null` when the ray passes further off. */
-export function leastHit(ray: Raycaster, at: Vector3): number | null {
+export function leastHit(
+  ray: Raycaster,
+  at: Vector3,
+  width: number = LEAST_TARGET_PX,
+): number | null {
   const away = ray.ray.origin.distanceTo(at);
-  const reach = ((LEAST_TARGET_PX / 2) * away) / pieceScale.pxPerUnit;
+  const reach = ((width / 2) * away) / pieceScale.pxPerUnit;
   return ray.ray.distanceToPoint(at) <= reach ? away : null;
 }
 
