@@ -1431,6 +1431,7 @@ export class MapEngine {
     this.scene.add(this.sweepWave.mesh);
     this.scene.add(this.regions.lines);
     this.scene.add(this.regions.held);
+    this.scene.add(this.regions.wash);
     this.scene.add(this.regions.contours.group);
     this.scene.add(this.regions.hoverOutline);
 

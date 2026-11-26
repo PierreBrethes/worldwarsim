@@ -113,3 +113,21 @@ faisait 4 à 15 px d'écart sur terre et plus de 100 px sur une côte découpée
   entre le contour, la côte et l'encre.
 - Rien d'autre ne change : la couleur, les relevés, le réglage fins / épais, les tirets et leur
   sens (intérieur à gauche), l'absence de contour sur une région jamais vue.
+
+## Précisée le 26/11/2026 (#679) : le lavis revient au loin
+
+Choix de Pierre du 26/11 (cap #668, variante « Lavis et pavois ») : au zoom Europe ou monde, les
+tirets des contours ne se voient plus, et la carte ne disait plus ce que je tiens.
+
+- **L'aplat revient, mais seulement là où les figurines ont cédé leurs pièces au plateau.** Son
+  opacité est le complément du fondu des régions (`washShare`, `regions.ts`), sur les mêmes bornes :
+  nul à 30 et en deçà, plein à 65 et au-delà. De près, la §1 tient toujours : aucun aplat.
+- **Un lavis léger** : 38 % au plus pour un territoire à jour, la moitié pour un relevé, quel que
+  soit son âge (§3 : l'âge est à la fiche). Une région suspendue garde sa seule hachure, que la
+  possession d'un voisin couvre (ADR 0020 §7). @a-mesurer
+- **Le brouillard ne bouge pas** : le lavis lit `control.held`, comme le contour (§6). Le sol
+  national d'une nation qu'on n'a pas relevée n'est pas peint (question ouverte de #668).
+- **À plat** : l'encre ne lit pas la lampe, elle s'éclaircit la nuit sous le voile qui la
+  multiplie, comme les contours ; elle passe sous les dessins de terrain, les contours, les zones
+  d'avant-poste et le voile. Au niveau « loin » de l'atlas seul, un maillage par encre et par état,
+  aucun appel de dessin quand le lavis est nul.
