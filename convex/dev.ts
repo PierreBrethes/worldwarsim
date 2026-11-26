@@ -95,6 +95,7 @@ export const GAME_TABLES = [
   'buildings',
   'heaps',
   'resources',
+  'bots',
   'players',
   'seasons',
 ] as const;
