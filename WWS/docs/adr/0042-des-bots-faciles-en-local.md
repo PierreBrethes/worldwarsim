@@ -4,7 +4,8 @@
 plusieurs « IA » faciles qui produisent, bâtissent, ravitaillent, avancent sur les régions voisines
 et défendent leur QG ; son go sur le plan du 21/11 (« Vas-y, lance le plan »). **Mondiale seule.**
 
-**Révise** ADR 0027 (« aucun bot en Mondiale ») : des bots en local, jamais sur un backend distant.
+**Révise** ADR 0027 (« aucun bot en Mondiale ») : des bots en local, jamais sur un backend distant ;
+depuis le 26/11 (#704), aussi des bots assis au salon et joués par le serveur, partout.
 
 > **Précisée le 23/11/2026 (#625).** Le bot prend aussi les points stratégiques neutres : une envie
 > `WANT_POINT` envoie toute une escouade d'au moins `BOT_POINT_COLUMN` infanteries (de quoi battre la
@@ -37,6 +38,25 @@ et défendent leur QG ; son go sur le plan du 21/11 (« Vas-y, lance le plan »)
 > Ses comptes vivent dans un fichier à part (`bots-mondiale.preprod.accounts.json`). Le pilote
 > tourne sur la machine qui le lance pendant toute la saison, sept vrais jours.
 
+> **Révisée le 26/11/2026 (§4 et « Ce qu'on abandonne ») : des bots ajoutés au salon, joués par
+> le serveur (#704).** Pierre veut tester seul, sans script sur son Mac (« je pensais que sur la
+> preprod, dans le lobby je puisse ajouter des "bots" en adversaire et lancer la game ») ; sa
+> décision : « Tout fondateur, partout », sans garde par environnement. Les bots deviennent une
+> fonction du jeu, en Mondiale seule. Le fondateur d'une Mondiale au salon, tant qu'une place reste
+> libre, assoit un bot (`bots.add`) : un compte `BotN` neuf, sans mot de passe, qui n'ouvre aucune
+> connexion par pseudo ; sa session ; la première nation libre ; son « prêt », qu'un changement de
+> l'ordre d'opérations ne lève pas. Il peut le retirer avant le lancement (`bots.remove`). Le salon
+> propose et le serveur refuse par les mêmes fonctions (`botAdditionRefusalOf`,
+> `botRemovalRefusalOf`, `src/domain/lobby-bots.ts`, ADR 0015). Une fois la saison lancée,
+> `bots.round` fait jouer chaque bot dans sa propre action (`botTurns.turn`), toutes les
+> `BOT_CADENCE_MS` (60 s, `@a-mesurer`), jusqu'à ce que la saison ne soit plus lancée. **Le §1
+> tient** : l'action lit `api.view.playerView` et `api.troops.workshop` avec le jeton du bot, décide
+> par `decideTurn` et passe chaque ordre par sa mutation publique (`submitBotOrder`,
+> `convex/botOrders.ts`, la seule table, que le pilote Node lit aussi) ; jamais d'`internal*` pour
+> jouer, jamais de `GameState`. Les sessions ne gardant que l'empreinte d'un jeton, le jeton en clair
+> d'un bot vit dans la table interne `bots`, qu'aucune query publique ne lit. Le pilote Node reste,
+> pour une série ou un banc.
+
 ## Contexte
 
 Aucun bot n'existe. Le simulateur d'ouverture, qui jouait contre un modèle et non contre Convex,
@@ -66,7 +86,9 @@ Trois familles éprouvées pour un adversaire simple :
    refuse quand même est oublié, jamais réessayé en boucle.
 4. **En local seulement.** Le pilote est un script Node (`scripts/`) qui refuse tout backend non
    local, comme `scripts/demo-mondiale.mjs`. Rien n'en part en pré-prod ni en prod. *(Révisé le
-   26/11/2026 : la pré-production par `--preprod`, voir l'encart.)*
+   26/11/2026 : la pré-production par `--preprod`, voir l'encart ; puis, le même jour (#704), des
+   bots assis au salon et joués par le serveur, partout : le script garde sa garde de backend, le
+   bot du salon n'en a aucune.)*
 5. **Facile par le rythme.** Un bot facile joue peu de coups par passage et peu souvent ; la
    difficulté n'est pas un réglage de règle. Un seul niveau.
 
@@ -81,5 +103,8 @@ Trois familles éprouvées pour un adversaire simple :
 
 - L'arbre de comportement et l'IA utilitaire à courbes : trop pour un bot facile ; les envies
   notées s'y prêtent plus tard sans réécriture.
-- Un bot côté serveur (action planifiée) : il échapperait à la porte d'un joueur.
-- Les bots en ligne, le remplacement d'un joueur absent et les niveaux d'IA : chantiers à part.
+- ~~Un bot côté serveur (action planifiée) : il échapperait à la porte d'un joueur.~~ *Repris le
+  26/11/2026 (#704)* : l'action planifiée garde la porte d'un joueur grâce au jeton du bot, et ne
+  joue que par les mutations publiques.
+- ~~Les bots en ligne~~ (repris par #704), le remplacement d'un joueur absent et les niveaux d'IA :
+  chantiers à part.
