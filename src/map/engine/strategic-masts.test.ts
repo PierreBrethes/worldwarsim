@@ -73,6 +73,28 @@ beforeEach(() => {
   pieceScale.pxPerUnit = 1172;
 });
 
+describe('winding', () => {
+  // The material is front-faced only: a triangle wound the other way is culled, and the rim, the
+  // dashed ring, the pomme and the star went missing (#683) while the socle and shaft showed.
+  it('every triangle of every shape faces the camera: up for the ground, +z for the mast', () => {
+    const { layer } = setup();
+    for (const mesh of meshes(layer)) {
+      const position = mesh.geometry.getAttribute('position');
+      const index = mesh.geometry.getIndex()!;
+      const onGround = Array.from({ length: position.count }, (_, i) => position.getY(i)).every(
+        (y) => y === 0,
+      );
+      for (let t = 0; t < index.count; t += 3) {
+        const [a, b, c] = [0, 1, 2].map((k) =>
+          new Vector3().fromBufferAttribute(position, index.getX(t + k)),
+        ) as [Vector3, Vector3, Vector3];
+        const normal = b.sub(a).cross(c.sub(a));
+        expect(onGround ? normal.y : normal.z).toBeGreaterThan(0);
+      }
+    }
+  });
+});
+
 describe('the strategic masts layer', () => {
   it('draws every point in five instanced draws, none per nation, with no shadow', () => {
     const { layer } = setup();

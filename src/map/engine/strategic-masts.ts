@@ -129,7 +129,7 @@ function mastGeometry(): BufferGeometry {
       parts.push(part);
     }
     for (let step = 0; step < steps; step++)
-      index.push(first, first + 1 + step, first + 1 + ((step + 1) % steps));
+      index.push(first, first + 1 + ((step + 1) % steps), first + 1 + step);
   };
   disc(0, height + POMME * 0.6, POMME, 12, 0);
   // The star: ten points on two radii, a fan.
@@ -143,7 +143,7 @@ function mastGeometry(): BufferGeometry {
     positions.push(r * Math.sin(a), top + r * Math.cos(a), 0);
     parts.push(1);
   }
-  for (let k = 0; k < 10; k++) index.push(centre, centre + 1 + k, centre + 1 + ((k + 1) % 10));
+  for (let k = 0; k < 10; k++) index.push(centre, centre + 1 + ((k + 1) % 10), centre + 1 + k);
   return flat(positions, index, parts);
 }
 
@@ -184,7 +184,7 @@ function rim(): BufferGeometry {
     );
     const k = 2 * step;
     const n = 2 * ((step + 1) % steps);
-    index.push(k, k + 1, n, k + 1, n + 1, n);
+    index.push(k, n, k + 1, k + 1, n, n + 1);
   }
   return flat(positions, index);
 }
@@ -205,7 +205,7 @@ function dashedRing(): BufferGeometry {
     }
     for (let step = 0; step < arcSteps; step++) {
       const k = base + step * 2;
-      index.push(k, k + 1, k + 2, k + 1, k + 3, k + 2);
+      index.push(k, k + 2, k + 1, k + 1, k + 2, k + 3);
     }
   }
   return flat(positions, index);
