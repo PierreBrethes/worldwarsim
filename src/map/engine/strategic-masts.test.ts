@@ -88,6 +88,31 @@ describe('the strategic masts layer', () => {
     );
   });
 
+  it('hides the group while no mast is in the field', () => {
+    const none = setup({ sees: false });
+    none.layer.show([stand('a', 1)]);
+    orient(none.layer);
+    expect(none.layer.object.visible).toBe(false);
+    const some = setup();
+    some.layer.show([stand('a', 1)]);
+    orient(some.layer);
+    expect(some.layer.object.visible).toBe(true);
+  });
+
+  it('edges the socle with a liseré in the ink of the point, white when neutral', () => {
+    const { layer } = setup();
+    layer.show([stand('a', 1, { holder: { nation: 'germany', heldMs: 0 } }), stand('b', 2)]);
+    orient(layer);
+    const [socle, , mast, rim, flame] = meshes(layer) as [InstancedMesh, ...InstancedMesh[]];
+    expect(colorOf(rim!, 0).getHex()).toBe(colorOf(flame!, 0).getHex());
+    expect(colorOf(rim!, 1).getHex()).toBe(0xffffff);
+    expect(matrixOf(rim!, 0).toArray()).toEqual(matrixOf(socle, 0).toArray());
+    // The shaft, the pomme and the socle's fill keep the pen.
+    expect(colorOf(mast!, 0).getHex()).toBe(colorOf(socle, 0).getHex());
+    expect(colorOf(mast!, 0).getHex()).not.toBe(colorOf(rim!, 1).getHex());
+    expect(meshes(layer)).toHaveLength(5);
+  });
+
   it('draws nothing, and is hidden, with no point', () => {
     const { layer } = setup();
     orient(layer);
@@ -339,6 +364,13 @@ describe('the engine wiring', () => {
   it('a mast is picked like a camp, by pieceUnder and by carryTargetAt', () => {
     expect(body('private pieceUnder')).toContain('this.masts.under(this.ray)');
     expect(body('private carryTargetAt')).toContain('this.masts.under(this.ray)');
+  });
+
+  it('a pile touched wins over the mast it stands by, in both', () => {
+    expect(body('private pieceUnder')).toMatch(/pile === null \? this\.masts\.under\(this\.ray\)/);
+    expect(body('private carryTargetAt')).toMatch(
+      /pick === null \? this\.masts\.under\(this\.ray\)/,
+    );
   });
 
   it('lights, orients and disposes with the other layers', () => {

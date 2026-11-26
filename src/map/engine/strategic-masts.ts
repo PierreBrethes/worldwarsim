@@ -38,9 +38,10 @@ const NIGHT_LIFT = 0.8;
 const SHAFT = 0.012;
 const POMME = 0.024;
 const STAR = 0.05;
-/** @a-mesurer lavis.html (cap #668): the pennant's length, and the width of its liseré */
+/** @a-mesurer lavis.html (cap #668): the pennant's length */
 const FLAME_LENGTH = 0.26;
-const FRINGE = 0.012;
+/** @a-mesurer lavis.html (cap #668): the width of the socle's liseré, in socle radii */
+const RIM_WIDTH = 0.16;
 /** @a-mesurer lavis.html (cap #668): how far the ring stands off the socle, in socle radii */
 const RING_OF_BASE = 1.6;
 const RING_DASHES = 14;
@@ -89,28 +90,6 @@ const PENNANT: ReadonlyArray<readonly [number, number]> = [
   [FLAME_LENGTH, 0],
 ];
 const PENNANT_TRIANGLES = [0, 1, 3, 0, 3, 4, 1, 2, 3];
-
-/** A counter-clockwise polygon pushed outward by `width`, corner by corner. */
-function grown(
-  points: ReadonlyArray<readonly [number, number]>,
-  width: number,
-): Array<[number, number]> {
-  return points.map(([x, y], k) => {
-    const [px, py] = points[(k + points.length - 1) % points.length]!;
-    const [nx, ny] = points[(k + 1) % points.length]!;
-    const outward = (ax: number, ay: number, bx: number, by: number): [number, number] => {
-      const length = Math.hypot(bx - ax, by - ay);
-      return [(by - ay) / length, -(bx - ax) / length];
-    };
-    const [ax, ay] = outward(px, py, x, y);
-    const [bx, by] = outward(x, y, nx, ny);
-    const mx = ax + bx;
-    const my = ay + by;
-    const length = Math.hypot(mx, my);
-    const along = (mx * ax + my * ay) / length / length;
-    return [x + mx * along * width, y + my * along * width];
-  });
-}
 
 function flat(positions: number[], index: number[], extra?: number[]): BufferGeometry {
   const geometry = new BufferGeometry();
@@ -183,6 +162,28 @@ function socle(): BufferGeometry {
     const a = (2 * Math.PI * step) / steps;
     positions.push(Math.sin(a), 0, Math.cos(a));
     index.push(0, 1 + step, 1 + ((step + 1) % steps));
+  }
+  return flat(positions, index);
+}
+
+/** The socle's liseré: an annulus of outer radius 1 on the ground, `RIM_WIDTH` wide. */
+function rim(): BufferGeometry {
+  const steps = 24;
+  const positions: number[] = [];
+  const index: number[] = [];
+  for (let step = 0; step < steps; step++) {
+    const a = (2 * Math.PI * step) / steps;
+    positions.push(
+      Math.sin(a),
+      0,
+      Math.cos(a),
+      (1 - RIM_WIDTH) * Math.sin(a),
+      0,
+      (1 - RIM_WIDTH) * Math.cos(a),
+    );
+    const k = 2 * step;
+    const n = 2 * ((step + 1) % steps);
+    index.push(k, k + 1, n, k + 1, n + 1, n);
   }
   return flat(positions, index);
 }
@@ -279,7 +280,7 @@ const spot = new Vector3();
 /**
  * **A mast with its pennant at each strategic point** (#677): an ambience of the fx `sites`, in
  * instanced flat meshes (five draws for all the points, no shadow): the mast with its pomme and the
- * star of mine, the pennant, its liseré, the socle and, contested, a dashed ring. It stands
+ * star of mine, the pennant, the socle with its liseré (its edge, in the ink of the point) and, contested, a dashed ring. It stands
  * upright to the eye on its foot (`billboard.ts`), to the north of the point so that a garrison
  * stays in front of it, at the size `mastPx` asks for. The mast says nothing of a garrison
  * (ADR 0043 §5): it is drawn for every point, seen or not.
@@ -295,7 +296,7 @@ export class StrategicMasts implements AmbientLayer {
   private readonly geometries: BufferGeometry[];
   private readonly mast: InstancedMesh<BufferGeometry, MeshBasicMaterial>;
   private readonly flame: InstancedMesh<BufferGeometry, MeshBasicMaterial>;
-  private readonly fringe: InstancedMesh<BufferGeometry, MeshBasicMaterial>;
+  private readonly rim: InstancedMesh<BufferGeometry, MeshBasicMaterial>;
   private readonly socle: InstancedMesh<BufferGeometry, MeshBasicMaterial>;
   private readonly ring: InstancedMesh<BufferGeometry, MeshBasicMaterial>;
   private readonly starAttribute = new InstancedBufferAttribute(new Float32Array(CAPACITY), 1);
@@ -309,15 +310,8 @@ export class StrategicMasts implements AmbientLayer {
     private readonly sees: (box: Box3, px: number) => boolean,
     private readonly touch: boolean,
   ) {
-    const outline = PENNANT as ReadonlyArray<readonly [number, number]>;
-    this.geometries = [
-      mastGeometry(),
-      pennant(outline),
-      pennant(grown(outline, FRINGE)),
-      socle(),
-      dashedRing(),
-    ];
-    const [mastShape, flameShape, fringeShape, socleShape, ringShape] = this.geometries as [
+    this.geometries = [mastGeometry(), pennant(PENNANT), rim(), socle(), dashedRing()];
+    const [mastShape, flameShape, rimShape, socleShape, ringShape] = this.geometries as [
       BufferGeometry,
       BufferGeometry,
       BufferGeometry,
@@ -328,9 +322,9 @@ export class StrategicMasts implements AmbientLayer {
     this.socle = instanced(socleShape, material(), RANK);
     this.ring = instanced(ringShape, material(), RANK + 0.05);
     this.mast = instanced(mastShape, starred(material()), RANK + 0.1);
-    this.fringe = instanced(fringeShape, material(), RANK + 0.15);
+    this.rim = instanced(rimShape, material(), RANK + 0.02);
     this.flame = instanced(flameShape, material(), RANK + 0.2);
-    this.object.add(this.socle, this.ring, this.mast, this.fringe, this.flame);
+    this.object.add(this.socle, this.ring, this.mast, this.rim, this.flame);
     this.object.visible = false;
   }
 
@@ -374,7 +368,8 @@ export class StrategicMasts implements AmbientLayer {
    */
   orient(eye: Vector3, distance: number, screenHeight: number, fov: number, night: number): void {
     const { points } = this;
-    this.object.visible = points.length > 0;
+    // Not a draw while no mast is in the field: the five draws are for a mast seen.
+    this.object.visible = points.some((point) => this.sees(point.box, 0));
     if (points.length === 0) return;
     const unitsPerPixel = (2 * Math.tan((fov * Math.PI) / 360) * distance) / screenHeight;
     const scale = mastScale(mastPx(distance, this.touch, screenHeight, fov), unitsPerPixel);
@@ -409,10 +404,8 @@ export class StrategicMasts implements AmbientLayer {
       local.multiply(scratch.makeRotationZ(sway));
       scratch.multiplyMatrices(object.matrix, local);
       this.flame.setMatrixAt(k, scratch);
-      this.fringe.setMatrixAt(k, scratch);
 
       this.flame.setColorAt(k, nightInk(point.ink, night, paint));
-      this.fringe.setColorAt(k, nightInk(pen, night, paint));
       this.mast.setColorAt(k, nightInk(pen, night, paint));
       this.socle.setColorAt(k, nightInk(pen, night, paint));
 
@@ -421,6 +414,9 @@ export class StrategicMasts implements AmbientLayer {
       object.scale.setScalar(baseRadius);
       object.updateMatrix();
       this.socle.setMatrixAt(k, object.matrix);
+      // The socle's edge is inked as the point is: white when neutral.
+      this.rim.setMatrixAt(k, object.matrix);
+      this.rim.setColorAt(k, nightInk(point.ink, night, paint));
 
       if (point.ring) {
         object.rotation.set(0, this.moving ? this.clock * RING_TURN * 2 * Math.PI : 0, 0);
@@ -431,9 +427,9 @@ export class StrategicMasts implements AmbientLayer {
         rings += 1;
       }
     });
-    this.mast.count = this.flame.count = this.fringe.count = this.socle.count = points.length;
+    this.mast.count = this.flame.count = this.rim.count = this.socle.count = points.length;
     this.ring.count = rings;
-    for (const mesh of [this.mast, this.flame, this.fringe, this.socle, this.ring]) {
+    for (const mesh of [this.mast, this.flame, this.rim, this.socle, this.ring]) {
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     }
@@ -485,7 +481,7 @@ export class StrategicMasts implements AmbientLayer {
   }
 
   dispose(): void {
-    for (const mesh of [this.mast, this.flame, this.fringe, this.socle, this.ring]) {
+    for (const mesh of [this.mast, this.flame, this.rim, this.socle, this.ring]) {
       mesh.material.dispose();
       mesh.dispose();
     }

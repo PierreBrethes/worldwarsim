@@ -59,7 +59,7 @@ describe('mastOf', () => {
 });
 
 describe('mastPx', () => {
-  it('floor 56 up to distance 53, linear to 30 at 136 and beyond, x0.7 on a phone', () => {
+  it('floor 56 up to distance 53, linear to 30 at 136 and beyond, x0.7 on a phone (the floor only)', () => {
     expect(mastPx(3, false, 900, 42)).toBeGreaterThan(56);
     expect(mastPx(18, false, 900, 42)).toBeGreaterThanOrEqual(56);
     expect(mastPx(53, false, 900, 42)).toBe(56);
@@ -68,7 +68,8 @@ describe('mastPx', () => {
     expect(mastPx(94.5, false, 900, 42)).toBeCloseTo(43, 5);
     expect(mastPx(53, true, 900, 42)).toBeCloseTo(39.2, 5);
     expect(mastPx(136, true, 900, 42)).toBeCloseTo(21, 5);
-    expect(mastPx(3, true, 900, 42)).toBeCloseTo(0.7 * mastPx(3, false, 900, 42), 5);
+    // Close up the real size rules: a phone's smaller screen is already in the viewport height.
+    expect(mastPx(3, true, 900, 42)).toBe(mastPx(3, false, 900, 42));
   });
   it('reads the real size against the viewport and the FOV it is given', () => {
     const base = mastPx(3, false, 900, 42);

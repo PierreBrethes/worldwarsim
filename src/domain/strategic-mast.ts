@@ -52,7 +52,8 @@ export const MAST_PX = {
 };
 
 /**
- * Mast height on screen: the larger of its real size and its floor. The real size is read against
+ * Mast height on screen: the larger of its real size and its floor (the floor alone shrinks on a
+ * phone: a mast close up is as big as it is). The real size is read against
  * the engine's own viewport height and camera FOV (degrees), never a copy of them.
  */
 export function mastPx(
@@ -66,5 +67,5 @@ export function mastPx(
   const floor = near + (far - near) * t;
   const real =
     (MAST_UNITS.height * viewportHeight) / (2 * Math.tan((fov * Math.PI) / 360) * distance);
-  return Math.max(real, floor) * (phone ? MAST_PX.phone : 1);
+  return Math.max(real, floor * (phone ? MAST_PX.phone : 1));
 }

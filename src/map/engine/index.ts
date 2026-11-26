@@ -3137,7 +3137,11 @@ export class MapEngine {
     if (pin?.kind === 'pin') return { kind: 'label', labelId: pin.id };
     const pick = this.standing.pick(this.ray, { under: true });
     // An enemy camp's annotation is aimed at by its label: the rose reads it there (POC, attack).
-    const camp = nearer(this.camps.under(this.ray), this.masts.under(this.ray));
+    // A pile under the pointer wins over a mast behind it: the mast takes a drop on bare ground only.
+    const camp = nearer(
+      this.camps.under(this.ray),
+      pick === null ? this.masts.under(this.ray) : null,
+    );
     if (
       camp !== null &&
       (pick === null || pick.pileId === this.held?.pileId || camp.distance < pick.distance)
@@ -3502,10 +3506,12 @@ export class MapEngine {
   private pieceUnder(ndc: Vector2 = this.pointer): PieceHit | null {
     const pin = this.pinUnder(ndc);
     if (pin !== null) return pin.kind === 'pin' ? { id: pin.id, distance: 0 } : null;
+    const pile = this.standing.under(this.ray);
     return [
-      this.standing.under(this.ray),
+      pile,
       this.camps.under(this.ray),
-      this.masts.under(this.ray),
+      // A pile touched wins over the mast it stands by: the mast is taken only on bare ground.
+      pile === null ? this.masts.under(this.ray) : null,
       this.arcs.pawnUnder(this.ray),
       this.maquettes.under(this.ray),
     ].reduce(nearer, null);
