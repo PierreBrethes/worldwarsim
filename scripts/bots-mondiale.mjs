@@ -3,13 +3,14 @@
  * il lit sa vue, décide par `decideTurn` (`src/domain/bot.ts`) et passe ses ordres par les
  * mutations publiques avec son jeton. Ni `internal*` ni `dev:*`.
  *
- *     npm run bots:mondiale -- [--bots N] [--humains H] [--cadence s] [--code CODE]
+ *     npm run bots:mondiale -- [--bots N] [--humains H] [--cadence s] [--code CODE] [--preprod]
  *
  * Sans `--code`, le script fonde la saison, imprime son lien et attend les places prêtes (les
  * bots, plus `--humains` joueurs) avant de la lancer. Avec `--code`, les bots rejoignent la
  * saison d'un humain, qui la lance lui-même. Comptes et saison : `scripts/bots-mondiale.accounts.json`
  * (ignoré par git, même format que celui de la démo : `capture.mjs --comptes … --compte a`).
- * Ctrl-C ou la fin de la saison arrêtent la boucle. Refuse tout backend non local.
+ * Ctrl-C ou la fin de la saison arrêtent la boucle. Refuse tout backend non local, sauf la
+ * pré-production nommée par `--preprod` (ADR 0042 §4), qui a ses propres comptes de bots.
  */
 import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -19,7 +20,19 @@ import { runnerImport } from 'vite';
 import { api } from '../convex/_generated/api.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const accountsFile = fileURLToPath(new URL('./bots-mondiale.accounts.json', import.meta.url));
+const preprod = process.argv.includes('--preprod');
+/** La pré-production, seul backend distant admis (ADR 0042 §4) : écrite ici, jamais lue d'un fichier. */
+const PREPROD = {
+  convex: 'https://convex.pierrebrethes.cloud',
+  front: 'https://wws.pierrebrethes.cloud',
+};
+/** Ses comptes ne se mêlent pas aux comptes locaux : une base vidée en local ne les orpheline pas. */
+const accountsFile = fileURLToPath(
+  new URL(
+    preprod ? './bots-mondiale.preprod.accounts.json' : './bots-mondiale.accounts.json',
+    import.meta.url,
+  ),
+);
 const pause = (ms) => new Promise((done) => setTimeout(done, ms));
 
 const optionOf = (name, fallback) => {
@@ -50,11 +63,13 @@ const fromFile = existsSync(envFile)
       .match(/^VITE_CONVEX_URL=(.*)$/m)?.[1]
       ?.trim()
   : undefined;
-const url = process.env.VITE_CONVEX_URL ?? fromFile;
+const url = preprod ? PREPROD.convex : (process.env.VITE_CONVEX_URL ?? fromFile);
 if (!url) throw new Error('VITE_CONVEX_URL absent (.env.local)');
-if (!['127.0.0.1', 'localhost'].includes(new URL(url).hostname)) {
-  throw new Error(`Refus : ${url} n'est pas un backend local.`);
+if (!preprod && !['127.0.0.1', 'localhost'].includes(new URL(url).hostname)) {
+  throw new Error(`Refus : ${url} n'est pas un backend local (--preprod pour la pré-production).`);
 }
+const front = preprod ? PREPROD.front : 'http://localhost:5173';
+if (preprod) console.log(`Pré-production : ${url}`);
 
 /** Le décideur est du TS sans extensions d'import : vite le charge, jamais Node tel quel. */
 const load = async (file) =>
@@ -213,7 +228,7 @@ if (!seasonId && joinCode === null) {
   for (const token of tokens) seasonId = await enter(token);
 }
 save({ seasonId, code });
-console.log(`Saison ${code} : http://localhost:5173/rejoindre/${code}`);
+console.log(`Saison ${code} : ${front}/rejoindre/${code}`);
 
 /** Chaque bot prend la première nation libre (`NATION_TAKEN` → la suivante), puis se déclare prêt. */
 if ((await lobbyOf())?.status === 'lobby') {

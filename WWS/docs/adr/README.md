@@ -49,7 +49,7 @@ Format : Contexte → Décision → Conséquences → Ce qu'on abandonne.
 | [0039](0039-quatre-atouts-qui-cassent-une-regle.md) | Quatre atouts nationaux, qui cassent chacun une règle | acceptée (04/11) — remplace les atouts de la fiche 06 pour la V1 ; Mondiale seule ; seconde brèche au brouillard sur la nation (Prêt-bail) |
 | [0040](0040-l-edition-finale-survit-a-sa-saison.md) | L'édition finale survit à sa saison | acceptée (05/11) — déroge à 0001 pour l'édition finale d'une Mondiale |
 | [0041](0041-la-recolte-se-rapporte.md) | La récolte se rapporte : un tas par exploitation, ramassé en tournée | acceptée (12/11) — révise 0028 §4 ; Mondiale seule |
-| [0042](0042-des-bots-faciles-en-local.md) | Des bots faciles, en local, par la porte d'un joueur | acceptée (21/11) — révise 0027 (aucun bot en Mondiale) ; local seulement |
+| [0042](0042-des-bots-faciles-en-local.md) | Des bots faciles, en local, par la porte d'un joueur | acceptée (21/11) — révise 0027 (aucun bot en Mondiale) ; local, et pré-production par `--preprod` (26/11) |
 | [0043](0043-un-point-neutre-est-garde.md) | Un point stratégique neutre est gardé par une garnison locale | acceptée (23/11) — amende 0027 §4 ; précise 0019 §3 ; Mondiale seule |
 | [0044](0044-la-faim-ralentit-et-suspend.md) | La faim ralentit les colonnes et suspend la capture | acceptée (23/11) — révise `consommation-continue.md` D3 et la ligne « Capture » du glossaire ; précise 0041 §4 ; Mondiale seule |
 | [0045](0045-les-notifications-et-le-a-vous.md) | Les notifications, et un « À vous » quand une colonne arrive | acceptée (23/11) — inscrit notif-1a à notif-6, révise notif-3a ; Mondiale seule |

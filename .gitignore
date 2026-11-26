@@ -31,6 +31,7 @@ ds-bundle/
 # Comptes de démo locaux (mot de passe en clair) : scripts/demo-mondiale.mjs.
 scripts/demo-mondiale.accounts.json
 scripts/bots-mondiale.accounts.json
+scripts/bots-mondiale.preprod.accounts.json
 scripts/banc-mondiale.accounts.json
 /bots-serie/
 test-results
