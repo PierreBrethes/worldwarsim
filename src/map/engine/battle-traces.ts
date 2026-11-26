@@ -17,7 +17,7 @@ import { PALETTE } from './palette';
 /** **Un cratère d'obus, à sa vraie taille** et à l'échelle commune (ADR 0035). `@a-mesurer` */
 const CRATER_METRES = 10;
 /** Le plus noir d'une trace fraîche : l'encre pâle du plateau, jamais celle d'une pièce. `@a-mesurer` */
-export const TRACE_GAIN = 0.55;
+const TRACE_GAIN = 0.55;
 /** Les cratères d'une trace, autour du premier : à tant de diamètres du point, au plus. */
 const SCATTER = 2.2;
 const NEAREST = 1.15;

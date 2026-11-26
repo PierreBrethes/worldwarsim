@@ -14,7 +14,7 @@ export const TRACE_MS = 24 * 3_600_000;
  * vaut 50 hommes, d'où l'ordre de grandeur.
  * @a-mesurer
  */
-export const CRATER_STEPS = [10, 40, 100, 250] as const;
+const CRATER_STEPS = [10, 40, 100, 250] as const;
 export const MAX_CRATERS = CRATER_STEPS.length + 1;
 
 /** Une trace de combat à poser : un lieu, un nombre de cratères, une encre de 1 (frais) à 0. */
