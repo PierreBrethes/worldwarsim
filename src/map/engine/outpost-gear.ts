@@ -7,7 +7,7 @@ import { SOCLE_TOP } from './works';
  * specialty, at the same place behind the mast, and none for the generalist. The lookout's
  * antenna is three sections, the upper two baked apart to slide into the one below.
  */
-export const GEAR_GROUPS = ['magasin', 'guet', 'fort'] as const;
+const GEAR_GROUPS = ['magasin', 'guet', 'fort'] as const;
 export const TELESCOPE = ['antenne_2', 'antenne_3'] as const;
 export const GEAR_PARTS: ReadonlyArray<string> = [...GEAR_GROUPS, ...TELESCOPE];
 const isTelescope = (part: string): boolean => (TELESCOPE as ReadonlyArray<string>).includes(part);
