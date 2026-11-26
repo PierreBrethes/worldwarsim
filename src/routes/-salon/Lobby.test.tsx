@@ -45,13 +45,20 @@ const SEAT = { token: 'jeton', seasonId: 'season-1' } as unknown as Seat;
 const REST = { startMinutes: 1320, endMinutes: 300 };
 const player = (
   id: string,
-  rest: { nation?: string | null; ready?: boolean; creator?: boolean; mine?: boolean } = {},
+  rest: {
+    nation?: string | null;
+    ready?: boolean;
+    creator?: boolean;
+    mine?: boolean;
+    bot?: boolean;
+  } = {},
 ) => ({
   id,
   nickname: id,
   creator: false,
   nation: null as string | null,
   ready: false,
+  bot: false,
   mine: false,
   restWindow: REST,
   seenAt: null,
@@ -116,6 +123,7 @@ function mount(
       journal: () => undefined,
     }),
     mutation,
+    action: mutation,
   } as unknown as ConvexReactClient;
   const root = createRootRoute({ component: Outlet });
   const salon = createRoute({
@@ -488,4 +496,60 @@ it('lets the founder list his Mondiale from the order, by the same order the ser
   fireEvent.click(screen.getByRole('button', { name: fr.table.listOn }));
 
   await waitFor(() => expect(sent()).toEqual([['seasons:configure', { ...SEAT, listed: true }]]));
+});
+
+/** **Des bots au salon** (#704) : le fondateur d'une Mondiale en assoit un d'un geste. */
+it('offers the founder of a Mondiale with a free seat to seat a bot, by the server’s own door', async () => {
+  const { sent } = mount([player('Pierre', { creator: true, mine: true, nation: 'france' })]);
+
+  fireEvent.click(await screen.findByRole('button', { name: new RegExp(fr.table.addBot) }));
+
+  await waitFor(() => expect(sent()).toEqual([['bots:add', SEAT]]));
+});
+
+it('offers no bot to a guest, to a full table, nor to a Blitz', async () => {
+  mount([
+    player('Pierre', { creator: true, nation: 'france' }),
+    player('Léa', { mine: true, nation: 'germany' }),
+  ]);
+  await screen.findByText('Léa');
+  expect(screen.queryByRole('button', { name: new RegExp(fr.table.addBot) })).toBeNull();
+  cleanup();
+
+  mount([player('Pierre', { creator: true, mine: true, nation: 'france' })], undefined, {
+    maximum: 1,
+  });
+  await screen.findByText('Pierre');
+  expect(screen.queryByRole('button', { name: new RegExp(fr.table.addBot) })).toBeNull();
+  cleanup();
+
+  mount([player('Pierre', { creator: true, mine: true, nation: 'france' })], undefined, {
+    mode: 'blitz',
+    theatre: 'europe',
+  });
+  await screen.findByText('Pierre');
+  expect(screen.queryByRole('button', { name: new RegExp(fr.table.addBot) })).toBeNull();
+});
+
+it('marks a bot at the table, and lets the founder alone take it off', async () => {
+  const { sent } = mount([
+    player('Pierre', { creator: true, mine: true, nation: 'france' }),
+    player('Bot1', { nation: 'uk', ready: true, bot: true }),
+  ]);
+
+  const card = (await screen.findAllByText('Bot1'))
+    .map((name) => name.closest('.seat'))
+    .find(Boolean)!;
+  expect(card.querySelector('.seat-tag')?.textContent).toBe(fr.table.bot);
+  fireEvent.click(screen.getByRole('button', { name: fr.table.removeBot('Bot1') }));
+  await waitFor(() => expect(sent()).toEqual([['bots:remove', { ...SEAT, playerId: 'Bot1' }]]));
+  cleanup();
+
+  mount([
+    player('Pierre', { creator: true, nation: 'france' }),
+    player('Léa', { mine: true, nation: 'germany' }),
+    player('Bot1', { nation: 'uk', ready: true, bot: true }),
+  ]);
+  await screen.findAllByText('Bot1');
+  expect(screen.queryByRole('button', { name: fr.table.removeBot('Bot1') })).toBeNull();
 });

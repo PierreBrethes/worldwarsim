@@ -1,5 +1,5 @@
 import { Navigate, useNavigate } from '@tanstack/react-router';
-import { useMutation, useQuery } from 'convex/react';
+import { useAction, useMutation, useQuery } from 'convex/react';
 import type { FunctionReturnType } from 'convex/server';
 import {
   useCallback,
@@ -38,6 +38,7 @@ import {
   type TableStep,
 } from '@/domain/operation-order';
 import { listingRefusalOf } from '@/domain/listing';
+import { botAdditionRefusalOf } from '@/domain/lobby-bots';
 import { MODE_RULES, seatRangeOf } from '@/domain/season-mode';
 import { THEATRES, theatreById, type TheatreId } from '@/domain/theatres';
 import { invitationUrl } from '@/domain/off-season';
@@ -137,6 +138,8 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
   const launch = useMutation(api.seasons.launch);
   const destroy = useMutation(api.seasons.destroy);
   const configure = useMutation(api.seasons.configure);
+  const addBot = useAction(api.bots.add);
+  const removeBot = useMutation(api.bots.remove);
   const { run, pending } = useSingleFlight();
   const now = useClock(15_000);
   const finger = useCoarsePointer();
@@ -156,6 +159,15 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
   const founderRow = lobby.players.find((player) => player.creator);
   const founderNick = founderRow?.nickname ?? '';
   const free = Math.max(0, lobby.maximum - lobby.players.length);
+  /** Le salon propose ce que `bots.add` accepte, par la même fonction (ADR 0015). */
+  const botOffered =
+    botAdditionRefusalOf({
+      founder,
+      status: lobby.status,
+      seats: lobby.players.length,
+      maximum: lobby.maximum,
+      mode: lobby.mode,
+    }) === null;
   const theatre = blitz ? theatreById(lobby.theatre ?? '') : null;
   const scheduledAt = lobby.orders.scheduledAt;
 
@@ -376,13 +388,37 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
       <section className="sl-seats" aria-label={fr.table.tableLabel}>
         <div role="list">
           {lobby.players.map((player) => (
-            <SeatCard key={player.id} player={player} lobby={lobby} now={now} me={meRow} />
+            <SeatCard
+              key={player.id}
+              player={player}
+              lobby={lobby}
+              now={now}
+              me={meRow}
+              onRemove={
+                founder && open && player.bot
+                  ? () => act(() => removeBot({ ...seat, playerId: player.id }))
+                  : null
+              }
+            />
           ))}
           {open && free > 0 && (
             <div role="listitem">
               <button type="button" className="seat empty" onClick={invite}>
                 <b>{fr.home.freeSeats(free)}</b>
                 <span>{sent ? fr.table.linkSent : fr.table.offerLink(finger)}</span>
+              </button>
+            </div>
+          )}
+          {botOffered && (
+            <div role="listitem">
+              <button
+                type="button"
+                className="seat empty bot"
+                aria-busy={pending}
+                onClick={() => act(() => addBot(seat))}
+              >
+                <b>{fr.table.addBotNote}</b>
+                <span>{fr.table.addBot}</span>
               </button>
             </div>
           )}
@@ -630,11 +666,14 @@ function SeatCard({
   lobby,
   now,
   me,
+  onRemove,
 }: {
   player: Player;
   lobby: LobbyView;
   now: number;
   me: Player | undefined;
+  /** Le fondateur retire un bot avant le lancement (#704) ; `null` partout ailleurs. */
+  onRemove: (() => void) | null;
 }) {
   const blitz = lobby.mode === 'blitz';
   const mine = player === me;
@@ -648,13 +687,18 @@ function SeatCard({
   );
   const assetId = assetOf(player.nation, lobby.mode);
   const asset = assetId === null ? null : fr.nationAssets[assetId];
-  const tags = [mine && fr.table.you, player.creator && fr.lobby.founder]
+  const tags = [
+    mine && fr.table.you,
+    player.creator && fr.lobby.founder,
+    player.bot && fr.table.bot,
+  ]
     .filter(Boolean)
     .join(' · ');
   const label = fr.table.seatAria({
     nickname: player.nickname,
     mine,
     founder: player.creator,
+    bot: player.bot,
     nation: player.nation === null ? null : nationLabel(player.nation),
     blitz,
     presence: blitz ? (presence.kind === 'away' ? fr.table.away : fr.table.atTable) : rest,
@@ -699,6 +743,16 @@ function SeatCard({
         <span className="stamp" aria-hidden>
           {fr.table.ready}
         </span>
+      )}
+      {onRemove !== null && (
+        <button
+          type="button"
+          className="link unseat"
+          aria-label={fr.table.removeBot(player.nickname)}
+          onClick={onRemove}
+        >
+          {fr.table.removeBotShort}
+        </button>
       )}
     </div>
   );
