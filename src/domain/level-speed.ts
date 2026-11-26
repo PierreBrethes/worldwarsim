@@ -52,3 +52,8 @@ export const levelGain = (level: number): number => Math.round((1 - levelSpeed(l
  *  la recherche. Une exploitation produit un débit, pas une durée : elle n'y est pas. */
 export const speedsUp = (key: BuildingKey): boolean =>
   key === 'hq' || key === 'researchCenter' || Object.values(PROJECTION_BY_DOMAIN).includes(key);
+
+/** Le « −x % » d'une fiche de site : le gain de niveau du bâtiment, sauf un bâtiment qui ne forme
+ *  que la Levée en masse en Mondiale (ADR 0047 §2), où l'infanterie forme au niveau 1. */
+export const siteSpeedsUp = (key: BuildingKey, mode: 'mondiale' | 'blitz'): boolean =>
+  speedsUp(key) && (mode === 'blitz' || Object.values(PROJECTION_BY_DOMAIN).includes(key));

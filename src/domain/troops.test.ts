@@ -4,6 +4,7 @@ import {
   carriesHull,
   formsHere,
   hasSiteSheet,
+  opensSiteOnClick,
   type FormingSite,
   recruitRefusalOf,
   type RecruitSituation,
@@ -601,5 +602,19 @@ describe('a column that carries a hull', () => {
     expect(carriesHull(['infantry', 'armor'])).toBe(false);
     expect(carriesHull(['bomber', 'airTransport'])).toBe(false);
     expect(carriesHull([])).toBe(false);
+  });
+});
+
+describe('Levée en masse : the click of a mast keeps its own path (ADR 0047 §2)', () => {
+  it('opens the sheet on the sites of projection and in a Blitz, never on a Chinese building', () => {
+    expect(opensSiteOnClick('mondiale', 'barracks')).toBe(true);
+    expect(opensSiteOnClick('blitz', 'hq')).toBe(true);
+    for (const key of ['hq', 'researchCenter', 'farm', 'warehouse'] as const)
+      expect(opensSiteOnClick('mondiale', key)).toBe(false);
+  });
+
+  it('forms the levy in a listening post and an arsenal as in any building', () => {
+    for (const key of ['listening', 'arsenal'] as const)
+      expect(formsHere({ ...home(key, 'china'), role: 'infantry', tier: 1 })).toBe(true);
   });
 });

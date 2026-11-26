@@ -101,6 +101,15 @@ export const formsHere = (site: FormingSite & { role: UnitRole; tier: UnitTier }
 export const hasSiteSheet = (site: FormingSite): boolean =>
   site.mode === 'blitz' || isProjectionKey(site.key) || levyAt(site);
 
+/**
+ * **Ce que le clic d'un mât ouvre**, la fiche de site ou son chemin propre (l'arbre du Centre de
+ * recherche, la levée ou la garnison du QG). La Levée en masse n'y change rien (ADR 0047 §2) : un
+ * bâtiment chinois du sol a sa file dans la bande du plateau, jamais une fiche à la place de son
+ * usage.
+ */
+export const opensSiteOnClick = (mode: SeasonMode, key: BuildingKey): boolean =>
+  mode === 'blitz' || isProjectionKey(key);
+
 /** A barracks, a port or an aerodrome: a building that forms troops. */
 export const isProjectionKey = (key: BuildingKey): boolean =>
   Object.values(PROJECTION_BY_DOMAIN).includes(key);

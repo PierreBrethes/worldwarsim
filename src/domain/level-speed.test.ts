@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { formedMinutes, levelGain, levelSpeed, spedMinutes, speedsUp } from './level-speed';
+import {
+  formedMinutes,
+  siteSpeedsUp,
+  levelGain,
+  levelSpeed,
+  spedMinutes,
+  speedsUp,
+} from './level-speed';
 
 describe('the duration factor of a level (ADR 0031)', () => {
   it('leaves the first level at the base, then takes 20 % per level, multiplied', () => {
@@ -44,5 +51,18 @@ describe('the duration of a formation (ADR 0047 §2)', () => {
     expect(formedMinutes(100, 'hq', 'infantry', 5)).toBe(100);
     expect(formedMinutes(100, 'port', 'infantry', 5)).toBe(100);
     expect(formedMinutes(100, 'depot', 'infantry', 5)).toBe(100);
+  });
+});
+
+describe('the « −x % » of a site sheet', () => {
+  it('stays where it was: the sites of projection, and the Blitz headquarters', () => {
+    expect(siteSpeedsUp('barracks', 'mondiale')).toBe(true);
+    expect(siteSpeedsUp('hq', 'blitz')).toBe(true);
+  });
+
+  it('is not promised by a Mondiale headquarters or centre that forms the levy at level 1', () => {
+    expect(siteSpeedsUp('hq', 'mondiale')).toBe(false);
+    expect(siteSpeedsUp('researchCenter', 'mondiale')).toBe(false);
+    expect(siteSpeedsUp('warehouse', 'mondiale')).toBe(false);
   });
 });

@@ -22,7 +22,6 @@ import {
   firstTierOnly,
   formingSiteOf,
   hasSiteSheet,
-  isProjectionKey,
   listsRole,
   marchingTroopIds,
   stationKeyOf,
@@ -33,7 +32,7 @@ import {
 import type { PlayerView, TroopStation, UnitRole } from '@/domain/player-view';
 import { currentMinutes, currentStock } from '@/domain/player-view';
 import { asClockTime, asDuration, asLocalTime } from '@/domain/duration';
-import { formedMinutes } from '@/domain/level-speed';
+import { formedMinutes, siteSpeedsUp } from '@/domain/level-speed';
 import { produces, shortfallOf } from '@/domain/economy';
 import { blitzRecruitRefusalOf, fundsAt, incomePerMinute, rolesFormedBy } from '@/domain/blitz';
 import { BLITZ } from '../../../convex/constants';
@@ -273,7 +272,7 @@ function Site({
         eyebrow={
           <>
             {fr.economy.inRegion(region?.name ?? building.regionId)} ·{' '}
-            {isProjectionKey(building.key)
+            {siteSpeedsUp(building.key, view.mode)
               ? fr.common.levelSpeed(building.level)
               : fr.production.siteLevel(building.level)}
           </>
@@ -1144,7 +1143,7 @@ function SiteLadder({
   siteLevel: number;
 }) {
   /** Le gain de durée ne se dit que d'un site de projection (ADR 0047 §2). */
-  const sped = isProjectionKey(building.key);
+  const sped = siteSpeedsUp(building.key, view.mode);
   return (
     <div className="mx-3 mt-3 flex items-center gap-[10px] border border-[var(--ink)] bg-(--paper)/35 py-[10px] pr-[10px] pl-3">
       <div className="min-w-0 flex-1">
