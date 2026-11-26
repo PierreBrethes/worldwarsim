@@ -288,4 +288,19 @@ describe('les bots du salon', () => {
     const season = await t.run((ctx) => ctx.db.get(founder.seasonId));
     expect(season?.roundJobId).toBe(rounds[0]!._id);
   }, 30_000);
+
+  it('refuse le retrait d’un bot qui ferait passer une annonce au départ fixé sous son minimum', async () => {
+    const t = boot();
+    const { seat: founder } = await foundSeat(t, 'Pierre');
+    await t.mutation(api.seasons.configure, { ...founder, listed: true });
+    for (let k = 0; k < 3; k++) await t.action(api.bots.add, founder);
+    expect((await lobbyOf(t, founder)).listing?.departureAt).not.toBeNull();
+    const bot = (await lobbyOf(t, founder)).players.find((player) => player.bot)!;
+    await expect(t.mutation(api.bots.remove, { ...founder, playerId: bot.id })).rejects.toThrow(
+      'DEPARTURE_FIXED_MINIMUM',
+    );
+    await t.action(api.bots.add, founder);
+    await t.mutation(api.bots.remove, { ...founder, playerId: bot.id });
+    expect((await lobbyOf(t, founder)).players).toHaveLength(4);
+  }, 30_000);
 });

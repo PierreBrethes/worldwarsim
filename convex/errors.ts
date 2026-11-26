@@ -41,6 +41,7 @@ export type ErrorCode =
   | 'BOTS_MONDIALE_ONLY'
   | 'NOT_A_BOT'
   | 'BOTS_FOUNDER_ONLY'
+  | 'DEPARTURE_FIXED_MINIMUM'
   | 'NOT_AT_WAR'
   | 'UNKNOWN_NATION'
   | 'NATION_TAKEN'

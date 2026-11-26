@@ -4,6 +4,7 @@ import { action, internalMutation, internalQuery, mutation } from './_generated/
 import { fail } from './errors';
 import { nicknameKey } from '../src/domain/account';
 import { botAdditionRefusalOf, botNicknameOf, botRemovalRefusalOf } from '../src/domain/lobby-bots';
+import { LISTED_MINIMUM } from '../src/domain/listing';
 import { modeOf } from '../src/domain/season-mode';
 import {
   erasePlayer,
@@ -96,13 +97,17 @@ export const remove = mutation({
       founder: player.creator,
       status: season.status,
       bot: bot !== null && bot.seasonId === season._id,
+      departureAt: season.listed === true ? (season.departureAt ?? null) : null,
+      seats: (await seatsOf(ctx, season._id)).length,
+      minimum: LISTED_MINIMUM,
     });
+    if (refusal === 'DEPARTURE_FIXED_MINIMUM') fail(refusal, { minimum: LISTED_MINIMUM });
     if (refusal !== null) fail(refusal);
     await erasePlayer(ctx, playerId);
     await ctx.db.delete(playerId);
     await eraseBot(ctx, bot!);
     await ctx.db.patch(season._id, { playerCount: (await seatsOf(ctx, season._id)).length });
-    /** Relu comme à l'ajout ; `departureOf` ne défixe ni ne recule un départ (#654). */
+    /** Relu comme à l'ajout ; un départ fixé ne se défait pas (#654), le refus l'a gardé. */
     await planDeparture(ctx, season._id);
   },
 });

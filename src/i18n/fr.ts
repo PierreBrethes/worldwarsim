@@ -858,6 +858,8 @@ export const fr = {
     BOTS_MONDIALE_ONLY: () => 'une Blitz se joue sans bot',
     BOTS_FOUNDER_ONLY: () => 'seul le fondateur assoit ou retire un bot',
     NOT_A_BOT: () => 'seul un bot se retire de la table',
+    DEPARTURE_FIXED_MINIMUM: (d) =>
+      `le départ est fixé : la table ne peut plus descendre sous ${num(d.minimum)} joueurs`,
     NOT_AT_WAR: () => 'vous n’êtes pas encore entré en guerre — choisissez votre nation au salon',
     UNKNOWN_NATION: () => 'nation inconnue',
     NATION_TAKEN: (d) => `${nationName(d.nation)} est déjà prise par ${str(d.nickname)}`,

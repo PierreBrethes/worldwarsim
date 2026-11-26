@@ -29,18 +29,32 @@ export function botAdditionRefusalOf(input: {
 }
 
 export type BotRemovalRefusal =
-  'NOT_A_BOT' | 'BOTS_FOUNDER_ONLY' | 'SEASON_CONCLUDED' | 'SEASON_ALREADY_LAUNCHED';
+  | 'NOT_A_BOT'
+  | 'BOTS_FOUNDER_ONLY'
+  | 'SEASON_CONCLUDED'
+  | 'SEASON_ALREADY_LAUNCHED'
+  | 'DEPARTURE_FIXED_MINIMUM';
 
-/** Un bot se retire avant le lancement, par le fondateur seul ; un joueur ne se retire jamais ainsi. */
+/**
+ * Un bot se retire avant le lancement, par le fondateur seul ; un joueur ne se retire jamais
+ * ainsi. **Un départ fixé ne se défait pas** (#654) : le retrait qui ferait passer une annonce au
+ * départ fixé sous son minimum est refusé, sans quoi `depart` ne lancerait rien à l'heure dite.
+ */
 export function botRemovalRefusalOf(input: {
   readonly founder: boolean;
   readonly status: SeasonStatus;
   readonly bot: boolean;
+  /** Le départ fixé d'une annonce, `null` sans annonce ou tant qu'il ne l'est pas. */
+  readonly departureAt: number | null;
+  readonly seats: number;
+  readonly minimum: number;
 }): BotRemovalRefusal | null {
   if (!input.bot) return 'NOT_A_BOT';
   if (!input.founder) return 'BOTS_FOUNDER_ONLY';
   if (input.status === 'concluded') return 'SEASON_CONCLUDED';
   if (input.status !== 'lobby') return 'SEASON_ALREADY_LAUNCHED';
+  if (input.departureAt !== null && input.seats - 1 < input.minimum)
+    return 'DEPARTURE_FIXED_MINIMUM';
   return null;
 }
 

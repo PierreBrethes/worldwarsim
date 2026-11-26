@@ -34,7 +34,14 @@ describe('botAdditionRefusalOf', () => {
 });
 
 describe('botRemovalRefusalOf', () => {
-  const removable = { founder: true, status: 'lobby', bot: true } as const;
+  const removable = {
+    founder: true,
+    status: 'lobby',
+    bot: true,
+    departureAt: null,
+    seats: 4,
+    minimum: 4,
+  } as const;
 
   it('laisse le fondateur retirer un bot avant le lancement', () => {
     expect(botRemovalRefusalOf(removable)).toBeNull();
@@ -49,6 +56,25 @@ describe('botRemovalRefusalOf', () => {
     expect(botRemovalRefusalOf({ ...removable, status: 'launched' })).toBe(
       'SEASON_ALREADY_LAUNCHED',
     );
+  });
+});
+
+describe('botRemovalRefusalOf, une annonce au départ fixé (#654)', () => {
+  const listed = {
+    founder: true,
+    status: 'lobby',
+    bot: true,
+    departureAt: 1_800_000_000_000,
+    minimum: 4,
+  } as const;
+
+  it('refuse le retrait qui ferait passer la table sous le minimum : un départ fixé ne se défait pas', () => {
+    expect(botRemovalRefusalOf({ ...listed, seats: 4 })).toBe('DEPARTURE_FIXED_MINIMUM');
+  });
+
+  it('laisse retirer un bot qui ne descend pas la table sous le minimum, ou sans départ fixé', () => {
+    expect(botRemovalRefusalOf({ ...listed, seats: 5 })).toBeNull();
+    expect(botRemovalRefusalOf({ ...listed, seats: 4, departureAt: null })).toBeNull();
   });
 });
 
