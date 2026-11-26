@@ -1,4 +1,4 @@
-import type { BuildingKey, DepositKey } from '@/domain/ids';
+import type { BuildingKey, DepositKey, Specialty } from '@/domain/ids';
 import airfieldMaquette from './airfield.glb';
 import arsenalMaquette from './arsenal.glb';
 import barracksMaquette from './barracks.glb';
@@ -9,6 +9,7 @@ import hqMaquette from './hq.glb';
 import listeningMaquette from './listening.glb';
 import mineMaquette from './mine.glb';
 import oilWellMaquette from './oilWell.glb';
+import outpostMaquette from './outpost.glb';
 import portMaquette from './port.glb';
 import researchCenterMaquette from './researchCenter.glb';
 import warehouseMaquette from './warehouse.glb';
@@ -84,6 +85,21 @@ export const BUILDING_MAQUETTES: Readonly<Record<BuildingKey, string | null>> = 
  *  and the headframe says it. The deposit is public, so it tells nothing the atlas does not. */
 export const buildingMaquette = (key: BuildingKey, deposit: DepositKey | null): string | null =>
   key === 'mine' && deposit === 'coal' ? coalMineMaquette : BUILDING_MAQUETTES[key];
+
+/**
+ * **The outpost's maquette** (#468, ADR 0038 §11): one file for every outpost, on a round socle,
+ * which carries the gear of each trade behind its mast — the engine shows one, the generalist's
+ * none (`OUTPOST_GEAR`).
+ */
+export const OUTPOST_MAQUETTE: string = outpostMaquette;
+
+/** **The accessory group each trade wears** in `outpost.glb`. */
+export const OUTPOST_GEAR: Readonly<Record<Specialty, 'magasin' | 'guet' | 'fort' | null>> = {
+  general: null,
+  store: 'magasin',
+  lookout: 'guet',
+  fort: 'fort',
+};
 
 /**
  * **Where a site out of service wears its seals** (#279, Q3 du 04/11) : le milieu de la croix,
