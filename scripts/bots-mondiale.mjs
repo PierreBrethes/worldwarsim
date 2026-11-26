@@ -81,7 +81,7 @@ const load = async (file) =>
     })
   ).module;
 const { decideTurn, seaWaiting, worldFrom } = await load('domain/bot.ts');
-const { adaptServerView } = await load('data/serverView.ts');
+const { playerViewOf } = await load('domain/server-view.ts');
 const read = (name) => JSON.parse(readFileSync(`${root}public/${name}`, 'utf8'));
 const world = worldFrom({
   projection: read('projection.json'),
@@ -366,7 +366,7 @@ while (!stopped) {
     let view;
     let workshop;
     try {
-      view = adaptServerView(await client.query(api.view.playerView, seat));
+      view = playerViewOf(await client.query(api.view.playerView, seat));
       workshop = await client.query(api.troops.workshop, seat);
     } catch (error) {
       if (String(error).includes('SEASON_CONCLUDED')) stopped = true;

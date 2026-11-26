@@ -4,7 +4,7 @@ import { expect, vi } from 'vitest';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import { decideTurn, worldFrom, type BotOrder } from '../src/domain/bot';
-import { adaptServerView } from '../src/data/serverView';
+import { playerViewOf } from '../src/domain/server-view';
 import schema from './schema';
 import { modules } from './test.setup';
 import { foundSeat, joinSeat, neutralPoint, seatIn, unclocked, type Seat } from './seats.fixture';
@@ -119,7 +119,7 @@ export async function pass(
   refused: string[],
   played: string[] = [],
 ): Promise<BotOrder[]> {
-  const view = adaptServerView(await t.query(api.view.playerView, seat));
+  const view = playerViewOf(await t.query(api.view.playerView, seat));
   const workshop = await t.query(api.troops.workshop, seat);
   const orders = decideTurn({ view, workshop, world, now: Date.now() });
   for (const order of orders) {
@@ -168,7 +168,7 @@ export async function crossesToward(
     await pass(t, bot, refused, played);
     vi.advanceTimersByTime(HOUR);
     await t.finishInProgressScheduledFunctions();
-    const view = adaptServerView(await t.query(api.view.playerView, bot));
+    const view = playerViewOf(await t.query(api.view.playerView, bot));
     near = view.me.troops.some(
       ({ role, carriedBy, stationedAt }) =>
         role === 'infantry' &&

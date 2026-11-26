@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { api } from '../../convex/_generated/api';
 import { errorMessage } from './errors';
 import type { Seat } from './session';
-import type { ServerView } from './serverView';
+import type { ServerView } from '../domain/server-view';
 
 /**
  * **The live view, and what stands in for it while the line is down.** `useQuery` throws what the

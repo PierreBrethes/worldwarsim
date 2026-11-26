@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from './_generated/api';
-import { adaptServerView } from '../src/data/serverView';
+import { playerViewOf } from '../src/domain/server-view';
 import { BOT_POINT_COLUMN } from '../src/domain/bot';
 import { boot, HOUR, MIDDAY, pass } from './bot.fixture';
 import { foundSeat, joinSeat, neutralPoint, placeHq, seatIn, unclocked } from './seats.fixture';
@@ -45,7 +45,7 @@ describe("un bot joue son ouverture par la porte d'un joueur", () => {
     }
 
     for (const seat of [bot, idle]) {
-      const { me } = adaptServerView(await t.query(api.view.playerView, seat));
+      const { me } = playerViewOf(await t.query(api.view.playerView, seat));
       // Le bot monte son QG quand il plafonne ses fermes (#652).
       expect(me.hqLevel).toBeGreaterThanOrEqual(1);
       expect(me.outposts.length).toBeGreaterThan(0);
