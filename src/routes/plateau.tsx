@@ -1811,6 +1811,8 @@ function BoardContent({
       reachKm: outpostReachKm(outpost.level),
       lookoutKm: silent ? null : lookoutKmOf(outpost),
       wholeLookout: effectiveSpecialty(outpost) === 'lookout',
+      // Up close its beam leaves its projector (#468).
+      site: outpostPinId(outpost.id),
     }));
     const station = (outpostId: string) => stationKeyOf({ kind: 'outpost', outpostId });
     const drawn = drawnLiaisonsIn({ outposts: view.me.outposts });
@@ -2617,15 +2619,30 @@ function BoardContent({
   const maquettes = useMemo(() => {
     const keyOf = new Map(view.objectives.map((objective) => [objective.id, objective.key]));
     return withVitrine(
-      maquettesOf(markers, (id) => keyOf.get(id), producingSites(view.me), workingSites(view.me), {
-        captures: view.captures,
-        sealed: sealedSites(
-          { me: view.me, surveyedInstallations: view.surveyedInstallations },
-          view.loadedAt,
-        ),
-      }),
+      maquettesOf(
+        markers,
+        (id) => keyOf.get(id),
+        producingSites(view.me),
+        workingSites(view.me),
+        {
+          captures: view.captures,
+          sealed: sealedSites(
+            { me: view.me, surveyedInstallations: view.surveyedInstallations },
+            view.loadedAt,
+          ),
+        },
+        view.outpostFoundation.minutes,
+      ),
     );
-  }, [markers, view.objectives, view.me, view.captures, view.surveyedInstallations, view.loadedAt]);
+  }, [
+    markers,
+    view.objectives,
+    view.me,
+    view.captures,
+    view.surveyedInstallations,
+    view.loadedAt,
+    view.outpostFoundation.minutes,
+  ]);
   const camps = useMemo(() => campsOf(markers), [markers]);
   const columns = useMemo(
     () => marchingPiecesOf(view.arcs, view.me.troops, blitz),

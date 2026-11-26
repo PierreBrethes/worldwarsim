@@ -2065,7 +2065,8 @@ export class MapEngine {
   /**
    * **What a label's piece gives way to its pin by** (ADR 0035 §3): its socle on one (ADR 0038 §7), what is drawn here, else a
    * socle for a building (#465) and a tank on its floor for the rest (§10) — what an enemy shows says
-   * nothing of what it is —; `null` for an outpost, which has no piece: its pin stands at every distance, its label up close.
+   * nothing of what it is —; `null` for an outpost no maquette stands for here (one just dismantled):
+   * its pin stands at every distance, its label up close.
    */
   private pieceSpanOf(id: string, shape = this.pinShapes.get(id)): PinnedBy | null {
     const drawn = this.maquettes.spanOf(id) ?? this.standing.spanOf(id) ?? this.arcs.spanOf(id);
