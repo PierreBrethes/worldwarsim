@@ -17,7 +17,7 @@ export type Mast = {
 };
 
 /** @a-mesurer lavis.html (cap #668): where a contested flame sits on the mast */
-export const CONTESTED_FLAME_AT = 0.42;
+const CONTESTED_FLAME_AT = 0.42;
 
 export function mastOf(point: StrategicPointView, concluded: boolean): Mast {
   return {
@@ -28,26 +28,27 @@ export function mastOf(point: StrategicPointView, concluded: boolean): Mast {
   };
 }
 
-/** Board units. */
+/**
+ * Board units. `height`: a 24 m barracks mast (ADR 0038 §3) at the common scale x1600 (ADR 0035).
+ * @a-mesurer lavis.html (cap #668): `flame` (0.6 x 0.32 of the mast) and `baseRadius`
+ */
 export const MAST_UNITS = {
-  /** A 24 m barracks mast (ADR 0038 §3) at the common scale x1600 (ADR 0035). */
   height: 0.46,
-  /** @a-mesurer lavis.html (cap #668): flame height = 0.6 x 0.32 of the mast */
   flame: 0.6 * 0.32,
-  /** @a-mesurer lavis.html (cap #668) */
   baseRadius: 0.17,
 };
 
+/**
+ * The mast on screen, in pixels. @a-mesurer lavis.html (cap #668): `near` (floor up to
+ * `nearDistance`, its Europe zoom), `far` (floor from `farDistance`, its world zoom), `phone` (the
+ * floor's share on a phone), `baseMinShare` (the base never drops under this share of the mast)
+ */
 export const MAST_PX = {
-  /** @a-mesurer lavis.html (cap #668): floor up to `nearDistance` (its Europe zoom) */
   near: 56,
   nearDistance: 53,
-  /** @a-mesurer lavis.html (cap #668): floor from `farDistance` (its world zoom) on */
   far: 30,
   farDistance: 136,
-  /** @a-mesurer lavis.html (cap #668) */
   phone: 0.7,
-  /** @a-mesurer lavis.html (cap #668): the base never drops under this share of the mast on screen */
   baseMinShare: 0.16,
 };
 

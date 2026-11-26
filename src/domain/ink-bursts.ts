@@ -69,7 +69,7 @@ export const STAMP_MS = HOLD_MS + PEAK / LIFT_PER_MS;
 
 /** @a-mesurer : `storyboard-moments/commun/scenes.js`, un des Sept — le drapeau descend puis
  *  l'autre monte (0,8 s + 0,8 s), le cachet se pose ensuite et tient 3,4 s. */
-export const FLAG_SWAP_MS = 1600;
+const FLAG_SWAP_MS = 1600;
 const SEAL_HOLD_MS = 3400;
 /** @a-mesurer : la capture que la prise d'un point ou la chute d'un QG dit déjà, au même instant
  *  et à ce près : le point de la capture est celui où l'infanterie s'est arrêtée. */
