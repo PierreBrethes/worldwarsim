@@ -914,6 +914,9 @@ export class MaquetteLayer implements SequenceHost {
     const standing = new Set(this.maquettes.map(({ id }) => id));
     for (const id of this.mirrored) if (!standing.has(id)) this.mirrored.delete(id);
     for (const id of this.runways.keys()) if (!standing.has(id)) this.runways.delete(id);
+    // A site gone while its flag or its gear ran would hold the board's frames for good.
+    for (const id of this.flags.keys()) if (!standing.has(id)) this.flags.delete(id);
+    for (const id of this.fittings.keys()) if (!standing.has(id)) this.fittings.delete(id);
     for (const maquette of this.maquettes) {
       this.held.delete(maquette.id);
       const ground =

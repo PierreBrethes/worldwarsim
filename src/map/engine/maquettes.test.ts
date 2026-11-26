@@ -964,6 +964,16 @@ describe('a site on its socle (ADR 0038)', () => {
     expect(new Vector3().applyMatrix4(at(flag, 0)).distanceTo(down)).toBeLessThan(1e-6);
   });
 
+  /** A site gone while its flag or its gear ran no longer holds the board's frames (#468). */
+  it('lets go of the motions of a site that is no longer served', async () => {
+    const layer = await layerOf([site(MINE, { side: 'mine', ink: '#2a5ba8', flag: '#2a5ba8' })]);
+    layer.runFlag(MINE, { from: 1, to: 0, start: Date.now(), ms: 60_000 });
+    layer.runGear(MINE, { from: null, to: 'guet', start: Date.now(), ms: 60_000 });
+    expect(layer.settling).toBe(true);
+    layer.display([]);
+    expect(layer.settling).toBe(false);
+  });
+
   /** **The flag flies** (#422): each cloth carries its phase and whether it lives; a site out of
    *  service or at work holds it still (Q2). */
   it('gives each flag its phase, and holds still the one of a site sealed or at work', async () => {

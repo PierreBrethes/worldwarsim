@@ -201,11 +201,15 @@ export class BattleTraces {
     const served = ++this.served;
     const wrecked = traces.filter((trace) => trace.wreck !== null);
     if (wrecked.length > 0)
-      void wrecksOf().then((kit) => {
-        if (served !== this.served) return;
-        this.layWrecks(wrecked, kit);
-        this.laid();
-      });
+      wrecksOf().then(
+        (kit) => {
+          if (served !== this.served) return;
+          this.layWrecks(wrecked, kit);
+          this.laid();
+        },
+        // The kit did not come: the craters stand without their wrecks, and the loader has said why.
+        () => {},
+      );
     if (traces.length === 0) return;
     const diameter = metresOnBoard(CRATER_METRES);
     for (const trace of traces) {
