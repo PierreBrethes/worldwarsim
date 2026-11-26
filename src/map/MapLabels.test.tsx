@@ -178,6 +178,29 @@ describe('the label of a strategic point', () => {
     expect(root().querySelector('.label-pictogram')).toBeNull();
   });
 
+  /** The mast has no pin (`markerPin` serves none): a label that gives way to its pin from
+   *  d ≈ 11 would leave its cartouche nowhere at the Europe and world zoom. */
+  it('is never sent to the engine as pinned, its cartouche stays at every zoom', () => {
+    const sent: Array<{ id: string; pinned?: boolean }> = [];
+    const engine = {
+      setLabelAnchors: (anchors: typeof sent) => sent.push(...anchors),
+      subscribeRest: () => () => {},
+      atZoomFloor: () => false,
+      invalidate: () => {},
+      nameSpots: () => ({ cities: [], rivers: [], seas: [], pins: [], night: 0 }),
+      pieceRect: () => null,
+      cameraDistance: () => 100,
+      heldRects: () => [],
+    };
+    render(
+      <MapLabels
+        {...(layer([mast('#a83f68')]).props as React.ComponentProps<typeof MapLabels>)}
+        engine={engine as never}
+      />,
+    );
+    expect(sent.find(({ id }) => id === 'narvik')?.pinned).toBe(false);
+  });
+
   it('plays no swap when the point changes hands', () => {
     const { rerender } = render(layer([mast('#a83f68')]));
     rerender(layer([mast('#2b6974')]));

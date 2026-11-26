@@ -742,7 +742,7 @@ export function MapLabels({
         id,
         anchor,
         withRegionLayer: type === 'deposit',
-        pinned: PINNED.has(type),
+        pinned: PINNED.has(type) && type !== 'strategic',
       })),
     );
   }, [engine, labels]);
@@ -1407,8 +1407,6 @@ type LabelNodeProps = {
   readonly inHand: boolean;
   readonly gestures: RefObject<LabelGestures>;
   readonly nodes: LabelNodes;
-  /** **Le drapeau d'un des Sept change de mains** (#442) : l'encre qui descend, `null` du neutre
-   *  (il ne fait que monter) ; absent hors d'un changement. */
 };
 
 /**
@@ -1957,6 +1955,7 @@ const PINNED: ReadonlySet<MapLabel['type']> = new Set([
   'my-movement',
   'inbound-movement',
   'intel',
+  // Dressed as a pin for its look only: the mast has no pin, so the engine never hides its cartouche.
   'strategic',
 ]);
 
