@@ -105,6 +105,20 @@ describe('the second target of a blitzkrieg (#451)', () => {
         resting: choice(outpost('x'), { type: 'march' }),
       }),
     ).toEqual({ kind: 'refused', reason: fr.errors.CHAIN_ATTACK_ONLY({ type: 'march' }) });
+    /** Une colonne poursuivie, dite avant le lâcher (décision du 26/11). */
+    const track: MovementAim = {
+      kind: 'track',
+      movementId: 'm1',
+      lon: 5,
+      lat: 50,
+      hostCountry: 'BEL',
+      ground: 'land',
+      coastal: false,
+    };
+    expect(chainChipOf({ ...args, asset: 'blitzkrieg', resting: choice(track) })).toEqual({
+      kind: 'refused',
+      reason: fr.errors.CHAIN_POSITION_ONLY(),
+    });
     expect(
       chainChipOf({
         ...args,
