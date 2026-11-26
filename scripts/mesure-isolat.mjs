@@ -34,6 +34,23 @@ if (typeof globalThis.gc !== 'function') {
 }
 
 const racine = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+/**
+ * **Le budget est étalonné sous le Node du dépôt** (`engines`, celui de la CI). Le tas qu'un même
+ * bundle retient dépend de la version de V8 : sous Node 22, chaque module pèse 1,5 Mio de plus
+ * que sous Node 24, et 49 modules passaient au-dessus du budget sans qu'aucun import ait changé
+ * (#691). Une autre version ne mesure pas la même chose : elle est refusée, pas tolérée.
+ */
+const { engines } = JSON.parse(await readFile(path.join(racine, 'package.json'), 'utf8'));
+const majeurAttendu = Number(engines.node.match(/\d+/)[0]);
+const majeur = Number(process.versions.node.split('.')[0]);
+if (majeur < majeurAttendu) {
+  console.error(
+    `Node ${process.versions.node} : la mesure est étalonnée sous Node ${majeurAttendu} ` +
+      `(engines de package.json). Relancer sous Node ${majeurAttendu}.`,
+  );
+  process.exit(1);
+}
 const requireDepuisConvex = createRequire(path.join(racine, 'node_modules/convex/package.json'));
 const esbuild = requireDepuisConvex('esbuild');
 
