@@ -6,6 +6,8 @@ import {
   buildingsOfMaquette,
   campsShown,
   markersOf,
+  mastPointsOf,
+  strategicMarkerId,
   leavingStill,
   marchingPiecesOf,
   razingStill,
@@ -390,5 +392,34 @@ describe('campsShown (#441)', () => {
       campsShown(view, { objectives } as never).map(({ id }) => id);
     expect(ids(true)).toEqual(['guard', 'field']);
     expect(ids(false)).toEqual(['field']);
+  });
+});
+
+describe('the masts of the seven points', () => {
+  const point = (id: string, over: object = {}) =>
+    ({
+      id,
+      key: 'lisbon',
+      point: [-9, 38],
+      holder: null,
+      mine: false,
+      contested: false,
+      ...over,
+    }) as never;
+
+  it('stands one mast per point under the id of its marker, seen or not', () => {
+    const masts = mastPointsOf(
+      [point('a'), point('b', { holder: { nation: 'germany', heldMs: 0 } })],
+      false,
+    );
+    expect(masts.map(({ id }) => id)).toEqual([strategicMarkerId('a'), strategicMarkerId('b')]);
+    expect(masts[0]!.lonLat).toEqual([-9, 38]);
+    expect(masts[0]!.mast.ink).not.toBe(masts[1]!.mast.ink);
+  });
+
+  it('takes the ring away once the season is concluded, and stands nothing without points', () => {
+    expect(mastPointsOf([point('a', { contested: true })], false)[0]!.mast.ring).toBe(true);
+    expect(mastPointsOf([point('a', { contested: true })], true)[0]!.mast.ring).toBe(false);
+    expect(mastPointsOf([], false)).toEqual([]);
   });
 });

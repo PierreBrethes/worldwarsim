@@ -461,6 +461,18 @@ export class StrategicMasts implements AmbientLayer {
     return best;
   }
 
+  /**
+   * **Where the head of a mast stands** (its pomme, or the star of a point of mine over it), for the
+   * cartouche to hang from (#683). `null` for an id with no mast. Read after `orient`.
+   */
+  headOf(id: string): Vector3 | null {
+    const point = this.points.find((candidate) => candidate.id === id);
+    if (point === undefined) return null;
+    const over = POMME * 1.6 + (point.star ? 2 * STAR : 0);
+    const scale = point.height / MAST_UNITS.height;
+    return spot.copy(point.foot).addScaledVector(UP, point.height + over * scale);
+  }
+
   /** The socle's lamp by night, as a piece's: its centre, its radius, a whole share of light. */
   lights(emit: (at: Vector3, radius: number, near: number) => void): void {
     for (const point of this.points)

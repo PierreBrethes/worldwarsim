@@ -253,6 +253,27 @@ describe('the strategic masts layer', () => {
   });
 });
 
+describe('the head of a mast, where its cartouche hangs', () => {
+  it('stands over the foot by the mast as drawn, and higher by the star of a point of mine', () => {
+    const { layer } = setup();
+    layer.show([stand('a', 5), stand('b', 6, { mine: true })]);
+    orient(layer);
+    const foot = (k: number) => new Vector3().setFromMatrixPosition(matrixOf(meshes(layer)[2]!, k));
+    const plain = layer.headOf('strategic-a')!.clone();
+    const mine = layer.headOf('strategic-b')!;
+    expect(plain.x).toBeCloseTo(foot(0).x);
+    expect(plain.y - foot(0).y).toBeGreaterThan(mastPxUnits());
+    expect(mine.y - foot(1).y).toBeGreaterThan(plain.y - foot(0).y);
+  });
+
+  it('is nothing for an id that has no mast', () => {
+    const { layer } = setup();
+    layer.show([stand('a', 5)]);
+    orient(layer);
+    expect(layer.headOf('strategic-z')).toBeNull();
+  });
+});
+
 describe('the mast under the pointer', () => {
   const aim = (from: Vector3, to: Vector3) => {
     const ray = new Raycaster();

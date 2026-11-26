@@ -1,3 +1,6 @@
+import type { StrategicPointView } from '@/domain/player-view';
+import { mastOf } from '@/domain/strategic-mast';
+import type { MastPoint } from '@/map/engine/strategic-masts';
 import { pileSupplies } from '@/domain/supplies';
 import { cargoTagsOf } from '@/domain/cargo-tag';
 import { objectiveArchetype } from '../../../convex/constants';
@@ -637,6 +640,18 @@ export const buildingsOfMaquette = <B extends { key: string; point: LonLat | nul
  *  marqueur et pour le plateau qui rappelle l'objet tenu (#591). */
 export const objectiveMarkerId = (objectiveId: string): string => `objective-${objectiveId}`;
 export const strategicMarkerId = (pointId: string): string => `strategic-${pointId}`;
+
+/** **Un mât par point stratégique** (#683), tous, relevés ou non : il ne dit rien d'une garnison
+ *  (ADR 0043 §5). Il porte l'id du marqueur, celui que le clic et le cartouche reconnaissent. */
+export const mastPointsOf = (
+  points: ReadonlyArray<StrategicPointView>,
+  concluded: boolean,
+): ReadonlyArray<MastPoint> =>
+  points.map((point) => ({
+    id: strategicMarkerId(point.id),
+    lonLat: point.point,
+    mast: mastOf(point, concluded),
+  }));
 
 /** Where a station stands on the board, as the label layer names it. A building answers with
  *  its mast and an outpost with its own marker; a **point** has none — the camera then holds

@@ -1421,6 +1421,7 @@ export class MapEngine {
         this.standing.isDressed(id) || this.camps.isDressed(id) || this.maquettes.isDressed(id),
       (id) => this.maquettes.drawnAt(id),
       (id) => this.pieceSpanOf(id),
+      (id) => this.masts.headOf(id),
     );
 
     this.drawings = new TerrainDrawings(
