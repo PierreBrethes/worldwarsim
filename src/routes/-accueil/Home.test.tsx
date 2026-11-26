@@ -46,6 +46,7 @@ const SEAT = {
   playableRegion: 'europe',
   table: [],
   orders: { scheduledAt: null },
+  listing: null,
 };
 const edition = (seasonId: string, editionId: string, code: string) => ({
   editionId,
@@ -72,8 +73,12 @@ const LOBBY = {
   ],
 };
 
-function mount(seats: ReadonlyArray<object> = [SEAT]) {
+function mount(seats: ReadonlyArray<object> = [SEAT], listings: ReadonlyArray<object> = []) {
+  const join = vi.fn((_reference: unknown, _args: unknown) =>
+    Promise.resolve({ seasonId: 'season-listed' }),
+  );
   const answers: Record<string, unknown> = {
+    'seasons:listings': listings,
     'accounts:me': { nickname: 'Pierre' },
     'accounts:seats': seats,
     'finalEdition:recent': [
@@ -89,7 +94,7 @@ function mount(seats: ReadonlyArray<object> = [SEAT]) {
       onUpdate: () => () => {},
       journal: () => undefined,
     }),
-    mutation: vi.fn(),
+    mutation: join,
   } as unknown as ConvexReactClient;
   const root = createRootRoute({ component: Outlet });
   const home = createRoute({
@@ -122,7 +127,7 @@ function mount(seats: ReadonlyArray<object> = [SEAT]) {
       <RouterProvider router={router} />
     </ConvexProvider>,
   );
-  return router;
+  return Object.assign(router, { join });
 }
 
 it('montre les dernières éditions finales, sans doubler la saison encore là', async () => {
@@ -239,4 +244,43 @@ it('attend le fondateur pour lancer, jamais pour son « prêt »', async () => {
 
   expect(await screen.findByText(new RegExp(fr.home.waitingLaunch))).toBeTruthy();
   expect(screen.queryByText(new RegExp(fr.home.waitingReady))).toBeNull();
+});
+
+/** **Les petites annonces** (#654) : de quoi décider, et l'entrée en un geste, droit au salon. */
+it('lit les petites annonces et prend place depuis l’une d’elles', async () => {
+  const at = Date.now() + 25 * 3_600_000;
+  const router = mount(
+    [SEAT],
+    [
+      {
+        code: 'ADS001',
+        founder: 'Ysé',
+        players: 2,
+        minimum: 4,
+        maximum: 8,
+        departureAt: null,
+        durationHours: 168,
+      },
+      {
+        code: 'ADS002',
+        founder: 'Koval',
+        players: 5,
+        minimum: 4,
+        maximum: 6,
+        departureAt: at,
+        durationHours: 120,
+      },
+    ],
+  );
+  await screen.findByText(fr.home.listings.title);
+  expect(screen.getByText(fr.home.listings.waiting(2))).toBeTruthy();
+  expect(screen.getByText(fr.home.listings.seats(5, 6))).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: fr.home.listings.joinAria('Koval') }));
+  await waitFor(() => expect(router.state.location.pathname).toBe('/salon'));
+  expect(router.join.mock.calls[0]?.[1]).toMatchObject({ code: 'ADS002' });
+});
+
+it('dit qu’aucune Mondiale n’est publiée plutôt qu’un blanc', async () => {
+  mount();
+  expect(await screen.findByText(fr.home.listings.none)).toBeTruthy();
 });

@@ -37,6 +37,7 @@ import {
   type Settings,
   type TableStep,
 } from '@/domain/operation-order';
+import { listingRefusalOf } from '@/domain/listing';
 import { MODE_RULES, seatRangeOf } from '@/domain/season-mode';
 import { THEATRES, theatreById, type TheatreId } from '@/domain/theatres';
 import { invitationUrl } from '@/domain/off-season';
@@ -202,6 +203,19 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
       notify(fr.table.orderChanged(say), 'info');
     });
 
+  /** Publier ou retirer l'annonce (#654) : offert tant que la règle partagée le laisse passer. */
+  const listable = (listed: boolean) =>
+    listingRefusalOf({
+      mode: lobby.mode,
+      listed,
+      departureAt: lobby.listing?.departureAt ?? null,
+    }) === null;
+  const list = (listed: boolean) =>
+    act(async () => {
+      await configure({ ...seat, listed });
+      notify(listed ? fr.table.listedOn : fr.table.listedOff, 'info');
+    });
+
   /** Le lancement se lit du siège du fondateur, pour tous : c'est lui qui lance, et son « prêt »
    *  part avec l'ordre. */
   const plan = founderLaunchOf({
@@ -216,6 +230,7 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
       ready: player.ready,
       seenAt: player.seenAt,
     })),
+    listing: lobby.listing,
   });
   const step: TableStep | null = open
     ? tableStepOf({
@@ -223,6 +238,7 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
         ready: lobby.me.ready,
         founder,
         launchRefusal: plan.refusal,
+        listed: lobby.listing !== null,
       })
     : null;
   /** A Mondiale on a phone reads its eight nations in a registry; a touch only looks. */
@@ -310,6 +326,32 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
             </span>
             {scheduledAt !== null && open && (
               <span className="big num">{countdownLabel(Math.max(0, scheduledAt - now))}</span>
+            )}
+          </div>
+        )}
+        {!blitz && lobby.listing !== null && (
+          <div
+            className="sl-rdv"
+            role="timer"
+            aria-label={
+              lobby.listing.departureAt === null
+                ? fr.table.departureWaiting(lobby.listing.minimum)
+                : fr.table.departureAria(
+                    rendezvousLabel(lobby.listing.departureAt, now),
+                    countdownLabel(lobby.listing.departureAt - now),
+                  )
+            }
+          >
+            {lobby.listing.departureAt !== null && <Clock at={lobby.listing.departureAt} />}
+            <span className="when">
+              {lobby.listing.departureAt === null
+                ? `${fr.table.departure} ${fr.table.departureWaiting(lobby.listing.minimum)}`
+                : `${fr.table.departure} ${rendezvousLabel(lobby.listing.departureAt, now)}`}
+            </span>
+            {lobby.listing.departureAt !== null && open && (
+              <span className="big num">
+                {countdownLabel(Math.max(0, lobby.listing.departureAt - now))}
+              </span>
             )}
           </div>
         )}
@@ -468,6 +510,8 @@ function Table({ seat, lobby }: { seat: Seat; lobby: LobbyView }) {
           onEdit={() => setEditing(!editing)}
           offered={offered}
           change={change}
+          listable={listable}
+          list={list}
           onDestroy={() =>
             act(async () => {
               await destroy(seat);
@@ -504,6 +548,12 @@ function statusOf({
 }): string {
   const blitz = lobby.mode === 'blitz';
   if (step === 'nation') return fr.table.sayNation(blitz);
+  if (lobby.listing !== null) {
+    const { minimum, departureAt } = lobby.listing;
+    return departureAt === null
+      ? fr.table.sayListedShort(Math.max(0, minimum - lobby.players.length), minimum)
+      : fr.table.sayListedAt(rendezvousLabel(departureAt, now));
+  }
   if (step === 'ready') return fr.table.sayReady;
   if (step === 'launch') return fr.table.allReadyYou;
   if (plan.refusal === null) return fr.table.allReadyFounder(founderNick);
@@ -985,6 +1035,8 @@ function Orders({
   onEdit,
   offered,
   change,
+  listable,
+  list,
   onDestroy,
 }: {
   lobby: LobbyView;
@@ -995,8 +1047,11 @@ function Orders({
   onEdit: () => void;
   offered: (change: Partial<Settings>) => boolean;
   change: (patch: Partial<Settings>, say: string) => void;
+  listable: (listed: boolean) => boolean;
+  list: (listed: boolean) => void;
   onDestroy: () => void;
 }) {
+  const listing = lobby.listing;
   const blitz = lobby.mode === 'blitz';
   const scheduledAt = lobby.orders.scheduledAt;
   const capture = lobby.orders.hqCaptureHours ?? HQ_CAPTURE_HOURS[0];
@@ -1161,6 +1216,38 @@ function Orders({
           fr.table.seatsTerm,
           editing ? seatStepper : <b>{fr.table.seatsOf(lobby.players.length, lobby.maximum)}</b>,
         ],
+        [
+          fr.table.listing,
+          <>
+            <b>{listing === null ? fr.table.listedNo : fr.table.listedYes}</b>
+            {editing ? (
+              listable(listing === null) ? (
+                <button type="button" className="link" onClick={() => list(listing === null)}>
+                  {listing === null ? fr.table.listOn : fr.table.listOff}
+                </button>
+              ) : (
+                <span className="note">{fr.table.listedLocked}</span>
+              )
+            ) : (
+              listing !== null && <span className="note">{fr.table.listedNote}</span>
+            )}
+          </>,
+        ],
+        ...(listing === null
+          ? []
+          : [
+              [
+                fr.table.departure,
+                <>
+                  <b>
+                    {listing.departureAt === null
+                      ? fr.table.departureWaiting(listing.minimum)
+                      : rendezvousLabel(listing.departureAt, now)}
+                  </b>
+                  <span className="note">{fr.table.departureRule}</span>
+                </>,
+              ] as const,
+            ]),
       ];
   const more = blitz
     ? fr.table.blitzMore

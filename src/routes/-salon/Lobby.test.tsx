@@ -67,6 +67,7 @@ const lobbyOf = (players: ReturnType<typeof player>[], over: object = {}) => {
     mode: 'mondiale',
     theatre: null,
     launchRefusal: null,
+    listing: null,
     maximum: 8,
     durationHours: 168,
     orders: { scheduledAt: null, remind: null, hqCaptureHours: 12, seatCap: null },
@@ -444,4 +445,47 @@ it('keeps the whole world and no tint on a Blitz whose theatre is still to be dr
   const [west, , east] = WORLD_BOX;
   expect(x0).toBeLessThanOrEqual(west + 180);
   expect(x0! + width!).toBeGreaterThanOrEqual(east + 180);
+});
+
+/**
+ * **Une annonce part seule** (#654) : ni « prêt » ni lancement ; la table dit ce qui manque pour
+ * fixer le départ, puis l'heure, que chaque inscrit lit.
+ */
+it('at a listed lobby asks no « prêt », and says what the departure waits for', async () => {
+  mount(
+    [
+      player('Pierre', { creator: true, nation: 'france' }),
+      player('Léa', { mine: true, nation: 'germany' }),
+    ],
+    undefined,
+    { listing: { minimum: 4, departureAt: null } },
+  );
+
+  expect(await screen.findByText(fr.table.sayListedShort(2, 4))).toBeTruthy();
+  expect(actions()).toEqual([]);
+});
+
+it('at a listed lobby whose departure is fixed, gives every seat the hour', async () => {
+  const at = Date.now() + 26 * 3_600_000;
+  mount(
+    [
+      player('Pierre', { creator: true, mine: true, nation: 'france' }),
+      player('Léa', { nation: 'germany' }),
+    ],
+    undefined,
+    { listing: { minimum: 2, departureAt: at } },
+  );
+
+  expect(await screen.findByRole('timer')).toBeTruthy();
+  expect(actions()).toEqual([]);
+  expect(screen.getByText(fr.table.listedYes)).toBeTruthy();
+});
+
+it('lets the founder list his Mondiale from the order, by the same order the server takes', async () => {
+  const { sent } = mount([player('Pierre', { creator: true, mine: true, nation: 'france' })]);
+
+  fireEvent.click(await screen.findByRole('button', { name: fr.table.edit }));
+  fireEvent.click(screen.getByRole('button', { name: fr.table.listOn }));
+
+  await waitFor(() => expect(sent()).toEqual([['seasons:configure', { ...SEAT, listed: true }]]));
 });

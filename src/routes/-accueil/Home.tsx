@@ -18,7 +18,8 @@ import { peekArrival, takeArrival } from '@/data/arrival';
 import { convexClient } from '@/data/convexClient';
 import { handleError } from '@/data/errors';
 import { resumeSeat } from '@/data/resumeSeat';
-import { forgetSession, useSession } from '@/data/session';
+import { forgetSession, keepSeat, useSession } from '@/data/session';
+import { useSingleFlight } from '@/data/useSingleFlight';
 import { currentPushEndpoint } from '@/data/pushDevice';
 import { downloadRendezvous } from '@/data/rendezvous';
 import '@/styles/final-edition.css';
@@ -52,12 +53,14 @@ function stepAt(seat: Seat, now: number): TableStep | null {
     now,
     caller: seat.table.findIndex((entry) => entry.creator),
     seats: seat.table.map((entry, id) => ({ ...entry, id })),
+    listing: seat.listing,
   });
   return tableStepOf({
     nation: me.nation,
     ready: me.ready,
     founder: me.creator,
     launchRefusal: plan.refusal,
+    listed: seat.listing !== null,
   });
 }
 
@@ -211,6 +214,7 @@ function Front({ seats, token }: { seats: ReadonlyArray<Seat>; token: string }) 
                   onOpen={(code) => void navigate({ to: '/rejoindre/$code', params: { code } })}
                 />
               </div>
+              <Listings token={token} now={now} onError={setError} />
               {error && (
                 <p role="alert" className="wire-note">
                   {error}
@@ -272,6 +276,75 @@ function Front({ seats, token }: { seats: ReadonlyArray<Seat>; token: string }) 
 const CODE_AD = 'home-code';
 
 /**
+ * **Les petites annonces** (#654) : les Mondiales qu'un fondateur a publiées, ce qui fait
+ * décider d'entrer (inscrits, minimum, plafond, départ), et l'entrée en un geste.
+ */
+function Listings({
+  token,
+  now,
+  onError,
+}: {
+  token: string;
+  now: number;
+  onError: (message: string | null) => void;
+}) {
+  const navigate = useNavigate();
+  const listings = useQuery(api.seasons.listings, { token });
+  const join = useMutation(api.seasons.join);
+  const { run, pending } = useSingleFlight();
+  if (listings === undefined) return null;
+  const said = fr.home.listings;
+  const take = (code: string) =>
+    void run(async () => {
+      onError(null);
+      try {
+        const { seasonId } = await join({ token, code });
+        keepSeat(seasonId);
+        void navigate({ to: '/salon' });
+      } catch (problem) {
+        handleError(problem, onError);
+      }
+    });
+  return (
+    <div className="ad listings" aria-labelledby="t-listings">
+      <span className="corner">{said.corner}</span>
+      <h3 id="t-listings">{typo(said.title)}</h3>
+      {listings.length === 0 ? (
+        <p className="note">{said.none}</p>
+      ) : (
+        <ul>
+          {listings.map((listing) => (
+            <li key={listing.code}>
+              <span className="eyebrow">
+                {said.by(
+                  listing.founder,
+                  Math.round((listing.durationHours ?? MODE_RULES.mondiale.clockHours) / 24),
+                )}
+              </span>
+              <b>{said.seats(listing.players, listing.maximum)}</b>
+              <span className="meta">
+                {listing.departureAt === null
+                  ? said.waiting(listing.minimum - listing.players)
+                  : `${said.departure(listing.departureAt, now)} · ${fr.table.in} ${countdownLabel(listing.departureAt - now)}`}
+              </span>
+              <button
+                type="button"
+                className="btn small"
+                aria-busy={pending}
+                aria-label={said.joinAria(listing.founder)}
+                onClick={() => take(listing.code)}
+              >
+                {said.join}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
  * **Les dernières éditions finales du compte** (#455), lues dans l'archive : elles restent après
  * un « détruire ». Un bloc à part, qui ne restyle pas la page (refaite par #446).
  */
@@ -319,6 +392,13 @@ const theatreName = (theatre: string | null): string =>
 function Lead({ seat, now, onResume }: { seat: Seat; now: number; onResume: () => void }) {
   const theatre = theatreById(seat.theatre ?? '');
   const blitzLobby = seat.mode === 'blitz' && seat.status === 'lobby';
+  /** L'heure que la une décompte : le rendez-vous d'une Blitz, le départ d'une annonce. */
+  const hour =
+    seat.status !== 'lobby'
+      ? null
+      : blitzLobby
+        ? seat.orders.scheduledAt
+        : (seat.listing?.departureAt ?? null);
   const story = storyOf(seat, now);
   const free = Math.max(0, seat.maximum - seat.table.length);
   return (
@@ -330,15 +410,19 @@ function Lead({ seat, now, onResume }: { seat: Seat; now: number; onResume: () =
         </div>
         <h1 id="t-lead">{typo(story.headline)}</h1>
         {story.stand && <p className="italic stand">{story.stand}</p>}
-        {blitzLobby && seat.orders.scheduledAt !== null && (
-          <div className="countbox" role="group" aria-label={fr.table.rendezvous}>
+        {hour !== null && (
+          <div
+            className="countbox"
+            role="group"
+            aria-label={blitzLobby ? fr.table.rendezvous : fr.table.departure}
+          >
             <div>
-              <div className="eyebrow">{fr.table.rendezvous}</div>
-              <div className="big">{fr.table.hour(seat.orders.scheduledAt)}</div>
+              <div className="eyebrow">{blitzLobby ? fr.table.rendezvous : fr.table.departure}</div>
+              <div className="big">{fr.table.hour(hour)}</div>
             </div>
             <div>
               <div className="eyebrow">{fr.table.in}</div>
-              <div className="big">{countdownLabel(seat.orders.scheduledAt - now)}</div>
+              <div className="big">{countdownLabel(hour - now)}</div>
             </div>
           </div>
         )}
@@ -522,6 +606,19 @@ function storyOf(seat: Seat, now: number): Told {
         ? fr.home.yourTable(free)
         : fr.home.keptForYou(founder?.nickname ?? '', free),
       action: fr.home.joinTable,
+    };
+  }
+  if (seat.listing !== null) {
+    return {
+      kicker: `${mode} · ${fr.home.listedKicker} · ${fr.home.lobbyCode(seat.code)}`,
+      headline: fr.home.listedHeadline(
+        seat.table.length,
+        seat.maximum,
+        seat.listing.departureAt,
+        now,
+      ),
+      stand: null,
+      action: fr.home.toLobby,
     };
   }
   return {

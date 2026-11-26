@@ -1436,6 +1436,22 @@ export const fr = {
     foundSubmit: 'fonder',
     codeLabel: 'code de partie',
     haveCode: 'j’ai un code',
+    /** Les petites annonces (#654) : les Mondiales publiées qu'on peut encore rejoindre. */
+    listings: {
+      corner: 'petites annonces',
+      title: 'Mondiales ouvertes',
+      none: 'Aucune Mondiale publiée pour l’instant. Fondez-en une et publiez-la au salon.',
+      by: (founder: string | null, days: number) =>
+        `${founder === null ? 'Mondiale' : `chez ${founder}`} · ${fr.found.days(days)}`,
+      seats: (players: number, maximum: number) =>
+        `${num(players)} inscrit${plural(players, '', 's')} sur ${num(maximum)}`,
+      waiting: (missing: number) =>
+        `départ fixé dès ${spelled(missing)} inscrit${plural(missing, '', 's')} de plus`,
+      departure: (at: number, now: number) => `départ ${rendezvousLabel(at, now)}`,
+      join: 'prendre place',
+      joinAria: (founder: string | null) =>
+        founder === null ? 'prendre place à cette Mondiale' : `prendre place chez ${founder}`,
+    },
     othersHeader: 'vos autres parties',
     othersNote: 'de la plus pressante à la plus ancienne',
     atTable: 'à table',
@@ -1451,6 +1467,11 @@ export const fr = {
         ? 'Votre table est complète.'
         : `Vous tenez la table : ${fr.home.freeSeats(free)}.`,
     lobbyCode: (code: string) => `salon ${code}`,
+    listedKicker: 'petite annonce',
+    listedHeadline: (seated: number, cap: number, departureAt: number | null, now: number) =>
+      departureAt === null
+        ? `${upperFirst(spelled(seated))} inscrit${plural(seated, '', 's')} sur ${spelled(cap)} : le départ attend son minimum`
+        : `Départ ${rendezvousLabel(departureAt, now)}, à ${spelled(seated)} sur ${spelled(cap)}`,
     lobbyHeadline: (seated: number, cap: number, ready: number, waiting: string) =>
       `${upperFirst(spelled(seated))} à table sur ${spelled(cap)}, ${ready === 0 ? 'aucun prêt' : `${spelled(ready)} prêt${plural(ready, '', 's')}`} : ${waiting}`,
     waitingNation: (blitz: boolean) =>
@@ -1638,6 +1659,24 @@ export const fr = {
     } satisfies Record<Nation, string>,
     codeLabel: 'code de partie',
     rendezvous: 'rendez-vous',
+    /** Les petites annonces au salon (#654). */
+    departure: 'départ',
+    departureAria: (when: string, left: string) => `Départ ${when}, dans ${left}`,
+    listing: 'annonce',
+    listedYes: 'aux petites annonces',
+    listedNo: 'par code seulement',
+    listedNote: 'part seule à son heure',
+    listOn: 'publier aux petites annonces',
+    listOff: 'retirer l’annonce',
+    listedOn: 'salon publié aux petites annonces',
+    listedOff: 'annonce retirée',
+    listedLocked: 'départ fixé : l’annonce reste',
+    departureWaiting: (minimum: number) => `fixé à ${spelled(minimum)} inscrits`,
+    departureRule:
+      'Au minimum d’inscrits, le départ se fixe à une heure ronde 24 h plus tard au moins ; salon plein, il avance à une heure ronde 1 h plus tard au moins.',
+    sayListedShort: (missing: number, minimum: number) =>
+      `Il manque ${spelled(missing)} inscrit${plural(missing, '', 's')} pour fixer le départ — il se fixe à ${spelled(minimum)}.`,
+    sayListedAt: (when: string) => `Départ ${when}, avec les inscrits : pas de « prêt » à donner.`,
     rendezvousAria: (when: string, left: string) => `Rendez-vous ${when}, dans ${left}`,
     in: 'dans',
     whenFull: 'dès que la table est complète',
