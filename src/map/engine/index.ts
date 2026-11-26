@@ -83,6 +83,7 @@ import { articulatedOf, type Cue, type Sequence, SequenceLayer } from './sequenc
 import { type PlaneFile, planeFileOf } from './figurines/plane-rig';
 import { FlagWindLayer } from './flag-wind';
 import { type BeamPoint, LookoutBeams, MAX_BEAMS } from './lookout-beams';
+import { GEAR_MS, gearCues } from './outpost-gear';
 import { BattleTraces } from './battle-traces';
 import type { BattleTrace } from '@/domain/battle-traces';
 import { MAX_LIVING, SiteLoopLayer } from './site-loops';
@@ -1348,6 +1349,8 @@ export class MapEngine {
       (box, px) => this.seenBig(box, px),
       () => this.eye.position,
       this.touch ? MAX_BEAMS.touch : MAX_BEAMS.desk,
+      undefined,
+      ({ site }) => (site === undefined ? null : this.maquettes.beamSourceOf(site)),
     );
     this.scene.add(this.beams.object);
     this.traces = new BattleTraces(this.frame, this.night.uniforms, () => this.invalidate());
@@ -1748,6 +1751,8 @@ export class MapEngine {
   /** My buildings, my surveys of the enemy's and the neutral objectives, in maquettes up close
    *  (ADR 0026 §1). */
   displayMaquettes(served: ReadonlyArray<StandingMaquette>): void {
+    // Before the flags: they keep this view as the one served.
+    const geared = this.gearedUnderTheEyes(served);
     const hoisted = this.takenUnderTheEyes(served);
     // A site a capture took from me stands as it stood, its flag coming down, then is gone or
     // surveyed again (#279).
@@ -1782,11 +1787,25 @@ export class MapEngine {
         start: Date.now() + BARE_MS,
         ms: HOIST_MS,
       });
+    for (const { id, from, to } of geared)
+      this.maquettes.runGear(id, { from, to, start: Date.now(), ms: GEAR_MS });
     // A pile posted at the point of a maquette that comes or goes stands at its foot, or not.
     this.standing.display(this.besideSites(this.piles));
     // A ring may have carried a maquette elsewhere: its pin follows.
     this.pins.rebuild();
     this.relayThreads();
+  }
+
+  /**
+   * **An outpost took or left its trade's gear under my eyes** (#468, `gearCues`): played up close,
+   * in the field and at full motion alone, as a flag is — else it stands as served. Read before
+   * the view is displayed, while the maquette is drawn as it stood.
+   */
+  private gearedUnderTheEyes(served: ReadonlyArray<StandingMaquette>) {
+    return gearCues(this.servedMaquettes, served, (id) => {
+      const box = this.maquettes.boxOf(id);
+      return this.sequences.motion === 'full' && box !== null && this.seenBig(box, TAKING_PX);
+    });
   }
 
   /**
