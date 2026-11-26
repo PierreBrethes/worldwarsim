@@ -1758,7 +1758,7 @@ export const fr = {
       ].join(' — '),
     /** Les bots du salon (#704) : un adversaire facile que le serveur joue. */
     addBot: 'ajouter un bot',
-    addBotNote: 'un adversaire facile, joué par le serveur',
+    addBotNote: 'un adversaire facile',
     bot: 'bot',
     removeBot: (nickname: string) => `retirer ${nickname} de la table`,
     removeBotShort: 'retirer',
