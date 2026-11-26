@@ -2233,7 +2233,7 @@ export const fr = {
           ? `close à la main ${when}${clock}.`
           : `close à la main par ${theNation(input.closedBy)} ${when}${clock}.`;
       if (input.reason === 'draw')
-        return `conclue ${when} : heures de points et territoire se valent, personne ne l’emporte.`;
+        return `conclue ${when} : heures de points et conquêtes se valent, personne ne l’emporte.`;
       /** Sous « à l'horloge », la raison ne le redit pas. */
       const why = fr.victory.verdictWhy(input.reason, null).replace(/^à l’horloge, /, '');
       return `${why}, ${when}${clock}.`;
@@ -2306,7 +2306,7 @@ export const fr = {
           reason === 'closed'
             ? 'Close à la main : personne n’est vainqueur ni vaincu.'
             : winner === null
-              ? 'À l’horloge, heures de points et territoire se valent : personne ne l’emporte.'
+              ? 'À l’horloge, heures de points et conquêtes se valent : personne ne l’emporte.'
               : `${upperFirst(theNation(winner))} ${agrees(winner, 'l’emporte', 'l’emportent')} : ${fr.victory.verdictWhy(reason, null)}.`,
       }),
     },
@@ -2658,7 +2658,7 @@ export const fr = {
         ? 'LA SAISON EST CLOSE'
         : reason === 'draw'
           ? perMinute === null
-            ? 'LA SAISON EST CONCLUE À L’HORLOGE — égalité : heures de points et territoire se valent, personne ne l’emporte'
+            ? 'LA SAISON EST CONCLUE À L’HORLOGE — égalité : heures de points et conquêtes se valent, personne ne l’emporte'
             : 'LA BLITZ EST CONCLUE À DEUX HEURES — égalité : revenu et caisse se valent, personne ne l’emporte'
           : `LA PARTIE EST CONCLUE — ${nation ?? '?'} l’emporte : ${fr.victory.verdictWhy(reason, perMinute)}`,
     verdictWhy: (reason: VerdictReason, perMinute: number | null) =>
@@ -2673,7 +2673,7 @@ export const fr = {
               : reason === 'clock'
                 ? 'à l’horloge, le plus d’heures de points stratégiques tenus'
                 : reason === 'territory'
-                  ? 'à l’horloge, à heures égales, le plus grand territoire'
+                  ? 'à l’horloge, à heures égales, le plus de régions conquises'
                   : 'revenu et caisse se valent',
   },
 
