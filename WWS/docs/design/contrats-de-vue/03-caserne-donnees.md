@@ -38,6 +38,16 @@ baraquements « `alliage 45 / 320` + `nourriture 72 / 114` ».
   vue** (60b — le catalogue des domaines sans bâtiment vit dans l'abaque, contrat 06).
 - La modale caserne ne montre que les **3 cartes terre** ; aérodrome les 3 air ; port les
   3 mer.
+- **Levée en masse (Chine, Mondiale, ADR 0047 §2)** : la fiche de site s'ouvre aussi sur **tout
+  bâtiment chinois debout du sol national** (QG, exploitation, entrepôt, centre de recherche,
+  poste d'écoute, port, aérodrome). Hors caserne, port et aérodrome, elle n'offre que la carte
+  `infanterie` **MK1** (ni MK2, ni autre rôle), à la durée d'une caserne de niveau 1 : son en-tête
+  dit `niveau N`, jamais « −x % ». Un port chinois garde ses cartes mer à son niveau et y ajoute
+  l'infanterie MK1 au niveau 1. Le sol national est la géographie (la région est celle du pays
+  du **tenant actuel** ; côté vue, `regions[].site.outpostId === null`) : un bâtiment capturé, hors
+  du pays, ou tenu par une autre nation n'ouvre pas de fiche. Le MK2 lâché sur ce bâtiment est
+  refusé par `LEVY_FIRST_TIER_ONLY`. Sont servis en `facilities` les bâtiments qui forment pour
+  leur tenant ; `domain` y est `null` hors site de projection.
 
 ## Garnison du site (61 — données du scénario)
 

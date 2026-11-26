@@ -179,7 +179,9 @@ import { underwayOf, type RecruitmentDue, type Underway } from '@/domain/underwa
 import {
   carrierIn,
   hasSiteSheet,
+  formingSiteOf,
   isProjectionKey,
+  opensSiteOnClick,
   marchingTroopIds,
   stationAtCombat,
   stationKeyOf,
@@ -1037,7 +1039,7 @@ function BoardContent({
       /** La modale ferme la visée en cours : elle est le début d'un ordre, pas son milieu. */
       /** **En Blitz tout bâtiment tenu a sa modale** : le QG forme l'infanterie, la ville dit ce
        *  qu'elle verse, et la garnison s'y compose comme dans une caserne. */
-      const siteModal = hasSiteSheet(view.mode, standing.key);
+      const siteModal = opensSiteOnClick(view.mode, standing.key);
       /** Sa fiche est déjà ouverte : le doigt qui revient dessus la ferme (#584). */
       if (siteModal && siteRetouched(narrow, windows, focused, buildingId)) {
         void navigate({ search: (previous) => withoutWindow(previous, 'site') });
@@ -1102,8 +1104,7 @@ function BoardContent({
       navigate,
       openGarrison,
       boardPoint,
-      view.me,
-      view.mode,
+      view,
       marching,
       narrow,
       column,
@@ -2397,7 +2398,7 @@ function BoardContent({
     blitz || narrow || !windows.includes('personalBoard') || windows.includes('site')
       ? null
       : (view.me.buildings.find(
-          (building) => building.id === focused && isProjectionKey(building.key),
+          (building) => building.id === focused && hasSiteSheet(formingSiteOf(view, building)),
         ) ?? null);
   /** Un clic dans le vide désélectionne le site : la bande revient aux tuiles. */
   const deselectSite = useCallback(

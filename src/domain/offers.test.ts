@@ -455,6 +455,38 @@ describe('offersOf — recruiting', () => {
     expect(refusalsOf({ facilities: [{ id: 'B2', queue }] })[0]).toBeNull();
   });
 
+  describe('the Mass Levy (ADR 0047 §2)', () => {
+    const chinese = (key: Partial<Building> = {}, soil: boolean | null = true) =>
+      viewWith({
+        nation: 'china',
+        buildings: [building({ key: 'warehouse', regionId: 'CHN-1', ...key })],
+        regions: [
+          { id: 'CHN-1', site: soil === null ? null : { outpostId: soil ? null : 'AP1' } },
+        ] as unknown as PlayerView['me']['regions'],
+      } as Partial<PlayerView['me']>);
+    const levy = (view: PlayerView) =>
+      only(
+        offersOf(site({ key: 'warehouse', workshop } as Partial<OfferTarget>), view, ctx),
+        'recruit',
+      );
+
+    it('offers the infantry alone on a Chinese warehouse of the national soil, the MK2 refused with its own words', () => {
+      const offers = levy(chinese());
+      expect(offers.map((offer) => ('role' in offer ? [offer.role, offer.tier] : []))).toEqual([
+        ['infantry', 1],
+        ['infantry', 2],
+      ]);
+      expect(offers[0]?.refusal).toBeNull();
+      expect(offers[1]?.refusal).toBe(fr.errors.LEVY_FIRST_TIER_ONLY());
+    });
+
+    it('offers nothing off the national soil, nor to another nation, nor in a Blitz', () => {
+      expect(levy(chinese({}, false))).toEqual([]);
+      expect(levy(chinese({}, null))).toEqual([]);
+      expect(levy(viewWith({ ...chinese().me, nation: 'japan' }))).toEqual([]);
+    });
+  });
+
   it('has no card before the workshop arrives', () => {
     const view = viewWith({ buildings: [building()] });
     expect(only(offersOf(site(), view, ctx), 'recruit')).toEqual([]);

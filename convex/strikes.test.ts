@@ -26,12 +26,12 @@ const MIDDAY = new Date(2026, 10, 25, 12, 0, 0).getTime();
 const MARNE = 'FRA-5323';
 const RUHR = 'DEU-1572';
 
-async function launchedSeason(t: ReturnType<typeof boot>) {
+async function launchedSeason(t: ReturnType<typeof boot>, guestNation: 'ussr' | 'china' = 'ussr') {
   const { seat, code } = await foundSeat(t, 'Pierre', 0.5);
   const guest = await joinSeat(t, code, 'Léa');
   await t.mutation(api.players.reserveNation, { ...seat, nation: 'france' });
   await t.mutation(api.players.declareReady, { ...seat, ready: true });
-  await t.mutation(api.players.reserveNation, { ...guest, nation: 'ussr' });
+  await t.mutation(api.players.reserveNation, { ...guest, nation: guestNation });
   await t.mutation(api.players.declareReady, { ...guest, ready: true });
   await t.mutation(api.seasons.launch, seat);
   await placeHq(t, seat);
@@ -95,12 +95,18 @@ const ownBuilding = async (t: ReturnType<typeof boot>, seat: Seat, id: Id<'build
   (await t.query(api.view.playerView, seat)).me.buildings.find((one) => one.id === id);
 
 /** A French bomber wing at its Marne aerodrome, aimed at a Soviet site surveyed in the Ruhr. */
-async function strikeScene(t: ReturnType<typeof boot>, key: BuildingKey = 'barracks') {
-  const { seat, guest } = await launchedSeason(t);
-  const airfield = await building(t, seat, 'airfield', MARNE);
+async function strikeScene(
+  t: ReturnType<typeof boot>,
+  key: BuildingKey = 'barracks',
+  guestNation: 'ussr' | 'china' = 'ussr',
+  region = RUHR,
+  airfieldRegion = MARNE,
+) {
+  const { seat, guest } = await launchedSeason(t, guestNation);
+  const airfield = await building(t, seat, 'airfield', airfieldRegion);
   const bomber = await troop(t, seat, 'bomber', airfield);
-  const target = await building(t, guest, key, RUHR);
-  await observe(t, seat);
+  const target = await building(t, guest, key, region);
+  await observe(t, seat, region);
   const order = {
     ...seat,
     origin: { kind: 'building' as const, buildingId: airfield },
@@ -281,6 +287,36 @@ describe('a barracks disabled by a strike', () => {
     const woken = (await t.run((ctx) => ctx.db.get(head)))!;
     expect(woken.finishesAt).toBe(restoredAt + 2 * HOUR);
     expect((await t.run((ctx) => ctx.db.get(next)))!.finishesAt).toBeNull();
+  });
+
+  /** Levée en masse (ADR 0047 §2) : un entrepôt chinois qui forme l'infanterie se fige comme une
+   *  caserne, sinon son lot resterait non daté à jamais. */
+  it('freezes the queue of a Chinese warehouse too, and wakes it when it is back', async () => {
+    const t = boot();
+    const { order, guest, target } = await strikeScene(
+      t,
+      'warehouse',
+      'china',
+      'CHN-1756',
+      'CHN-1662',
+    );
+    await t.run((ctx) => ctx.db.patch(target, { damagedUntil: MIDDAY + 30 * HOUR }));
+    const head = await batch(t, target, guest, 0);
+    const { movementId, arrivesAt: at } = await fileStrike(t, order);
+    await t.run((ctx) => ctx.db.patch(head, { finishesAt: at + 2 * HOUR }));
+    vi.setSystemTime(at);
+    await t.mutation(internal.movements.arrive, { movementId });
+    const frozen = (await t.run((ctx) => ctx.db.get(head)))!;
+    expect(frozen.finishesAt).toBeNull();
+    expect(frozen.frozenMs).toBe(2 * HOUR);
+
+    const restoredAt = at + BUILDING_DISABLED_HOURS * HOUR + 1;
+    vi.setSystemTime(restoredAt);
+    await t.mutation(internal.production.restoreAfterDisabling, {
+      seasonId: (await playerOf(t, guest)).seasonId,
+      at: restoredAt - 1,
+    });
+    expect((await t.run((ctx) => ctx.db.get(head)))!.finishesAt).toBe(restoredAt + 2 * HOUR);
   });
 
   it('forms on when the wake-up runs at the very instant it is back', async () => {

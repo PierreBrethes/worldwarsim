@@ -30,6 +30,7 @@ export function RaiseControl({
   now,
   onQueued,
   wide = false,
+  speeds = speedsUp(building.key),
 }: {
   building: Building;
   view: PlayerView;
@@ -38,6 +39,9 @@ export function RaiseControl({
   /** Absent, la retenue suffit : « en file · 2ᵉ » remplace le bouton dès que la vue le sait. */
   onQueued?: (queued: Queued) => void;
   wide?: boolean;
+  /** Dit le gain de durée du niveau suivant. Une fiche de site le tait pour un bâtiment qui n'en
+   *  est pas un : l'infanterie levée y forme au niveau 1 (ADR 0047 §2). */
+  speeds?: boolean;
 }) {
   const start = useMutation(api.constructions.start);
   const [error, setError] = useState<string | null>(null);
@@ -91,9 +95,7 @@ export function RaiseControl({
         >
           <Price costs={building.nextLevelCost} onPaper={!wide} size={11} />
         </span>
-        {speedsUp(building.key) && (
-          <span className="text-[10.5px] leading-none">{fr.common.levelSpeed(next)}</span>
-        )}
+        {speeds && <span className="text-[10.5px] leading-none">{fr.common.levelSpeed(next)}</span>}
       </button>
       {error !== null && (
         <span className="text-[11px] leading-[1.35] text-[var(--critical)]">{error}</span>

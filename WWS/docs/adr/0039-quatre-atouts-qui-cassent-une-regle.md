@@ -44,7 +44,7 @@ La fiche 06 (15/08) décrit huit atouts écrits contre des règles qui ont boug�
 | URSS | **Évacuation industrielle** | « raser ne rend rien » |
 | Allemagne | **Guerre éclair** | « un mouvement, une destination » |
 
-France, Royaume-Uni, Italie et Chine jouent sans atout en V1. Le salon et la fiche de nation
+France, Royaume-Uni, Italie et Chine jouent sans atout en V1. *(Révisé le 26/11/2026 par l'[ADR 0047](0047-levee-en-masse-et-ultra.md) : la Chine reçoit la Levée en masse, le Royaume-Uni Ultra ; la France et l'Italie attendent.)* Le salon et la fiche de nation
 n'affichent pour elles aucune ligne d'atout, pas même « à venir ».
 
 ### 2. Un atout est une règle permanente

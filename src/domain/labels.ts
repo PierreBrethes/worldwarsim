@@ -17,6 +17,7 @@ import type { SeasonMode } from './season-mode';
 import { detectionRangeOf, sightingReachKm } from '../../convex/constants';
 import { RESOURCES, type BuildingKey, type DepositKey, type Specialty, type UnitRole } from './ids';
 import type {
+  ArcDestination,
   ArcView,
   CaptureView,
   Composition,
@@ -335,8 +336,8 @@ export type LabelType =
   | 'my-movement'
   | 'inbound-movement'
   | 'intel'
-  /** **Le drapeau planté au bout d'un de mes mouvements** (carte-lisible, 03/10). Il n'existe
-   *  que sur la branche `mine` de l'arc : un relevé adverse ne sert pas de destination (4a). */
+  /** **Le drapeau planté au bout d'un de mes mouvements** (carte-lisible, 03/10). Un relevé
+   *  adverse ne sert pas de destination (4a), sauf la sienne qu'Ultra entend (`ultraFlag`). */
   | 'arrival'
   /** **Un trait sur le fil d'une de mes flottes** (#449) : sa mi-parcours, ou le coude du cap
    *  changé. Ni clic ni repli, comme le drapeau. */
@@ -704,6 +705,7 @@ export function buildLabels(
     ...view.arcs.flatMap((arc) => courseMarksOf(arc, course)),
     ...view.arcs.flatMap(gateOf),
     ...view.arcs.map((arc) => arrivalLabel(arc, view.me.ink)).filter(exists),
+    ...view.arcs.map(ultraFlag).filter(exists),
   ];
 }
 
@@ -823,8 +825,8 @@ export const captureSiteName = (capture: Pick<CaptureView, 'site' | 'regionName'
 /**
  * **Chacun de mes mouvements finit par un drapeau** (carte-lisible, 03/10), planté au bout du
  * fil — le dernier point de la route, là où le trait s'arrête, et non `to`, qui peut tomber à
- * une demi-cellule de lui. Un arc adverse n'en a jamais : le relevé sert un tronçon et un cap,
- * pas une destination (décision 4a du 13/09), et un drapeau au bout du tronçon la suggérerait.
+ * une demi-cellule de lui. Un arc adverse n'en a pas au bout du tronçon : le relevé sert un
+ * tronçon et un cap, pas une destination (décision 4a du 13/09), et un drapeau là la suggérerait.
  * Le nom voyage en ligne de nature : c'est lui que le bord de l'écran annonce, hors champ.
  */
 function arrivalLabel(arc: ArcView, ink: string): MapLabel | null {
@@ -853,6 +855,24 @@ function arrivalLabel(arc: ArcView, ink: string): MapLabel | null {
     strategic: null,
     station: null,
     force: null,
+  };
+}
+
+/**
+ * **Le drapeau d'Ultra** (ADR 0047 §3) : planté au point qu'une station britannique a entendu,
+ * comme celui d'un mouvement à soi, mais sans encre de nation — la colonne n'en sert pas. Le
+ * cartouche de l'arc dit « Ultra » ; le nom s'annonce au bord de l'écran comme une arrivée.
+ */
+function ultraFlag(arc: ArcView): MapLabel | null {
+  if (arc.state !== 'enemyDetected' && arc.state !== 'lastKnown') return null;
+  if (arc.destination === undefined) return null;
+  return {
+    ...gateLabel('', arc.destination.lonLat),
+    id: `ultra-${arc.id}`,
+    type: 'arrival',
+    priority: PRIORITY.arrival,
+    washed: arc.state === 'lastKnown',
+    lines: [{ role: 'nature', text: arc.destination.label }],
   };
 }
 
@@ -1303,6 +1323,7 @@ function arcLabel(
         { role: 'age', since: arc.lastSeenAt },
         ...compositionLine(arc.identification, loadedAt),
         ...lisbonLine(arc.nation),
+        ...ultraLine(arc.destination),
       ],
     };
   }
@@ -1338,7 +1359,7 @@ function arcLabel(
     building: null,
     station: null,
     force: null,
-    lines: [schedule, second, ...lisbonLine(arc.nation)],
+    lines: [schedule, second, ...lisbonLine(arc.nation), ...ultraLine(arc.destination)],
   };
 }
 
@@ -1468,6 +1489,11 @@ const compositionLine = (known: Composition, loadedAt: number): ReadonlyArray<La
     : [];
 
 /** **Ce que Lisbonne fait lire** (P11) : la nation d'un relevé, à son seul teneur. */
+const ultraLine = (destination: ArcDestination | undefined): ReadonlyArray<LabelLine> =>
+  destination === undefined
+    ? []
+    : [{ role: 'mention', text: fr.labels.ultraBound(destination.label) }];
+
 const lisbonLine = (nation: string | undefined): ReadonlyArray<LabelLine> =>
   nation === undefined
     ? []

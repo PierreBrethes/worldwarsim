@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 4dfbd8c -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : b35e276 -->
 
 # Les constantes à mesurer
 
@@ -149,8 +149,8 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `SEAL_HOLD_MS` | `3400` | `src/domain/ink-bursts.ts:73` | `storyboard-moments/commun/scenes.js`, un des Sept — le drapeau descend puis |
 | `TWIN_DEGREES` | `0.5` | `src/domain/ink-bursts.ts:76` | la capture que la prise d'un point ou la chute d'un QG dit déjà, au même instant |
 | `TAKEN_UP_MS` | `250` | `src/domain/ink-bursts.ts:79` | un geste lève tout en 0,25 s (#439, la maquette « la tournée »). |
-| `LEVEL_SPEEDUP` | `0.2` | `src/domain/level-speed.ts:11` | 0,20 depuis le modèle de #158, jamais joué |
-| `LEVEL_SPEED_FLOOR` | `0.4` | `src/domain/level-speed.ts:14` | la durée ne descend jamais sous cette part de la base |
+| `LEVEL_SPEEDUP` | `0.2` | `src/domain/level-speed.ts:12` | 0,20 depuis le modèle de #158, jamais joué |
+| `LEVEL_SPEED_FLOOR` | `0.4` | `src/domain/level-speed.ts:15` | la durée ne descend jamais sous cette part de la base |
 | `FLY_MS` | `1000` | `src/domain/moments.ts:96` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
 | `FALL_HOLD_MS` | `3200` | `src/domain/moments.ts:97` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
 | `PULL_MS` | `2000` | `src/domain/moments.ts:98` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
@@ -200,6 +200,6 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `TANGIER_LOT` | `{ give: 300, get: 100 } as const` | `src/domain/strategic-points.ts:150` | posé pour la saison test ; rien ne mesure ce que vaut un échange par édition |
 | `SURVEY_INK_FADED` | `0.2` | `src/domain/survey-ink.ts:4` | the ink left on a survey nobody renewed, the day it is wiped: a trace, read by eye. |
 | `DETOUR` | `{ land: 1.02, sea: 1.4, air: 1 } as const` | `src/domain/tour-sheet.ts:116` | un cargo qui double un cap dépasse largement la médiane |
-| `LIFT_CAPACITY` | `{ cargo: 12, carrier: 6, airTransport: 2 }` | `src/domain/troops.ts:180` | assumed against the troop ceiling alone — two cargos lift a whole infantry |
-| `LIFT_COST` | `{ infantry: 1, armor: 3, landTransport: 2, artillery: 2 }` | `src/domain/troops.ts:187` | the passenger half of `LIFT_CAPACITY`, assumed on the same single bearing |
-| `LAND_SEATS_PER_TRANSPORT` | `2` | `src/domain/troops.ts:210` | two seats, assumed; at four, motorizing an army would be nearly free |
+| `LIFT_CAPACITY` | `{ cargo: 12, carrier: 6, airTransport: 2 }` | `src/domain/troops.ts:256` | assumed against the troop ceiling alone — two cargos lift a whole infantry |
+| `LIFT_COST` | `{ infantry: 1, armor: 3, landTransport: 2, artillery: 2 }` | `src/domain/troops.ts:263` | the passenger half of `LIFT_CAPACITY`, assumed on the same single bearing |
+| `LAND_SEATS_PER_TRANSPORT` | `2` | `src/domain/troops.ts:286` | two seats, assumed; at four, motorizing an army would be nearly free |
