@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 4dfbd8c -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : d85e192 -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ Les issues portent les questions, les prompts portent le travail. Quand le simul
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-186 valeurs marquées dans `convex/` et `src/domain/`.
+187 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `FACTORY_LINES` et leurs voisines : l'en-tête de `convex/constants.ts` les
@@ -151,6 +151,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `TAKEN_UP_MS` | `250` | `src/domain/ink-bursts.ts:79` | un geste lève tout en 0,25 s (#439, la maquette « la tournée »). |
 | `LEVEL_SPEEDUP` | `0.2` | `src/domain/level-speed.ts:11` | 0,20 depuis le modèle de #158, jamais joué |
 | `LEVEL_SPEED_FLOOR` | `0.4` | `src/domain/level-speed.ts:14` | la durée ne descend jamais sous cette part de la base |
+| `LISTED_MINIMUM` | `4` | `src/domain/listing.ts:16` | la moitié des huit nations, aucune saison publique jouée |
 | `FLY_MS` | `1000` | `src/domain/moments.ts:96` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
 | `FALL_HOLD_MS` | `3200` | `src/domain/moments.ts:97` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
 | `PULL_MS` | `2000` | `src/domain/moments.ts:98` | le minutage du storyboard (`scenes.js`, `qg` et `victoire`), en ms. |
