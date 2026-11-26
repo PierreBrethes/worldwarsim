@@ -185,10 +185,10 @@ describe('PinLayer — the pieces far away', () => {
     };
     // Its walls alone give way by d = 68; on its socle, at the troops' floor, as a pile's pin.
     expect(pinAt(68, buildingSpan('barracks'))).toEqual({ kind: 'pin', id: 'b' });
-    expect(pinAt(43, 'socle')).toBeNull();
-    expect(pinAt(52, 'socle')).toEqual({ kind: 'pin', id: 'b' });
-    expect(pinAt(43, troopPinSpan(troopSpan('infantry')))).toBeNull();
-    expect(pinAt(52, troopPinSpan(troopSpan('infantry')))).toEqual({ kind: 'pin', id: 'b' });
+    expect(pinAt(70, 'socle')).toBeNull();
+    expect(pinAt(83, 'socle')).toEqual({ kind: 'pin', id: 'b' });
+    expect(pinAt(70, troopPinSpan(troopSpan('infantry')))).toBeNull();
+    expect(pinAt(83, troopPinSpan(troopSpan('infantry')))).toEqual({ kind: 'pin', id: 'b' });
   });
 
   it('stands where a ring carried its maquette, not on the point the maquette left', () => {

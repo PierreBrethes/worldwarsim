@@ -44,7 +44,7 @@ import {
   beamShareOf,
   restGrowth,
   floorSpanOf,
-  GARRISON_FLOOR_PX,
+  garrisonFloorAt,
   troopPinSpan,
   troopScale,
   troopWeight,
@@ -1915,13 +1915,10 @@ export class StandingLayer implements SequenceHost {
         span *= entry.sized;
         const site = this.garrisonAt(at.beside, span, quay);
         // A pile grown by its floor stands off its building by its grown size.
+        const seen = site?.at.distanceTo(cameraPosition) ?? 0;
         const foot =
           site &&
-          this.garrisonAt(
-            at.beside,
-            span * floorGrowth(site.at.distanceTo(cameraPosition), span, GARRISON_FLOOR_PX),
-            quay,
-          );
+          this.garrisonAt(at.beside, span * floorGrowth(seen, span, garrisonFloorAt(seen)), quay);
         if (foot !== null) {
           const half = Math.max(extent.x, extent.z) * object.scale.x;
           const spot = laid.get(entry);
@@ -1961,7 +1958,7 @@ export class StandingLayer implements SequenceHost {
       // A garrison keeps near its site's proportion; a pile in the field, its own floor.
       // A garrison also keeps its pieces' own span: it stays under a third of its barracks (#534).
       const garrisoned = 'beside' in at;
-      const floor = garrisoned ? GARRISON_FLOOR_PX : FLOOR_PX;
+      const floor = garrisoned ? garrisonFloorAt(distance) : FLOOR_PX;
       const scale =
         troopScale(distance, span, garrisoned ? span : entry.floorSpan, floor) * pileUnitOf(span);
       object.scale.setScalar(scale);

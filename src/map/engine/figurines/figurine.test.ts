@@ -13,6 +13,7 @@ import {
   floorGrowth,
   floorSpanOf,
   GARRISON_FLOOR_PX,
+  garrisonFloorAt,
   REFERENCE_PX_PER_UNIT,
   STANDS_UNTIL,
   troopScale,
@@ -76,14 +77,14 @@ describe('pieceWeight', () => {
     expect(pieceWeight(8.2, troopSpan('armor'))).toBeGreaterThan(0);
   });
 
-  it('stands a whole man from the closest zoom to d ≈ 43 by his floor, at the smallest size and on a short window too', () => {
+  it('stands a whole man from the closest zoom to d ≈ 70 by his floor, at the smallest size and on a short window too', () => {
     pieceScale.pxPerUnit = 650 / (2 * Math.tan((21 * Math.PI) / 180));
-    expect(troopWeight(43, troopSpan('infantry'))).toBe(1);
-    expect(troopWeight(52, troopSpan('infantry'))).toBe(0);
+    expect(troopWeight(70, troopSpan('infantry'))).toBe(1);
+    expect(troopWeight(83, troopSpan('infantry'))).toBe(0);
     pieceScale.size = 0.8;
     expect(troopWeight(4, troopSpan('infantry'))).toBe(1);
-    expect(troopWeight(34, troopSpan('infantry'))).toBe(1);
-    expect(troopWeight(42, troopSpan('infantry'))).toBe(0);
+    expect(troopWeight(56, troopSpan('infantry'))).toBe(1);
+    expect(troopWeight(67, troopSpan('infantry'))).toBe(0);
   });
 
   it('measures a piece nearer than the target at the target distance', () => {
@@ -102,11 +103,11 @@ describe('pieceStands on a socle', () => {
     pieceScale.size = DRAWN_SHARE;
   });
 
-  it('stands whole until d ≈ 43 and is its pin by d ≈ 51, at the full common scale', () => {
-    expect(pieceStands(43, 'socle')).toBe(1);
-    expect(pieceStands(47, 'socle')).toBeLessThan(1);
-    expect(pieceStands(47, 'socle')).toBeGreaterThan(0);
-    expect(pieceStands(52, 'socle')).toBe(0);
+  it('stands whole until d ≈ 70 and is its pin by d ≈ 83, at the full common scale', () => {
+    expect(pieceStands(70, 'socle')).toBe(1);
+    expect(pieceStands(76, 'socle')).toBeLessThan(1);
+    expect(pieceStands(76, 'socle')).toBeGreaterThan(0);
+    expect(pieceStands(83, 'socle')).toBe(0);
   });
 
   it('gives way with my piles, at the same distance', () => {
@@ -119,9 +120,9 @@ describe('pieceStands on a socle', () => {
   });
 
   it('measures at the player size, as pieceWeight does', () => {
-    expect(pieceStands(55, 'socle')).toBe(0);
+    expect(pieceStands(90, 'socle')).toBe(0);
     pieceScale.size = 1.25;
-    expect(pieceStands(55, 'socle')).toBeGreaterThan(0);
+    expect(pieceStands(90, 'socle')).toBeGreaterThan(0);
   });
 });
 
@@ -145,7 +146,7 @@ describe('the share every piece is drawn at', () => {
   });
 
   it('stands my piles and my sites whole until STANDS_UNTIL, and pins both past it', () => {
-    expect(STANDS_UNTIL).toBeCloseTo(43 * DRAWN_SHARE, 9);
+    expect(STANDS_UNTIL).toBeCloseTo(70 * DRAWN_SHARE, 9);
     for (const by of ['socle', man, tank] as const) {
       const stands = (d: number) => (by === 'socle' ? pieceStands(d, by) : troopWeight(d, by));
       expect(stands(STANDS_UNTIL)).toBe(1);
@@ -165,8 +166,8 @@ describe('the share every piece is drawn at', () => {
   it('keeps a tank at its own span in the garrison, so it never outgrows its barracks', () => {
     for (const d of [0.5 * STANDS_UNTIL, STANDS_UNTIL])
       for (const span of [man, tank])
-        expect(px(d, span, troopScale(d, span, span, GARRISON_FLOOR_PX))).toBeCloseTo(
-          GARRISON_FLOOR_PX,
+        expect(px(d, span, troopScale(d, span, span, garrisonFloorAt(d)))).toBeCloseTo(
+          garrisonFloorAt(d),
           6,
         );
   });
@@ -181,11 +182,20 @@ describe('the share every piece is drawn at', () => {
           ).toBeGreaterThanOrEqual(FLOOR_PX - 1e-6);
   });
 
+  it('holds a garrison at 8 px while its barracks reads three times that, then shrinks it with the barracks', () => {
+    expect(garrisonFloorAt(11)).toBe(GARRISON_FLOOR_PX);
+    expect(garrisonFloorAt(STANDS_UNTIL)).toBeLessThan(GARRISON_FLOOR_PX);
+    expect(garrisonFloorAt(STANDS_UNTIL)).toBeCloseTo(
+      px(STANDS_UNTIL, barracks, pieceScale.size) / 3,
+      9,
+    );
+  });
+
   it('never draws a piece of a garrison larger than a third of its barracks, at any distance it stands at', () => {
     for (let d = CLOSEST_DISTANCE; d <= STANDS_UNTIL; d += 0.25) {
       const site = px(d, barracks, pieceScale.size);
       for (const span of [man, tank])
-        expect(px(d, span, troopScale(d, span, span, GARRISON_FLOOR_PX))).toBeLessThanOrEqual(
+        expect(px(d, span, troopScale(d, span, span, garrisonFloorAt(d)))).toBeLessThanOrEqual(
           site / 3 + 1e-9,
         );
     }

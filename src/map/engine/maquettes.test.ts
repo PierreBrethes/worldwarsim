@@ -1417,8 +1417,8 @@ describe('a site on its socle (ADR 0038)', () => {
 
   describe('read at a distance on its socle (ADR 0038 §7, #465)', () => {
     // Its 50 m to one board unit: the fixture's socle of 80 m is 1.6 units. Whatever its size, it
-    // stands whole to d ≈ 43 and gives way to its pin by d ≈ 51, with my piles, at the full common
-    // scale (nearer by the share pieces are drawn at: d ≈ 11 and 13).
+    // stands whole to d ≈ 70 and gives way to its pin by d ≈ 83, with my piles, at the full common
+    // scale (nearer by the share pieces are drawn at: d ≈ 17.5 and 21).
     const socled = (more: Parameters<typeof site>[1] = {}) =>
       site(MINE, {
         side: 'mine',
@@ -1458,22 +1458,22 @@ describe('a site on its socle (ADR 0038)', () => {
 
     it('shrinks whole into its pin with my piles, never a socle alone', async () => {
       const layer = await layerOf([socled()]);
-      seenFrom(layer, 43);
+      seenFrom(layer, 70);
       for (const placed of drawnAs(layer, () => true)) expect(scaleOf(placed)).toBeCloseTo(FULL, 9);
-      seenFrom(layer, 47);
+      seenFrom(layer, 76);
       const drawn = drawnAs(layer, () => true);
       const shrunk = scaleOf(drawn[0]!);
       expect(shrunk).toBeGreaterThan(0);
       expect(shrunk).toBeLessThan(FULL);
       for (const placed of drawn) expect(scaleOf(placed)).toBeCloseTo(shrunk, 9);
-      seenFrom(layer, 52);
+      seenFrom(layer, 83);
       for (const placed of drawnAs(layer, () => true)) expect(scaleOf(placed)).toBe(0);
     });
 
     it('hands its pin what it gives up: never both, never neither (ADR 0038 §7)', async () => {
       const layer = await layerOf([socled()]);
       const by = layer.spanOf(MINE)!;
-      for (let d = 30; d < 60; d += 0.5) {
+      for (let d = 55; d < 95; d += 0.5) {
         seenFrom(layer, d);
         const drawn = scaleOf(drawnAs(layer, isSocle)[0]!) / FULL;
         expect(drawn + 1 - pieceStands(d, by)).toBeCloseTo(1, 2);
@@ -1481,7 +1481,7 @@ describe('a site on its socle (ADR 0038)', () => {
     });
 
     it('hands a raze from afar its whole site, ruins and all, at the size it shrank to', async () => {
-      const layer = seenFrom(await layerOf([socled()]), 47);
+      const layer = seenFrom(await layerOf([socled()]), 76);
       const drawn = layer.drawnOf(MINE)!;
       const named = drawn.parts.map((part) => part.material.name);
       expect(named).toContain('fond_sombre');
@@ -1490,7 +1490,7 @@ describe('a site on its socle (ADR 0038)', () => {
     });
 
     it('hands a raze from afar, its pin standing, its place whole for a ring of ink (#465)', async () => {
-      const layer = seenFrom(await layerOf([socled()]), 60);
+      const layer = seenFrom(await layerOf([socled()]), 90);
       expect(layer.drawnOf(MINE)).toBeNull();
       const whole = layer.wholeOf(MINE)!;
       expect(whole.parts).toEqual([]);
@@ -1501,7 +1501,7 @@ describe('a site on its socle (ADR 0038)', () => {
     it('lets the smoke rest once its building has shrunk away', async () => {
       const layer = seenFrom(await layerOf([socled({ smoking: true })]), 20);
       expect(layer.smoke.idle!()).toBe(false);
-      seenFrom(layer, 60);
+      seenFrom(layer, 90);
       expect(layer.smoke.idle!()).toBe(true);
     });
 

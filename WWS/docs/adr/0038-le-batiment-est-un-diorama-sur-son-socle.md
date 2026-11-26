@@ -119,6 +119,13 @@ puis B+). Pierre veut une solution définitive, pas un correctif de couleur.
    > 0,25, un site reste entier jusqu'à d ≈ 11, où une caserne fait 26 px et son socle 43, et se
    > fond dans son épingle vers d ≈ 13, toujours avec mes piles.
 
+   > **Amendé le 26/11/2026** (Pierre, en préprod : « avec peu de dézoom je ne vois plus les
+   > bâtiments ») : le plancher tient jusqu'à `FLOOR_UNTIL` 70 au lieu de 43. À 0,25, un site reste
+   > entier jusqu'à d ≈ 17,5, où une caserne fait 16 px et son socle 26, et se fond dans son
+   > épingle vers d ≈ 21, toujours avec mes piles, bien avant le lavis (30). Au-delà de d ≈ 11,6 une
+   > garnison ne tient plus 8 px mais le tiers de sa caserne (`garrisonFloorAt`), pour ne jamais la
+   > dépasser (#534).
+
 8. **Le socle et la cour n'ont pas de mètres réels** (écart à l'ADR 0035, accepté) : ils
    agrandissent l'emprise d'un site de 30 à 60 % au sol (la caserne passe de 65 à 80 m), pas le
    bâtiment. Une figurine se mesure toujours au bâtiment, jamais au socle.
