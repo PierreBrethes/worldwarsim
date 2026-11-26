@@ -7,6 +7,7 @@ import { SweepOverlay, type SweepRequest } from './SweepOverlay';
 import { AbsenceTourBand, useAbsenceTour } from './AbsenceTour';
 import { BigStamp, useMomentScene } from './MomentScene';
 import type { Moment } from '@/domain/moments';
+import { battleTracesOf } from '@/domain/battle-traces';
 import { groundFactsAt, type GroundFacts } from '@/domain/offers';
 import type { AbsenceTour } from '@/domain/absence-tour';
 import { clusterSheetOf, outpostPinId, type Pin } from '@/domain/pins';
@@ -1844,6 +1845,16 @@ export function WorldMap({
   useEffect(() => {
     readyEngine?.showLookoutBeams(outpostZones?.points ?? []);
   }, [readyEngine, outpostZones]);
+  // Les cratères de mes combats (#642), relus à chaque vue : une scène qui se joue retient sa
+  // dépêche (`withoutHeld`), et son cratère avec elle, jusqu'à son règlement.
+  useEffect(() => {
+    readyEngine?.showBattleTraces(
+      battleTracesOf(
+        journal.flatMap(({ combat }) => (combat === null ? [] : [combat])),
+        Date.now(),
+      ),
+    );
+  }, [readyEngine, journal]);
   // A liaison born since the view before is traced once; nothing on the first view (#375).
   const liaisonsBefore = useRef<OutpostZonesView['liaisons'] | null>(null);
   useEffect(() => {
