@@ -19,8 +19,11 @@ import { UnitSprite } from '@/emblems/UnitSprite';
 import { equipmentLabel } from '@/emblems/units/equipment';
 import type { UnitTier } from '@/domain/troops';
 import {
-  DOMAIN_BY_ROLE,
+  firstTierOnly,
+  formingSiteOf,
   hasSiteSheet,
+  isProjectionKey,
+  listsRole,
   marchingTroopIds,
   stationKeyOf,
   TIERS_BY_ROLE,
@@ -30,7 +33,7 @@ import {
 import type { PlayerView, TroopStation, UnitRole } from '@/domain/player-view';
 import { currentMinutes, currentStock } from '@/domain/player-view';
 import { asClockTime, asDuration, asLocalTime } from '@/domain/duration';
-import { spedMinutes, speedsUp } from '@/domain/level-speed';
+import { formedMinutes } from '@/domain/level-speed';
 import { produces, shortfallOf } from '@/domain/economy';
 import { blitzRecruitRefusalOf, fundsAt, incomePerMinute, rolesFormedBy } from '@/domain/blitz';
 import { BLITZ } from '../../../convex/constants';
@@ -84,7 +87,7 @@ export function SiteModal({
   const building = view.me.buildings.find((candidate) => candidate.id === buildingId) ?? null;
   /** Un lien mort — le bâtiment est tombé, l'URL le nomme encore — n'ouvre pas un cadre vide :
    *  il n'ouvre rien, et la carte reste ce qu'elle est. */
-  if (building === null || !hasSiteSheet(view.mode, building.key)) return null;
+  if (building === null || !hasSiteSheet(formingSiteOf(view, building))) return null;
 
   /** **Sous le seuil, la feuille est son propre cadre** (#587) : une feuille basse qui laisse la
    *  carte en vue, jamais une fenêtre plein écran. Son en-tête est celui de la feuille. */
@@ -217,18 +220,24 @@ function Site({
         };
   /** Les durées du barème, raccourcies au niveau du site (ADR 0031) : celles que le serveur date.
    *  La Blitz forme en `BLITZ.recruitMinutes`, sans niveau. */
-  const sped = <Piece extends { minutes: number }>(piece: Piece): Piece =>
-    workshop?.blitz ? piece : { ...piece, minutes: spedMinutes(piece.minutes, building.level) };
+  const sped = <Piece extends { minutes: number }>(piece: Piece, role: UnitRole): Piece =>
+    workshop?.blitz
+      ? piece
+      : { ...piece, minutes: formedMinutes(piece.minutes, building.key, role, building.level) };
   const roles =
     facility === null
       ? []
       : (workshop?.grid ?? [])
-          .filter((entry) => DOMAIN_BY_ROLE[entry.role] === facility.domain)
-          .map((entry) => ({
-            ...entry,
-            unit: sped(entry.unit),
-            unitTier2: entry.unitTier2 === null ? null : sped(entry.unitTier2),
-          }));
+          .filter((entry) => listsRole(formingSiteOf(view, building), entry.role))
+          .map((entry) =>
+            firstTierOnly(formingSiteOf(view, building), entry.role)
+              ? { ...entry, tiers: 1 as const, unit: sped(entry.unit, entry.role), unitTier2: null }
+              : {
+                  ...entry,
+                  unit: sped(entry.unit, entry.role),
+                  unitTier2: entry.unitTier2 === null ? null : sped(entry.unitTier2, entry.role),
+                },
+          );
   const unlinked = region !== undefined && !region.linked && produces(building.key);
 
   if (narrow)
@@ -264,7 +273,7 @@ function Site({
         eyebrow={
           <>
             {fr.economy.inRegion(region?.name ?? building.regionId)} ·{' '}
-            {speedsUp(building.key)
+            {isProjectionKey(building.key)
               ? fr.common.levelSpeed(building.level)
               : fr.production.siteLevel(building.level)}
           </>
@@ -1070,7 +1079,7 @@ function NarrowSite({
           ) : held.length === 0 ? (
             <div className="px-4 pt-7 pb-6">
               <div className="font-(family-name:--font-display) text-[19px] leading-[1.2] font-extrabold">
-                {fr.production.sheet.garrisonEmpty[facility.domain]}
+                {fr.production.sheet.garrisonEmpty[facility.domain ?? 'land']}
               </div>
               <div className="mt-[6px] text-[13.5px] leading-[1.45] text-[var(--ink-soft)]">
                 {fr.production.sheet.garrisonEmptyNote}
@@ -1134,6 +1143,8 @@ function SiteLadder({
   now: number;
   siteLevel: number;
 }) {
+  /** Le gain de durée ne se dit que d'un site de projection (ADR 0047 §2). */
+  const sped = isProjectionKey(building.key);
   return (
     <div className="mx-3 mt-3 flex items-center gap-[10px] border border-[var(--ink)] bg-(--paper)/35 py-[10px] pr-[10px] pl-3">
       <div className="min-w-0 flex-1">
@@ -1141,10 +1152,10 @@ function SiteLadder({
           {fr.production.sheet.siteKicker(siteLevel)}
         </div>
         <div className="mt-[3px] text-[14.5px] leading-[1.2] font-bold">
-          {fr.common.levelSpeed(siteLevel)}
+          {sped ? fr.common.levelSpeed(siteLevel) : fr.production.siteLevel(siteLevel)}
         </div>
       </div>
-      <RaiseControl building={building} view={view} seat={seat} now={now} />
+      <RaiseControl building={building} view={view} seat={seat} now={now} speeds={sped} />
     </div>
   );
 }

@@ -202,6 +202,7 @@ describe('assets', () => {
       { nation: 'ussr', asset: 'industrialEvacuation', uses: 0 },
       { nation: 'germany', asset: 'blitzkrieg', uses: 0 },
       { nation: 'japan', asset: 'carrierDoctrine', uses: 0 },
+      { nation: 'china', asset: 'massLevy', uses: 0 },
     ]);
   });
 

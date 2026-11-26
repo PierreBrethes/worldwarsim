@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_QUEUED_BATCHES, MONDIALE_TROOP_BOUND } from '../../convex/constants';
 import {
+  formsHere,
   hasSiteSheet,
+  type FormingSite,
   recruitRefusalOf,
   type RecruitSituation,
   marchingTroopIds,
@@ -14,7 +16,7 @@ import {
   seatLoose,
   unitsOf,
 } from './troops';
-import type { UnitRole } from './ids';
+import type { BuildingKey, UnitRole } from './ids';
 import type { ArcView, PlayerView, TroopStation, TroopView } from './player-view';
 import { directRoute } from './routing';
 
@@ -394,6 +396,13 @@ describe('stationAtCombat', () => {
   });
 });
 
+const home = (key: BuildingKey, nation = 'france'): FormingSite => ({
+  key,
+  nation,
+  mode: 'mondiale',
+  onNationalSoil: true,
+});
+
 describe('what a projection site refuses to form (the reserve of pieces, ADR 0028 §7)', () => {
   const stocks = { food: 100, steel: 100, coal: 100, oil: 100, ammunition: 100 };
   const at = (overrides: Partial<RecruitSituation> = {}): RecruitSituation => ({
@@ -406,8 +415,8 @@ describe('what a projection site refuses to form (the reserve of pieces, ADR 002
   });
 
   it('forms a role in the building of its domain, and nowhere else', () => {
-    expect(recruitRefusalOf('infantry', 1, { key: 'barracks' }, at())).toBeNull();
-    expect(recruitRefusalOf('cargo', 1, { key: 'barracks' }, at())).toEqual({
+    expect(recruitRefusalOf('infantry', 1, home('barracks'), at())).toBeNull();
+    expect(recruitRefusalOf('cargo', 1, home('barracks'), at())).toEqual({
       code: 'WRONG_PROJECTION_BUILDING',
       expected: 'port',
       found: 'barracks',
@@ -417,37 +426,37 @@ describe('what a projection site refuses to form (the reserve of pieces, ADR 002
   /** ADR 0046 §6 : une caserne désactivée ne lance plus de formation. */
   it('forms nothing in a disabled barracks', () => {
     expect(
-      recruitRefusalOf('infantry', 1, { key: 'barracks', integrity: 'disabled' }, at()),
+      recruitRefusalOf(
+        'infantry',
+        1,
+        { ...home('barracks'), integrity: 'disabled' as const },
+        at(),
+      ),
     ).toEqual({
       code: 'BUILDING_DISABLED',
     });
   });
 
   it('waits for the research card that opens the role at this tier, and names it', () => {
-    expect(recruitRefusalOf('armor', 1, { key: 'barracks' }, at())).toEqual({
+    expect(recruitRefusalOf('armor', 1, home('barracks'), at())).toEqual({
       code: 'RESEARCH_REQUIRED',
       card: 'armor',
     });
-    expect(recruitRefusalOf('infantry', 2, { key: 'barracks' }, at())).toEqual({
+    expect(recruitRefusalOf('infantry', 2, home('barracks'), at())).toEqual({
       code: 'RESEARCH_REQUIRED',
       card: 'infantryMk2',
     });
-    expect(recruitRefusalOf('artillery', 1, { key: 'barracks' }, at())).toEqual({
+    expect(recruitRefusalOf('artillery', 1, home('barracks'), at())).toEqual({
       code: 'RESEARCH_REQUIRED',
       card: 'artillery',
     });
     expect(
-      recruitRefusalOf(
-        'armor',
-        1,
-        { key: 'barracks' },
-        at({ researched: ['infantryMk2', 'armor'] }),
-      ),
+      recruitRefusalOf('armor', 1, home('barracks'), at({ researched: ['infantryMk2', 'armor'] })),
     ).toBeNull();
   });
 
   it('stops at the invisible bound, then at a full queue, then at the price', () => {
-    const barracks = { key: 'barracks' } as const;
+    const barracks = home('barracks');
     expect(recruitRefusalOf('infantry', 1, barracks, at({ army: MONDIALE_TROOP_BOUND }))).toEqual({
       code: 'TROOP_BOUND_REACHED',
     });
@@ -464,15 +473,120 @@ describe('what a projection site refuses to form (the reserve of pieces, ADR 002
 
 describe('hasSiteSheet', () => {
   it('lets a Mondiale site sheet open on the forming buildings only, never on the HQ', () => {
-    expect(hasSiteSheet('mondiale', 'barracks')).toBe(true);
-    expect(hasSiteSheet('mondiale', 'airfield')).toBe(true);
-    expect(hasSiteSheet('mondiale', 'port')).toBe(true);
-    expect(hasSiteSheet('mondiale', 'hq')).toBe(false);
-    expect(hasSiteSheet('mondiale', 'mine')).toBe(false);
+    expect(hasSiteSheet(home('barracks'))).toBe(true);
+    expect(hasSiteSheet(home('airfield'))).toBe(true);
+    expect(hasSiteSheet(home('port'))).toBe(true);
+    expect(hasSiteSheet(home('hq'))).toBe(false);
+    expect(hasSiteSheet(home('mine'))).toBe(false);
   });
 
   it('opens every held Blitz building, the HQ included', () => {
-    expect(hasSiteSheet('blitz', 'hq')).toBe(true);
-    expect(hasSiteSheet('blitz', 'city')).toBe(true);
+    expect(hasSiteSheet({ ...home('hq'), mode: 'blitz' })).toBe(true);
+    expect(hasSiteSheet({ ...home('city'), mode: 'blitz' })).toBe(true);
+  });
+
+  it('opens on every Chinese building of the national soil, and on no other nation’s', () => {
+    for (const key of ['hq', 'farm', 'warehouse', 'depot', 'researchCenter', 'port'] as const)
+      expect(hasSiteSheet(home(key, 'china'))).toBe(true);
+    expect(hasSiteSheet({ ...home('farm', 'china'), onNationalSoil: false })).toBe(false);
+    expect(hasSiteSheet(home('farm', 'japan'))).toBe(false);
+    expect(hasSiteSheet({ ...home('farm', 'china'), mode: 'blitz' })).toBe(true);
+  });
+});
+
+describe('Levée en masse : formsHere, the one predicate (ADR 0047 §2)', () => {
+  const at = (key: BuildingKey, role: UnitRole, tier: 1 | 2, over: Partial<FormingSite> = {}) =>
+    formsHere({ ...home(key, 'china'), ...over, role, tier });
+
+  it('keeps every site of projection as it was, for every nation', () => {
+    expect(formsHere({ ...home('barracks'), role: 'infantry', tier: 2 })).toBe(true);
+    expect(formsHere({ ...home('port', 'japan'), role: 'cargo', tier: 1 })).toBe(true);
+    expect(formsHere({ ...home('warehouse'), role: 'infantry', tier: 1 })).toBe(false);
+  });
+
+  it('forms the MK1 infantry in any Chinese building of the national soil', () => {
+    for (const key of [
+      'hq',
+      'farm',
+      'mine',
+      'warehouse',
+      'depot',
+      'researchCenter',
+      'airfield',
+    ] as const)
+      expect(at(key, 'infantry', 1)).toBe(true);
+    expect(at('port', 'infantry', 1)).toBe(true);
+  });
+
+  it('forms no other role or tier outside its site of projection', () => {
+    expect(at('warehouse', 'infantry', 2)).toBe(false);
+    expect(at('warehouse', 'armor', 1)).toBe(false);
+    expect(at('hq', 'cargo', 1)).toBe(false);
+    expect(at('barracks', 'infantry', 2)).toBe(true);
+    expect(at('port', 'cargo', 1)).toBe(true);
+  });
+
+  it('forms nothing abroad, for another holder, or in a Blitz', () => {
+    expect(at('warehouse', 'infantry', 1, { onNationalSoil: false })).toBe(false);
+    expect(at('warehouse', 'infantry', 1, { nation: 'japan' })).toBe(false);
+    expect(at('warehouse', 'infantry', 1, { mode: 'blitz' })).toBe(false);
+  });
+});
+
+describe('Levée en masse : what recruitRefusalOf says on a building that is not a barracks', () => {
+  const stocks = { food: 100, steel: 100, coal: 100, oil: 100, ammunition: 100 };
+  const situation: RecruitSituation = {
+    researched: [],
+    army: 0,
+    siteQueue: 0,
+    costs: { steel: 18, food: 10 },
+    stocks,
+  };
+  const farm = home('farm', 'china');
+
+  it('lets the MK1 infantry through, and reads the same ladder as a barracks', () => {
+    expect(recruitRefusalOf('infantry', 1, farm, situation)).toBeNull();
+    expect(
+      recruitRefusalOf('infantry', 1, farm, { ...situation, siteQueue: MAX_QUEUED_BATCHES }),
+    ).toEqual({
+      code: 'QUEUE_FULL',
+    });
+    expect(
+      recruitRefusalOf('infantry', 1, farm, { ...situation, army: MONDIALE_TROOP_BOUND }),
+    ).toEqual({
+      code: 'TROOP_BOUND_REACHED',
+    });
+  });
+
+  it('says the first tier alone with its own code, not the building one', () => {
+    expect(
+      recruitRefusalOf('infantry', 2, farm, { ...situation, researched: ['infantryMk2'] }),
+    ).toEqual({
+      code: 'LEVY_FIRST_TIER_ONLY',
+    });
+  });
+
+  it('keeps WRONG_PROJECTION_BUILDING for another role', () => {
+    expect(recruitRefusalOf('armor', 1, farm, situation)).toEqual({
+      code: 'WRONG_PROJECTION_BUILDING',
+      expected: 'barracks',
+      found: 'farm',
+    });
+  });
+
+  it('keeps it abroad and for a Japanese holder, MK2 included', () => {
+    const abroad = { ...farm, onNationalSoil: false };
+    expect(recruitRefusalOf('infantry', 1, abroad, situation)).toMatchObject({
+      code: 'WRONG_PROJECTION_BUILDING',
+    });
+    expect(recruitRefusalOf('infantry', 2, home('farm', 'japan'), situation)).toMatchObject({
+      code: 'WRONG_PROJECTION_BUILDING',
+    });
+  });
+
+  it('forms nothing in any disabled building', () => {
+    expect(recruitRefusalOf('infantry', 1, { ...farm, integrity: 'disabled' }, situation)).toEqual({
+      code: 'BUILDING_DISABLED',
+    });
   });
 });

@@ -2,6 +2,7 @@ import type { FamilySpot } from '@/domain/family-cycle';
 import type { MapMarker } from '@/domain/labels';
 import type { PlayerView } from '@/domain/player-view';
 import {
+  formingSiteOf,
   hasSiteSheet,
   stationKeyOf,
   troopsAt,
@@ -57,7 +58,8 @@ export function familiesOf(
         break;
       case 'building':
         if (marker.buildingId === null) break;
-        if (hasSiteSheet(view.mode, marker.key)) building.push({ id: marker.buildingId, lonLat });
+        if (hasSiteSheet(formingSiteOf(view, marker)))
+          building.push({ id: marker.buildingId, lonLat });
         if (stands(`building:${marker.buildingId}`))
           stand({ kind: 'building', buildingId: marker.buildingId }, lonLat);
         break;

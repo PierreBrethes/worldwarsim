@@ -1,7 +1,8 @@
-import type { BuildingKey } from './ids';
+import { canonicalBuildingKey, type BuildingKey } from './ids';
 import { buildMinutes } from '../../convex/constants';
 import type { BuildCostKey } from './ids';
-import { PROJECTION_BY_DOMAIN } from './troops';
+import type { UnitRole } from './ids';
+import { PROJECTION_BY_DOMAIN, projectionKeyOf } from './troops';
 
 /**
  * **Un niveau accélère ce que fait le bâtiment** (ADR 0031) : chaque niveau au-delà du premier
@@ -21,6 +22,19 @@ export const levelSpeed = (level: number): number =>
  *  que l'écran affiche et que le serveur date. */
 export const spedMinutes = (minutes: number, level: number): number =>
   Math.round(minutes * levelSpeed(level));
+
+/**
+ * **La durée d'une formation** : la base du barème, accélérée par le niveau du site **de projection
+ * du rôle**. Ailleurs, l'infanterie levée (ADR 0047 §2) forme comme à une caserne de niveau 1 :
+ * l'atout donne le nombre de lieux, pas la vitesse. Le serveur date avec elle, l'écran l'annonce.
+ */
+export const formedMinutes = (
+  baseMinutes: number,
+  key: BuildingKey,
+  role: UnitRole,
+  level: number,
+): number =>
+  spedMinutes(baseMinutes, canonicalBuildingKey(key) === projectionKeyOf(role) ? level : 1);
 
 /** **La durée d'un chantier** au niveau du QG : la seule que le serveur date (`runHead`) et que
  *  l'écran annonce avant le départ. */

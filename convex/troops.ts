@@ -6,8 +6,10 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import {
   PROJECTION_BY_DOMAIN,
   TIERS_BY_ROLE,
+  hasSiteSheet,
   projectionKeyOf,
   recruitRefusalOf,
+  type FormingSite,
 } from '../src/domain/troops';
 import type { UnitDomain } from '../src/domain/troops';
 import type { BuildingKey, UnitRole } from '../src/domain/ids';
@@ -25,10 +27,10 @@ import {
   recruitmentCost,
 } from './constants';
 import { roleLockOf } from '../src/domain/research';
-import { spedMinutes } from '../src/domain/level-speed';
+import { formedMinutes } from '../src/domain/level-speed';
 import type { ResearchCard } from '../src/domain/ids';
 import { fail } from './errors';
-import { pointOfBuilding, regionFacts } from './regions';
+import { homeCountryOf, pointOfBuilding, regionFacts } from './regions';
 import { credit, debit, economyOf, snapshotOf, settle } from './resources';
 import {
   playerOf,
@@ -47,6 +49,25 @@ const DOMAIN_OF_PROJECTION = new Map<BuildingKey, UnitDomain>(
     ([domain, key]) => [key, domain],
   ),
 );
+
+/**
+ * **A building as the formation rules read it, server side** (ADR 0047 §2): the holder's nation
+ * as it stands now, and the national soil by geography — the region's country against the
+ * holder's own, never the outpost a placement hangs from, which a capture keeps.
+ */
+const formingSiteOf = (
+  building: Pick<Doc<'buildings'>, 'key' | 'regionId'>,
+  player: Pick<Doc<'players'>, 'nation'>,
+  mode: ReturnType<typeof modeOf>,
+): FormingSite => {
+  const home = homeCountryOf(player.nation ?? null);
+  return {
+    key: building.key,
+    nation: player.nation ?? null,
+    mode,
+    onNationalSoil: home !== null && regionFacts(building.regionId)?.country === home,
+  };
+};
 
 /**
  * What the production surface needs to know, and nothing more: it does not go through
@@ -69,13 +90,17 @@ export const workshop = query({
     /** La Blitz garde son catalogue : une marque par rôle, rien derrière une carte. */
     const researched = blitz ? null : (player.researched ?? []);
     const facilities = buildings
-      .filter(
-        (building) => DOMAIN_OF_PROJECTION.has(building.key) || (blitz && building.key === 'hq'),
+      .filter((building) =>
+        blitz
+          ? DOMAIN_OF_PROJECTION.has(building.key) || building.key === 'hq'
+          : hasSiteSheet(formingSiteOf(building, player, 'mondiale')),
       )
       .map((building) => ({
         id: building._id,
         key: building.key,
-        domain: DOMAIN_OF_PROJECTION.get(building.key) ?? 'land',
+        /** `null` : un bâtiment qui n'est pas un site de projection (la Levée en masse, ADR 0047),
+         *  dont la fiche liste ce que `listsRole` dit, jamais le domaine d'un site qu'il n'est pas. */
+        domain: DOMAIN_OF_PROJECTION.get(building.key) ?? (blitz ? ('land' as const) : null),
         level: building.level,
         regionId: building.regionId,
         regionName: regionFacts(building.regionId)?.name ?? building.regionId,
@@ -143,7 +168,10 @@ export const recruit = mutation({
     const refusal = recruitRefusalOf(
       role,
       tier,
-      { key: building.key, integrity: integrityOf(building, now) },
+      {
+        ...formingSiteOf(building, player, 'mondiale'),
+        integrity: integrityOf(building, now),
+      },
       {
         researched: player.researched ?? [],
         army,
@@ -254,6 +282,8 @@ export const deliver = internalMutation({
     await settle(ctx, batch.playerId, Date.now());
     const strength = nominalStrength(batch.role, batch.tier);
     const station = await ctx.db.get(batch.buildingId);
+    /** Ne relit pas l'atout (ADR 0047 §2) : rien ne peut le changer hors capture, et la capture
+     *  vide déjà la file (`releaseBuilding`). */
     /** **Une unité par bâtiment** (U6) : une des miennes y est entrée pendant la formation, la
      *  recrue sort se poser à sa porte, comme une seconde marche (`movements.arrive`). */
     const door =
@@ -382,8 +412,9 @@ export async function freezeQueue(
   await ctx.db.patch(head._id, { finishesAt: null, frozenMs: Math.max(0, head.finishesAt - now) });
 }
 
-/** **Un niveau accélère** (ADR 0031) : la durée du barème, raccourcie au niveau du site. La Blitz
- *  forme en `BLITZ.recruitMinutes`, sans niveau. */
+/** **Un niveau accélère** (ADR 0031) : la durée du barème, raccourcie au niveau du site de
+ *  projection du rôle ; l'infanterie levée ailleurs forme au niveau 1 (`formedMinutes`, ADR 0047).
+ *  La Blitz forme en `BLITZ.recruitMinutes`, sans niveau. */
 const trainingMinutes = (
   batch: Doc<'recruitments'>,
   building: Doc<'buildings'> | null,
@@ -391,7 +422,12 @@ const trainingMinutes = (
 ): number =>
   blitz
     ? BLITZ.recruitMinutes
-    : spedMinutes(recruitmentCost(batch.role, batch.tier).minutes, building?.level ?? 1);
+    : formedMinutes(
+        recruitmentCost(batch.role, batch.tier).minutes,
+        building?.key ?? projectionKeyOf(batch.role),
+        batch.role,
+        building?.level ?? 1,
+      );
 
 async function queueOf(
   ctx: QueryCtx,

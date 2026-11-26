@@ -3,8 +3,11 @@ import { shortfallOf } from './economy';
 import { roleLockOf } from './research';
 import type { Integrity } from './integrity';
 import { distanceKm, type LonLat } from './geo';
+import { assetOf } from './nation-assets';
+import type { SeasonMode } from './season-mode';
 import {
   BUILDINGS,
+  canonicalBuildingKey,
   type BuildingKey,
   type Medium,
   type ResearchCard,
@@ -48,16 +51,71 @@ export const PROJECTION_BY_DOMAIN: Readonly<Record<UnitDomain, BuildingKey>> = {
 };
 
 /**
+ * **A building as the formation rules read it**: its key, who holds it now, the mode, and
+ * whether its region is the holder's own country (ADR 0047 §2). The soil is geography — the
+ * server reads it off `regionFacts`, the client off the region's site (`formingSiteOf`) — and the
+ * nation is the **current holder's**: a Japanese who captured a Chinese farm forms nothing there.
+ */
+export type FormingSite = {
+  readonly key: BuildingKey;
+  readonly nation: string | null;
+  readonly mode: SeasonMode;
+  readonly onNationalSoil: boolean;
+};
+
+/** **Mass Levy** (ADR 0047 §2): any building on the national soil forms the first-tier infantry
+ *  for a Chinese holder. A city is a Blitz piece and never stands here. */
+const levyAt = (site: FormingSite): boolean =>
+  assetOf(site.nation, site.mode) === 'massLevy' &&
+  site.onNationalSoil &&
+  canonicalBuildingKey(site.key) !== 'city';
+
+/** Whether the building lists this role on its sheet: its own domain's, or the levied infantry. */
+export const listsRole = (site: FormingSite, role: UnitRole): boolean =>
+  canonicalBuildingKey(site.key) === projectionKeyOf(role) || (role === 'infantry' && levyAt(site));
+
+/** Whether the role is listed here by the levy alone, never by the site's own domain: the sheet
+ *  then offers its first tier only, and the second is refused (`LEVY_FIRST_TIER_ONLY`). */
+export const firstTierOnly = (site: FormingSite, role: UnitRole): boolean =>
+  canonicalBuildingKey(site.key) !== projectionKeyOf(role) && listsRole(site, role);
+
+/**
+ * **The one predicate: does this building form this role at this tier for this holder?** Read by
+ * `recruitRefusalOf`, the site sheets, the offers and the workshop; never a second copy. The
+ * barracks, port and aerodrome form their domain at every tier; the levy adds the MK1 infantry.
+ */
+export const formsHere = (site: FormingSite & { role: UnitRole; tier: UnitTier }): boolean =>
+  canonicalBuildingKey(site.key) === projectionKeyOf(site.role) ||
+  (site.role === 'infantry' && site.tier === 1 && levyAt(site));
+
+/**
  * Whether a building has a site sheet. The sheet reads the server's `facilities`, which in a
  * Mondiale lists the forming buildings only: opened on the HQ, it waited for a row that never
- * came (#155).
+ * came (#155). A Chinese building of the national soil forms the levy, so it has one too.
  */
-export const hasSiteSheet = (mode: PlayerView['mode'], key: BuildingKey): boolean =>
-  mode === 'blitz' || isProjectionKey(key);
+export const hasSiteSheet = (site: FormingSite): boolean =>
+  site.mode === 'blitz' || isProjectionKey(site.key) || levyAt(site);
 
 /** A barracks, a port or an aerodrome: a building that forms troops. */
 export const isProjectionKey = (key: BuildingKey): boolean =>
   Object.values(PROJECTION_BY_DOMAIN).includes(key);
+
+/**
+ * **A building of the view as the formation rules read it.** The client reads the national soil
+ * off the region's site, whose `outpostId` is `null` at home (`siteFor`, the same geography the
+ * server reads off `regionFacts`; a captured building keeps its outpost id's absence only on its
+ * original soil, which is why the country, not the id, decides server-side).
+ */
+export const formingSiteOf = (
+  view: Pick<PlayerView, 'mode'> & { readonly me: Pick<PlayerView['me'], 'nation' | 'regions'> },
+  building: { readonly key: BuildingKey; readonly regionId: string },
+): FormingSite => ({
+  key: building.key,
+  nation: view.me.nation,
+  mode: view.mode,
+  onNationalSoil:
+    view.me.regions.find((region) => region.id === building.regionId)?.site?.outpostId === null,
+});
 
 export const projectionKeyOf = (role: UnitRole): BuildingKey =>
   PROJECTION_BY_DOMAIN[DOMAIN_BY_ROLE[role]];
@@ -68,8 +126,10 @@ export type RecruitRefusal =
       readonly expected: BuildingKey;
       readonly found: BuildingKey;
     }
+  /** **Levée en masse** : l'infanterie MK2 se forme à la caserne seule (ADR 0047 §2). */
+  | { readonly code: 'LEVY_FIRST_TIER_ONLY' }
   | { readonly code: 'RESEARCH_REQUIRED'; readonly card: ResearchCard }
-  /** **Une caserne désactivée** (ADR 0046 §6) ne lance plus de formation ; sa file attend. */
+  /** **Un bâtiment qui forme, désactivé** (ADR 0046 §6) ne lance plus de formation ; sa file attend. */
   | { readonly code: 'BUILDING_DISABLED' }
   | { readonly code: 'TROOP_BOUND_REACHED' }
   | { readonly code: 'QUEUE_FULL' }
@@ -101,14 +161,16 @@ export type RecruitSituation = {
 export function recruitRefusalOf(
   role: UnitRole,
   tier: UnitTier,
-  site: { readonly key: BuildingKey; readonly integrity?: Integrity | undefined },
+  site: FormingSite & { readonly integrity?: Integrity | undefined },
   situation: RecruitSituation,
 ): RecruitRefusal | null {
-  const expected = projectionKeyOf(role);
-  if (site.key !== expected)
-    return { code: 'WRONG_PROJECTION_BUILDING', expected, found: site.key };
-  if (site.key === 'barracks' && site.integrity === 'disabled')
-    return { code: 'BUILDING_DISABLED' };
+  if (!formsHere({ ...site, role, tier })) {
+    if (role === 'infantry' && tier === 2 && listsRole(site, role))
+      return { code: 'LEVY_FIRST_TIER_ONLY' };
+    return { code: 'WRONG_PROJECTION_BUILDING', expected: projectionKeyOf(role), found: site.key };
+  }
+  /** **Tout bâtiment qui forme** pour son tenant se fige désactivé, pas la seule caserne. */
+  if (site.integrity === 'disabled') return { code: 'BUILDING_DISABLED' };
   const card = roleLockOf(role, tier, situation.researched);
   if (card !== null) return { code: 'RESEARCH_REQUIRED', card };
   if (situation.army >= MONDIALE_TROOP_BOUND) return { code: 'TROOP_BOUND_REACHED' };
