@@ -4,7 +4,7 @@ import type { CombatReport } from './player-view';
 /**
  * **Combien de temps un cratère reste sur la carte** (#642) : le délai d'une dernière position
  * connue. Choisi sans Pierre le 26/11 pour avancer, à corriger en préprod.
- * @a-mesurer
+ * @a-mesurer choisi sans Pierre pour avancer, à juger en préprod
  */
 export const TRACE_MS = 24 * 3_600_000;
 
@@ -12,7 +12,7 @@ export const TRACE_MS = 24 * 3_600_000;
  * **Les paliers des pertes, des deux camps** (hommes et machines, ADR 0014) : un cratère au-dessus
  * de chaque seuil franchi. Un combat sans perte en laisse un : on a tiré là. Une infanterie MK1
  * vaut 50 hommes, d'où l'ordre de grandeur.
- * @a-mesurer
+ * @a-mesurer ordre de grandeur, sans mesure des pertes d'un combat type
  */
 const CRATER_STEPS = [10, 40, 100, 250] as const;
 export const MAX_CRATERS = CRATER_STEPS.length + 1;

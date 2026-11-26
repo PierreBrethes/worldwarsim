@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 4dfbd8c -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 1b616da -->
 
 # Les constantes à mesurer
 
@@ -8,7 +8,7 @@ Les issues portent les questions, les prompts portent le travail. Quand le simul
 mesure une, on retire son marqueur et la ligne disparaît à la régénération : le registre a
 vocation à se vider, et sa taille mesure la dette de calibrage.
 
-186 valeurs marquées dans `convex/` et `src/domain/`.
+189 valeurs marquées dans `convex/` et `src/domain/`.
 
 **Les tables économiques n'y figurent pas** — `BUILDING_SPEC`, `COST_BY_ROLE`,
 `EXTRACTION_PER_HOUR`, `FACTORY_LINES` et leurs voisines : l'en-tête de `convex/constants.ts` les
@@ -107,6 +107,9 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `END_BAND_MS` | `1600` | `src/domain/absence-tour.ts:27` | le vol du retour, et la bande de fin qui le suit. |
 | `TOUR_HOLD_MS` | `2200` | `src/domain/absence-tour.ts:29` | le maintien d'un tampon du rejeu, et l'écart du second (« terrain tenu »). |
 | `SECOND_STAMP_MS` | `800` | `src/domain/absence-tour.ts:30` | le maintien d'un tampon du rejeu, et l'écart du second (« terrain tenu »). |
+| `TRACE_MS` | `24 * 3_600_000` | `src/domain/battle-traces.ts:9` | choisi sans Pierre pour avancer, à juger en préprod |
+| `CRATER_STEPS` | `[10, 40, 100, 250] as const` | `src/domain/battle-traces.ts:17` | ordre de grandeur, sans mesure des pertes d'un combat type |
+| `MAX_CRATERS` | `CRATER_STEPS.length + 1` | `src/domain/battle-traces.ts:18` | ordre de grandeur, sans mesure des pertes d'un combat type |
 | `BLITZ_CROSSING_MINUTES` | `14.4` | `src/domain/blitz.ts:152` | the decision says 15 to 20 minutes, sped up by a quarter; nothing has played one yet |
 | `BOT_ORDERS_PER_TURN` | `2` | `src/domain/bot.ts:277` | combien d'ordres un passage garde ; peu, pour qu'un bot reste facile (ADR 0042 §5). |
 | `BOT_POINT_COLUMN` | `9` | `src/domain/bot.ts:283` | les infanteries d'une colonne qui prend un point neutre. Au banc de `convex` (ADR 0043), |
