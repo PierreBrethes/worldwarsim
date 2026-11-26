@@ -48,6 +48,15 @@ export const EXTRACTION_PER_HOUR: Readonly<Record<DepositKey, number>> = {
 };
 
 /**
+ * **Les niveaux d'une exploitation du socle qui versent au stock national** (ADR 0041 §3, précision
+ * du 26/11/2026) : les autres s'entassent, comme tout niveau d'une exploitation hors du socle. À
+ * un seul niveau, la série de bots s'affamait avant H48, les fermes pleines au pied et le stock à
+ * zéro (#652) ; le plafond garde un rôle aux camions quand l'armée grandit.
+ * @a-mesurer 3, choisi contre 2 sur la série de bots du 26/11 (#652)
+ */
+export const FOUNDATION_NATIONAL_LEVELS = 3;
+
+/**
  * **Le tas plafonne à un jour de production** (ADR 0041 §1) : 24 h du débit de ses niveaux qui
  * s'entassent, sans la part.
  * @a-mesurer l'ADR le pose, aucune partie ne l'a joué

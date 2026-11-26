@@ -9,6 +9,7 @@ import {
   NARVIK_UNLINKED_SHARE,
   OUTPOST_DISABLED_HOURS,
   outpostReachKm,
+  FOUNDATION_NATIONAL_LEVELS,
 } from './constants';
 import { coalDryAt, economyOf, type Economy } from './resources';
 import { recordLinkage } from './holding';
@@ -134,7 +135,7 @@ describe('the heap of an exploitation', () => {
     expect(await coalRateOf(t, seat)).toBe(0);
   });
 
-  it('lets a foundation exploitation deliver a level 1 rate, and heaps the surplus of its levels', async () => {
+  it('lets a foundation exploitation deliver its first levels nationally, and heaps the surplus', async () => {
     const t = boot();
     const { seat } = await launched(t);
     const first = await exploitation(t, seat, 'mine', MOSELLE, { mark: true });
@@ -144,21 +145,24 @@ describe('the heap of an exploitation', () => {
     expect(await heapOf(t, seat, first)).toEqual({ amount: 0, cap: 0, resource: 'coal' });
 
     const raised = await t.run(async (ctx) => {
-      await ctx.db.patch(first, { level: 3 });
+      await ctx.db.patch(first, { level: 5 });
       return (await ctx.db.get(first))!;
     });
-    expect(raised.level).toBe(3);
-    expect(await coalRateOf(t, seat)).toBe(COAL);
+    expect(raised.level).toBe(5);
+    expect(await coalRateOf(t, seat)).toBe(FOUNDATION_NATIONAL_LEVELS * COAL);
     expect(await economy(t, seat, (one) => one.extraction[0])).toMatchObject({
-      nationalPerHour: COAL,
-      heapPerHour: 2 * COAL,
+      nationalPerHour: FOUNDATION_NATIONAL_LEVELS * COAL,
+      heapPerHour: (5 - FOUNDATION_NATIONAL_LEVELS) * COAL,
     });
   });
 
   it('stops a full heap at a day of its levels, and never cuts the national rate of a foundation', async () => {
     const t = boot();
     const { seat } = await launched(t);
-    const founded = await exploitation(t, seat, 'mine', MOSELLE, { level: 2, mark: true });
+    const founded = await exploitation(t, seat, 'mine', MOSELLE, {
+      level: FOUNDATION_NATIONAL_LEVELS + 1,
+      mark: true,
+    });
     await t.run(async (ctx) => {
       const player = await seatIn(ctx, seat);
       const coal = (await ctx.db
@@ -168,14 +172,15 @@ describe('the heap of an exploitation', () => {
       await ctx.db.patch(coal._id, { stock: 0, updatedAt: Date.now() });
     });
 
+    at(10);
+    expect(await stockOf(t, seat)).toBeCloseTo(10 * FOUNDATION_NATIONAL_LEVELS * COAL, 5);
     at(30);
 
     expect(await heapOf(t, seat, founded)).toMatchObject({
       amount: HEAP_CAP_HOURS * COAL,
       cap: HEAP_CAP_HOURS * COAL,
     });
-    expect(await coalRateOf(t, seat)).toBe(COAL);
-    expect(await stockOf(t, seat)).toBeCloseTo(30 * COAL, 5);
+    expect(await coalRateOf(t, seat)).toBe(FOUNDATION_NATIONAL_LEVELS * COAL);
   });
 
   it('keeps the coal clock of a listening post on the national rate alone', async () => {

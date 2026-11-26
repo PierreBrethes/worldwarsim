@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { api, internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { extractionSites } from './resources';
+import { FOUNDATION_NATIONAL_LEVELS } from './constants';
 import schema from './schema';
 import { modules } from './test.setup';
 import { foundSeat, joinSeat, placeHq, seatIn, pointIn } from './seats.fixture';
@@ -121,7 +122,7 @@ describe('the harvest reads the mark', () => {
           key: 'mine',
           regionId: MOSELLE,
           point: pointIn(MOSELLE),
-          level: 3,
+          level: 5,
           foundationMark: mark,
         } as Doc<'buildings'>,
       ],
@@ -131,11 +132,12 @@ describe('the harvest reads the mark', () => {
       'mondiale',
     )[0]!;
 
-  it('pays a marked site its level 1 nationally, the rest to the heap', () => {
+  it('pays a marked site its first levels nationally, the rest to the heap', () => {
     const marked = site(true);
     expect(marked.nationalPerHour).toBeGreaterThan(0);
     expect(marked.heapPerHour).toBeGreaterThan(0);
     expect(marked.nationalPerHour + marked.heapPerHour).toBeCloseTo(marked.perHour);
+    expect(marked.nationalPerHour / marked.perHour).toBeCloseTo(FOUNDATION_NATIONAL_LEVELS / 5);
   });
 
   it('sends everything of an unmarked site to the heap', () => {
