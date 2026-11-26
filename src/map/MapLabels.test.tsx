@@ -179,7 +179,7 @@ describe('the label of a strategic point', () => {
   });
 
   /** The mast has no pin (`markerPin` serves none): a label that gives way to its pin from
-   *  d ≈ 11 would leave its cartouche nowhere at the Europe and world zoom. */
+   *  d ≈ 17 would leave its cartouche nowhere at the Europe and world zoom. */
   it('is never sent to the engine as pinned, its cartouche stays at every zoom', () => {
     const sent: Array<{ id: string; pinned?: boolean }> = [];
     const engine = {

@@ -75,7 +75,7 @@ function drawnBox(object: Group): Box3 {
 }
 
 /** **The figurine floor** (ADR 0035 §10), read at the full common scale: a troop in the field never
- *  reads under 16 px until d ≈ 43, one in a garrison under 8 px — and no more than that once its
+ *  reads under 16 px until d ≈ 70, one in a garrison under 8 px (until d ≈ 43, then a third of its barracks) — and no more than that once its
  *  own size is under it, so that a garrison stays near its site's proportion. */
 describe('the figurine floor', () => {
   afterEach(() => {
@@ -158,21 +158,21 @@ describe('the figurine floor', () => {
     );
   });
 
-  it('gives way to its pin past d ≈ 43, and later when the player grows the pieces', async () => {
+  it('gives way to its pin past d ≈ 70, and later when the player grows the pieces', async () => {
     const { layer, object } = await garrison();
-    layer.orient(new Vector3(0, 55, 1));
+    layer.orient(new Vector3(0, 90, 1));
     expect(object().visible).toBe(false);
     pieceScale.size = 1.25;
-    layer.orient(new Vector3(0, 52, 1));
+    layer.orient(new Vector3(0, 85, 1));
     expect(object().visible).toBe(true);
-    layer.orient(new Vector3(0, 70, 1));
+    layer.orient(new Vector3(0, 110, 1));
     expect(object().visible).toBe(false);
   });
 
-  it('melts into its pin without a jump: smaller on screen with every step back past d = 42', async () => {
+  it('melts into its pin without a jump: smaller on screen with every step back past d = 69', async () => {
     const { layer, object } = await garrison();
     const sizes: number[] = [];
-    for (let d = 42; d <= 55; d += 0.5) {
+    for (let d = 69; d <= 85; d += 0.5) {
       const eye = new Vector3(0, d, 1);
       layer.orient(eye);
       sizes.push(object().visible ? object().scale.x / object().position.distanceTo(eye) : 0);
@@ -186,8 +186,8 @@ describe('the figurine floor', () => {
 
   it('pins a pile by its floor, as its label and its pin read it', async () => {
     const { layer } = await garrison();
-    // Its pin span reads 20 px at d = 43: the label and the pin give way with the piece.
-    expect((layer.spanOf('stack-paris')! * REFERENCE) / 43).toBeCloseTo(19.5, 1);
+    // Its pin span reads 20 px at d = 70: the label and the pin give way with the piece.
+    expect((layer.spanOf('stack-paris')! * REFERENCE) / 70).toBeCloseTo(19.5, 1);
   });
 
   /** A man of his span, standing on a pawn's point. */
@@ -209,15 +209,15 @@ describe('the figurine floor', () => {
     expect(new Box3().setFromObject(object).getSize(new Vector3()).y).toBeCloseTo(span, 9);
   });
 
-  it("stands a moving man at 16 px or more until d = 43, and his pin's beyond", () => {
+  it("stands a moving man at 16 px or more until d = 70, and his pin's beyond", () => {
     const { pawn, object } = manPawn();
-    for (const d of DISTANCES) {
+    for (const d of [...DISTANCES, 70]) {
       pawn.orient(new Vector3(0, d, 0), 0);
       expect(object.visible).toBe(true);
       const height = new Box3().setFromObject(object).getSize(new Vector3()).y;
       expect((height * REFERENCE) / d).toBeGreaterThanOrEqual(FLOOR_PX - 0.01);
     }
-    pawn.orient(new Vector3(0, 55, 0), 0);
+    pawn.orient(new Vector3(0, 90, 0), 0);
     expect(object.visible).toBe(false);
   });
 });

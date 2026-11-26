@@ -11,7 +11,7 @@ import {
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Nation, UnitRole } from '@/domain/ids';
 import { isNation } from '@/domain/nations';
-import { DRAWN_SHARE, MAN_METRES, troopSpan } from '@/domain/piece-size';
+import { buildingSpan, DRAWN_SHARE, MAN_METRES, troopSpan } from '@/domain/piece-size';
 import { type UnitDomain, type UnitTier } from '@/domain/troops';
 import { FIGURINE_FILES } from '@/emblems/figurines/manifest';
 import { REGIONS_FULL_DISTANCE, REGIONS_GONE_DISTANCE } from '../regions';
@@ -106,9 +106,11 @@ const pxOf = (distance: number, span: number): number =>
  * share pieces are drawn at and the player's size (d ≈ 11 at `DRAWN_SHARE` 0.25, where a barracks
  * still reads 26 px), a site on its socle with it (`pieceStands`). The closest zoom, d = 0.25, is
  * nearer still: the man stands at 40 px there, above the floor, and everything grows with the zoom.
- * @a-mesurer 43: the barracks at 26 px, three times a garrison's floor, on the captures of 11/11
+ * @a-mesurer 70 (d ≈ 17.5 at 0.25, pinned by d ≈ 21): the barracks at 16 px, its socle at 26.
+ * 43 before (d ≈ 11, the barracks at 26 px): Pierre, 26/11, « avec peu de dézoom je ne vois plus
+ * les bâtiments ». Far under the regions' fade (30), so the wash never covers a maquette.
  */
-const FLOOR_UNTIL = 43;
+const FLOOR_UNTIL = 70;
 /** **Until where my piles and my sites stand whole**, at the player's 100 %: what a camera that
  *  comes to see pieces stays within. */
 export const STANDS_UNTIL = FLOOR_UNTIL * DRAWN_SHARE;
@@ -123,6 +125,12 @@ const FLOOR_SPAN = ((PIN_PX - 0.5) * FLOOR_UNTIL) / REFERENCE_PX_PER_UNIT;
  */
 export const FLOOR_PX = 16;
 export const GARRISON_FLOOR_PX = 8;
+
+/** **A garrison's floor at this distance**: `GARRISON_FLOOR_PX`, or a third of the barracks once
+ *  the barracks reads under three times it — far out, where sites now stand longer than the
+ *  floor was drawn for (26/11), the pile shrinks with its site rather than outgrow it (#534). */
+export const garrisonFloorAt = (distance: number): number =>
+  Math.min(GARRISON_FLOOR_PX, pxOf(distance, buildingSpan('barracks')) / 3);
 
 /** **The span a troop gives way to its pin by** (ADR 0035 §10): its own, or the floor's — a man
  *  as late as a tank, a hull later. */
