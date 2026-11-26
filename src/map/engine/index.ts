@@ -3137,10 +3137,11 @@ export class MapEngine {
     if (pin?.kind === 'pin') return { kind: 'label', labelId: pin.id };
     const pick = this.standing.pick(this.ray, { under: true });
     // An enemy camp's annotation is aimed at by its label: the rose reads it there (POC, attack).
-    // A pile under the pointer wins over a mast behind it: the mast takes a drop on bare ground only.
+    // A pile under the pointer wins over a mast behind it, but the carried pile's own pale home
+    // is no pile to drop on: the mast takes a drop on bare ground or under it.
     const camp = nearer(
       this.camps.under(this.ray),
-      pick === null ? this.masts.under(this.ray) : null,
+      pick === null || pick.pileId === this.held?.pileId ? this.masts.under(this.ray) : null,
     );
     if (
       camp !== null &&

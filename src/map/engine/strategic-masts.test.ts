@@ -479,10 +479,10 @@ describe('the engine wiring', () => {
     expect(body('private carryTargetAt')).toContain('this.masts.under(this.ray)');
   });
 
-  it('a pile touched wins over the mast it stands by, in both', () => {
+  it('a pile touched wins over the mast it stands by, in both; the carried pile pale home does not', () => {
     expect(body('private pieceUnder')).toMatch(/pile === null \? this\.masts\.under\(this\.ray\)/);
     expect(body('private carryTargetAt')).toMatch(
-      /pick === null \? this\.masts\.under\(this\.ray\)/,
+      /pick === null \|\| pick\.pileId === this\.held\?\.pileId \? this\.masts\.under\(this\.ray\)/,
     );
   });
 
