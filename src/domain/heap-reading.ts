@@ -4,7 +4,8 @@ import { harvestTotal, type HarvestLoad } from './logistics';
 import type { PlayerView } from './player-view';
 
 const HOUR = 3_600_000;
-/** Jetons d'une pile pleine : la pile se lit d'un coup d'œil, la jauge donne le reste. */
+/** Paliers d'un tas plein : le tas dessiné dans la cour se lit d'un coup d'œil, le chiffre posé
+ *  dessus donne le reste (#707). */
 const FULL_STACK = 4;
 
 /**
@@ -30,7 +31,7 @@ export type HeapReading = {
   readonly full: boolean;
   /** Depuis quand l'exploitation est arrêtée faute de place, `null` tant que le tas n'est pas plein. */
   readonly stoppedSince: number | null;
-  /** Les jetons de la pile dessinée au pied. */
+  /** Le palier du tas dessiné dans la cour (#707), 0 pour un tas vide. */
   readonly stack: number;
 };
 

@@ -833,30 +833,38 @@ export function MapLabels({
             anchor.style.setProperty('--cargo-y', hang === '' ? '-46px' : `${y}px`);
           }
         }
-        // Le tas au pied d'une exploitation se pose au coin bas-droit de son socle dessiné, son bas à
-        // ras du socle : il monte, jamais ne descend sur le nom du gisement qui pend dessous (#445)
-        // ni sur celui d'un voisin. Sans socle (de loin), il reste contre le point.
+        // **Le chiffre du tas** se pose sur le tas que la maquette dessine dans sa cour (#707), son
+        // milieu au-dessus, un rien plus haut que son sommet. Sans tas dessiné, il se pose au coin bas-droit du socle, son bas à ras :
+        // il monte, jamais ne descend sur le nom du gisement qui pend dessous (#445) ni sur celui
+        // d'un voisin. Sans socle (de loin), il reste contre le point.
         if (heaped.current.has(projection.id)) {
-          const plinth = engine.pieceRect(projection.id);
+          const top = engine.heapPoint(projection.id);
+          const plinth = top === null ? engine.pieceRect(projection.id) : null;
           const beside =
-            plinth === null
-              ? ''
-              : `${Math.round(plinth.right - projection.x)}/${Math.round(plinth.bottom - projection.y)}`;
+            top !== null
+              ? `on/${Math.round(top.x - projection.x)}/${Math.round(top.y - projection.y)}`
+              : plinth === null
+                ? ''
+                : `corner/${Math.round(plinth.right - projection.x)}/${Math.round(plinth.bottom - projection.y)}`;
           if (anchor.dataset.heapBeside !== beside) {
             anchor.dataset.heapBeside = beside;
-            const [right, bottom] = beside === '' ? [] : beside.split('/').map(Number);
+            const [where = '', x, y] = beside.split('/');
             // Mesuré en pixels d'écran, posé sous le `zoom` de l'interface : on le défait.
             const root = roots.current.get(projection.id);
             const zoom = (root === undefined ? 1 : Number(getComputedStyle(root).zoom)) || 1;
-            anchor.style.setProperty(
-              '--heap-x',
-              right === undefined ? '14px' : `${Math.round(right / zoom) + 4}px`,
-            );
-            anchor.style.setProperty(
-              '--heap-y',
-              bottom === undefined ? '2px' : `${Math.round(bottom / zoom) - 6}px`,
-            );
-            anchor.style.setProperty('--heap-lift', bottom === undefined ? '0%' : '-100%');
+            const [heapX, heapY] =
+              where === 'on'
+                ? [`${Math.round(Number(x) / zoom)}px`, `${Math.round(Number(y) / zoom) - 4}px`]
+                : where === 'corner'
+                  ? [
+                      `${Math.round(Number(x) / zoom) + 4}px`,
+                      `${Math.round(Number(y) / zoom) - 6}px`,
+                    ]
+                  : ['14px', '2px'];
+            anchor.style.setProperty('--heap-x', heapX);
+            anchor.style.setProperty('--heap-y', heapY);
+            anchor.style.setProperty('--heap-shift', where === 'on' ? '-50%' : '0%');
+            anchor.style.setProperty('--heap-lift', where === '' ? '0%' : '-100%');
           }
         }
         if (projection.lod !== state.lod) {

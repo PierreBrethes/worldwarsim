@@ -200,6 +200,7 @@ describe('every public method of the engine asks for a frame', () => {
     /** Only a listener: the cue that fills the tag asked for its frames. */
     'watchBoarded',
     'pieceRect',
+    'heapPoint',
     'ownsPile',
     'screenOf',
     'screenOfAnchor',

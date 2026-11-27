@@ -17,10 +17,12 @@ const mark = (over: Partial<HeapMark> = {}): HeapMark => ({
 const html = (heap: HeapMark) => renderToStaticMarkup(<HeapFoot heap={heap} />);
 
 describe('HeapFoot', () => {
-  it('draws the stack, the number over the cap and the gauge of a filling heap, with no stamp', () => {
+  /** #707 : le tas se dessine dans la cour ; l'étiquette posée dessus n'en garde que le chiffre. */
+  it('draws the number over the cap and the gauge of a filling heap, no tokens, no stamp', () => {
     const out = html(mark());
     expect(out).toContain('100<small> / 288</small>');
-    expect(out).toContain('heap-stack');
+    expect(out).toContain('heap-gauge');
+    expect(out).not.toContain('heap-stack');
     expect(out).not.toContain('PLEIN');
   });
 

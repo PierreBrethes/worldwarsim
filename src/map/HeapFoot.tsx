@@ -1,13 +1,12 @@
 import { heapReadingOf, type HeapMark } from '@/domain/heap-reading';
 import { asSpan } from '@/domain/duration';
 import { fr } from '@/i18n/fr';
-import { resourceColor } from '@/emblems/resource-color';
 import { useClock } from '@/shell/clock';
-import type { CSSProperties } from 'react';
 
 /**
- * **Le tas au pied de mon exploitation** (ADR 0041, #548, maquette « Au pied ») : une pile de jetons,
- * le chiffre sur le plafond, une jauge ; plein, le tampon et depuis quand. Une fondation au niveau 1
+ * **Le tas au pied de mon exploitation** (ADR 0041, #548, maquette « Au pied ») : le chiffre sur le
+ * plafond et une jauge, posés sur le tas que la maquette dessine dans sa cour (#707) ; plein, le
+ * tampon et depuis quand. Une fondation au niveau 1
  * n'entasse rien : elle dit qu'elle rapporte seule.
  *
  * Le nombre et le « depuis » suivent la minute dans le nœud lui-même : ils ne touchent ni le moteur
@@ -28,18 +27,7 @@ export function HeapFoot({ heap }: { heap: HeapMark }) {
     <span
       className={`heap-foot${reading.full ? ' heap-foot--full' : ''}${heap.foundation === null ? '' : ' heap-foot--foundation'}`}
       title={fr.heap.title(heap.resource, reading.amount, reading.cap)}
-      style={
-        {
-          '--heap-ink': resourceColor(heap.resource),
-          '--heap-ink-paper': resourceColor(heap.resource, true),
-        } as CSSProperties
-      }
     >
-      <span className="heap-stack" aria-hidden>
-        {Array.from({ length: reading.stack }, (_, rank) => (
-          <i key={rank} style={{ bottom: `${rank * 5}px` }} />
-        ))}
-      </span>
       <span className="heap-tag">
         {heap.foundation !== null && <Seal />}
         <b>
