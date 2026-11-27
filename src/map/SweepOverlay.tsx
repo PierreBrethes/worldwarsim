@@ -158,8 +158,7 @@ export function SweepOverlay({
       {ran && result.found.length === 0 && (
         <div
           role="status"
-          // Over the personal board's mat, as the gesture hint.
-          style={{ bottom: insets.bottom + 28, marginBottom: MAT_LIFT_HUD }}
+          style={{ bottom: noneBubbleBottom(insets.bottom) }}
           className="hud paper-grain float pointer-events-auto absolute left-1/2 max-w-[min(520px,calc(100%-28px))] -translate-x-1/2 border border-[var(--ink)] px-[14px] pt-[8px] pb-[10px] font-(family-name:--font-body) text-[var(--ink)]"
         >
           <p className="text-[10px] font-semibold tracking-[.16em] text-[var(--critical)] uppercase">
@@ -186,6 +185,14 @@ export function SweepOverlay({
     </div>
   );
 }
+
+/**
+ * Where the « aucun gisement » dispatch stands: 28 px over what covers the map's foot. `insets.bottom`
+ * already reaches the top of the « à faire » chips, which ride the personal board's mat (#713), so
+ * the mat's lift is not added to it: the greater of the two, as the other layers of the map do.
+ */
+export const noneBubbleBottom = (insetsBottom: number): string =>
+  `calc(max(${insetsBottom}px, ${MAT_LIFT_HUD}) + 28px)`;
 
 /** The cartouche, under its basin or at the edge of the map with an arrow pointing the way. */
 function SweepTagCard({
