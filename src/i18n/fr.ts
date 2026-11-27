@@ -3635,6 +3635,7 @@ export const fr = {
       exploitation:
         'D’abord une ferme de plus : elle entasse à son pied, et seul un camion la rapporte au stock',
       harvest: 'Cliquez le camion, puis « feuille de route » : proposer, puis lancer',
+      toLoading: 'Levez le camion, posez-le sur le QG : une tournée part de là',
     },
   },
 
