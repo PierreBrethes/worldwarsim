@@ -149,6 +149,16 @@ describe('the unfolded volet at the desk', () => {
     expect(screen.getAllByText('/ 400')).toHaveLength(RESOURCES.length);
   });
 
+  it('never cuts a work line or a heap state with an ellipsis (#712)', () => {
+    render(board(3));
+    const volet = queue().closest('[data-volet-column]')!.parentElement!;
+    const cut = [...volet.querySelectorAll('.truncate')].map((node) => node.textContent);
+    expect(
+      cut.filter((text) => text !== fr.personalBoard.hqSpeed(fr.common.levelSpeed(1))),
+    ).toEqual([]);
+    expect(screen.getAllByText(fr.heap.board.noHeap)[0]!.closest('.truncate')).toBeNull();
+  });
+
   it('folds when a tile is armed, and stays folded when it is let go', () => {
     const { rerender } = render(board(8));
     const handle = screen.getByRole('button', { name: fr.footBar.grip.fold });
