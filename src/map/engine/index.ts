@@ -709,6 +709,8 @@ export class MapEngine {
   private readonly lamp: Lamp;
   private readonly night: NightSky;
   private readonly rivers: RiverLayer;
+  /** Whether the cities' names are written (`setCityNames`, #716). */
+  private cityNames = true;
   /** The atlas's cities where the board holds them, for their names (`nameSpots`). */
   private readonly cities: ReadonlyArray<City & { readonly at: Vector3 }>;
   /** The atlas's seas, each point where the board holds it (`nameSpots`). */
@@ -2132,6 +2134,15 @@ export class MapEngine {
     this.loadBasins();
   }
 
+  /**
+   * **Les noms des villes** (#716) : éteints, `nameSpots` n'en rend aucun ; les mers et les
+   * fleuves restent écrits. L'image suivante repeint la couche des noms.
+   */
+  setCityNames(shown: boolean): void {
+    this.invalidate();
+    this.cityNames = shown;
+  }
+
   private loadBasins(): void {
     if (!this.basins.wanted || this.basinsLoading) return;
     this.basinsLoading = true;
@@ -3406,12 +3417,13 @@ export class MapEngine {
         : { x, y };
     };
     return {
-      cities: namedCities(this.cities, { distance, touch: this.touch, replaying }).flatMap(
-        ({ at, name, capital }) => {
-          const point = onScreen(at, 0);
-          return point === null ? [] : [{ ...point, name, capital }];
-        },
-      ),
+      cities: (this.cityNames
+        ? namedCities(this.cities, { distance, touch: this.touch, replaying })
+        : []
+      ).flatMap(({ at, name, capital }) => {
+        const point = onScreen(at, 0);
+        return point === null ? [] : [{ ...point, name, capital }];
+      }),
       rivers: this.rivers.names().flatMap(({ name, spots }) => {
         const seen = spots.flatMap(({ at, from, to }) => {
           const [middle, a, b] = [onScreen(at, 0), onScreen(from, 400), onScreen(to, 400)];

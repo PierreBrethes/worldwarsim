@@ -785,6 +785,11 @@ export function WorldMap({
     readyEngine?.setDepositBasins(basinsShown);
   }, [readyEngine, basinsShown]);
 
+  const cityNames = indicators['city-names'];
+  useEffect(() => {
+    readyEngine?.setCityNames(cityNames);
+  }, [readyEngine, cityNames]);
+
   useEffect(() => {
     if (engine.current) engine.current.onSelect = onSelect;
   }, [onSelect]);
