@@ -55,6 +55,15 @@ describe('searchPlaces', () => {
     ]);
   });
 
+  it('puts a city that only holds the query before a region that starts with it', () => {
+    const drowned = [region('Munxar', 'MLT'), city('Dortmund', 'DEU'), city('Munich', 'DEU')];
+    expect(searchPlaces(drowned, 'mun').map((p) => p.name)).toEqual([
+      'Munich',
+      'Dortmund',
+      'Munxar',
+    ]);
+  });
+
   it('stops at the limit', () => {
     expect(searchPlaces(places, 'a', 3)).toHaveLength(3);
   });

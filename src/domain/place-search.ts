@@ -36,8 +36,9 @@ const tierOf = (folded: string, query: string): number => {
 
 /**
  * **La liste de la barrette « Chercher un lieu »** : les lieux dont le nom contient la
- * recherche, ceux qui la commencent d'abord, puis ceux d'un de leurs mots, puis le reste ; à
- * égalité une ville avant une région, puis l'ordre reçu (capitales, puis population). Au plus
+ * recherche, les villes avant les régions (4 605 régions noient les 999 villes : « mun » donnait
+ * Munxar et Muntinlupa avant Dortmund) ; dans chaque sorte, ceux qui la commencent d'abord, puis
+ * ceux d'un de leurs mots, puis le reste, puis l'ordre reçu (capitales, puis population). Au plus
  * `limit` lieux ; une recherche vide ne propose rien.
  */
 export function searchPlaces(places: ReadonlyArray<Place>, query: string, limit = 6): Place[] {
@@ -50,8 +51,8 @@ export function searchPlaces(places: ReadonlyArray<Place>, query: string, limit 
     })
     .sort(
       (a, b) =>
-        a.tier - b.tier ||
         Number(a.place.kind === 'region') - Number(b.place.kind === 'region') ||
+        a.tier - b.tier ||
         a.order - b.order,
     )
     .slice(0, limit)
