@@ -10,7 +10,7 @@ import {
 import type { HeapMark } from '@/domain/heap-reading';
 import type { CaptureView } from '@/domain/player-view';
 import { objectiveMaquette } from '@/emblems/objectives/manifest';
-import { maquettesOf, sealedSites } from './maquettes';
+import { lastChangeBy, maquettesOf, sealedSites } from './maquettes';
 import type { WorkSite } from '@/domain/construction';
 import { asClockTime } from '@/domain/duration';
 import {
@@ -171,6 +171,14 @@ describe('maquettesOf', () => {
       expect(heapOf(mine)).toEqual({ resource: 'steel', stack: 3, at: BUILDING_HEAP_SPOTS.mine });
       expect(heapOf(mine, 2 * HOUR)!.stack).toBe(4);
       expect(heapOf(building({ heap: mark({ amount: 0, perHour: 0 }) }))!.stack).toBe(0);
+    });
+
+    it('reads my heaps at their last change of stack, and 0 before the first', () => {
+      const changes = [5 * HOUR, 9 * HOUR];
+      expect(lastChangeBy(changes, HOUR)).toBe(0);
+      expect(lastChangeBy(changes, 5 * HOUR)).toBe(5 * HOUR);
+      expect(lastChangeBy(changes, 8 * HOUR)).toBe(5 * HOUR);
+      expect(lastChangeBy(changes, 30 * HOUR)).toBe(9 * HOUR);
     });
 
     it('lays none where nothing heaps: a foundation at level 1, a site without a heap, a survey', () => {

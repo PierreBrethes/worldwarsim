@@ -85,6 +85,22 @@ export function heapReadingOf(mark: HeapMark, now: number): HeapReading {
   };
 }
 
+/**
+ * **Les instants où le tas change de palier** (#707), après `asOf`, du plus tôt au plus tard : au
+ * premier lot, puis à chaque quart du plafond franchi. Aucun pour un tas qui ne grandit pas.
+ */
+export function heapStackChanges(mark: HeapMark): number[] {
+  if (mark.fullSince !== null || mark.perHour <= 0 || mark.cap <= 0) return [];
+  const amounts = [
+    1,
+    ...[1, 2, 3].map((quarter) => Math.floor((quarter * mark.cap) / FULL_STACK) + 1),
+  ];
+  return [...new Set(amounts)]
+    .filter((amount) => amount > mark.amount && amount <= mark.cap)
+    .sort((a, b) => a - b)
+    .map((amount) => mark.asOf + Math.ceil(((amount - mark.amount) / mark.perHour) * HOUR));
+}
+
 /** **Ce qui attend au pied, par ressource** : la somme des tas, leur nombre, et ceux qui sont pleins.
  *  Une fondation au niveau 1 n'a pas de tas : elle ne compte pas. */
 export function heapsAtFoot(

@@ -24,8 +24,8 @@ import {
   OUTPOST_ON_BOARD,
 } from '@/domain/piece-size';
 import { fr } from '@/i18n/fr';
-import { heapReadingOf } from '@/domain/heap-reading';
-import { useRef } from 'react';
+import { heapReadingOf, heapStackChanges } from '@/domain/heap-reading';
+import { useMemo } from 'react';
 import { useClockReading } from '@/shell/clock';
 
 /**
@@ -200,27 +200,28 @@ const heapIn = (
 };
 
 /**
- * **L'heure à laquelle lire mes tas** (#707) : celle où l'un d'eux a changé de palier pour la
- * dernière fois. Le tas grandit sous les yeux, et la carte ne se reconstruit qu'à ce changement,
- * pas à chaque minute (CLAUDE.md, carte à la demande).
+ * **L'heure à laquelle lire mes tas** (#707) : le dernier instant où l'un d'eux a changé de palier,
+ * 0 avant le premier. Les instants se calculent une fois par vue ; la minute ne relit que l'heure,
+ * et la carte ne se reconstruit qu'à un changement (CLAUDE.md, carte à la demande).
  */
 export function useHeapInstant(markers: ReadonlyArray<MapMarker>): number {
-  const last = useRef({ stacks: '', at: 0 });
-  return useClockReading(60_000, (now) => {
-    const stacks = heapStacksOf(markers, now);
-    if (stacks !== last.current.stacks) last.current = { stacks, at: now };
-    return last.current.at;
-  });
+  const changes = useMemo(
+    () =>
+      markers
+        .flatMap((marker) =>
+          marker.kind === 'building' && marker.heap !== undefined
+            ? heapStackChanges(marker.heap)
+            : [],
+        )
+        .sort((a, b) => a - b),
+    [markers],
+  );
+  return useClockReading(60_000, (now) => lastChangeBy(changes, now));
 }
 
-const heapStacksOf = (markers: ReadonlyArray<MapMarker>, now: number): string =>
-  JSON.stringify(
-    markers.flatMap((marker) =>
-      marker.kind === 'building' && marker.heap !== undefined
-        ? [[marker.id, heapReadingOf(marker.heap, now).stack]]
-        : [],
-    ),
-  );
+/** Le dernier des instants `changes` (triés) passé à `now`, 0 pour aucun. */
+export const lastChangeBy = (changes: ReadonlyArray<number>, now: number): number =>
+  changes.reduce((last, at) => (at <= now ? at : last), 0);
 
 /** **L'avant-poste en mètres sur son socle rond** (#468) : sa portée est son rayon. */
 const outpostSize = {
