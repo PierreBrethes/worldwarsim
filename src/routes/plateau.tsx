@@ -232,6 +232,7 @@ import { heldUnlessReplay } from '@/map/frame-need';
 import { REPLAY_MS, SINK_HOLD_MS, type ReplayStep } from '@/domain/replay';
 import { WAIT_MS } from '@/map/engine/combats';
 import { NextActions } from './-plateau/NextActions';
+import { stepChipOf } from '@/domain/todo-chips';
 import { FootBar } from '@/shell/foot';
 import { debtKey } from './-plateau/FoundationRows';
 import { BriefingSheet } from './-plateau/BriefingSheet';
@@ -3438,6 +3439,12 @@ function BoardContent({
 
   const showBriefing = useCallback(() => setBriefing(true), []);
 
+  /** Mène au geste du pas allumé : la pièce sur la carte, ou le plateau personnel. */
+  const leadFirstStep = () => {
+    if (stepCue?.kind === 'map') locateStation(stepCue.station);
+    else openWindow('personalBoard');
+  };
+
   const nextActions = (frame: 'card' | 'sheet') => (
     <NextActions
       view={view}
@@ -3456,14 +3463,17 @@ function BoardContent({
       onOpenOutpost={openOutpost}
       firstSteps={
         firstSteps === null || shownStepOf(view) === null ? null : (
-          <FirstStepsList
-            steps={firstSteps}
-            onLead={() => {
-              if (stepCue?.kind === 'map') locateStation(stepCue.station);
-              else openWindow('personalBoard');
-            }}
-          />
+          <FirstStepsList steps={firstSteps} onLead={leadFirstStep} />
         )
+      }
+      firstStep={
+        firstSteps === null || firstSteps.lit === null || shownStepOf(view) === null
+          ? null
+          : {
+              ...stepChipOf(firstSteps.done, firstSteps.lit, firstSteps.outpostFirst),
+              go: stepCue?.kind === 'map' ? fr.nextActions.toMap : fr.nextActions.toPersonalBoard,
+              onPick: leadFirstStep,
+            }
       }
     />
   );

@@ -3621,6 +3621,17 @@ export const fr = {
       /** Le même pas, tant qu'aucun avant-poste n'est à vous : on le fonde d'abord. */
       outpost: 'Fonder un avant-poste, puis y livrer un camion chargé',
     },
+    /** **La consigne courte** de la pastille du bureau (#713) : l'intitulé du pas allumé, la phrase
+     *  entière au `title`. */
+    short: {
+      hq: 'Poser le quartier général',
+      move: 'Déplacer une pièce',
+      harvest: 'Bâtir une ferme',
+      form: 'Former une pièce',
+      research: 'Bâtir un Centre de recherche',
+      deliver: 'Livrer un camion',
+      outpost: 'Fonder un avant-poste',
+    },
     /** Ce que dit la bulle, là où le geste se fait. */
     cue: {
       hq: 'Cliquez la tuile du QG, puis votre sol',
@@ -3668,6 +3679,23 @@ export const fr = {
       `${count} troupe${plural(count, '', 's')} sans ordre${place === null ? '' : ` — ${place}`}`,
     unsupplied: (count: number, place: string | null) =>
       `${count} troupe${plural(count, '', 's')} hors ravitaillement${place === null ? '' : ` — ${place}`}`,
+    /** **Le libellé court d'une pastille du bureau** (#713), après son chiffre : « 6 troupes sans
+     *  ordre ». Une entrée par sorte de ligne, au nombre que la ligne compte. */
+    chip: {
+      siteUnderCapture: (count: number) => `site${plural(count, '', 's')} en capture`,
+      captureStopped: (count: number) =>
+        `capture${plural(count, '', 's')} arrêtée${plural(count, '', 's')}`,
+      foundation: (count: number) =>
+        `pose${plural(count, '', 's')} offerte${plural(count, '', 's')}`,
+      idleSite: () => 'chantier libre',
+      idleProjection: (count: number) => `bâtiment${plural(count, '', 's')} sans recrutement`,
+      unlinkedSites: (count: number) => `site${plural(count, '', 's')} hors réseau`,
+      unharvested: () => 'tas sans tournée',
+      troopWithoutOrder: (count: number) => `troupe${plural(count, '', 's')} sans ordre`,
+      unsupplied: (count: number) => `troupe${plural(count, '', 's')} hors ravitaillement`,
+      neutralCity: (count: number) =>
+        `ville${plural(count, '', 's')} neutre${plural(count, '', 's')}`,
+    },
     /** Où le prochain clic mène, parmi les occurrences d'une même sorte. */
     rank: (word: string, rank: number, total: number) => `${word} ${rank} / ${total}`,
     toOutpost: 'à l’avant-poste',

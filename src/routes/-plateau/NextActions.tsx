@@ -12,9 +12,11 @@ import {
   type NextActionSurface,
   type NextActionTarget,
 } from '@/domain/next-actions';
+import { chipsOf } from '@/domain/todo-chips';
 import { SQUARE_FRAME } from '@/shell/SurfaceColumn';
 import { ColumnCardContext, MAT_LIFT_HUD } from '@/shell/viewport';
 import { FoundationRows, type FoundationPlacement } from './FoundationRows';
+import { TodoChips, type StepChipProps } from './TodoChips';
 
 /**
  * **Le rang d'une ligne vit au-dessus de la feuille** : sur téléphone la feuille « à faire » se
@@ -57,7 +59,8 @@ const useRanks = () =>
   );
 
 /**
- * **La carte « à faire maintenant »** (décision Pierre, 30/08). Elle a remplacé le widget de
+ * **La carte « à faire maintenant »** (décision Pierre, 30/08). Au bureau, repliée sur son carré
+ * — son état d'entrée —, elle se lit en pastilles au-dessus de la bande du bas (#713). Elle a remplacé le widget de
  * troupes, qui était l'inventaire de ce que la carte montre déjà ; celle-ci ne liste rien qu'on
  * possède — seulement ce qui attend, et chaque ligne mène au geste qui la lève.
  *
@@ -77,11 +80,14 @@ export function NextActions({
   onOpenSite,
   onOpenOutpost,
   firstSteps = null,
+  firstStep = null,
 }: {
   view: PlayerView;
   /** **Les premiers pas** (ADR 0027 §2), en tête de la carte tant qu'il en reste un à faire :
    *  ils comptent pour une attente, et la carte existe pour eux même quand rien d'autre n'attend. */
   firstSteps?: ReactNode;
+  /** Les mêmes premiers pas, en pastille au bureau (#713) : `null` quand il n'y en a plus à faire. */
+  firstStep?: StepChipProps | null;
   /**
    * **Sous le seuil, la carte quitte la carte** (piste A, passe 2, A5) : elle devient la feuille
    * qu'ouvre l'entrée « à faire » du pied, qui porte déjà le titre et le compte. Il n'en reste que
@@ -102,7 +108,7 @@ export function NextActions({
    *  vit la porte de l'élévation (précision du 15/09). */
   onOpenOutpost: (outpostId: string) => void;
 }) {
-  /** Ouvert d'entrée : la fondation est la première chose à faire d'une saison, et la replier
+  /** `unfolded` : la fondation de la feuille du téléphone, ouverte d'entrée. La replier
    *  **désarme** — une clé armée dont le corps est caché laisserait le sol allumé sur le plateau
    *  sans plus rien à l'écran pour dire pourquoi. */
   const [unfolded, setUnfolded] = useState(true);
@@ -121,6 +127,16 @@ export function NextActions({
       </p>
     ) : null;
   }
+
+  /** Le clic d'une ligne et celui de sa pastille sont un seul geste : la cible suivante. */
+  const lead = (action: NextAction) => {
+    const target = advance(action);
+    if (target.kind === 'map') onGoToMap(target.point);
+    else if (target.kind === 'surface') onOpenSurface(target.surface);
+    else if (target.kind === 'site') onOpenSite(target.buildingId);
+    else if (target.kind === 'outpost') onOpenOutpost(target.outpostId);
+    closeSheet?.();
+  };
 
   const rows = actions.map((action) =>
     action.targets[0].kind === 'unfold' ? (
@@ -152,14 +168,7 @@ export function NextActions({
         action={action}
         destination={destinationOf(action)}
         leads
-        onPick={() => {
-          const target = advance(action);
-          if (target.kind === 'map') onGoToMap(target.point);
-          else if (target.kind === 'surface') onOpenSurface(target.surface);
-          else if (target.kind === 'site') onOpenSite(target.buildingId);
-          else if (target.kind === 'outpost') onOpenOutpost(target.outpostId);
-          closeSheet?.();
-        }}
+        onPick={() => lead(action)}
       />
     ),
   );
@@ -200,6 +209,24 @@ export function NextActions({
           {fr.rail.todo}
         </span>
       </button>
+      {folded && (
+        <TodoChips
+          step={firstStep}
+          chips={chipsOf(actions)}
+          rankOf={(id) => {
+            const action = actions.find((candidate) => candidate.id === id);
+            return action === undefined ? 0 : nextRankOf(action);
+          }}
+          onPick={(id) => {
+            const action = actions.find((candidate) => candidate.id === id);
+            if (action === undefined) return;
+            // The foundation unfolds in the whole list, where its keys are: opened for this
+            // visit only, the kept fold stays what the player chose.
+            if (action.targets[0].kind === 'unfold') setFolded(false);
+            else lead(action);
+          }}
+        />
+      )}
       {!folded && (
         <section
           ref={claimCard}

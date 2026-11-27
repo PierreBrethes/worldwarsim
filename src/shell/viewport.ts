@@ -84,6 +84,12 @@ export const MAT_LIFT_HUD = `calc(${MAT_LIFT} / var(--hud-scale))`;
  */
 export const ColumnCardContext = createContext<(card: HTMLElement | null) => void>(() => {});
 
+/**
+ * **La rangée de pastilles « à faire » se déclare à la coque** tant qu'elle est montée (#713) : posée
+ * au-dessus de la bande du bas, elle couvre le pied de la carte, et ses bords vont aux insets.
+ */
+export const ColumnChipsContext = createContext<(chips: HTMLElement | null) => void>(() => {});
+
 /** **Ce que la barre basse laisse sous une feuille**, en pixels d'écran : `--board-bottom` est une
  *  expression (`calc`), résolue ici par un élément de mesure. 0 sans la variable. */
 export function boardBottomPx(): number {
