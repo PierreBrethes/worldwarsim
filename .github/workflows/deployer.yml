@@ -1,0 +1,107 @@
+name: Déployer
+
+# Le déploiement d'une instance (deploiement/README.md « Version de test »), appelé par ci.yml
+# après les vérifications : la pré-production depuis `main`, la version de test depuis
+# `version-test`. Les secrets sont passés un à un par l'appelant, jamais hérités : une
+# instance dont un secret manque échoue, elle ne retombe pas sur ceux de l'autre.
+on:
+  workflow_call:
+    inputs:
+      branche:
+        type: string
+        required: true
+      front:
+        description: L'adresse publique du jeu, relue après la reconstruction.
+        type: string
+        required: true
+      sauvegarder_avant:
+        description: Une copie de la base sur le VPS avant de pousser les fonctions.
+        type: boolean
+        default: false
+    secrets:
+      convex_url:
+        required: true
+      convex_cle:
+        required: true
+      vps_chemin:
+        required: true
+      vps_hote:
+        required: true
+      vps_utilisateur:
+        required: true
+      vps_cle_ssh:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deployer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # `required: true` laisse passer une chaîne vide : un secret jamais créé arrive vide, et
+      # on ne l'apprendrait qu'après avoir poussé les fonctions.
+      - name: Les secrets de l'instance sont posés
+        env:
+          URL: ${{ secrets.convex_url }}
+          CLE: ${{ secrets.convex_cle }}
+          CHEMIN: ${{ secrets.vps_chemin }}
+          FRONT: ${{ inputs.front }}
+        run: |
+          [ -n "$URL" ] && [ -n "$CLE" ] && [ -n "$CHEMIN" ] && [ -n "$FRONT" ] ||
+            { echo "secrets de l'instance absents : voir deploiement/README.md « Version de test »"; exit 1; }
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - run: npm ci
+
+      # Une saison entre amis ne se rejoue pas : une copie juste avant chaque correctif, que
+      # `deploiement/restauration.sh` sait remonter. Elle reste sur le VPS (et part au-dehors si
+      # WWS_DISTANT est posé dans le `.env` de l'instance).
+      - name: Sauvegarder la base avant de pousser
+        if: inputs.sauvegarder_avant
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        with:
+          host: ${{ secrets.vps_hote }}
+          username: ${{ secrets.vps_utilisateur }}
+          key: ${{ secrets.vps_cle_ssh }}
+          script: |
+            set -e
+            cd ${{ secrets.vps_chemin }}
+            deploiement/sauvegarde.sh
+
+      # Les fonctions d'abord, le front ensuite : pendant la reconstruction, l'ancien front parle
+      # aux nouvelles fonctions — la fenêtre est courte et c'est le sens le moins cassant.
+      # `convex deploy` valide le schéma contre les données existantes ; une migration
+      # incompatible avec une saison en cours fait échouer le job, c'est voulu.
+      - name: Déployer les fonctions Convex
+        run: npx convex deploy
+        env:
+          CONVEX_SELF_HOSTED_URL: ${{ secrets.convex_url }}
+          CONVEX_SELF_HOSTED_ADMIN_KEY: ${{ secrets.convex_cle }}
+
+      - name: Reconstruire le front sur le VPS
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        with:
+          host: ${{ secrets.vps_hote }}
+          username: ${{ secrets.vps_utilisateur }}
+          key: ${{ secrets.vps_cle_ssh }}
+          script: |
+            set -e
+            cd ${{ secrets.vps_chemin }}
+            # Le commit qui a passé les vérifications, pas ce que la branche est devenue depuis :
+            # un push plus récent aura son propre déploiement.
+            git fetch origin ${{ inputs.branche }}
+            git merge --ff-only ${{ github.sha }}
+            docker compose -f docker-compose.yml -f deploiement/compose.prod.yml --profile prod up -d --build front
+
+      - name: Vérifier que le front répond
+        run: curl -fsS --retry 10 --retry-delay 3 --retry-all-errors -o /dev/null "$FRONT"
+        env:
+          FRONT: ${{ inputs.front }}

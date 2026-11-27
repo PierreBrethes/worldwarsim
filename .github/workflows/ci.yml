@@ -1,8 +1,10 @@
 name: CI
 
+# `main` déploie la pré-production, `version-test` la version de test (deploiement/README.md
+# « Version de test »). Aucune autre branche ne déclenche ce workflow.
 on:
   push:
-    branches: [main]
+    branches: [main, version-test]
   workflow_dispatch:
 
 # Le jeton du workflow ne lit que le dépôt : rien ici n'a besoin d'écrire dessus, et une action
@@ -11,10 +13,10 @@ on:
 permissions:
   contents: read
 
-# Un déploiement à la fois, jamais annulé en vol : un convex deploy interrompu à moitié
-# vaudrait pire qu'un déploiement en retard.
+# Un déploiement à la fois par instance, jamais annulé en vol : un convex deploy interrompu à
+# moitié vaudrait pire qu'un déploiement en retard.
 concurrency:
-  group: deploiement
+  group: deploiement-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -46,47 +48,36 @@ jobs:
     uses: ./.github/workflows/e2e.yml
 
   # Le déploiement est en aval des vérifications et du parcours — même workflow, même liste, aucune
-  # divergence possible. Il ne tourne que sur main (seule branche déclenchée ci-dessus).
-  #
-  # L'ordre des deux pas est un choix : les fonctions d'abord, le front ensuite. Pendant la
-  # reconstruction, l'ancien front parle aux nouvelles fonctions — la fenêtre est courte et
-  # c'est le sens le moins cassant. NB : `convex deploy` valide le schéma contre les données
-  # existantes ; une migration incompatible avec une saison en cours fait échouer le job,
-  # c'est voulu — on wipe ou on migre, mais on ne casse pas une saison en silence.
+  # divergence possible. Les pas vivent dans deployer.yml, partagés par les deux instances.
   deployer:
+    if: github.ref_name == 'main'
     needs: [verifications, e2e]
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    uses: ./.github/workflows/deployer.yml
+    with:
+      branche: main
+      front: https://wws.pierrebrethes.cloud/
+    secrets:
+      convex_url: ${{ secrets.CONVEX_SELF_HOSTED_URL }}
+      convex_cle: ${{ secrets.CONVEX_SELF_HOSTED_ADMIN_KEY }}
+      vps_chemin: ${{ secrets.VPS_CHEMIN }}
+      vps_hote: ${{ secrets.VPS_HOTE }}
+      vps_utilisateur: ${{ secrets.VPS_UTILISATEUR }}
+      vps_cle_ssh: ${{ secrets.VPS_CLE_SSH }}
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - run: npm ci
-
-      - name: Déployer les fonctions Convex
-        run: npx convex deploy
-        env:
-          CONVEX_SELF_HOSTED_URL: ${{ secrets.CONVEX_SELF_HOSTED_URL }}
-          CONVEX_SELF_HOSTED_ADMIN_KEY: ${{ secrets.CONVEX_SELF_HOSTED_ADMIN_KEY }}
-
-      - name: Reconstruire le front sur le VPS
-        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
-        with:
-          host: ${{ secrets.VPS_HOTE }}
-          username: ${{ secrets.VPS_UTILISATEUR }}
-          key: ${{ secrets.VPS_CLE_SSH }}
-          script: |
-            set -e
-            cd ${{ secrets.VPS_CHEMIN }}
-            # Le commit qui a passé les vérifications, pas ce que `main` est devenu depuis : un
-            # push plus récent aura son propre déploiement.
-            git fetch origin main
-            git merge --ff-only ${{ github.sha }}
-            docker compose -f docker-compose.yml -f deploiement/compose.prod.yml --profile prod up -d --build front
-
-      - name: Vérifier que le front répond
-        run: curl -fsS --retry 10 --retry-delay 3 --retry-all-errors -o /dev/null https://wws.pierrebrethes.cloud/
+  # La version de test : ses propres secrets `TEST_*`, le même VPS et la même clé SSH. Un
+  # correctif n'y part qu'après une copie de la base.
+  deployer-test:
+    if: github.ref_name == 'version-test'
+    needs: [verifications, e2e]
+    uses: ./.github/workflows/deployer.yml
+    with:
+      branche: version-test
+      front: ${{ vars.TEST_FRONT_URL }}
+      sauvegarder_avant: true
+    secrets:
+      convex_url: ${{ secrets.TEST_CONVEX_SELF_HOSTED_URL }}
+      convex_cle: ${{ secrets.TEST_CONVEX_SELF_HOSTED_ADMIN_KEY }}
+      vps_chemin: ${{ secrets.TEST_VPS_CHEMIN }}
+      vps_hote: ${{ secrets.VPS_HOTE }}
+      vps_utilisateur: ${{ secrets.VPS_UTILISATEUR }}
+      vps_cle_ssh: ${{ secrets.VPS_CLE_SSH }}
