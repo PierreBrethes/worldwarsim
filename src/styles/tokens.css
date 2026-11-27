@@ -120,6 +120,8 @@
   /* Les bords du plateau, en pixels d'écran : le cadre les mesure et les publie
      (`shell/Shell.tsx`), feuilles et fenêtres se posent entre eux. */
   --board-top: 0px;
+  /* Le bas de la réglette seule : la barrette de lieu s'y accroche, sans courir après son propre bord. */
+  --band-bottom: 0px;
   --board-bottom: 0px;
   --board-left: 0px;
   /* **Une ligne de la barre basse du téléphone** (#179), en pixels d'écran : la ligne des réserves

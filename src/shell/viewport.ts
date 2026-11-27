@@ -90,6 +90,12 @@ export const ColumnCardContext = createContext<(card: HTMLElement | null) => voi
  */
 export const ColumnChipsContext = createContext<(chips: HTMLElement | null) => void>(() => {});
 
+/**
+ * **La barrette « Chercher un lieu » se déclare à la coque** tant qu'elle est montée (#721) : posée
+ * sous la réglette, elle couvre le haut de la carte, et sa bordure va aux insets et à `--board-top`.
+ */
+export const PlaceStripContext = createContext<(strip: HTMLElement | null) => void>(() => {});
+
 /** **Ce que la barre basse laisse sous une feuille**, en pixels d'écran : `--board-bottom` est une
  *  expression (`calc`), résolue ici par un élément de mesure. 0 sans la variable. */
 export function boardBottomPx(): number {
