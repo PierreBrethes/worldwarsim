@@ -793,6 +793,11 @@ export function WorldMap({
     readyEngine?.setCityNames(cityNames);
   }, [readyEngine, cityNames]);
 
+  const tourInk = indicators['tour-ink'];
+  useEffect(() => {
+    readyEngine?.setTourInk(tourInk);
+  }, [readyEngine, tourInk]);
+
   useEffect(() => {
     if (engine.current) engine.current.onSelect = onSelect;
   }, [onSelect]);

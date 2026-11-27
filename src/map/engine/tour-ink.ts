@@ -12,6 +12,15 @@ export type TourLoop = {
   readonly tracing: boolean;
 };
 
+/** **Les boucles à poser** : calque éteint (#723), seule la boucle qu'on trace reste dessinée, on
+ *  ne trace pas à l'aveugle. */
+export function inkedLoops(
+  loops: ReadonlyArray<TourLoop>,
+  shown: boolean,
+): ReadonlyArray<TourLoop> {
+  return shown ? loops : loops.filter((loop) => loop.tracing);
+}
+
 type Stroke = { readonly points: ReadonlyArray<LonLat>; readonly dashed: boolean };
 
 /** **Les traits d'une boucle** : pleins là où elle passe, pointillés par un dépôt sauté, et

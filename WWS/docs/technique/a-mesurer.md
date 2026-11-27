@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 0f87c16 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : e3c4d03 -->
 
 # Les constantes à mesurer
 
@@ -149,7 +149,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `QUEUE_MAX` | `6` | `src/domain/front-sound.ts:148` | six en file, trois au retour, six secondes entre deux phrases (maquette D) |
 | `HEARD_ON_RETURN` | `3` | `src/domain/front-sound.ts:149` | six en file, trois au retour, six secondes entre deux phrases (maquette D) |
 | `PHRASE_GAP_MS` | `6_000` | `src/domain/front-sound.ts:150` | six en file, trois au retour, six secondes entre deux phrases (maquette D) |
-| `GLIDE_MS` | `80` | `src/domain/indicators.ts:291` | How long a token takes to close most of the way to its place (ms). |
+| `GLIDE_MS` | `80` | `src/domain/indicators.ts:295` | How long a token takes to close most of the way to its place (ms). |
 | `FLAG_SWAP_MS` | `1600` | `src/domain/ink-bursts.ts:72` | `storyboard-moments/commun/scenes.js`, un des Sept — le drapeau descend puis |
 | `SEAL_HOLD_MS` | `3400` | `src/domain/ink-bursts.ts:73` | `storyboard-moments/commun/scenes.js`, un des Sept — le drapeau descend puis |
 | `TWIN_DEGREES` | `0.5` | `src/domain/ink-bursts.ts:76` | la capture que la prise d'un point ou la chute d'un QG dit déjà, au même instant |

@@ -2627,6 +2627,7 @@ export const fr = {
     inbound: 'cap sur moi',
     offscreen: 'hors champ',
     'city-names': 'noms des villes',
+    'tour-ink': 'tracé des tournées',
   },
 
   edgeIndicators: {

@@ -68,6 +68,7 @@ describe('toggles', () => {
       ['outpost-zones', true],
       ['inbound', true],
       ['city-names', true],
+      ['tour-ink', true],
     ]);
   });
 

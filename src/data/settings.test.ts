@@ -66,6 +66,15 @@ describe('les bascules gardées par le navigateur', () => {
     expect(readIndicatorToggles()['city-names']).toBe(false);
   });
 
+  it('allume « tracé des tournées » sous un réglage d’avant la couche, et garde son extinction', () => {
+    kept.set('wws-edge-indicators', JSON.stringify({ buildings: false, 'city-names': false }));
+    const old = readIndicatorToggles();
+    expect(old['tour-ink']).toBe(true);
+    expect(old['city-names']).toBe(false);
+    keepIndicatorToggles({ ...DEFAULT_TOGGLES, 'tour-ink': false });
+    expect(readIndicatorToggles()['tour-ink']).toBe(false);
+  });
+
   it('éteint « hors champ » sous un réglage d’avant la fusion des calques', () => {
     kept.set('wws-edge-indicators', JSON.stringify({ outposts: true, forces: true, intel: true }));
     expect(readIndicatorToggles().offscreen).toBe(false);
