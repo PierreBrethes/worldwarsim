@@ -7,9 +7,9 @@ import { FirstStepsList, type FirstStepsState } from './FirstSteps';
 afterEach(cleanup);
 
 const state = (over: Partial<FirstStepsState> = {}): FirstStepsState => ({
-  done: ['hq', 'move', 'form'],
+  done: ['hq', 'move', 'harvest'],
   shown: 'open',
-  lit: 'research',
+  lit: 'form',
   cue: null,
   outpostFirst: false,
   show: vi.fn(),
@@ -19,16 +19,16 @@ const state = (over: Partial<FirstStepsState> = {}): FirstStepsState => ({
 describe('FirstStepsList', () => {
   it('folds the steps done into one line and leaves only the lit step open (#607)', () => {
     render(<FirstStepsList steps={state()} onLead={() => {}} />);
-    expect(screen.getByText(fr.firstSteps.steps.research)).toBeTruthy();
+    expect(screen.getByText(fr.firstSteps.steps.form)).toBeTruthy();
     expect(screen.queryByText(fr.firstSteps.steps.hq)).toBeNull();
     expect(screen.queryByText(fr.firstSteps.steps.deliver)).toBeNull();
-    const line = screen.getByRole('button', { name: /premiers pas 3 \/ 5 ✓/ });
+    const line = screen.getByRole('button', { name: /premiers pas 3 \/ 6 ✓/ });
     expect(line.getAttribute('aria-expanded')).toBe('false');
   });
 
   it('unfolds the whole list from that line, and folds it back', () => {
     render(<FirstStepsList steps={state()} onLead={() => {}} />);
-    const line = screen.getByRole('button', { name: /premiers pas 3 \/ 5/ });
+    const line = screen.getByRole('button', { name: /premiers pas 3 \/ 6/ });
     fireEvent.click(line);
     expect(screen.getByText(fr.firstSteps.steps.hq)).toBeTruthy();
     expect(screen.getByText(fr.firstSteps.steps.deliver)).toBeTruthy();
@@ -38,6 +38,6 @@ describe('FirstStepsList', () => {
 
   it('shows no tick before the first step is done', () => {
     render(<FirstStepsList steps={state({ done: [], lit: 'hq' })} onLead={() => {}} />);
-    expect(screen.getByRole('button', { name: /premiers pas 0 \/ 5$/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /premiers pas 0 \/ 6$/ })).toBeTruthy();
   });
 });

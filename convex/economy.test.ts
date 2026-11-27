@@ -1569,8 +1569,10 @@ describe('the headquarters the player puts up', () => {
         tier: 1,
         strength: nominalStrength('infantry', 1),
       }),
+      expect.objectContaining({ role: 'landTransport', tier: 1 }),
     ]);
-    expect(view.me.troops[0]!.stationedAt).toEqual({ kind: 'building', buildingId: hq.id });
+    for (const troop of view.me.troops)
+      expect(troop.stationedAt).toEqual({ kind: 'building', buildingId: hq.id });
   });
 
   it('is refused a second time, wherever it is aimed', async () => {

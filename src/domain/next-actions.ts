@@ -31,6 +31,8 @@ export type NextActionKind =
   | 'idleSite'
   | 'idleProjection'
   | 'unlinkedSites'
+  /** Une exploitation dont le tas grossit sans qu'aucune tournée ne passe (ADR 0041). */
+  | 'unharvested'
   | 'troopWithoutOrder'
   | 'unsupplied'
   /** Une ville neutre à portée, en Blitz : elle verse des fonds à qui la capture. */
@@ -110,6 +112,7 @@ export function nextActionsOf(
     ...captureLines(view, now),
     ...foundationLine(view),
     ...unlinkedSitesLine(view),
+    ...unharvestedLine(view),
     ...(view.mode === 'blitz' ? [] : idleSiteLine(view)),
     ...idleProjectionLine(view),
     ...(view.mode === 'blitz' ? neutralCityLine(view) : []),
@@ -176,6 +179,32 @@ function unlinkedSitesLine(view: PlayerView): ReadonlyArray<NextAction> {
     'unlinkedSites',
     fr.nextActions.unlinkedSites(cut.length),
     cut.map((building) => ({ kind: 'site', buildingId: building.id })),
+  );
+}
+
+/**
+ * **Les tas que personne ne vient prendre** (ADR 0041) : rien n'en entre au stock tant qu'un
+ * transport ne passe pas, et la mine pleine s'arrête sans bruit. Un tas vide n'attend rien ; un
+ * site déjà sur la feuille d'une tournée non plus, même rappelée — elle se relance d'un geste.
+ */
+function unharvestedLine(view: PlayerView): ReadonlyArray<NextAction> {
+  const served = new Set(
+    view.me.troops.flatMap((troop) =>
+      (troop.tour?.stops ?? []).flatMap((stop) => (stop.kind === 'site' ? [stop.id] : [])),
+    ),
+  );
+  const waiting = view.me.buildings.filter(
+    (building) =>
+      building.heap !== undefined &&
+      building.heap.cap > 0 &&
+      building.heap.amount > 0 &&
+      !served.has(building.id),
+  );
+  const full = waiting.filter((building) => building.heap?.fullSince !== undefined).length;
+  return lineOf(
+    'unharvested',
+    fr.nextActions.unharvested(waiting.length, full),
+    waiting.map((building) => ({ kind: 'site', buildingId: building.id })),
   );
 }
 

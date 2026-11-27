@@ -33,9 +33,21 @@ const troop = (over: Partial<TroopView>): TroopView =>
   ({ id: 'T-1', role: 'infantry', tier: 1, stationedAt: at, ...over }) as TroopView;
 
 describe('stepsDoneIn', () => {
-  it('reads nothing on a new place, nor on the gift company at its headquarters', () => {
+  it('reads nothing on a new place, nor on the gift company and truck at its headquarters', () => {
     expect(stepsDoneIn(view())).toEqual([]);
-    expect(stepsDoneIn(view({ hqLevel: 1, troops: [troop({})] }))).toEqual(['hq']);
+    const gifts = [troop({}), troop({ id: 'T-2', role: 'landTransport' })];
+    expect(stepsDoneIn(view({ hqLevel: 1, troops: gifts }))).toEqual(['hq']);
+  });
+
+  it('reads a harvest off a tour that stops at an exploitation with a heap, never a foundation', () => {
+    const tour = (id: string) => ({ stops: [{ kind: 'site', id }] }) as never;
+    const buildings = [
+      { id: 'F-1', key: 'farm', heap: { amount: 0, cap: 0, resource: 'food' } },
+      { id: 'F-2', key: 'farm', heap: { amount: 10, cap: 288, resource: 'food' } },
+    ] as never;
+    const truck = (id: string) => troop({ role: 'landTransport', tour: tour(id) });
+    expect(stepsDoneIn(view({ buildings, troops: [truck('F-1')] }))).not.toContain('harvest');
+    expect(stepsDoneIn(view({ buildings, troops: [truck('F-2')] }))).toContain('harvest');
   });
 
   it('reads each gesture off what is under way', () => {
@@ -62,13 +74,19 @@ describe('stepsDoneIn', () => {
         }),
       ),
     ).toEqual(['move', 'research']);
-    expect(stepsDoneIn(view({ troops: [troop({ role: 'landTransport' })] }))).toEqual(['form']);
+    expect(stepsDoneIn(view({ troops: [troop({ role: 'armor' })] }))).toEqual(['form']);
+    const trucks = [troop({ role: 'landTransport' }), troop({ id: 'T-2', role: 'landTransport' })];
+    expect(stepsDoneIn(view({ troops: trucks }))).toEqual(['form']);
     expect(
       stepsDoneIn(view({ outposts: [{ ...(brussels as object), depot: { food: 5 } } as never] })),
     ).toEqual(['deliver']);
-    expect(stepsDoneIn(view({}, [], { journal: [{ kind: 'supplyDelivered' }] as never }))).toEqual([
-      'deliver',
-    ]);
+    expect(
+      stepsDoneIn(view({}, [], { journal: [{ kind: 'supplyDelivered', delivered: {} }] as never })),
+    ).toEqual(['deliver']);
+    /** Le retour d'une tournée qui ramasse se dit aussi `supplyDelivered`, sans charge livrée. */
+    expect(stepsDoneIn(view({}, [], { journal: [{ kind: 'supplyDelivered' }] as never }))).toEqual(
+      [],
+    );
     expect(stepsDoneIn(view({}, [], { journal: [{ kind: 'supply' }] as never }))).toEqual([]);
   });
 
@@ -83,8 +101,8 @@ describe('stepsDoneIn', () => {
 
 describe('litStepOf and shownStepOf', () => {
   it('lights the first step not done, whatever order they were done in', () => {
-    expect(litStepOf(['move', 'hq'])).toBe('form');
-    expect(litStepOf(['hq', 'move', 'form', 'research', 'deliver'])).toBeNull();
+    expect(litStepOf(['move', 'hq'])).toBe('harvest');
+    expect(litStepOf(['hq', 'move', 'harvest', 'form', 'research', 'deliver'])).toBeNull();
   });
 
   it('shows no step once passed, in a Blitz, or to an observer', () => {
@@ -137,6 +155,28 @@ describe('cueOf', () => {
         view({ buildings: [{ id: 'C-1', key: 'researchCenter', level: 1 } as never] }),
       ),
     ).toEqual({ kind: 'rack', rack: 'research', say: 'research', tile: 'researchCenter' });
+  });
+
+  it('asks for an exploitation that heaps, then points at the truck', () => {
+    const farm = { id: 'F-2', key: 'farm', heap: { amount: 0, cap: 288, resource: 'food' } };
+    expect(cueOf('harvest', view())).toEqual({
+      kind: 'rack',
+      rack: 'tiles',
+      say: 'exploitation',
+      tile: 'farm',
+    });
+    expect(
+      cueOf(
+        'harvest',
+        view({ buildings: [farm as never], troops: [troop({ role: 'landTransport' })] }),
+      ),
+    ).toEqual({ kind: 'map', station: at, say: 'harvest' });
+    expect(cueOf('harvest', view({ buildings: [farm as never] }))).toEqual({
+      kind: 'rack',
+      rack: 'tiles',
+      say: 'tiles',
+      tile: 'barracks',
+    });
   });
 
   it('founds an outpost first, then points at a transport or at the barracks that forms one', () => {

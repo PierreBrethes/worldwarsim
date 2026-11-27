@@ -179,6 +179,40 @@ describe('what waits for the player', () => {
     expect(kinds(board())).not.toContain('unlinkedSites');
   });
 
+  it('names the heaps no tour comes for, never a foundation, an empty heap or a served one', () => {
+    const farm = (id: string, amount: number, cap = 288, fullSince?: number) => ({
+      id,
+      key: 'farm',
+      name: 'Ferme',
+      regionId: 'FRA-1',
+      level: 1,
+      heap: { amount, cap, resource: 'food', ...(fullSince === undefined ? {} : { fullSince }) },
+    });
+    const served = troop({
+      id: 'T-9',
+      role: 'landTransport',
+      stationedAt: { kind: 'building', buildingId: 'HQ' },
+      tour: { stops: [{ kind: 'site', id: 'F-4' }] } as never,
+    });
+    const view = board({
+      buildings: [
+        farm('F-1', 0, 0),
+        farm('F-2', 0),
+        farm('F-3', 288, 288, 5),
+        farm('F-4', 40),
+        farm('F-5', 12),
+      ],
+      troops: [served],
+    } as unknown as Partial<PlayerView['me']>);
+    const line = nextActionsOf(view).find((action) => action.kind === 'unharvested');
+    expect(line?.label).toBe('2 tas sans tournée, 1 plein — un camion les rapporte au stock');
+    expect(line?.targets).toEqual([
+      { kind: 'site', buildingId: 'F-3' },
+      { kind: 'site', buildingId: 'F-5' },
+    ]);
+    expect(kinds(board())).not.toContain('unharvested');
+  });
+
   it('names an idle site only while nothing heads the queue', () => {
     const idle = nextActionsOf(board({ construction: null }))[0];
     expect(idle?.kind).toBe('idleSite');

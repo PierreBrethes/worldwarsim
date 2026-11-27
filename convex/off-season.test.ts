@@ -206,7 +206,9 @@ describe('launching', () => {
    * naissait à la dotation ; depuis le 13/09 elle naît **avec le QG**, parce que c'est lui qui
    * lui donne une adresse — et le joueur choisit laquelle.
    */
-  it('gives one infantry with the headquarters, stationed at it', async () => {
+  /** **Et un camion, en Mondiale** (ADR 0041 §3, précision du 27/11/2026) : la récolte s'y
+   *  rapporte, et le premier tas n'attend pas une caserne. */
+  it('gives one infantry and one truck with the headquarters, stationed at it', async () => {
     const t = boot();
     const { creator } = await readyToLaunch(t);
     await t.mutation(api.seasons.launch, creator);
@@ -223,8 +225,10 @@ describe('launching', () => {
         tier: 1,
         strength: nominalStrength('infantry', 1),
       }),
+      expect.objectContaining({ role: 'landTransport', tier: 1 }),
     ]);
-    expect(view.me.troops[0]!.stationedAt).toEqual({ kind: 'building', buildingId: hq.id });
+    for (const troop of view.me.troops)
+      expect(troop.stationedAt).toEqual({ kind: 'building', buildingId: hq.id });
   });
 
   /** **Une élévation n'amène rien** : seule la première pose, celle que le socle offre, porte
@@ -254,7 +258,7 @@ describe('launching', () => {
     const view = await t.query(api.view.playerView, creator);
     // Une élévation passe par la file : ce qui compte ici est qu'elle n'ait rien enrôlé.
     expect(view.me.construction).toEqual(expect.objectContaining({ key: 'hq', regionId: MOSELLE }));
-    expect(view.me.troops).toHaveLength(1);
+    expect(view.me.troops).toHaveLength(2);
   });
 
   /**
@@ -285,19 +289,19 @@ describe('lazy accrual', () => {
    * from a stored number, and an empty map produces nothing. What a farm changes is in
    * `economy.test.ts`.
    *
-   * The bread still moves, and only one thing moves it — la compagnie que le quartier général
-   * amène mange dès sa première minute (`constructions.garrisonTheGift`, 13/09). So the served
-   * rate is the upkeep of that one troop, net and negative, with nothing at all on the other
+   * The bread still moves, and only one thing moves it — la compagnie et le camion que le quartier
+   * général amène mangent dès leur première minute (`constructions.garrisonTheGift`). So the served
+   * rate is the upkeep of those two troops, net and negative, with nothing at all on the other
    * side of the subtraction. Le QG lui-même n'extrait rien : il n'a jamais rien produit.
    */
-  it('extracts nothing as long as nothing is built, and only the given company moves the bread', async () => {
+  it('extracts nothing as long as nothing is built, and only the given pieces move the bread', async () => {
     const t = boot();
     const { creator } = await readyToLaunch(t);
     await t.mutation(api.seasons.launch, creator);
     await placeHq(t, creator);
     vi.advanceTimersByTime(2 * 3_600_000);
     const view = await t.query(api.view.playerView, creator);
-    expect(view.me.upkeep.troops).toBe(1);
+    expect(view.me.upkeep.troops).toBe(2);
     expect(view.me.upkeep.foodPerHour).toBeGreaterThan(0);
     expect(view.me.resources.food.ratePerHour).toBe(-view.me.upkeep.foodPerHour);
     expect(view.me.resources.food.stock).toBe(KIT.food - 2 * view.me.upkeep.foodPerHour);
