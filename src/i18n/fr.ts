@@ -5077,6 +5077,22 @@ export const fr = {
     suspendedUntil: (time: string) => `suspendue jusqu’à ${time}`,
   },
 
+  /**
+   * **La barrette du haut de la carte** (#721, bureau) : chercher un lieu au clavier, lire le sol
+   * sous le curseur, l'échelle et ce qu'elle vaut à pied.
+   */
+  placeStrip: {
+    search: 'Chercher un lieu',
+    searchKey: '/',
+    results: 'lieux trouvés',
+    none: 'aucun lieu de ce nom',
+    kinds: { city: 'ville', region: 'région' },
+    underCursor: 'sous le curseur',
+    heldBy: (nation: string) => `tenue par ${nation}`,
+    scale: (km: number) => `${km.toLocaleString('fr-FR')} km`,
+    onFoot: (span: string) => `${span} à pied`,
+  },
+
   mapUi: {
     /** Le bouton qui ramène la carte chez soi, sous le seuil (refonte mobile, 1a). */
     recenter: 'recentrer sur le quartier général',

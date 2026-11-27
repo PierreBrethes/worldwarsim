@@ -1,7 +1,11 @@
 import { campPinId, outpostPinId, pinsOf } from '@/domain/pins';
 import { contactFacingsOf, contactsOf, pairingOf, stableFacings } from '@/domain/contacts';
 import { PIN_APPROACH_DISTANCE } from '@/map/engine/pins';
-import { DISPATCH_VIEW_DISTANCE, HOME_VIEW_DISTANCE } from './-plateau/view-distance';
+import {
+  DISPATCH_VIEW_DISTANCE,
+  HOME_VIEW_DISTANCE,
+  PLACE_VIEW_DISTANCE,
+} from './-plateau/view-distance';
 import { useTokenDrag } from '@/map/TokenDrag';
 import { boardsUnderTheEyes } from '@/map/cues';
 import { loadReadingOf, sourceStockOf, type TokenSource } from './-plateau/load-reading';
@@ -97,7 +101,8 @@ import { withVitrine } from './-plateau/vitrine';
 import { producingSites, workingSites } from '@/domain/producing';
 import type { Atlas } from '@/domain/atlas';
 import type { Foundation } from '@/map/engine/sea';
-import { type HoveredRegion } from '@/domain/world';
+import { loadRegionIndex, type HoveredRegion } from '@/domain/world';
+import { placesOf, type Place } from '@/domain/place-search';
 import {
   compassOf,
   type Compass,
@@ -224,6 +229,8 @@ import { SentNotice } from './-plateau/SentNotice';
 import { UnderwayColumn } from './-plateau/UnderwayColumn';
 import { LayersGrid, LayersSheet } from '@/shell/LayersSheet';
 import { GroundPanel } from './-plateau/GroundPanel';
+import { cursorReading, depositsInRegion } from './-plateau/cursor-reading';
+import { createScaleStore, PlaceStrip } from './-plateau/PlaceStrip';
 import { CombatToasts } from './-plateau/CombatToasts';
 import { useFrontSound } from './-plateau/FrontTape';
 import { DispatchSheet } from './-plateau/DispatchSheet';
@@ -595,6 +602,8 @@ function BoardContent({
     [],
   );
   const [orderError, setOrderError] = useState<string | null>(null);
+  /** L'échelle de la carte, lue par la barrette sans passer par le rendu du plateau (#721). */
+  const [scaleStore] = useState(createScaleStore);
   const [focus, setFocus] = useState<{
     readonly ids: ReadonlyArray<string>;
     readonly places?: ReadonlyArray<LonLat>;
@@ -3114,6 +3123,19 @@ function BoardContent({
       nonce: Date.now(),
     });
   }, []);
+  /** « Chercher un lieu » (#721) : la carte se rapproche du lieu, villes et régions confondues. */
+  const loadPlaces = useCallback(
+    async () => placesOf(atlas, (await loadRegionIndex()).point),
+    [atlas],
+  );
+  const goToPlace = useCallback((place: Place) => {
+    setFocus({
+      ids: [],
+      places: [place.lonLat],
+      distance: PLACE_VIEW_DISTANCE[place.kind],
+      nonce: Date.now(),
+    });
+  }, []);
   const showCombat = useCallback((combat: CombatReport) => locate(combat.point), [locate]);
 
   /**
@@ -3586,6 +3608,7 @@ function BoardContent({
                   reach={handReach ?? movementReach}
                   onCountryHover={setHoveredCountry}
                   onRegionHover={setHoveredRegion}
+                  onScale={scaleStore.set}
                   onRegionsLoaded={keepRegionAt}
                   onDisbandGround={blitz ? undefined : setDisbandGround}
                   onMaquetteLookup={keepMaquetteAt}
@@ -3869,6 +3892,27 @@ function BoardContent({
                       onFollow={() => setFocus({ ids: [sent.movementId], nonce: Date.now() })}
                     />
                   </div>
+                )}
+                {!narrow && (
+                  <PlaceStrip
+                    loadPlaces={loadPlaces}
+                    onGo={goToPlace}
+                    reading={
+                      quietHover
+                        ? null
+                        : cursorReading({
+                            region: hoveredRegion,
+                            country: hoveredCountry,
+                            holding:
+                              hoveredRegion === null
+                                ? null
+                                : (knownRegionById.get(hoveredRegion.id) ?? null),
+                            deposits:
+                              hoveredRegion === null ? [] : depositsInRegion(hoveredRegion.id),
+                          })
+                    }
+                    scale={blitz ? null : scaleStore}
+                  />
                 )}
                 {/* **Bas-droite, une rangée** (table plein écran, 13/10) : la fiche du survol posée à
             gauche de la pile des boutons, bas alignés, au même écart et à la même marge que la

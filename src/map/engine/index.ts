@@ -54,6 +54,7 @@ import {
   groundAt,
   isOpenWaterCell,
   isWalkableCell,
+  KM_PER_UNIT,
   type Ground,
   type Medium,
   type RouteGrid,
@@ -1006,6 +1007,12 @@ export class MapEngine {
    */
   onCountryHover: (adm0: string | null) => void = () => {};
   onRegionHover: (region: HoveredRegion | null) => void = () => {};
+  /**
+   * **Ce que la caméra dit de l'échelle** (#721) : les kilomètres que couvre un pixel d'écran au
+   * point visé, à chaque image entière. Le lecteur compare : la carte ne demande rien de plus, et
+   * aucune image de plus n'est due pour qu'il lise.
+   */
+  onScale: (kmPerPixel: number) => void = () => {};
   onArcHover: (id: string | null) => void = () => {};
   onSelect: (name: string | null) => void = () => {};
   /**
@@ -6811,6 +6818,7 @@ export class MapEngine {
     this.arcs.tell(projections);
     this.onLabels(this.outsideReplay(projections, distance));
     this.onContacts(contactSpots);
+    this.onScale(this.unitsPerPixel(distance) * KM_PER_UNIT);
     this.onReportsFrame?.();
     // An arrow at the edge would lead out of a replay the veil does not let one leave.
     this.onEdges(
