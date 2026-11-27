@@ -224,7 +224,7 @@ import { brightest, Halos, warmPieces } from './halo';
 import { InkLayer } from './ink';
 import { Airdrops, airdropPlan, playDrop, takerOffset } from './airdrops';
 import { ParachuteLayer } from './parachute';
-import { TourInk, type TourLoop } from './tour-ink';
+import { inkedLoops, TourInk, type TourLoop } from './tour-ink';
 import type { InkBurst, StampWords } from '@/domain/ink-bursts';
 import { circleAround, ReachRing } from './reach';
 import {
@@ -712,6 +712,10 @@ export class MapEngine {
   private readonly rivers: RiverLayer;
   /** Whether the cities' names are written (`setCityNames`, #716). */
   private cityNames = true;
+  /** Whether my tours' loops are inked (`setTourInk`, #723), and the last ones `showTours` got. */
+  private tourInkShown = true;
+  private tourLoops: ReadonlyArray<TourLoop> = [];
+  private tourRuns: ReadonlyArray<ReadonlyArray<LonLat>> = [];
   /** The atlas's cities where the board holds them, for their names (`nameSpots`). */
   private readonly cities: ReadonlyArray<City & { readonly at: Vector3 }>;
   /** The atlas's seas, each point where the board holds it (`nameSpots`). */
@@ -2033,7 +2037,19 @@ export class MapEngine {
   /** **Les boucles de mes tournées**, à l'encre (ADR 0028) : posées une fois, sans flux. */
   showTours(loops: ReadonlyArray<TourLoop>, runs: ReadonlyArray<ReadonlyArray<LonLat>> = []): void {
     this.invalidate();
-    this.tourInk.show(loops, runs);
+    this.tourLoops = loops;
+    this.tourRuns = runs;
+    this.tourInk.show(inkedLoops(loops, this.tourInkShown), runs);
+  }
+
+  /**
+   * **Le tracé des tournées** (#723) : éteint, les boucles posées disparaissent, le pion roule ;
+   * celle qu'on trace reste dessinée, et les routes courues avant un cap changé aussi.
+   */
+  setTourInk(shown: boolean): void {
+    this.invalidate();
+    this.tourInkShown = shown;
+    this.tourInk.show(inkedLoops(this.tourLoops, shown), this.tourRuns);
   }
 
   /** **The drop is refused**: the piece shakes its head before it goes home. */

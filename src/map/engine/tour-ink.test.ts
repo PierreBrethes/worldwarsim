@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { strokesOf } from './tour-ink';
+import { inkedLoops, strokesOf, type TourLoop } from './tour-ink';
 
 const base = [2, 48] as const;
 const lille = [3, 50] as const;
@@ -40,5 +40,18 @@ describe('strokesOf', () => {
     expect(strokesOf({ base, stops: [{ at: lille, skipped: false }], tracing: true })).toEqual([
       { points: [base, lille, base], dashed: true },
     ]);
+  });
+});
+
+describe('inkedLoops', () => {
+  const running: TourLoop = { base, stops: [{ at: lille, skipped: false }], tracing: false };
+  const tracing: TourLoop = { base, stops: [{ at: brussels, skipped: false }], tracing: true };
+
+  it('keeps every loop while the layer is on', () => {
+    expect(inkedLoops([running, tracing], true)).toEqual([running, tracing]);
+  });
+
+  it('drops the loops laid down once the layer is off, but never one being traced', () => {
+    expect(inkedLoops([running, tracing], false)).toEqual([tracing]);
   });
 });

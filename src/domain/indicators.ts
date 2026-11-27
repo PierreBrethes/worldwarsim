@@ -48,7 +48,8 @@ export const CATEGORY_BY_TYPE: Readonly<Partial<Record<LabelType, EdgeCategory>>
  * the board at all, `outpost-zones` draws my outposts' reaches and liaisons (ADR 0037 §9), and
  * `inbound` is what is coming at me. Every other category only parks at the edge: one bascule,
  * `offscreen`, so that a case never toggles without the screen answering. `city-names` (#716)
- * writes or spares the cities' names; the seas', countries' and rivers' stay.
+ * writes or spares the cities' names; the seas', countries' and rivers' stay. `tour-ink`
+ * (#723) lays or lifts the ink of my automatic tours' loops, the one being traced excepted.
  */
 export type Layer =
   | 'buildings'
@@ -57,7 +58,8 @@ export type Layer =
   | 'outpost-zones'
   | 'inbound'
   | 'offscreen'
-  | 'city-names';
+  | 'city-names'
+  | 'tour-ink';
 
 export const LAYERS: ReadonlyArray<Layer> = [
   'buildings',
@@ -67,6 +69,7 @@ export const LAYERS: ReadonlyArray<Layer> = [
   'inbound',
   'offscreen',
   'city-names',
+  'tour-ink',
 ];
 
 export type IndicatorToggles = Readonly<Record<Layer, boolean>>;
@@ -99,6 +102,7 @@ export const DEFAULT_TOGGLES: IndicatorToggles = {
   inbound: true,
   offscreen: false,
   'city-names': true,
+  'tour-ink': true,
 };
 
 /**
