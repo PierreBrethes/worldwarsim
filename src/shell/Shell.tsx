@@ -13,6 +13,7 @@ import { SurfaceColumn } from './SurfaceColumn';
 import {
   BoardInsetsContext,
   ColumnCardContext,
+  ColumnChipsContext,
   useNarrowScreen,
   type BoardInsets,
 } from './viewport';
@@ -57,7 +58,8 @@ export function Shell({
   const side = useRef<HTMLElement>(null);
   const [bar, setBar] = useState<HTMLElement | null>(null);
   const [card, setCard] = useState<HTMLElement | null>(null);
-  const insets = usePublishedEdges(board, top, side, bar, narrow, card);
+  const [chips, setChips] = useState<HTMLElement | null>(null);
+  const insets = usePublishedEdges(board, top, side, bar, narrow, card, chips);
   /** **Les registres épinglés**, du plus ancien au plus récent (#121) : un clic sur une réserve du
    *  bandeau en pose ou en décroche le ticket ; au-delà de trois, le plus ancien part. */
   const [pinned, setPinned] = useState<ReadonlyArray<ResourceKey>>([]);
@@ -124,7 +126,9 @@ export function Shell({
             />
             {tickets}
             <ColumnCardContext.Provider value={setCard}>
-              <SurfaceColumn todo={todo} ref={side} />
+              <ColumnChipsContext.Provider value={setChips}>
+                <SurfaceColumn todo={todo} ref={side} />
+              </ColumnChipsContext.Provider>
             </ColumnCardContext.Provider>
           </PinContext.Provider>
         </main>
@@ -150,6 +154,7 @@ export function usePublishedEdges(
   foot: HTMLElement | null,
   narrow: boolean,
   card: HTMLElement | null = null,
+  chips: HTMLElement | null = null,
 ): BoardInsets {
   const [insets, setInsets] = useState<BoardInsets>({ top: 0, right: 0, bottom: 0, left: 0 });
   useEffect(() => {
@@ -174,10 +179,17 @@ export function usePublishedEdges(
       );
       // The map's buttons stand in the right corner with the column's square and margin: the
       // same width, measured once.
+      // The « à faire » chips stand above the stock band: the map's foot is covered up to their top.
+      const rowTop = chips?.getBoundingClientRect().top;
       const next = {
         top: Math.round(band === undefined || map === undefined ? 0 : band.bottom - map.top),
         right: width,
-        bottom: Math.round(corner === undefined || map === undefined ? 0 : map.bottom - corner.top),
+        bottom: Math.round(
+          Math.max(
+            corner === undefined || map === undefined ? 0 : map.bottom - corner.top,
+            rowTop === undefined || map === undefined ? 0 : map.bottom - rowTop,
+          ),
+        ),
         left,
       };
       setInsets((held) =>
@@ -194,14 +206,30 @@ export function usePublishedEdges(
     for (const ref of [board, top, side]) if (ref.current) observer.observe(ref.current);
     if (foot) observer.observe(foot);
     if (card) observer.observe(card);
+    if (chips) observer.observe(chips);
     window.addEventListener('resize', publish);
+    // The row rides the personal board's band (`--mat-rise`, written on the root): it moves
+    // without resizing, so its top is read again when that rise changes, once a frame.
+    let queued = 0;
+    let rise = root.getPropertyValue('--mat-rise');
+    const rides = chips
+      ? new MutationObserver(() => {
+          const now = document.documentElement.style.getPropertyValue('--mat-rise');
+          if (now === rise || queued !== 0) return;
+          rise = now;
+          queued = requestAnimationFrame(() => ((queued = 0), publish()));
+        })
+      : null;
+    rides?.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
     return () => {
+      cancelAnimationFrame(queued);
+      rides?.disconnect();
       observer.disconnect();
       window.removeEventListener('resize', publish);
       root.removeProperty('--board-top');
       root.removeProperty('--board-bottom');
       root.removeProperty('--board-left');
     };
-  }, [board, top, side, foot, narrow, card]);
+  }, [board, top, side, foot, narrow, card, chips]);
   return insets;
 }

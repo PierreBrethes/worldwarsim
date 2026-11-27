@@ -23,7 +23,7 @@ const box = (left: number, right: number, top = 0, bottom = 900) => {
   return el;
 };
 
-const insetsWith = (card: HTMLElement | null) =>
+const insetsWith = (card: HTMLElement | null, chips: HTMLElement | null = null) =>
   renderHook(() =>
     usePublishedEdges(
       { current: box(0, 1440) },
@@ -32,6 +32,7 @@ const insetsWith = (card: HTMLElement | null) =>
       null,
       false,
       card,
+      chips,
     ),
   ).result.current;
 
@@ -42,5 +43,10 @@ describe('the board insets', () => {
 
   it('count the unfolded card on the left, and leave the right at the column width', () => {
     expect(insetsWith(box(90, 390, 500, 900))).toMatchObject({ left: 390, right: 75 });
+  });
+
+  it('cover the map up to the top of the « à faire » chips, which stand above the stock band (#713)', () => {
+    expect(insetsWith(null, box(85, 900, 760, 790))).toMatchObject({ bottom: 140, left: 75 });
+    expect(insetsWith(null)).toMatchObject({ bottom: 0 });
   });
 });

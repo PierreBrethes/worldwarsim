@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlayerView } from '@/domain/player-view';
 import { NextActions } from './NextActions';
 
+beforeEach(() => localStorage.clear());
 afterEach(cleanup);
 
 const stack = (id: string, lon: number) => ({
@@ -53,15 +54,44 @@ const mount = (view: PlayerView, onGoToMap: (point: unknown) => void) =>
     />,
   );
 
+describe('the card at the desk', () => {
+  it('opens folded to its square, and says what waits in chips above the band', () => {
+    mount(viewOf([-10, -20, -30]), vi.fn());
+    expect(screen.queryByRole('heading', { name: 'à faire maintenant' })).toBeNull();
+    expect(screen.getByRole('group', { name: 'à faire maintenant' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /3 troupes sans ordre/ }).textContent).toContain(
+      '1 / 3',
+    );
+  });
+
+  it('opens the whole list from its square, and the chips give way to it', () => {
+    mount(viewOf([-10]), vi.fn());
+    fireEvent.click(screen.getByRole('button', { name: /à faire$/ }));
+    expect(screen.getByRole('heading', { name: 'à faire maintenant' })).toBeTruthy();
+    expect(screen.queryByRole('group', { name: 'à faire maintenant' })).toBeNull();
+  });
+
+  it('keeps the list open for the player who left it open', () => {
+    localStorage.setItem('wws-next-actions', 'open');
+    mount(viewOf([-10]), vi.fn());
+    expect(screen.getByRole('heading', { name: 'à faire maintenant' })).toBeTruthy();
+  });
+
+  it('shows no chip, and no square, when nothing waits', () => {
+    mount(viewOf([]), vi.fn());
+    expect(screen.queryByRole('group')).toBeNull();
+  });
+});
+
 describe('a line with several occurrences', () => {
   it('walks through them one click at a time, then comes back to the first', () => {
     const goTo = vi.fn();
     mount(viewOf([-10, -20, -30]), goTo);
     const row = () => screen.getByRole('button', { name: /3 troupes sans ordre/ });
 
-    expect(row().textContent).toContain('carte 1 / 3');
+    expect(row().textContent).toContain('1 / 3');
     fireEvent.click(row());
-    expect(row().textContent).toContain('carte 2 / 3');
+    expect(row().textContent).toContain('2 / 3');
     fireEvent.click(row());
     fireEvent.click(row());
 
@@ -70,7 +100,7 @@ describe('a line with several occurrences', () => {
       [-20, 45],
       [-30, 45],
     ]);
-    expect(row().textContent).toContain('carte 1 / 3');
+    expect(row().textContent).toContain('1 / 3');
     fireEvent.click(row());
     expect(goTo).toHaveBeenLastCalledWith([-10, 45]);
   });

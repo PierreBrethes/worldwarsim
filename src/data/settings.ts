@@ -35,13 +35,12 @@ export function keepHudScale(percent: number): void {
 
 const NEXT_ACTIONS_KEY = 'wws-next-actions';
 
-/** A Blitz opens with the card folded to its square; its own key keeps a Mondiale choice apart. */
+/** The card opens folded to its square in both modes (#713): the chips above the band say what waits,
+ *  and the square opens the whole list. Its own key keeps a Mondiale choice apart from a Blitz one. */
 const nextActionsKey = (blitz: boolean) => (blitz ? `${NEXT_ACTIONS_KEY}-blitz` : NEXT_ACTIONS_KEY);
 
-export const readNextActionsFolded = (blitz: boolean): boolean => {
-  const kept = localStorage.getItem(nextActionsKey(blitz));
-  return kept === null ? blitz : kept === 'folded';
-};
+export const readNextActionsFolded = (blitz: boolean): boolean =>
+  localStorage.getItem(nextActionsKey(blitz)) !== 'open';
 
 export const keepNextActionsFolded = (folded: boolean, blitz: boolean): void => {
   localStorage.setItem(nextActionsKey(blitz), folded ? 'folded' : 'open');
