@@ -67,6 +67,9 @@ export type NextAction = {
   readonly id: string;
   readonly kind: NextActionKind;
   readonly label: string;
+  /** Ce que la ligne attend, en nombre : la pastille du bureau l'écrit en chiffres. Les troupes
+   *  se comptent, pas leurs adresses (les cibles). */
+  readonly count: number;
   /** **Une ligne par sorte, une cible par occurrence** (décision Pierre, 05/10) : dans l'ordre
    *  de la vue, jamais retriées. Le domaine les décrit, c'est l'interface qui les parcourt. */
   readonly targets: readonly [NextActionTarget, ...NextActionTarget[]];
@@ -75,10 +78,11 @@ export type NextAction = {
 const lineOf = (
   kind: NextActionKind,
   label: string,
+  count: number,
   targets: ReadonlyArray<NextActionTarget>,
 ): ReadonlyArray<NextAction> => {
   const [first, ...rest] = targets;
-  return first === undefined ? [] : [{ id: kind, kind, label, targets: [first, ...rest] }];
+  return first === undefined ? [] : [{ id: kind, kind, label, count, targets: [first, ...rest] }];
 };
 
 /**
@@ -139,6 +143,7 @@ function captureLines(view: PlayerView, now: number): ReadonlyArray<NextAction> 
       threatened.length === 1 && one !== undefined
         ? captureSaid(one, now, 'todo')
         : fr.nextActions.sitesUnderCapture(threatened.length),
+      threatened.length,
       threatened.map((capture) => ({ kind: 'map', point: capture.point })),
     ),
     ...lineOf(
@@ -146,6 +151,7 @@ function captureLines(view: PlayerView, now: number): ReadonlyArray<NextAction> 
       stopped.length === 1 && dropped !== undefined
         ? fr.nextActions.captureStopped(captureSiteName(dropped))
         : fr.nextActions.capturesStopped(stopped.length),
+      stopped.length,
       stopped.map((capture) => ({ kind: 'map', point: capture.point })),
     ),
   ];
@@ -159,6 +165,7 @@ const foundationLine = (view: PlayerView): ReadonlyArray<NextAction> =>
           id: 'foundation',
           kind: 'foundation',
           label: fr.nextActions.foundation(view.me.foundation.length),
+          count: view.me.foundation.length,
           targets: [{ kind: 'unfold' }],
         },
       ];
@@ -178,6 +185,7 @@ function unlinkedSitesLine(view: PlayerView): ReadonlyArray<NextAction> {
   return lineOf(
     'unlinkedSites',
     fr.nextActions.unlinkedSites(cut.length),
+    cut.length,
     cut.map((building) => ({ kind: 'site', buildingId: building.id })),
   );
 }
@@ -204,6 +212,7 @@ function unharvestedLine(view: PlayerView): ReadonlyArray<NextAction> {
   return lineOf(
     'unharvested',
     fr.nextActions.unharvested(waiting.length, full),
+    waiting.length,
     waiting.map((building) => ({ kind: 'site', buildingId: building.id })),
   );
 }
@@ -234,6 +243,7 @@ const idleSiteLine = (view: PlayerView): ReadonlyArray<NextAction> =>
           id: 'idleSite',
           kind: 'idleSite',
           label: fr.nextActions.idleSite,
+          count: 1,
           targets: [{ kind: 'surface', surface: 'personalBoard' }],
         },
       ];
@@ -273,6 +283,7 @@ function idleProjectionLine(view: PlayerView): ReadonlyArray<NextAction> {
           regions.get(only.regionId) ?? only.name,
         )
       : fr.nextActions.idleProjections(idle.length),
+    idle.length,
     idle.map((building) => ({ kind: 'site', buildingId: building.id })),
   );
 }
@@ -298,6 +309,7 @@ function neutralCityLine(view: PlayerView): ReadonlyArray<NextAction> {
   return lineOf(
     'neutralCity',
     fr.nextActions.neutralCities(near.length),
+    near.length,
     near.map((site) => ({ kind: 'map', point: site.point })),
   );
 }
@@ -358,6 +370,7 @@ function stationLine(
   return lineOf(
     kind,
     label(total, stations.length === 1 ? names.place(only.station) : null),
+    total,
     stations.map(({ point }) => ({ kind: 'map', point })),
   );
 }
