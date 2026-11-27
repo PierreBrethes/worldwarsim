@@ -428,9 +428,10 @@ dossier sur le VPS : [`WWS/docs/prompts/vps/dossier-media.md`](../WWS/docs/promp
 
 ## CI/CD (GitHub Actions)
 
-Un seul workflow, `.github/workflows/ci.yml` : le job `verifications` (la même liste
-`npm run verifier` que le hook pre-push — elle ne diverge jamais) puis, s'il passe, le job
-`deployer` — fonctions Convex d'abord, reconstruction du front sur le VPS ensuite.
+`.github/workflows/ci.yml` : le job `verifications` (la même liste `npm run verifier` que le
+hook pre-push — elle ne diverge jamais) et le parcours e2e puis, s'ils passent, le déploiement
+(`deployer.yml`) — fonctions Convex d'abord, reconstruction du front sur le VPS ensuite. `main`
+déploie la pré-production, `version-test` la version de test (§ Version de test).
 
 Secrets à créer dans GitHub → Settings → Secrets and variables → Actions :
 
@@ -446,6 +447,107 @@ Secrets à créer dans GitHub → Settings → Secrets and variables → Actions
 Un `convex deploy` dont la migration de schéma est incompatible avec les données en place
 **échoue, et c'est voulu** : une saison en cours ne se casse pas en silence — on wipe
 (off-season) ou on écrit la migration, puis on relance le job (`workflow_dispatch`).
+
+## Version de test — une saison entre amis à l'abri de `main`
+
+Deux instances sur le même VPS, deux branches, deux bases :
+
+| | Pré-production | Version de test |
+|---|---|---|
+| Branche | `main` (chaque fusion déploie) | `version-test` (ne reçoit que des correctifs choisis) |
+| Clone sur le VPS | `/opt/worldwarsim` | `/opt/worldwarsim-test` |
+| Projet compose, volume | `worldwarsim`, `worldwarsim_convex-data` | `worldwarsim-test`, `worldwarsim-test_convex-data` |
+| Adresses | `wws`, `convex`, `convex-actions` | `wws-test`, `convex-test`, `convex-actions-test` |
+| Secrets GitHub | `CONVEX_SELF_HOSTED_*`, `VPS_CHEMIN` | `TEST_CONVEX_SELF_HOSTED_*`, `TEST_VPS_CHEMIN`, variable `TEST_FRONT_URL` |
+
+Le projet compose prend le nom du dossier, donc son propre volume : rien n'est partagé que l'image
+du backend, Traefik et la clé SSH du déploiement. `compose.prod.yml` lit hôtes, routeurs et réseau
+dans le `.env` de chaque clone (défauts : la pré-production).
+
+### Mise en place (une fois, sur le VPS)
+
+1. DNS : trois enregistrements A vers l'IP du VPS, `wws-test`, `convex-test`,
+   `convex-actions-test`.
+2. Le clone, sur la branche figée :
+
+   ```bash
+   git clone -b version-test git@github.com:PierreBrethes/worldwarsim.git /opt/worldwarsim-test
+   ```
+
+3. Son `.env`, **un autre `INSTANCE_SECRET`** que la pré-production, et l'image du backend
+   épinglée au digest de celle qui tourne (`docker inspect --format '{{index .RepoDigests 0}}'
+   ghcr.io/get-convex/convex-backend:latest`) : `latest` ne doit pas changer de Convex sous une
+   saison en cours.
+
+   ```
+   COMPOSE_PROJECT_NAME=worldwarsim-test
+   INSTANCE_NAME=worldwarsim-test
+   INSTANCE_SECRET=<openssl rand -hex 32>
+   CONVEX_CLOUD_ORIGIN=https://convex-test.pierrebrethes.cloud
+   CONVEX_SITE_ORIGIN=https://convex-actions-test.pierrebrethes.cloud
+   VITE_PUBLIC_ORIGIN=https://wws-test.pierrebrethes.cloud
+   WWS_BACKEND_IMAGE=ghcr.io/get-convex/convex-backend@sha256:<digest>
+   WWS_ROUTEURS=wwst
+   WWS_HOTE_JEU=wws-test.pierrebrethes.cloud
+   WWS_HOTE_CONVEX=convex-test.pierrebrethes.cloud
+   WWS_HOTE_ACTIONS=convex-actions-test.pierrebrethes.cloud
+   # Exigé par compose.prod.yml même sans dashboard levé : une valeur quelconque.
+   WWS_DASHBOARD_AUTH=aucun:aucun
+   # Les copies distantes dans un sous-dossier : la pré-production a la racine.
+   WWS_DISTANT=hors-vps:test
+   ```
+
+4. Backend, clé d'admin, fonctions, front — les étapes 4, 5 et 5 bis de la mise en prod, dans ce
+   clone, **sans `dashboard`** (la CLI avec la clé d'admin suffit) :
+
+   ```bash
+   cd /opt/worldwarsim-test
+   wws-compose up -d backend
+   wws-compose exec backend ./generate_admin_key.sh
+   ```
+
+5. GitHub → Settings → Secrets and variables → Actions : les secrets `TEST_CONVEX_SELF_HOSTED_URL`
+   (`https://convex-test.pierrebrethes.cloud`), `TEST_CONVEX_SELF_HOSTED_ADMIN_KEY`,
+   `TEST_VPS_CHEMIN` (`/opt/worldwarsim-test`) et la variable `TEST_FRONT_URL`
+   (`https://wws-test.pierrebrethes.cloud/`). Un secret absent fait échouer le job **avant**
+   toute poussée : la version de test ne retombe jamais sur ceux de la pré-production.
+6. Le cron, une ligne de plus :
+
+   ```
+   20 4 * * * /opt/worldwarsim-test/deploiement/sauvegarde.sh >> $HOME/wws-test-sauvegarde.log 2>&1
+   ```
+
+### Porter un correctif
+
+Le correctif se fusionne d'abord sur `main` (il passe par la pré-production), puis :
+
+```bash
+git switch version-test && git pull
+git cherry-pick -x <commit de main>
+git push                     # CI : vérifications, e2e, copie de la base, fonctions, front
+```
+
+`-x` écrit d'où vient le commit : `git log version-test` dit ce qui a été porté. La CI copie la
+base avant chaque poussée (`sauvegarde.sh` dans le clone de test) ; un correctif raté se défait
+par `git revert` et un nouveau push, une base abîmée par `restauration.sh` (§ Sauvegardes).
+
+**Ne se porte pas en cours de saison** :
+
+- un changement d'atlas (§ L'atlas) : il vide la base ;
+- un champ de schéma obligatoire sans migration : `convex deploy` le refuse, c'est le garde-fou ;
+- un correctif qui suppose une migration `dev:*` (§ Dev local) **sans la lancer** juste après sur
+  la version de test, avec `TEST_*` en `CONVEX_SELF_HOSTED_*` ;
+- un changement de règle : il change la partie sous les joueurs. Entre deux saisons, oui.
+
+Entre deux saisons, la version de test se recale sur `main` par une fusion, jamais un
+`reset` : le clone du VPS avance en `--ff-only` et refuserait une histoire réécrite.
+
+```bash
+git switch version-test && git merge main && git push
+```
+
+Si `convex deploy` refuse alors le schéma, la saison finie se vide d'abord (`dev:reset`, § Dev
+local), puis le job se relance.
 
 ## Dashboard
 

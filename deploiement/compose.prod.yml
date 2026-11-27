@@ -13,29 +13,35 @@
 # `websecure` et certresolver `letsencrypt` : confirmés sur ce Traefik.
 #
 # `!reset` exige Docker Compose >= 2.24 (`docker compose version` pour vérifier).
+#
+# Deux instances tournent sur ce fichier (deploiement/README.md « Version de test ») : la
+# pré-production dans /opt/worldwarsim, la version de test dans son propre clone. Les noms
+# d'hôte, de routeur et de réseau se lisent donc dans le `.env` de chaque clone ; les défauts
+# sont ceux de la pré-production. Deux routeurs Traefik du même nom se marchent dessus, d'où
+# le préfixe `WWS_ROUTEURS`.
 
 services:
   backend:
     ports: !reset []
     labels:
       - traefik.enable=true
-      - traefik.docker.network=worldwarsim_default
+      - traefik.docker.network=${COMPOSE_PROJECT_NAME:-worldwarsim}_default
 
       # L'API Convex (3210) — CONVEX_CLOUD_ORIGIN. Traefik passe les upgrades WebSocket
       # sans rien demander : c'est le point que le README exigeait du proxy.
-      - traefik.http.routers.wws-convex.rule=Host(`convex.pierrebrethes.cloud`)
-      - traefik.http.routers.wws-convex.entrypoints=websecure
-      - traefik.http.routers.wws-convex.tls.certresolver=letsencrypt
-      - traefik.http.routers.wws-convex.service=wws-convex
-      - traefik.http.services.wws-convex.loadbalancer.server.port=3210
+      - traefik.http.routers.${WWS_ROUTEURS:-wws}-convex.rule=Host(`${WWS_HOTE_CONVEX:-convex.pierrebrethes.cloud}`)
+      - traefik.http.routers.${WWS_ROUTEURS:-wws}-convex.entrypoints=websecure
+      - traefik.http.routers.${WWS_ROUTEURS:-wws}-convex.tls.certresolver=letsencrypt
+      - traefik.http.routers.${WWS_ROUTEURS:-wws}-convex.service=${WWS_ROUTEURS:-wws}-convex
+      - traefik.http.services.${WWS_ROUTEURS:-wws}-convex.loadbalancer.server.port=3210
 
       # Les actions HTTP Convex (3211) — CONVEX_SITE_ORIGIN. Le README d'avant ne routait
       # que 3210 : sans ce routeur, tout ce qui passe par le site origin est mort en prod.
-      - traefik.http.routers.wws-actions.rule=Host(`convex-actions.pierrebrethes.cloud`)
-      - traefik.http.routers.wws-actions.entrypoints=websecure
-      - traefik.http.routers.wws-actions.tls.certresolver=letsencrypt
-      - traefik.http.routers.wws-actions.service=wws-actions
-      - traefik.http.services.wws-actions.loadbalancer.server.port=3211
+      - traefik.http.routers.${WWS_ROUTEURS:-wws}-actions.rule=Host(`${WWS_HOTE_ACTIONS:-convex-actions.pierrebrethes.cloud}`)
+      - traefik.http.routers.${WWS_ROUTEURS:-wws}-actions.entrypoints=websecure
+      - traefik.http.routers.${WWS_ROUTEURS:-wws}-actions.tls.certresolver=letsencrypt
+      - traefik.http.routers.${WWS_ROUTEURS:-wws}-actions.service=${WWS_ROUTEURS:-wws}-actions
+      - traefik.http.services.${WWS_ROUTEURS:-wws}-actions.loadbalancer.server.port=3211
 
   # Le dashboard est une console d'admin, joignable depuis le web sur son propre sous-domaine
   # derrière deux barrières : le BasicAuth de Traefik, puis la clé d'admin Convex demandée à la
@@ -50,14 +56,14 @@ services:
     ports: !reset []
     labels:
       - traefik.enable=true
-      - traefik.docker.network=worldwarsim_default
-      - traefik.http.routers.wws-dashboard.rule=Host(`convex-dashboard.pierrebrethes.cloud`)
-      - traefik.http.routers.wws-dashboard.entrypoints=websecure
-      - traefik.http.routers.wws-dashboard.tls.certresolver=letsencrypt
-      - traefik.http.routers.wws-dashboard.service=wws-dashboard
-      - traefik.http.routers.wws-dashboard.middlewares=wws-dashboard-auth
-      - traefik.http.services.wws-dashboard.loadbalancer.server.port=6791
-      - traefik.http.middlewares.wws-dashboard-auth.basicauth.users=${WWS_DASHBOARD_AUTH:?definir WWS_DASHBOARD_AUTH dans .env — voir deploiement/README.md}
+      - traefik.docker.network=${COMPOSE_PROJECT_NAME:-worldwarsim}_default
+      - traefik.http.routers.${WWS_ROUTEURS:-wws}-dashboard.rule=Host(`${WWS_HOTE_DASHBOARD:-convex-dashboard.pierrebrethes.cloud}`)
+      - traefik.http.routers.${WWS_ROUTEURS:-wws}-dashboard.entrypoints=websecure
+      - traefik.http.routers.${WWS_ROUTEURS:-wws}-dashboard.tls.certresolver=letsencrypt
+      - traefik.http.routers.${WWS_ROUTEURS:-wws}-dashboard.service=${WWS_ROUTEURS:-wws}-dashboard
+      - traefik.http.routers.${WWS_ROUTEURS:-wws}-dashboard.middlewares=${WWS_ROUTEURS:-wws}-dashboard-auth
+      - traefik.http.services.${WWS_ROUTEURS:-wws}-dashboard.loadbalancer.server.port=6791
+      - traefik.http.middlewares.${WWS_ROUTEURS:-wws}-dashboard-auth.basicauth.users=${WWS_DASHBOARD_AUTH:?definir WWS_DASHBOARD_AUTH dans .env — voir deploiement/README.md}
 
   front:
     ports: !reset []
@@ -67,8 +73,8 @@ services:
       - ${WWS_MEDIA_DIR:-/opt/worldwarsim-media}:/usr/share/nginx/html/media:ro
     labels:
       - traefik.enable=true
-      - traefik.docker.network=worldwarsim_default
-      - traefik.http.routers.wws-front.rule=Host(`wws.pierrebrethes.cloud`)
-      - traefik.http.routers.wws-front.entrypoints=websecure
-      - traefik.http.routers.wws-front.tls.certresolver=letsencrypt
-      - traefik.http.services.wws-front.loadbalancer.server.port=80
+      - traefik.docker.network=${COMPOSE_PROJECT_NAME:-worldwarsim}_default
+      - traefik.http.routers.${WWS_ROUTEURS:-wws}-front.rule=Host(`${WWS_HOTE_JEU:-wws.pierrebrethes.cloud}`)
+      - traefik.http.routers.${WWS_ROUTEURS:-wws}-front.entrypoints=websecure
+      - traefik.http.routers.${WWS_ROUTEURS:-wws}-front.tls.certresolver=letsencrypt
+      - traefik.http.services.${WWS_ROUTEURS:-wws}-front.loadbalancer.server.port=80
