@@ -3451,6 +3451,15 @@ export class MapEngine {
     return pile !== null && pile !== labelId;
   }
 
+  /** **Where the number of my heap sits** (#707): the top of the heap drawn in its yard, in
+   *  screen pixels; `null` for a site without one, or not drawn as a maquette. */
+  heapPoint(labelId: string): { x: number; y: number } | null {
+    const top = this.maquettes.heapTopOf(labelId)?.project(this.eye) ?? null;
+    return top === null
+      ? null
+      : { x: ((top.x + 1) / 2) * this.screenWidth, y: ((1 - top.y) / 2) * this.screenHeight };
+  }
+
   pieceRect(labelId: string): Rect | null {
     const box =
       this.standing.boxOf(labelId) ??

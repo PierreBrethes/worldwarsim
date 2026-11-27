@@ -860,3 +860,74 @@ describe('the aim label of a finger', () => {
     expect(anchor().style.getPropertyValue('--aim-shift')).toBe('0px');
   });
 });
+
+/** **Le chiffre du tas posé sur le tas** (#707) : de près, sur le haut du tas que la maquette
+ *  dessine dans sa cour ; de loin, contre le socle ou le point, comme avant. */
+describe('the number of my heap', () => {
+  const heaped = {
+    ...outpost('building-mine@3,50', 'Mine de fer'),
+    type: 'building',
+    heap: {
+      resource: 'steel',
+      amount: 77,
+      cap: 192,
+      perHour: 0,
+      asOf: 0,
+      fullSince: null,
+      foundation: null,
+    },
+  } as MapLabel;
+  const placed = (heapPoint: { x: number; y: number } | null) => {
+    const engine: Record<string, unknown> = {
+      setLabelAnchors: () => {},
+      subscribeRest: () => () => {},
+      atZoomFloor: () => false,
+      invalidate: () => {},
+      nameSpots: () => ({ cities: [], rivers: [], seas: [], pins: [], night: 0 }),
+      pieceRect: () => ({ left: 700, right: 860, top: 160, bottom: 269 }),
+      heapPoint: () => heapPoint,
+      cameraDistance: () => 20,
+      heldRects: () => [],
+    };
+    render(
+      <MapLabels
+        {...(layer([heaped]).props as React.ComponentProps<typeof MapLabels>)}
+        engine={engine as never}
+      />,
+    );
+    act(() =>
+      (engine.onLabels as (projections: ReadonlyArray<unknown>) => void)([
+        {
+          id: 'building-mine@3,50',
+          visible: true,
+          x: 796,
+          y: 246,
+          lod: 'expanded',
+          fade: 1,
+          dressed: 1,
+          far: false,
+          drawnX: 0,
+          drawnY: 0,
+          distance: 20,
+          atEdge: false,
+          edgeX: 0,
+          edgeY: 0,
+          heading: 0,
+        },
+      ]),
+    );
+    const anchor = document.querySelector('[data-label-id="building-mine@3,50"]')!
+      .parentElement as HTMLElement;
+    return ['--heap-x', '--heap-y', '--heap-shift', '--heap-lift'].map((name) =>
+      anchor.style.getPropertyValue(name),
+    );
+  };
+
+  it('sits on the top of the heap drawn in the yard, its middle over it', () => {
+    expect(placed({ x: 820, y: 200 })).toEqual(['24px', '-50px', '-50%', '-100%']);
+  });
+
+  it('keeps to the corner of the socle without a heap drawn', () => {
+    expect(placed(null)).toEqual(['68px', '17px', '0%', '-100%']);
+  });
+});

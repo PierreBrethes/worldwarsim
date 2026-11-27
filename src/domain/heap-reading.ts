@@ -4,7 +4,8 @@ import { harvestTotal, type HarvestLoad } from './logistics';
 import type { PlayerView } from './player-view';
 
 const HOUR = 3_600_000;
-/** Jetons d'une pile pleine : la pile se lit d'un coup d'œil, la jauge donne le reste. */
+/** Paliers d'un tas plein : le tas dessiné dans la cour se lit d'un coup d'œil, le chiffre posé
+ *  dessus donne le reste (#707). */
 const FULL_STACK = 4;
 
 /**
@@ -30,7 +31,7 @@ export type HeapReading = {
   readonly full: boolean;
   /** Depuis quand l'exploitation est arrêtée faute de place, `null` tant que le tas n'est pas plein. */
   readonly stoppedSince: number | null;
-  /** Les jetons de la pile dessinée au pied. */
+  /** Le palier du tas dessiné dans la cour (#707), 0 pour un tas vide. */
   readonly stack: number;
 };
 
@@ -82,6 +83,22 @@ export function heapReadingOf(mark: HeapMark, now: number): HeapReading {
       : (mark.fullSince ?? mark.asOf + ((mark.cap - mark.amount) / mark.perHour) * HOUR),
     stack: amount <= 0 ? 0 : Math.min(FULL_STACK, Math.max(1, Math.ceil(share * FULL_STACK))),
   };
+}
+
+/**
+ * **Les instants où le tas change de palier** (#707), après `asOf`, du plus tôt au plus tard : au
+ * premier lot, puis à chaque quart du plafond franchi. Aucun pour un tas qui ne grandit pas.
+ */
+export function heapStackChanges(mark: HeapMark): number[] {
+  if (mark.fullSince !== null || mark.perHour <= 0 || mark.cap <= 0) return [];
+  const amounts = [
+    1,
+    ...[1, 2, 3].map((quarter) => Math.floor((quarter * mark.cap) / FULL_STACK) + 1),
+  ];
+  return [...new Set(amounts)]
+    .filter((amount) => amount > mark.amount && amount <= mark.cap)
+    .sort((a, b) => a - b)
+    .map((amount) => mark.asOf + Math.ceil(((amount - mark.amount) / mark.perHour) * HOUR));
 }
 
 /** **Ce qui attend au pied, par ressource** : la somme des tas, leur nombre, et ceux qui sont pleins.

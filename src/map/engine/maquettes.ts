@@ -49,7 +49,8 @@ import type { SequenceHost } from './sequences';
 import { Smoke, type Plume } from './smoke';
 import { groundFootprint, SOCLE_TOP, WorksDressing, type Works } from './works';
 import type { CaptureClock } from '@/domain/capture';
-import type { BuildingKey } from '@/domain/ids';
+import type { BuildingKey, ResourceKey } from '@/domain/ids';
+import { HEAP_SHAPES, heapHeight, heapMeshOf, YARD_TOP } from './yard-heaps';
 import {
   FLAG_DROP,
   flagHeight,
@@ -165,6 +166,14 @@ export type StandingMaquette = {
   /** **An outpost's gear** (#468): the accessory group of the trade it plies now, `null` for the
    *  generalist and for an outpost whose trade the view does not serve. Absent for a building. */
   readonly gear?: string | null;
+  /** **The heap in its yard** (#707): mine alone, at its stack (`heapReadingOf`, 0 to 4) and its
+   *  spot in metres of its file (`buildingHeapSpot`). At 0 its yard is empty, its label still on
+   *  the spot. Absent for a survey: a heap is served to its owner alone (ADR 0041). */
+  readonly heap?: {
+    readonly resource: ResourceKey;
+    readonly stack: number;
+    readonly at: readonly [x: number, z: number];
+  };
 };
 
 /** The socle's paper (ADR 0038 §1): a hollow liseré is its ink mixed into it. */
@@ -456,6 +465,14 @@ function ringRadius(spacings: ReadonlyArray<number>): number {
 }
 
 type Point = readonly [x: number, z: number];
+
+const spot = new Matrix4();
+/** **Where a heap stands in its file** (#707), so high over its yard: x to -x in mirror (#476). */
+const heapSpot = (
+  { at: [x, z] }: NonNullable<StandingMaquette['heap']>,
+  mirrored: boolean,
+  over: number,
+): Matrix4 => spot.makeTranslation(mirrored ? -x : x, YARD_TOP + over, z);
 
 /** **What a placement may not do** (retours du 15/10): stray far from its own point — further
  *  than `maxShift` times its ring's widest spacing —, or step a site on land, or its garrison,
@@ -771,6 +788,9 @@ type Placed = {
   seals: Object3D | null;
   /** An outpost's gear on show (`StandingMaquette.gear`), `null` for none. */
   readonly gear: string | null;
+  readonly heap: NonNullable<StandingMaquette['heap']> | null;
+  /** Its heap (`heapMeshOf`) once its model has landed on a socle, `null` for an empty yard. */
+  heapMesh: Mesh | null;
   /** When it stood up under the eyes (`Date.now()`): it bounces once. */
   settledAt: number | null;
   /** How its runway sits on its land (`pose`, #493), `null` for none, or before the coast's
@@ -1000,6 +1020,8 @@ export class MaquetteLayer implements SequenceHost {
         seal: maquette.seal ?? null,
         seals: null,
         gear: maquette.gear ?? null,
+        heap: maquette.heap ?? null,
+        heapMesh: null,
       };
       lot.items.push(item);
       this.byId.set(maquette.id, { item, lot });
@@ -1428,6 +1450,10 @@ export class MaquetteLayer implements SequenceHost {
         item.seals = sealsOf(item.seal[4]);
         lot.group.add(item.seals);
       }
+      if (item.heap !== null && model.socle) {
+        item.heapMesh = heapMeshOf(item.heap.resource, item.heap.stack);
+        if (item.heapMesh !== null) lot.group.add(item.heapMesh);
+      }
     }
     for (const item of lot.items) {
       if (!item.smoking) continue;
@@ -1457,6 +1483,23 @@ export class MaquetteLayer implements SequenceHost {
       (seals?.children[0] as Mesh | undefined)?.geometry.dispose();
     }
     lot.atWork?.dressing?.dispose();
+  }
+
+  /** **The top of my heap as drawn now** (#707), on the board: where its label sits — on its spot
+   *  for an empty yard. `null` for a site without a heap, or not drawn. */
+  heapTopOf(id: string): Vector3 | null {
+    const dressed = this.byId.get(id);
+    const model = dressed?.lot.model;
+    const heap = dressed?.item.heap ?? null;
+    if (dressed === undefined || !model?.socle || heap === null || dressed.item.near <= 0)
+      return null;
+    const { item, lot } = dressed;
+    const height = heapHeight(HEAP_SHAPES[heap.resource], heap.stack);
+    return new Vector3().applyMatrix4(
+      matrix
+        .compose(item.at, item.turn, scale.setScalar(item.near * sizeOf(model, item)))
+        .multiply(heapSpot(heap, lot.mirrored, height)),
+    );
   }
 
   /** The world box of a maquette as drawn now — its model's bounds under its instance's placement. */
@@ -1972,6 +2015,10 @@ export class MaquetteLayer implements SequenceHost {
               flagDown.makeRotationY(yaw).setPosition(x, sealHeight(y, length, SOCLE_TOP), z),
             );
           item.seals.matrixWorldNeedsUpdate = true;
+        }
+        if (item.heapMesh !== null && item.heap !== null) {
+          item.heapMesh.matrix.copy(matrix).multiply(heapSpot(item.heap, lot.mirrored, 0));
+          item.heapMesh.matrixWorldNeedsUpdate = true;
         }
         const copy = this.copies.get(item.id);
         if (copy === undefined)

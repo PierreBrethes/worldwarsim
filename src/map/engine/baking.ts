@@ -53,6 +53,18 @@ export function accessoriesShown(level: number, phase: WorkPhase | undefined): s
 /** The accessories of a later level or state: `bakedSite` bakes them apart, the engine shows them. */
 const LATER = new Set(['niveau_2', 'niveau_3', 'chantier', 'ruines']);
 
+/**
+ * **The heaps a mine's file sculpts in its yard** (#707): its cone of ore, its spoil tip and pile of
+ * coal, which a player took for the heap at its foot. The live heap the engine lays
+ * (`yard-heaps.ts`) stands in the cone's place, mine or not: no bake draws them. A wagon keeps its load.
+ */
+const SCULPTED_HEAP = { node: 'carreau', materials: new Set(['minerai', 'houille', 'schiste']) };
+
+const isSculptedHeap = (node: Object3D): boolean =>
+  (node as Mesh).isMesh &&
+  SCULPTED_HEAP.materials.has(((node as Mesh).material as Material).name) &&
+  (node.name === SCULPTED_HEAP.node || node.parent?.name === SCULPTED_HEAP.node);
+
 /** Whether a scene stands on a socle (ADR 0038): only then do its diorama's names mean one —
  *  a file without a socle (the well's, the objectives') may name a node `chantier` for itself.
  *  The port's slip is `cale`, and its `chantier` is a yard group like any. */
@@ -65,7 +77,7 @@ export const onSocle = (scene: Object3D): boolean => scene.getObjectByName('socl
  */
 function drawnIn(scene: Object3D): (node: Object3D) => boolean {
   const later = onSocle(scene) ? LATER : new Set<string>();
-  return (node) => !later.has(node.name);
+  return (node) => !later.has(node.name) && !isSculptedHeap(node);
 }
 
 /** **The flag** (#279): baked apart, white, and inked per instance by its owner's colour. */
@@ -103,7 +115,7 @@ export function bakedSite(scene: Object3D): {
         : kind === 'building' && socle && DRESSING.has(node.name)
           ? 'dressing'
           : kind;
-    if ((node as Mesh).isMesh) {
+    if ((node as Mesh).isMesh && !isSculptedHeap(node)) {
       if (group !== null) accessories.set(group, [...(accessories.get(group) ?? []), node as Mesh]);
       else kinds[here].push(node as Mesh);
     }

@@ -92,7 +92,7 @@ import { type BuildingKey } from '@/domain/ids';
 import { produces } from '@/domain/economy';
 import { isNation, nationInk } from '@/domain/nations';
 import type { LonLat } from '@/domain/geo';
-import { maquettesOf, sealedSites } from './-plateau/maquettes';
+import { maquettesOf, sealedSites, useHeapInstant } from './-plateau/maquettes';
 import { withVitrine } from './-plateau/vitrine';
 import { producingSites, workingSites } from '@/domain/producing';
 import type { Atlas } from '@/domain/atlas';
@@ -2621,6 +2621,7 @@ function BoardContent({
       },
     ];
   }, [markers, view.me, marching, blitz, hand, chain, contactFacings]);
+  const heapInstant = useHeapInstant(markers);
   const maquettes = useMemo(() => {
     const keyOf = new Map(view.objectives.map((objective) => [objective.id, objective.key]));
     return withVitrine(
@@ -2637,9 +2638,11 @@ function BoardContent({
           ),
         },
         view.outpostFoundation.minutes,
+        heapInstant,
       ),
     );
   }, [
+    heapInstant,
     markers,
     view.objectives,
     view.me,

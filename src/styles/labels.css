@@ -1478,37 +1478,20 @@
   cursor: not-allowed;
 }
 
-/* **Le tas au pied de mon exploitation** (ADR 0041, #548, maquette « Au pied ») : une pile de jetons
-   à la couleur de la ressource, le chiffre sur le plafond, une jauge ; plein, le tampon et depuis
-   quand. Posé sous le point, jamais sur le pointeur : le clic reste à l'exploitation. */
+/* **Le tas au pied de mon exploitation** (ADR 0041, #548, maquette « Au pied ») : le chiffre sur le
+   plafond, une jauge ; plein, le tampon et depuis quand. De près, posé sur le tas que la maquette
+   dessine dans sa cour (#707) ; de loin, contre le point. Jamais sur le pointeur : le clic reste à
+   l'exploitation. */
 .heap-foot {
   position: absolute;
   top: var(--heap-y, 2px);
   left: var(--heap-x, 14px);
-  translate: 0 var(--heap-lift, 0%);
+  translate: var(--heap-shift, 0%) var(--heap-lift, 0%);
   z-index: 1;
   display: flex;
   gap: 4px;
   align-items: flex-end;
   pointer-events: none;
-}
-
-.heap-stack {
-  position: relative;
-  width: 22px;
-  height: 26px;
-}
-
-.heap-stack i {
-  position: absolute;
-  left: 0;
-  width: 22px;
-  height: 8px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--heap-ink) 60%, var(--paper));
-  box-shadow:
-    inset 0 0 0 1.3px var(--heap-ink-paper),
-    0 1px 0 rgb(0 0 0 / 35%);
 }
 
 .heap-tag {
@@ -1574,9 +1557,8 @@
   white-space: nowrap;
 }
 
-/* De loin, le tas se réduit à son chiffre : la pile, le tampon et le mot de fondation reviennent au
+/* De loin, le tas se réduit à son chiffre : le tampon et le mot de fondation reviennent au
    rapproché ; une étiquette réunie à d'autres le laisse à leur liste. */
-.label--glyph .heap-stack,
 .label--glyph .heap-stamp,
 .label--glyph .heap-alone,
 .label--glyph .heap-foot--alone,
@@ -1626,7 +1608,6 @@
 }
 
 @media (max-width: 760px) {
-  .heap-stack,
   .heap-stamp,
   .heap-alone {
     display: none;

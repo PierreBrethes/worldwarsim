@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   heapMarkOf,
   heapReadingOf,
+  heapStackChanges,
   heapsAtFoot,
   heapBinOf,
   inboundHarvests,
@@ -50,6 +51,31 @@ describe('heapReadingOf', () => {
     expect(heapReadingOf(mark({ amount: 1 }), NOW).stack).toBe(1);
     expect(heapReadingOf(mark({ amount: 150 }), NOW).stack).toBe(3);
     expect(heapReadingOf(mark({ amount: 288 }), NOW).stack).toBe(4);
+  });
+});
+
+/** #707 : la carte ne relit l'heure de ses tas qu'aux instants où l'un change de palier. */
+describe('heapStackChanges', () => {
+  const stackAt = (heap: HeapMark, at: number) => heapReadingOf(heap, at).stack;
+
+  it('names each instant the stack changes, and the stack holds between two', () => {
+    for (const heap of [mark(), mark({ amount: 0, cap: 7, perHour: 3 }), mark({ amount: 0 })]) {
+      const changes = heapStackChanges(heap);
+      const ends = [heap.asOf, ...changes, heap.asOf + 200 * HOUR];
+      for (let k = 1; k < ends.length; k++) {
+        const [from, to] = [ends[k - 1]!, ends[k]!];
+        if (k < ends.length - 1) expect(stackAt(heap, to), `${k}`).not.toBe(stackAt(heap, to - 1));
+        for (let at = from; at < to; at += (to - from) / 17)
+          expect(stackAt(heap, at)).toBe(stackAt(heap, from));
+      }
+      expect(stackAt(heap, ends.at(-1)!)).toBe(4);
+    }
+  });
+
+  it('names none for a heap that does not grow: full, stopped, or without a flow', () => {
+    expect(heapStackChanges(mark({ amount: 288, fullSince: NOW }))).toEqual([]);
+    expect(heapStackChanges(mark({ perHour: 0 }))).toEqual([]);
+    expect(heapStackChanges(mark({ cap: 0, amount: 0 }))).toEqual([]);
   });
 });
 

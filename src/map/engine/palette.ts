@@ -34,6 +34,15 @@ export const PALETTE = {
   wind: '#cfc5aa',
 } as const;
 
+/** **The resources' inks** (`--res-*`): a heap in a yard is laid in its own (#707). */
+export const RESOURCE_INKS = {
+  food: '#8b9160',
+  coal: '#7d7869',
+  oil: '#9184a8',
+  steel: '#aab6bf',
+  ammunition: '#b07434',
+} as const;
+
 /**
  * **How much ink a lavis lays over the paper.** The board no longer washes any ground (ADR 0033):
  * the lavis is left to the nation-colour tests below, which still paint a nation's sheet.
