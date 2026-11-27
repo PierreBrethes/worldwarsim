@@ -78,7 +78,7 @@ import {
   siteRetouched,
 } from './-plateau/retouch';
 import { useFrameOnOpen } from './-plateau/useFrameOnOpen';
-import { MAT_LIFT, boardBottomPx, useNarrowScreen } from '@/shell/viewport';
+import { MAT_LIFT, PHONE_LIFT, boardBottomPx, useNarrowScreen } from '@/shell/viewport';
 import { ErrorScreen } from '@/shell/ErrorScreen';
 import { StaleSeat } from '@/shell/StaleSeat';
 import {
@@ -3926,7 +3926,7 @@ function BoardContent({
                   <div
                     data-poster-floor
                     className="absolute bottom-(--table-margin) right-(--table-margin) z-[var(--z-indicator)]"
-                    style={{ marginBottom: MAT_LIFT }}
+                    style={{ marginBottom: PHONE_LIFT }}
                   >
                     <MapButtons
                       narrow

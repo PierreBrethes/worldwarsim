@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { cancelWorkRefusalOf } from '@/domain/construction';
 import { RESOURCES } from '@/domain/ids';
 import type { PlayerView } from '@/domain/player-view';
@@ -103,11 +103,20 @@ function WorksColumn({
 }: Pick<ColumnsProps, 'view' | 'seat' | 'now' | 'observing' | 'onSpent'> & { narrow: boolean }) {
   const { cancel, error } = useCancelWork(seat, onSpent);
   const works = worksOf(view, now);
+  /** Au bureau la note défile avec la file : sous un volet bas, elle ne prend pas la place des chantiers. */
+  const note = (
+    <p
+      title={fr.personalBoard.refundNote}
+      className="text-[11px] leading-[1.3] text-[var(--ink-soft)]"
+    >
+      {fr.personalBoard.refundNote}
+    </p>
+  );
   return (
     <section
       data-volet-column="works"
       className={
-        narrow ? TAB_COLUMN : `${DESK_COLUMN} grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden`
+        narrow ? TAB_COLUMN : `${DESK_COLUMN} grid-rows-[auto_minmax(0,1fr)] overflow-hidden`
       }
     >
       {/* Au téléphone l'onglet porte le titre : la file monte d'une ligne, et la vitesse du QG
@@ -152,18 +161,25 @@ function WorksColumn({
                   className="grid min-w-0 leading-[1.15]"
                   title={`${fr.personalBoard.workRank(index + 1, name)} · ${work.regionName}`}
                 >
-                  <b className="truncate text-[12px] font-semibold">
+                  <b className="text-[12px] font-semibold">
                     {fr.personalBoard.workRank(index + 1, name)}
                   </b>
-                  <small className="flex min-w-0 font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
-                    <span className="truncate">{work.regionName}</span>
-                    <span className="shrink-0">
-                      {running
-                        ? (frozen ? fr.personalBoard.frozenTail : fr.personalBoard.runningTail)(
-                            countdownLabel(left * 60_000),
-                          )
-                        : fr.personalBoard.queuedTail(countdownLabel(total * 60_000))}
-                    </span>
+                  <small className="min-w-0 font-(family-name:--font-mono) text-[10.5px] text-[var(--ink-soft)]">
+                    {work.regionName}
+                    {(running
+                      ? (frozen ? fr.personalBoard.frozenTail : fr.personalBoard.runningTail)(
+                          countdownLabel(left * 60_000),
+                        )
+                      : fr.personalBoard.queuedTail(countdownLabel(total * 60_000))
+                    )
+                      .split(' · ')
+                      .slice(1)
+                      .map((part) => (
+                        <Fragment key={part}>
+                          {' '}
+                          <span className="whitespace-nowrap">· {part}</span>
+                        </Fragment>
+                      ))}
                   </small>
                 </span>
                 {cancelWorkRefusalOf({ started: running }) !== null ? (
@@ -186,18 +202,14 @@ function WorksColumn({
           </ol>
         )}
         {error !== null && <p className="text-[11px] text-[var(--critical)]">{error}</p>}
+        {!narrow && note}
       </div>
       {narrow && view.me.hqLevel > 0 && (
         <small className="text-[11px] text-[var(--ink-soft)]">
           {fr.personalBoard.hqSpeed(fr.common.levelSpeed(view.me.hqLevel))}
         </small>
       )}
-      <p
-        title={fr.personalBoard.refundNote}
-        className={`text-[11px] leading-[1.3] text-[var(--ink-soft)] ${narrow ? '' : 'shrink-0 truncate'}`}
-      >
-        {fr.personalBoard.refundNote}
-      </p>
+      {narrow && note}
     </section>
   );
 }

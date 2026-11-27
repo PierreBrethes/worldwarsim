@@ -69,6 +69,13 @@ export const useBoardInsets = (): BoardInsets => useContext(BoardInsetsContext);
  * seule mesure pour tous : sous `.hud`, la diviser par `--hud-scale`.
  */
 export const MAT_LIFT = 'max(0px, var(--mat-rise, 0px) - var(--table-margin))';
+/**
+ * **Au téléphone, la barre basse est toujours là** : tant que le plateau personnel se charge, sa
+ * barre de repli ne publie pas `--mat-rise`, et la pile des boutons de la carte, posée à la marge
+ * de la table, passait dessous. `--board-bottom` (barre repliée, encoche comprise) est publié dès
+ * l'arrivée : la pile se lève du plus grand des deux.
+ */
+export const PHONE_LIFT = `max(${MAT_LIFT}, var(--board-bottom, 0px) - var(--table-margin))`;
 export const MAT_LIFT_HUD = `calc(${MAT_LIFT} / var(--hud-scale))`;
 
 /**
