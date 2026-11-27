@@ -39,6 +39,7 @@ import {
   upgradeHold,
 } from '@/domain/construction';
 import { billShortageText } from '@/domain/compass-works';
+import { EXPLOITED_DEPOSITS } from '@/domain/economy';
 import { outpostReachKm } from '../../../convex/constants';
 import { harvestOf, pastilleShares, type Harvest } from '@/domain/harvest';
 import {
@@ -1301,6 +1302,7 @@ function Tile({
         ? time
         : `${standing.length > 1 ? `${fr.personalBoard.tileCount(standing.length)} · ` : ''}${fr.personalBoard.raiseTo(lowest.level, lowest.level + 1)}`;
   const costs = Object.fromEntries(bill.map((line) => [line.resource, line.due]));
+  const heaps = view.mode !== 'blitz' && !free && EXPLOITED_DEPOSITS[buildingKey] !== undefined;
   if (narrow)
     return (
       <TileFrame
@@ -1376,6 +1378,11 @@ function Tile({
             {line.due}
           </span>
         ))}
+        {/* Hors pose de fondation, une exploitation neuve entasse (ADR 0041) : la tuile le dit
+            avant la pose, pas la dépêche du tas plein un jour après. */}
+        {heaps ? (
+          <span className="text-[var(--ink-soft)]">{fr.personalBoard.tileHeaps}</span>
+        ) : null}
         <span
           className={
             refusal === null && shortage === null ? 'text-[var(--ink-soft)]' : 'font-semibold'

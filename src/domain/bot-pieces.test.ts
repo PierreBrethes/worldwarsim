@@ -295,7 +295,7 @@ describe('le bot facile recrute', () => {
     troopsInService: inService,
     troopsQueued: 0,
     facilities,
-    roster: [{ role: 'landTransport', count: 1 }],
+    roster: [{ role: 'landTransport', count: 2 }],
     grid: [{ role: 'infantry', unit: { costs: { steel: 5 } } }],
   });
   const site = [{ id: 'b-1', key: 'barracks' as const, queue: [] }];
@@ -453,7 +453,7 @@ describe('le bot facile prend un point', () => {
       troopsInService: inService,
       troopsQueued: 0,
       facilities: [{ id: 'b-1', key: 'barracks' as const, queue: [] }],
-      roster: [{ role: 'landTransport', count: 1 }],
+      roster: [{ role: 'landTransport', count: 2 }],
       grid: [{ role: 'infantry', unit: { costs: { steel: 5 } } }],
     });
     const play = (count: number, workshop: BotWorkshop, geo = world(), points = [neutral('p-1')]) =>
@@ -497,7 +497,7 @@ describe('le bot facile prend un point', () => {
       troopsInService: BOT_POINT_COLUMN,
       troopsQueued: 0,
       facilities: site,
-      roster: [{ role: 'landTransport', count: 1 }],
+      roster: [{ role: 'landTransport', count: 2 }],
       grid: [{ role: 'infantry', unit: { costs: { steel: 5 } } }],
     };
     expect(
@@ -517,7 +517,7 @@ describe('le bot facile recrute sous la borne du serveur', () => {
       troopsInService: 150,
       troopsQueued: 0,
       facilities: [{ id: 'b-1', key: 'barracks', queue: [] }],
-      roster: [{ role: 'landTransport', count: 1 }],
+      roster: [{ role: 'landTransport', count: 2 }],
       grid: [{ role: 'infantry', unit: { costs: { steel: 5 } } }],
     };
     const orders = decideTurn({ view, workshop, world: world(), now: NOW });

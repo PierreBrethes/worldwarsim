@@ -5,14 +5,15 @@ import type { BuildingKey } from './ids';
 import { PROJECTION_BY_DOMAIN, isProjectionKey, marchingTroopIds, projectionKeyOf } from './troops';
 
 /**
- * **Les premiers pas** (ADR 0027 §2) : cinq gestes à faire dans la vraie partie, pas une partie
+ * **Les premiers pas** (ADR 0027 §2) : six gestes à faire dans la vraie partie, pas une partie
  * d'essai. Chacun se lit dans l'état qu'il laisse, jamais dans un clic sur « suivant » ; ce qui
  * passe vite (un mouvement arrive, un lot se forme) est retenu par la place une fois vu.
  *
  * L'ordre suit ce qu'une place neuve permet : rien ne bouge avant le QG, qui amène la première
- * troupe ; le transport et l'avant-poste viennent en dernier parce qu'ils demandent le plus.
+ * troupe et le camion ; ramasser vient tôt parce qu'une exploitation hors du socle ne rapporte
+ * rien sans lui (ADR 0041) ; l'avant-poste vient en dernier parce qu'il demande le plus.
  */
-export const FIRST_STEPS = ['hq', 'move', 'form', 'research', 'deliver'] as const;
+export const FIRST_STEPS = ['hq', 'move', 'harvest', 'form', 'research', 'deliver'] as const;
 
 export type FirstStep = (typeof FIRST_STEPS)[number];
 
@@ -27,7 +28,17 @@ export type FirstSteps = {
 
 /** What the bubble says, named here and worded in `fr.firstSteps.cue`. */
 type CueSay =
-  'hq' | 'move' | 'tiles' | 'pieces' | 'center' | 'research' | 'truck' | 'load' | 'outpost';
+  | 'hq'
+  | 'move'
+  | 'tiles'
+  | 'pieces'
+  | 'center'
+  | 'research'
+  | 'truck'
+  | 'load'
+  | 'outpost'
+  | 'exploitation'
+  | 'harvest';
 
 /** Where the bubble stands — over a rack of the personal board, or on the map under a piece or
  *  a mast — and what it says there. */
@@ -44,6 +55,27 @@ export type FirstStepCue =
 const filled = (load: Readonly<Record<string, number>> | undefined): boolean =>
   load !== undefined && Object.values(load).some((amount) => amount > 0);
 
+/** **Une exploitation qui entasse** (ADR 0041 §1) : la fondation sous son plafond n'a pas de tas. */
+const heapingIds = (view: PlayerView): ReadonlySet<string> =>
+  new Set(
+    view.me.buildings.flatMap((building) =>
+      building.heap !== undefined && building.heap.cap > 0 ? [building.id] : [],
+    ),
+  );
+
+/** **Ce que le QG offre** (`garrisonTheGift`, `convex/constructions.ts`) : une compagnie et un
+ *  camion. Former se lit au-delà, sans quoi le cadeau cocherait le pas. */
+const beyondTheGift = (troops: ReadonlyArray<TroopView>): boolean => {
+  const count = (wanted: (troop: TroopView) => boolean) => troops.filter(wanted).length;
+  return (
+    count((troop) => troop.role === 'infantry' && troop.tier === 1) > 1 ||
+    count((troop) => troop.role === 'landTransport') > 1 ||
+    troops.some(
+      (troop) => troop.role !== 'landTransport' && (troop.role !== 'infantry' || troop.tier !== 1),
+    )
+  );
+};
+
 /**
  * **The steps this view shows done** — in what is under way, and in the durable trace each
  * gesture leaves, so that a place already played checks its steps on the first look: a troop
@@ -56,6 +88,7 @@ export function stepsDoneIn(view: PlayerView): ReadonlyArray<FirstStep> {
   const hqIds = new Set(
     me.buildings.flatMap((building) => (building.key === 'hq' ? [building.id] : [])),
   );
+  const heaping = heapingIds(view);
   const seen: Readonly<Record<FirstStep, boolean>> = {
     hq: me.hqLevel > 0,
     move:
@@ -66,15 +99,18 @@ export function stepsDoneIn(view: PlayerView): ReadonlyArray<FirstStep> {
           at.kind === 'outpost' ||
           (at.kind === 'building' && !hqIds.has(at.buildingId)),
       ),
-    form:
-      me.recruiting.length > 0 ||
-      me.troops.length > 1 ||
-      me.troops.some((troop) => troop.role !== 'infantry' || troop.tier !== 1),
+    harvest: me.troops.some((troop) =>
+      (troop.tour?.stops ?? []).some((stop) => stop.kind === 'site' && heaping.has(stop.id)),
+    ),
+    form: me.recruiting.length > 0 || beyondTheGift(me.troops),
     research: me.research.running !== null || me.research.researched.length > 0,
     deliver:
       mine.some((arc) => arc.delivery === true) ||
       me.outposts.some((outpost) => filled(outpost.depot)) ||
-      view.journal.some((dispatch) => dispatch.kind === 'supplyDelivered'),
+      /** Le retour d'une tournée qui ramasse se dit aussi `supplyDelivered`, sans charge livrée. */
+      view.journal.some(
+        (dispatch) => dispatch.kind === 'supplyDelivered' && dispatch.delivered !== undefined,
+      ),
   };
   return FIRST_STEPS.filter((step) => seen[step]);
 }
@@ -126,6 +162,15 @@ export function cueOf(step: FirstStep, view: PlayerView): FirstStepCue | null {
       return searcherLevel(view.me.buildings) !== null
         ? { kind: 'rack', rack: 'research', say: 'research', tile: 'researchCenter' }
         : { kind: 'rack', rack: 'tiles', say: 'center', tile: 'researchCenter' };
+    case 'harvest': {
+      const heaping = heapingIds(view);
+      if (heaping.size === 0)
+        return { kind: 'rack', rack: 'tiles', say: 'exploitation', tile: 'farm' };
+      const truck = standing((troop) => troop.role === 'landTransport');
+      return truck === undefined
+        ? onSite((key) => key === projectionKeyOf('landTransport'), 'truck')
+        : onPiece(truck, 'harvest');
+    }
     case 'deliver': {
       if (outpostFirst(view))
         return onPiece(

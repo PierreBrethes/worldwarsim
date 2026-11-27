@@ -825,7 +825,8 @@ describe('plunder presence', () => {
     const infantry = await troop(t, seat, 'infantry', barracks);
     const transport = await troop(t, seat, 'landTransport', barracks);
     const warehouseId = await building(t, guest, 'warehouse');
-    await setStocks(t, guest, { food: 702, steel: 500 });
+    // 704 : la compagnie et le camion offerts au QG mangent 4 vivres pendant la présence.
+    await setStocks(t, guest, { food: 704, steel: 500 });
     await t.run((ctx) => ctx.db.patch(warehouseId, { damagedUntil: MIDDAY + 30 * HOUR }));
     const movementId = await plunderArrival(t, seat, warehouseId, [infantry, transport], barracks);
 
@@ -859,7 +860,8 @@ describe('plunder presence', () => {
     const transport = await troop(t, seat, 'landTransport', barracks);
     const warehouseId = await building(t, guest, 'warehouse');
     await holdPoint(t, seat, 'dakar', guest);
-    await setStocks(t, guest, { food: 702, steel: 500 });
+    // 704 : la compagnie et le camion offerts au QG mangent 4 vivres pendant la présence.
+    await setStocks(t, guest, { food: 704, steel: 500 });
     await observe(t, seat);
     expect(
       ((await t.query(api.view.playerView, seat)).surveyedInstallations[0] as { spared?: number })

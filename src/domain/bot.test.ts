@@ -223,15 +223,19 @@ describe('le bot facile, son ouverture', () => {
     expect(order).toMatchObject({ args: { regionId: 'capital' } });
   });
 
-  it('ne forme pas de camion de plus quand un attend en file', () => {
+  it('ne forme pas de camion de plus quand le second attend en file', () => {
     const view = viewOf({ hqLevel: 1, buildings: [hqStanding] });
     const barracks = {
       id: 'b-1',
       key: 'barracks' as const,
       queue: [{ role: 'landTransport' as const }],
     };
+    const roster = [{ role: 'landTransport' as const, tier: 1 as const, count: 1 }];
     expect(
-      turn(view, workshopOf({ facilities: [barracks], troopsInService: 1, troopsQueued: 1 })),
+      turn(
+        view,
+        workshopOf({ facilities: [barracks], roster, troopsInService: 1, troopsQueued: 1 }),
+      ),
     ).toEqual([{ fn: 'troops.recruit', args: { buildingId: 'b-1', role: 'infantry', tier: 1 } }]);
   });
 });

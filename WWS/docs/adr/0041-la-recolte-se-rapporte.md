@@ -93,6 +93,14 @@ le niveau sans plafond (`EXTRACTION_PER_HOUR` × niveau).
 > revenu sûr qu'on monte jusqu'au niveau 3, et le reste un revenu qu'on va chercher. Le plafond
 > garde son objet : on n'élève pas le socle sans fin pour se dispenser de transport.
 
+> **Précisée le 27/11/2026 (accord de Pierre : « B »)** : **le QG posé amène un camion** avec la
+> compagnie, en Mondiale (`garrisonTheGift`, `convex/constructions.ts`). En préprod, une mine bâtie
+> hors du socle s'arrêtait pleine sans que rien n'ait dit qu'il fallait un camion, ni qu'il
+> passait par une caserne. Le §2 disait déjà « la première tournée de toute partie » ; le camion
+> est désormais là pour la faire. Les premiers pas gagnent un geste, ramasser un tas, avant
+> l'avant-poste ; « à faire maintenant » nomme les tas qu'aucune tournée ne dessert. Il mange
+> comme une troupe.
+
 ### 4. Les règles de bord
 
 - **Slot** : une tournée qui reste sur le sol national n'en prend pas (amendement du 23/11 de

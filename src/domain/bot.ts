@@ -575,11 +575,14 @@ const freeArmyOf = (view: PlayerView, workshop: BotWorkshop): number =>
   view.me.troops.filter((troop) => troop.stationedAt.kind === 'outpost').length -
   cargoCount(view, workshop);
 
-/** Les coques de transport, debout et en file : elles portent l'armée, elles n'en sont pas, et un cargo ne retient pas le recrutement des fusiliers qu'il emporte. */
+/** Les transports, debout et en file : ils portent l'armée, ils n'en sont pas, et un cargo ne
+ *  retient pas le recrutement des fusiliers qu'il emporte. Le camion non plus : le QG en offre un,
+ *  le bot en forme un second, et l'avance attendait sinon des fusiliers qu'elle ne formait plus. */
+const CARRIERS: ReadonlySet<UnitRole> = new Set(['cargo', 'landTransport']);
 const cargoCount = (view: PlayerView, workshop: BotWorkshop): number =>
-  view.me.troops.filter((troop) => troop.role === 'cargo').length +
+  view.me.troops.filter((troop) => CARRIERS.has(troop.role)).length +
   workshop.facilities.reduce(
-    (sum, facility) => sum + facility.queue.filter((batch) => batch.role === 'cargo').length,
+    (sum, facility) => sum + facility.queue.filter((batch) => CARRIERS.has(batch.role)).length,
     0,
   );
 
@@ -613,6 +616,8 @@ function recruitCall(
   return { want, order: { fn: 'troops.recruit', args: { buildingId: site.id, role, tier: 1 } } };
 }
 
+const BOT_TRUCKS = 2;
+
 const recruit = (context: BotContext): Desire[] => {
   const { view, workshop } = context;
   const site = workshop.facilities.find((facility) => facility.key === 'barracks');
@@ -620,12 +625,18 @@ const recruit = (context: BotContext): Desire[] => {
   // Seule l'armée libre se compte contre la cible ; la borne du serveur compte tout.
   const army = freeArmyOf(view, workshop);
   if (site === undefined || army >= BOT_ARMY_TARGET || total >= MONDIALE_TROOP_BOUND) return [];
+  /** **Deux camions** : le QG en offre un (`garrisonTheGift`), que la tournée de ramassage garde ;
+   *  le second ravitaille les avant-postes. */
   const trucks =
-    workshop.roster.some((line) => line.role === 'landTransport') ||
-    workshop.facilities.some((facility) =>
-      facility.queue.some((batch) => batch.role === 'landTransport'),
+    workshop.roster
+      .filter((line) => line.role === 'landTransport')
+      .reduce((sum, line) => sum + line.count, 0) +
+    workshop.facilities.reduce(
+      (sum, facility) =>
+        sum + facility.queue.filter((batch) => batch.role === 'landTransport').length,
+      0,
     );
-  const role: UnitRole = trucks || army === 0 ? 'infantry' : 'landTransport';
+  const role: UnitRole = trucks >= BOT_TRUCKS || army === 0 ? 'infantry' : 'landTransport';
   const call = recruitCall(context, site, role, WANT_RECRUIT);
   return call === null || 'refused' in call ? [] : [call];
 };
@@ -1371,6 +1382,12 @@ const harvest = (context: BotContext): Desire[] => {
     );
   const [heap] = heaps;
   if (heap === undefined) return [];
+  /** **Un camion ramasse, l'autre ravitaille** : une tournée ne finit jamais seule, et deux
+   *  camions aux tas laissaient les avant-postes sans livraison. Servir chaque tas, c'est #684. */
+  const harvesting = view.me.troops.some((troop) =>
+    (troop.tour?.stops ?? []).some((stop) => stop.kind === 'site'),
+  );
+  if (harvesting) return [];
   const place = { kind: 'building', key: 'hq' } as const;
   const sites = new Map([
     [heap.id, { ours: true, exploitation: true, hasQuay: false, routed: true }],

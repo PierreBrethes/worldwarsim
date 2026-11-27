@@ -3610,10 +3610,11 @@ export const fr = {
     skip: 'passer',
     doneLabel: 'fait :',
     resume: 'Reprendre les premiers pas',
-    resumeNote: 'Cinq gestes, dans la vraie partie : la liste revient en tête de « à faire ».',
+    resumeNote: 'Six gestes, dans la vraie partie : la liste revient en tête de « à faire ».',
     steps: {
       hq: 'Poser le quartier général : sa tuile, du plateau à la carte',
       move: 'Lever une pièce et la poser plus loin : l’ordre part au lâcher',
+      harvest: 'Bâtir une ferme, puis envoyer le camion du QG ramasser son tas',
       form: 'Former une pièce : cliquer une caserne, puis sa carte dans la bande',
       research: 'Bâtir un Centre de recherche, puis y poser une carte',
       deliver: 'Charger un camion, puis le lâcher sur un avant-poste',
@@ -3631,6 +3632,9 @@ export const fr = {
       truck: 'Cliquez la caserne, puis la carte du camion',
       load: 'Des jetons du plateau sur lui, lui sur un avant-poste',
       outpost: 'Envoyez-la fonder un avant-poste',
+      exploitation:
+        'D’abord une ferme de plus : elle entasse à son pied, et seul un camion la rapporte au stock',
+      harvest: 'Cliquez le camion, puis « feuille de route » : proposer, puis lancer',
     },
   },
 
@@ -3650,6 +3654,9 @@ export const fr = {
     captureStopped: (site: string) => `Capture de ${site} arrêtée : plus d’infanterie sur place`,
     capturesStopped: (count: number) => `${count} captures arrêtées`,
     unlinkedSites: (count: number) => `${count} site${plural(count, '', 's')} hors réseau`,
+    /** Les tas sans tournée (ADR 0041) : le chiffre seul ne dit pas qu'un camion manque. */
+    unharvested: (count: number, full: number) =>
+      `${count} tas sans tournée${full > 0 ? `, ${full} plein${plural(full, '', 's')}` : ''} — un camion les rapporte au stock`,
     idleProjection: (building: string, place: string) => `${building} sans recrutement — ${place}`,
     idleProjections: (count: number) => `${count} bâtiments sans recrutement`,
     neutralCities: (count: number) =>
@@ -4376,6 +4383,8 @@ export const fr = {
   },
 
   personalBoard: {
+    /** La tuile d'une exploitation levée (ADR 0041) : ce qu'elle rend ne vient pas seul. */
+    tileHeaps: 'Hors fondation, s’entasse au pied : un camion la rapporte au stock.',
     /** La poignée de la barre debout (#579) : son geste, le titre restant son nom. */
     unfold: 'déplier',
     fold: 'replier',

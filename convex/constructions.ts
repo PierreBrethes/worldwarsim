@@ -4,8 +4,10 @@ import {
   isOutpostWork,
   type BuildingKey,
   type ResearchCard,
+  type UnitRole,
 } from '../src/domain/ids';
 import { buildingLockOf } from '../src/domain/research';
+import { modeOf } from '../src/domain/season-mode';
 import type { LonLat } from '../src/domain/geo';
 import { internalMutation, mutation } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
@@ -183,7 +185,7 @@ export const start = mutation({
         /** Son QG à lui : sa chute l'élimine (M2a), pas celle d'un QG qu'il aurait pris. */
         ...(building === 'hq' ? { homeOf: player._id } : {}),
       });
-      if (building === 'hq') await garrisonTheGift(ctx, player, season._id, standingId);
+      if (building === 'hq') await garrisonTheGift(ctx, player, season, standingId);
       /** La garnison offerte est un détecteur, et une pose qui se tient à l'instant est une fin de
        *  chantier : comme à `finish`, le brouillard se relit — pour ce joueur seul (#145). */
       await reassessDetection(ctx, season._id, now, player._id);
@@ -394,19 +396,25 @@ function refuseRaise(hold: OutpostRaiseHold): never {
 async function garrisonTheGift(
   ctx: MutationCtx,
   player: Doc<'players'>,
-  seasonId: Id<'seasons'>,
+  season: Doc<'seasons'>,
   hq: Id<'buildings'>,
 ): Promise<void> {
-  const strength = nominalStrength('infantry', 1);
-  await ctx.db.insert('troops', {
-    seasonId,
-    playerId: player._id,
-    role: 'infantry',
-    tier: 1,
-    nominalStrength: strength,
-    currentStrength: strength,
-    stationedAt: hq,
-  });
+  /** **Un camion aussi, en Mondiale** (ADR 0041 §3, précision du 27/11/2026) : la récolte s'y
+   *  rapporte, et le premier tas ne doit pas attendre une caserne que rien n'annonce. */
+  const gifts: ReadonlyArray<UnitRole> =
+    modeOf(season.mode) === 'mondiale' ? ['infantry', 'landTransport'] : ['infantry'];
+  for (const role of gifts) {
+    const strength = nominalStrength(role, 1);
+    await ctx.db.insert('troops', {
+      seasonId: season._id,
+      playerId: player._id,
+      role,
+      tier: 1,
+      nominalStrength: strength,
+      currentStrength: strength,
+      stationedAt: hq,
+    });
+  }
 }
 
 /**
