@@ -1,5 +1,5 @@
 import { searcherLevel } from './research';
-import { loadCapacityOf } from './logistics';
+import { loadCapacityOf, loadsAt } from './logistics';
 import type { PlayerView, TroopStation, TroopView } from './player-view';
 import type { BuildingKey } from './ids';
 import { PROJECTION_BY_DOMAIN, isProjectionKey, marchingTroopIds, projectionKeyOf } from './troops';
@@ -38,7 +38,8 @@ type CueSay =
   | 'load'
   | 'outpost'
   | 'exploitation'
-  | 'harvest';
+  | 'harvest'
+  | 'toLoading';
 
 /** Where the bubble stands — over a rack of the personal board, or on the map under a piece or
  *  a mast — and what it says there. */
@@ -166,10 +167,22 @@ export function cueOf(step: FirstStep, view: PlayerView): FirstStepCue | null {
       const heaping = heapingIds(view);
       if (heaping.size === 0)
         return { kind: 'rack', rack: 'tiles', say: 'exploitation', tile: 'farm' };
-      const truck = standing((troop) => troop.role === 'landTransport');
-      return truck === undefined
+      /** Une tournée part d'un point de chargement (`tourRefusalOf`) : un camion posé à la caserne
+       *  qui le forme doit d'abord rentrer, sans quoi la feuille de route refuse chaque arrêt. */
+      const loads = new Set(
+        view.me.buildings.flatMap((building) =>
+          loadsAt('landTransport').includes(building.key) ? [building.id] : [],
+        ),
+      );
+      const ready = (troop: TroopView) =>
+        (troop.stationedAt.kind === 'building' && loads.has(troop.stationedAt.buildingId)) ||
+        troop.stationedAt.kind === 'outpost';
+      const truck = standing((troop) => troop.role === 'landTransport' && ready(troop));
+      if (truck !== undefined) return onPiece(truck, 'harvest');
+      const away = standing((troop) => troop.role === 'landTransport');
+      return away === undefined
         ? onSite((key) => key === projectionKeyOf('landTransport'), 'truck')
-        : onPiece(truck, 'harvest');
+        : onPiece(away, 'toLoading');
     }
     case 'deliver': {
       if (outpostFirst(view))

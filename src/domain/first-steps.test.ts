@@ -168,7 +168,25 @@ describe('cueOf', () => {
     expect(
       cueOf(
         'harvest',
-        view({ buildings: [farm as never], troops: [troop({ role: 'landTransport' })] }),
+        view({
+          buildings: [farm, { id: 'HQ', key: 'hq' }] as never,
+          troops: [troop({ role: 'landTransport' })],
+        }),
+      ),
+    ).toEqual({ kind: 'map', station: at, say: 'harvest' });
+    // Formé à la caserne, il n'y part pas en tournée : la bulle le renvoie au QG (27/11).
+    const barracks = { kind: 'building', buildingId: 'B-1' } as const;
+    const formed = troop({ role: 'landTransport', stationedAt: barracks });
+    const sites = [farm, { id: 'B-1', key: 'barracks' }, { id: 'HQ', key: 'hq' }] as never;
+    expect(cueOf('harvest', view({ buildings: sites, troops: [formed] }))).toEqual({
+      kind: 'map',
+      station: barracks,
+      say: 'toLoading',
+    });
+    expect(
+      cueOf(
+        'harvest',
+        view({ buildings: sites, troops: [formed, troop({ id: 'T-2', role: 'landTransport' })] }),
       ),
     ).toEqual({ kind: 'map', station: at, say: 'harvest' });
     expect(cueOf('harvest', view({ buildings: [farm as never] }))).toEqual({
