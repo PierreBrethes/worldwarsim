@@ -229,6 +229,40 @@ describe('bakedSite (ADR 0038)', () => {
     );
   });
 
+  /** #707 : le cône de minerai sculpté près du puits se prenait pour le tas ; le tas vivant se
+   *  dessine à sa place, et le décor n'est plus cuit, ni au repos ni dans une copie. Le wagonnet
+   *  garde son chargement. */
+  it.each([
+    ['iron', ['minerai']],
+    ['coal', ['schiste', 'houille']],
+  ] as const)(
+    'bakes no heap sculpted in the %s mine: the live heap stands in its place',
+    (deposit, ores) => {
+      const mine = () => sceneOfFile(buildingMaquette('mine', deposit)!);
+      const named = (mesh: Mesh) => (mesh.material as MeshStandardMaterial).name;
+      const isHeap = (mesh: Mesh) =>
+        (ores as ReadonlyArray<string>).includes(named(mesh)) && mesh.parent?.name === 'carreau';
+      const count = (meshes: ReadonlyArray<{ geometry: Mesh['geometry'] }>) =>
+        meshes.reduce(
+          (sum, { geometry }) => sum + (geometry.index ?? geometry.attributes.position!).count,
+          0,
+        );
+      const bare = mine();
+      const heaps = meshesOf(bare).filter(isHeap);
+      expect(heaps).toHaveLength(ores.length);
+      for (const heap of heaps) heap.removeFromParent();
+      const baked = bakedSite(mine());
+      const without = bakedSite(bare);
+      expect(count(baked.building)).toBe(count(without.building));
+      expect(count(baked.dressing)).toBe(count(without.dressing));
+      expect(count(meshesOf(bakedRig(mine(), () => false)))).toBe(
+        count(meshesOf(bakedRig(bare, () => false))),
+      );
+      // Its wagon's load is no heap.
+      expect(meshesOf(bare).some((mesh) => named(mesh) === ores.at(-1))).toBe(true);
+    },
+  );
+
   it('draws the first level of a yard, and none of the accessories that come later', () => {
     const scene = new Group();
     const socle = new Mesh(new BoxGeometry(4, 1, 4), new MeshStandardMaterial({ name: 'socle' }));
