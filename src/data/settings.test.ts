@@ -57,6 +57,15 @@ describe('les bascules gardées par le navigateur', () => {
     expect(readIndicatorToggles().deposits).toBe(false);
   });
 
+  it('allume « noms des villes » sous un réglage d’avant la couche, et garde son extinction', () => {
+    kept.set('wws-edge-indicators', JSON.stringify({ buildings: false, depositsEverywhere: true }));
+    const old = readIndicatorToggles();
+    expect(old['city-names']).toBe(true);
+    expect(old.buildings).toBe(false);
+    keepIndicatorToggles({ ...DEFAULT_TOGGLES, 'city-names': false });
+    expect(readIndicatorToggles()['city-names']).toBe(false);
+  });
+
   it('éteint « hors champ » sous un réglage d’avant la fusion des calques', () => {
     kept.set('wws-edge-indicators', JSON.stringify({ outposts: true, forces: true, intel: true }));
     expect(readIndicatorToggles().offscreen).toBe(false);

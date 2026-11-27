@@ -2626,6 +2626,7 @@ export const fr = {
     'outpost-zones': 'zones et liaisons des avant-postes',
     inbound: 'cap sur moi',
     offscreen: 'hors champ',
+    'city-names': 'noms des villes',
   },
 
   edgeIndicators: {

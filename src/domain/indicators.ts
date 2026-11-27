@@ -47,10 +47,17 @@ export const CATEGORY_BY_TYPE: Readonly<Partial<Record<LabelType, EdgeCategory>>
  * it is the alert. `buildings`, `deposits` and `objectives` decide whether their marks stand on
  * the board at all, `outpost-zones` draws my outposts' reaches and liaisons (ADR 0037 §9), and
  * `inbound` is what is coming at me. Every other category only parks at the edge: one bascule,
- * `offscreen`, so that a case never toggles without the screen answering.
+ * `offscreen`, so that a case never toggles without the screen answering. `city-names` (#716)
+ * writes or spares the cities' names; the seas', countries' and rivers' stay.
  */
 export type Layer =
-  'buildings' | 'deposits' | 'objectives' | 'outpost-zones' | 'inbound' | 'offscreen';
+  | 'buildings'
+  | 'deposits'
+  | 'objectives'
+  | 'outpost-zones'
+  | 'inbound'
+  | 'offscreen'
+  | 'city-names';
 
 export const LAYERS: ReadonlyArray<Layer> = [
   'buildings',
@@ -59,6 +66,7 @@ export const LAYERS: ReadonlyArray<Layer> = [
   'outpost-zones',
   'inbound',
   'offscreen',
+  'city-names',
 ];
 
 export type IndicatorToggles = Readonly<Record<Layer, boolean>>;
@@ -90,6 +98,7 @@ export const DEFAULT_TOGGLES: IndicatorToggles = {
   'outpost-zones': true,
   inbound: true,
   offscreen: false,
+  'city-names': true,
 };
 
 /**

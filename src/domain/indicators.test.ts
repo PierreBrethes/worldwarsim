@@ -67,6 +67,7 @@ describe('toggles', () => {
       ['objectives', true],
       ['outpost-zones', true],
       ['inbound', true],
+      ['city-names', true],
     ]);
   });
 
