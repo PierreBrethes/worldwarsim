@@ -1,7 +1,13 @@
 import { DEPOSIT_POINTS } from '@/domain/world';
 import { describe, expect, it } from 'vitest';
 import type { MapMarker } from '@/domain/labels';
-import { BUILDING_SEALS, buildingMaquette, OUTPOST_MAQUETTE } from '@/emblems/buildings/manifest';
+import {
+  BUILDING_HEAP_SPOTS,
+  BUILDING_SEALS,
+  buildingMaquette,
+  OUTPOST_MAQUETTE,
+} from '@/emblems/buildings/manifest';
+import type { HeapMark } from '@/domain/heap-reading';
 import type { CaptureView } from '@/domain/player-view';
 import { objectiveMaquette } from '@/emblems/objectives/manifest';
 import { maquettesOf, sealedSites } from './maquettes';
@@ -141,6 +147,48 @@ describe('maquettesOf', () => {
         BUILDING_SEALS.barracks,
         undefined,
       ]);
+    });
+  });
+
+  /** **Le tas au sol** (#707) : à mes exploitations seules, au palier de l'heure et à leur point. */
+  describe('the heap in its yard', () => {
+    const HOUR = 3_600_000;
+    const mark = (over: Partial<HeapMark> = {}): HeapMark => ({
+      resource: 'steel',
+      amount: 100,
+      cap: 192,
+      perHour: 48,
+      asOf: 0,
+      fullSince: null,
+      foundation: null,
+      ...over,
+    });
+    const heapOf = (marker: MapMarker, now = 0) =>
+      maquettesOf([marker], () => undefined, new Set(), new Set(), undefined, 0, now)[0]!.heap;
+
+    it('lays my heap at its spot, at the stack it reads, and grows it with the hour', () => {
+      const mine = building({ heap: mark() });
+      expect(heapOf(mine)).toEqual({ resource: 'steel', stack: 3, at: BUILDING_HEAP_SPOTS.mine });
+      expect(heapOf(mine, 2 * HOUR)!.stack).toBe(4);
+      expect(heapOf(building({ heap: mark({ amount: 0, perHour: 0 }) }))!.stack).toBe(0);
+    });
+
+    it('lays none where nothing heaps: a foundation at level 1, a site without a heap, a survey', () => {
+      expect(
+        heapOf(building({ heap: mark({ cap: 0, amount: 0, foundation: { alonePerHour: 9 } }) })),
+      ).toBeUndefined();
+      expect(heapOf(building())).toBeUndefined();
+      expect(
+        heapOf({
+          kind: 'installation',
+          id: 'installation-x',
+          buildingId: 'x',
+          key: 'mine',
+          lonLat: [3, 50],
+          washed: false,
+          neutral: null,
+        } as unknown as MapMarker),
+      ).toBeUndefined();
     });
   });
 

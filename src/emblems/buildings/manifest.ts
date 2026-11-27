@@ -127,3 +127,17 @@ export const BUILDING_SEALS: Readonly<
   warehouse: [0, 5.7, 20.45, 0, 6.4],
   city: [0, 4, 14.1, 0, 3.4],
 };
+
+/**
+ * **Where my heap stands in the yard of each exploitation** (#707), in metres of its file: a mine's
+ * where its file sculpted its cone of ore or its spoil tip (both files alike), which give way to it
+ * (`baking.ts`); a farm's sacks before its house, a well's barrels on its gravel, clear of the rank
+ * and the fence. @a-mesurer
+ */
+export const BUILDING_HEAP_SPOTS: Readonly<
+  Partial<Record<BuildingKey, readonly [x: number, z: number]>>
+> = {
+  mine: [15.5, -10],
+  farm: [12, 15],
+  oilWell: [12.5, 15],
+};

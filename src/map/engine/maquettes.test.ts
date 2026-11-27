@@ -17,6 +17,7 @@ import {
 } from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import type { WorldFrame } from './frame';
+import { heapGeometry, heapHeight, YARD_TOP } from './yard-heaps';
 import { BUILDINGS, type UnitRole } from '@/domain/ids';
 import { buildingMaquette } from '@/emblems/buildings/manifest';
 import { AIRFIELD, CRANE, MOLE } from '@/emblems/kits/manifest';
@@ -1096,6 +1097,41 @@ describe('a site on its socle (ADR 0038)', () => {
     const drawn = layer.drawnOf(MINE)!;
     const mark = new Vector3(0, 5.2, 8).applyMatrix4(drawn.matrix);
     expect(new Vector3().applyMatrix4(seals[0]!.matrix).distanceTo(mark)).toBeLessThan(1e-6);
+  });
+
+  /** **The heap in its yard** (#707): mine alone, at its spot, the size of its stack. */
+  it('lays my heap on its yard at its spot and stack, none at 0, none on a survey', async () => {
+    const heap = (stack: number) => ({ resource: 'steel' as const, stack, at: [-18, -7] as const });
+    const maquettes = [
+      site(MINE, { side: 'mine', ink: '#2a5ba8', heap: heap(2) }),
+      site('building-farm@9,9', {
+        side: 'mine',
+        ink: '#2a5ba8',
+        heap: { ...heap(0), resource: 'food' },
+      }),
+      site('installation-seen', { side: 'seen' }),
+    ];
+    const layer = await layerOf(maquettes);
+    const heaps = () => {
+      const found: Mesh[] = [];
+      layer.group.traverse((node) => node.name === 'tas' && found.push(node as Mesh));
+      return found;
+    };
+    expect(heaps()).toHaveLength(1);
+    expect(heaps()[0]!.geometry).toBe(heapGeometry('mound', 2));
+    const drawn = layer.drawnOf(MINE)!;
+    const foot = new Vector3(-18, YARD_TOP, -7).applyMatrix4(drawn.matrix);
+    expect(new Vector3().applyMatrix4(heaps()[0]!.matrix).distanceTo(foot)).toBeLessThan(1e-6);
+    // Its label sits on its top; at 0 on its spot, where it would stand.
+    const top = new Vector3(-18, YARD_TOP + heapHeight('mound', 2), -7).applyMatrix4(drawn.matrix);
+    expect(layer.heapTopOf(MINE)!.distanceTo(top)).toBeLessThan(1e-6);
+    expect(layer.heapTopOf('building-farm@9,9')).not.toBeNull();
+    expect(layer.heapTopOf('installation-seen')).toBeNull();
+    // A stack more is another maquette: it is drawn at once, larger.
+    expect(layer.display([{ ...maquettes[0]!, heap: heap(4) }, ...maquettes.slice(1)])).toBe(true);
+    await vi.waitFor(() =>
+      expect(heaps().map((mesh) => mesh.geometry)).toEqual([heapGeometry('mound', 4)]),
+    );
   });
 
   /** **The pile that captures stands at the foot of its sign** (#279, décision 1). */

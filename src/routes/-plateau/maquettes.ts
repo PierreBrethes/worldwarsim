@@ -3,6 +3,7 @@ import { depositAt } from '@/domain/world';
 import { inService } from '@/domain/loot';
 import type { LonLat } from '@/domain/geo';
 import {
+  BUILDING_HEAP_SPOTS,
   BUILDING_SEALS,
   buildingMaquette,
   OUTPOST_GEAR,
@@ -23,6 +24,9 @@ import {
   OUTPOST_ON_BOARD,
 } from '@/domain/piece-size';
 import { fr } from '@/i18n/fr';
+import { heapReadingOf } from '@/domain/heap-reading';
+import { useRef } from 'react';
+import { useClockReading } from '@/shell/clock';
 
 /**
  * **What stands in maquettes up close, among the markers on the board** (ADR 0026 §1): what is
@@ -30,7 +34,8 @@ import { fr } from '@/i18n/fr';
  * surveyed, the neutral objectives. A site at work wears its works (mode chantier): a plan in
  * the queue, a first level rising, a raise scaffolded whole — what already stands is not raised
  * again. My outposts stand on their round socle (#468), founded round their mast, the gear of the
- * trade they ply on show; an enemy's I surveyed stands hollow and bare, with no trade.
+ * trade they ply on show; an enemy's I surveyed stands hollow and bare, with no trade. My
+ * exploitation lays its heap in its yard at the stack it reads at `now` (#707).
  */
 export function maquettesOf(
   markers: ReadonlyArray<MapMarker>,
@@ -48,6 +53,7 @@ export function maquettesOf(
   /** **How long a founding lasts** (`outpostFoundation.minutes`): what an outpost at work rises
    *  over. The view serves it at today's HQ, not the one its order was paid at. */
   foundationMinutes = 0,
+  now = 0,
 ): StandingMaquette[] {
   /** What a site I hold or surveyed wears of a capture, and of its seals. */
   const taken = (buildingId: string, key: keyof typeof BUILDING_SEALS) => {
@@ -119,6 +125,7 @@ export function maquettesOf(
             flag: marker.ink,
             ...(marker.buildingId !== null &&
               taken(marker.buildingId, marker.key === 'depot' ? 'warehouse' : marker.key)),
+            ...heapIn(marker, now),
             // What stands: the level served, or the one before a raise; a first rise has none yet.
             level: marker.works?.phase === 'raising' ? marker.works.level - 1 : (marker.level ?? 1),
           },
@@ -180,6 +187,40 @@ export function maquettesOf(
     }
   });
 }
+
+/** **Mon tas dans la cour** (#707) : rien sans tas (une fondation au niveau 1) ni point où le poser. */
+const heapIn = (
+  { heap, key }: Extract<MapMarker, { kind: 'building' }>,
+  now: number,
+): Pick<StandingMaquette, 'heap'> => {
+  const at = BUILDING_HEAP_SPOTS[key];
+  return heap === undefined || heap.cap === 0 || at === undefined
+    ? {}
+    : { heap: { resource: heap.resource, stack: heapReadingOf(heap, now).stack, at } };
+};
+
+/**
+ * **L'heure à laquelle lire mes tas** (#707) : celle où l'un d'eux a changé de palier pour la
+ * dernière fois. Le tas grandit sous les yeux, et la carte ne se reconstruit qu'à ce changement,
+ * pas à chaque minute (CLAUDE.md, carte à la demande).
+ */
+export function useHeapInstant(markers: ReadonlyArray<MapMarker>): number {
+  const last = useRef({ stacks: '', at: 0 });
+  return useClockReading(60_000, (now) => {
+    const stacks = heapStacksOf(markers, now);
+    if (stacks !== last.current.stacks) last.current = { stacks, at: now };
+    return last.current.at;
+  });
+}
+
+const heapStacksOf = (markers: ReadonlyArray<MapMarker>, now: number): string =>
+  JSON.stringify(
+    markers.flatMap((marker) =>
+      marker.kind === 'building' && marker.heap !== undefined
+        ? [[marker.id, heapReadingOf(marker.heap, now).stack]]
+        : [],
+    ),
+  );
 
 /** **L'avant-poste en mètres sur son socle rond** (#468) : sa portée est son rayon. */
 const outpostSize = {

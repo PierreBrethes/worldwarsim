@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { PALETTE } from '../map/engine/palette';
+import { PALETTE, RESOURCE_INKS } from '../map/engine/palette';
 
 /**
  * **Les couleurs suivent leurs variables** (charte-1b, 03/10/2026). Une encre écrite en dur à
@@ -113,5 +113,11 @@ describe('les couleurs suivent leurs variables', () => {
       expect(token, `${variable} n’est pas déclaré dans tokens.css`).toBeDefined();
       expect(PALETTE[key as keyof typeof shared].toLowerCase(), `PALETTE.${key}`).toBe(token);
     }
+  });
+
+  it('garde les encres des ressources du moteur égales à tokens.css (#707)', () => {
+    const declared = tokenColors();
+    for (const [resource, ink] of Object.entries(RESOURCE_INKS))
+      expect(ink, `--res-${resource}`).toBe(declared.get(`--res-${resource}`));
   });
 });

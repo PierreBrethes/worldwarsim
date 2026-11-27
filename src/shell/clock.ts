@@ -55,3 +55,19 @@ export function useClock(periodMs = 1000): number {
     () => Date.now(),
   );
 }
+
+/**
+ * **What a reading of the clock says, rendered only when it changes** (#707): `read` answers a
+ * primitive — a heap's stack, not its minute —, and its reader renders at its change alone.
+ */
+export function useClockReading<T extends string | number>(
+  periodMs: number,
+  read: (now: number) => T,
+): T {
+  const beat = beatOf(periodMs);
+  return useSyncExternalStore(
+    beat.subscribe,
+    () => read(beat.now),
+    () => read(Date.now()),
+  );
+}
