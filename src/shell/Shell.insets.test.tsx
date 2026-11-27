@@ -23,7 +23,11 @@ const box = (left: number, right: number, top = 0, bottom = 900) => {
   return el;
 };
 
-const insetsWith = (card: HTMLElement | null, chips: HTMLElement | null = null) =>
+const insetsWith = (
+  card: HTMLElement | null,
+  chips: HTMLElement | null = null,
+  strip: HTMLElement | null = null,
+) =>
   renderHook(() =>
     usePublishedEdges(
       { current: box(0, 1440) },
@@ -33,6 +37,7 @@ const insetsWith = (card: HTMLElement | null, chips: HTMLElement | null = null) 
       false,
       card,
       chips,
+      strip,
     ),
   ).result.current;
 
@@ -48,5 +53,14 @@ describe('the board insets', () => {
   it('cover the map up to the top of the « à faire » chips, which stand above the stock band (#713)', () => {
     expect(insetsWith(null, box(85, 900, 760, 790))).toMatchObject({ bottom: 140, left: 75 });
     expect(insetsWith(null)).toMatchObject({ bottom: 0 });
+  });
+
+  it('cover the map under the place strip, and publish it as the board top for the sheets (#721)', () => {
+    expect(insetsWith(null, null, box(20, 1420, 72, 118))).toMatchObject({ top: 118 });
+    expect(insetsWith(null)).toMatchObject({ top: 60 });
+    expect(document.documentElement.style.getPropertyValue('--board-top')).toBe('60px');
+    insetsWith(null, null, box(20, 1420, 72, 118));
+    expect(document.documentElement.style.getPropertyValue('--board-top')).toBe('118px');
+    expect(document.documentElement.style.getPropertyValue('--band-bottom')).toBe('60px');
   });
 });

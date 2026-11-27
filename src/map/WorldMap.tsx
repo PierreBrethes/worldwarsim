@@ -290,6 +290,8 @@ type Props = {
   reach?: Reach | null;
   onCountryHover?: (adm0: string | null) => void;
   onRegionHover?: (region: HoveredRegion | null) => void;
+  /** Les kilomètres d'un pixel au point visé, à chaque image entière (`MapEngine.onScale`). */
+  onScale?: (kmPerPixel: number) => void;
   /**
    * **La couche admin-1 est arrivée** : la carte tend au plateau de quoi nommer la région sous un
    * point, par la même lecture que le survol. Un cartouche de pile en a besoin, et il est écrit
@@ -608,6 +610,7 @@ export function WorldMap({
   reach = null,
   onCountryHover,
   onRegionHover,
+  onScale,
   onRegionsLoaded,
   onDisbandGround,
   onMaquetteLookup,
@@ -801,6 +804,10 @@ export function WorldMap({
   useEffect(() => {
     if (engine.current) engine.current.onRegionHover = onRegionHover ?? (() => {});
   }, [onRegionHover]);
+
+  useEffect(() => {
+    if (engine.current) engine.current.onScale = onScale ?? (() => {});
+  }, [onScale]);
 
   useEffect(() => {
     if (engine.current) engine.current.onArcHover = onArcHover ?? (() => {});

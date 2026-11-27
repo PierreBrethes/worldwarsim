@@ -14,6 +14,7 @@ import {
   BoardInsetsContext,
   ColumnCardContext,
   ColumnChipsContext,
+  PlaceStripContext,
   useNarrowScreen,
   type BoardInsets,
 } from './viewport';
@@ -59,7 +60,8 @@ export function Shell({
   const [bar, setBar] = useState<HTMLElement | null>(null);
   const [card, setCard] = useState<HTMLElement | null>(null);
   const [chips, setChips] = useState<HTMLElement | null>(null);
-  const insets = usePublishedEdges(board, top, side, bar, narrow, card, chips);
+  const [strip, setStrip] = useState<HTMLElement | null>(null);
+  const insets = usePublishedEdges(board, top, side, bar, narrow, card, chips, strip);
   /** **Les registres épinglés**, du plus ancien au plus récent (#121) : un clic sur une réserve du
    *  bandeau en pose ou en décroche le ticket ; au-delà de trois, le plus ancien part. */
   const [pinned, setPinned] = useState<ReadonlyArray<ResourceKey>>([]);
@@ -114,7 +116,7 @@ export function Shell({
       <div className="board-frame flex h-full overflow-hidden">
         <main ref={board} className="relative flex min-h-0 min-w-0 flex-1">
           <PinContext.Provider value={{ pinned, onPin: togglePin }}>
-            {children}
+            <PlaceStripContext.Provider value={setStrip}>{children}</PlaceStripContext.Provider>
             <Reglette
               view={view}
               telegraphUnread={telegraphUnread}
@@ -155,6 +157,7 @@ export function usePublishedEdges(
   narrow: boolean,
   card: HTMLElement | null = null,
   chips: HTMLElement | null = null,
+  strip: HTMLElement | null = null,
 ): BoardInsets {
   const [insets, setInsets] = useState<BoardInsets>({ top: 0, right: 0, bottom: 0, left: 0 });
   useEffect(() => {
@@ -163,7 +166,12 @@ export function usePublishedEdges(
       const map = board.current?.getBoundingClientRect();
       const band = top.current?.getBoundingClientRect();
       const column = side.current?.getBoundingClientRect();
-      root.setProperty('--board-top', `${Math.round(band?.bottom ?? 0)}px`);
+      // The place strip hangs under the band (#721): sheets and windows start below it.
+      const stripBottom = strip?.getBoundingClientRect().bottom ?? 0;
+      const topEdge = Math.max(band?.bottom ?? 0, stripBottom);
+      root.setProperty('--board-top', `${Math.round(topEdge)}px`);
+      // The strip itself hangs from the band alone: from `--board-top` it would chase its own edge.
+      root.setProperty('--band-bottom', `${Math.round(band?.bottom ?? 0)}px`);
       root.setProperty(
         '--board-bottom',
         narrow ? 'calc(var(--safe-bottom) + var(--foot-bar))' : '0px',
@@ -182,7 +190,7 @@ export function usePublishedEdges(
       // The « à faire » chips stand above the stock band: the map's foot is covered up to their top.
       const rowTop = chips?.getBoundingClientRect().top;
       const next = {
-        top: Math.round(band === undefined || map === undefined ? 0 : band.bottom - map.top),
+        top: Math.round(band === undefined || map === undefined ? 0 : topEdge - map.top),
         right: width,
         bottom: Math.round(
           Math.max(
@@ -207,6 +215,7 @@ export function usePublishedEdges(
     if (foot) observer.observe(foot);
     if (card) observer.observe(card);
     if (chips) observer.observe(chips);
+    if (strip) observer.observe(strip);
     window.addEventListener('resize', publish);
     // The row rides the personal board's band (`--mat-rise`, written on the root): it moves
     // without resizing, so its top is read again when that rise changes, once a frame.
@@ -227,9 +236,10 @@ export function usePublishedEdges(
       observer.disconnect();
       window.removeEventListener('resize', publish);
       root.removeProperty('--board-top');
+      root.removeProperty('--band-bottom');
       root.removeProperty('--board-bottom');
       root.removeProperty('--board-left');
     };
-  }, [board, top, side, foot, narrow, card, chips]);
+  }, [board, top, side, foot, narrow, card, chips, strip]);
   return insets;
 }
