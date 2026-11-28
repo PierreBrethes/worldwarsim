@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 6e3874e -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 4bf8f81 -->
 
 # Les constantes à mesurer
 
@@ -126,12 +126,12 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `BOT_ADVANCE_CANDIDATES` | `5` | `src/domain/bot.ts:339` | les régions étrangères essayées par passage, de la plus proche ; chaque essai coûte une route. |
 | `BOT_CONVOY_LOAD` | `100` | `src/domain/bot.ts:341` | ce qu'un camion charge d'un coup, sous sa capacité et le stock. |
 | `BOT_PORT_KM` | `300` | `src/domain/bot.ts:344` | le port se cherche dans les régions nationales à ce rayon du QG, et sur leur côte à ce rayon de leur pôle. |
-| `BOT_LANDING_KM` | `200` | `src/domain/bot.ts:346` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
-| `BOT_LANDING_STEP_KM` | `12.5` | `src/domain/bot.ts:347` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
-| `BOT_LANDING_BEARINGS` | `16` | `src/domain/bot.ts:348` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
-| `BOT_LANDING_CANDIDATES` | `80` | `src/domain/bot.ts:350` | les plages essayées par point neutre, de la plus proche : la plus proche est souvent hors de portée du plein du cargo. |
-| `BOT_LANDING_FOOT_TRIES` | `6` | `src/domain/bot.ts:352` | les routes à pied cherchées par point neutre ; un échec explore toute la grille. |
-| `BOT_TRUCKS_MAX` | `3` | `src/domain/bot.ts:659` | les camions que le bot forme pour ses tas ; au-delà, une tournée refaite les rassemble. |
+| `BOT_LANDING_KM` | `200` | `src/domain/bot.ts:348` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
+| `BOT_LANDING_STEP_KM` | `12.5` | `src/domain/bot.ts:349` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
+| `BOT_LANDING_BEARINGS` | `16` | `src/domain/bot.ts:350` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
+| `BOT_LANDING_CANDIDATES` | `80` | `src/domain/bot.ts:352` | les plages essayées par point neutre, de la plus proche : la plus proche est souvent hors de portée du plein du cargo. |
+| `BOT_LANDING_FOOT_TRIES` | `6` | `src/domain/bot.ts:354` | les routes à pied cherchées par point neutre ; un échec explore toute la grille. |
+| `BOT_TRUCKS_MAX` | `3` | `src/domain/bot.ts:661` | les camions que le bot forme pour ses tas ; au-delà, une tournée refaite les rassemble. |
 | `STALE_MARGIN_MS` | `30_000` | `src/domain/combat-on-map.ts:28` | un |
 | `FINAL_POSE_MS` | `STEP_MS['compte-rendu']` | `src/domain/combat-on-map.ts:32` | le temps du compte-rendu, assez pour lire qui reste debout ? |
 | `REPORT_HOLD_MS` | `STEP_MS['compte-rendu'] + 6000` | `src/domain/combat-on-map.ts:200` | le temps de lire « nos pièces » et de l'ouvrir. |
@@ -204,7 +204,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `STRIKE_MS` | `1600` | `src/domain/replay.ts:265` | l'étiquette de places se barre 1,6 s après le début de la coulée (storyboard : `sink[0] + 1,6`) |
 | `DRY_SOON_HOURS` | `24` | `src/domain/resource-band.ts:72` | a day ahead: one evening's glance covers the night. |
 | `COST_BY_MEDIUM` | `{ land: 1.6, landMotorized: 1.15, sea: 1.0 }` | `src/domain/routing.ts:93` | relative prices chosen for their ordering; only the foot pace behind them is measured |
-| `THREAD_PIECE_CELLS` | `2` | `src/domain/routing.ts:1026` | measured against the medium on 340 routes (#231), not against a play need |
+| `THREAD_PIECE_CELLS` | `2` | `src/domain/routing.ts:1028` | measured against the medium on 340 routes (#231), not against a play need |
 | `CONTESTED_FLAME_AT` | `0.42` | `src/domain/strategic-mast.ts:20` | lavis.html (cap #668): where a contested flame sits on the mast |
 | `MAST_UNITS` | `{ height: 0.46, flame: 0.6 * 0.32, baseRadius: 0.17 }` | `src/domain/strategic-mast.ts:35` | lavis.html (cap #668): `flame` (0.6 x 0.32 of the mast) and `baseRadius` |
 | `MAST_PX` | `{ near: 56, nearDistance: 53, far: 30, farDistance: 136, phone: 0.7, baseMinShare: 0.16 }` | `src/domain/strategic-mast.ts:46` | lavis.html (cap #668): `near` (floor up to |

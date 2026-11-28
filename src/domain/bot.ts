@@ -342,6 +342,8 @@ const BOT_CONVOY_LOAD = 100;
 
 /** @a-mesurer : le port se cherche dans les régions nationales à ce rayon du QG, et sur leur côte à ce rayon de leur pôle. */
 const BOT_PORT_KM = 300;
+/** Le grand cercle peut dépasser les km projetés de la grille d'environ 0,2 % à l'équateur : la borne basse d'une côte garde cette marge. */
+const FLOOR_SLACK = 1.01;
 /** @a-mesurer : jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. */
 const BOT_LANDING_KM = 200;
 const BOT_LANDING_STEP_KM = 12.5;
@@ -1263,7 +1265,7 @@ function portSite({ view, world }: BotContext): { regionId: string; point: LonLa
     .sort((a, b) => a.floor - b.floor || a.rank - b.rank);
   let best: { regionId: string; point: LonLat; km: number; rank: number } | null = null;
   for (const { region, shore, rank, floor: bound } of coasts) {
-    if (best !== null && bound > best.km) break;
+    if (best !== null && bound > best.km * FLOOR_SLACK) break;
     const km = goals.length === 0 ? bound : gap(shore);
     // À égalité, la première région de `world.regions` l'emporte.
     if (best !== null && (km > best.km || (km === best.km && rank > best.rank))) continue;
