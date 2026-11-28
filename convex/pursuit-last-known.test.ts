@@ -614,4 +614,134 @@ describe('the last known position of a column rewritten in place (#727)', () => 
       arrivesAt: before.arrivesAt,
     });
   });
+  /**
+   * **Deux réécritures de suite, l'observateur perdu entre les deux** : la route qu'il garde est
+   * celle de la première, sa reprise au Fort comprise (`resumed`). Relue sans elle, la colonne
+   * marchait à l'allure d'avant le Fort jusqu'à l'arrivée repoussée, et l'arc glissait.
+   */
+  it('keeps the Fort reprise of the route it saw when the rest window holds the column after', async () => {
+    const t = boot();
+    const { france, ussr, germany } = await launchedSeason(t, [
+      'france',
+      'ussr',
+      'germany',
+    ] as const);
+    const ussrId = await playerOf(t, ussr);
+    await t.run((ctx) =>
+      ctx.db.patch(ussrId, { restWindow: { startMinutes: 0, endMinutes: 1439 } }),
+    );
+    const pskov = pointOfRegion('RUS-2335');
+    const degreesEast = (km: number) => km / (111.32 * Math.cos((pskov.lat * Math.PI) / 180));
+    /** Le Fort à 30 km au sud de la route, à 100 km de l'arrivée ; l'infanterie allemande à
+     *  40 km au nord, qui voit la colonne après son entrée dans la vigie et la perd avant
+     *  l'arrivée. */
+    const fortAt = { lon: pskov.lon + degreesEast(-100), lat: pskov.lat - 30 / 111.32 };
+    await t.run(async (ctx) =>
+      ctx.db.insert('outposts', {
+        seasonId: ussr.seasonId,
+        playerId: ussrId,
+        point: fortAt,
+        hostCountry: 'RUS',
+        level: 2,
+        specialty: 'fort',
+        foundedAt: Date.now(),
+        disabledUntil: null,
+        immuneUntil: null,
+      }),
+    );
+    const from = { lon: pskov.lon + degreesEast(-200), lat: pskov.lat };
+    const column = await postAt(t, france, 'infantry', from);
+    await postAt(t, germany, 'infantry', { lon: fortAt.lon, lat: pskov.lat + 40 / 111.32 });
+    const { movementId } = await t.mutation(api.movements.marchTo, {
+      ...france,
+      origin: { kind: 'point', point: from },
+      troopIds: [column],
+      point: pskov,
+    });
+    const outbound = (await t.run((ctx) => ctx.db.get(movementId)))!;
+    expect(outbound.hostCountry).toBe('RUS');
+
+    await reach(t, outbound.fortEntry!.at);
+    const slowed = (await t.run((ctx) => ctx.db.get(movementId)))!;
+    expect(slowed.resumed).toBeDefined();
+    const watched = await rowOf(t, germany, movementId);
+    expect(watched.from).toBeGreaterThan(slowed.resumed!.at);
+    expect(watched.to).toBeLessThan(slowed.arrivesAt);
+    await reach(t, watched.to + 1);
+    const lost = (await arcsOf(t, germany)).find((arc) => arc.id === movementId)!;
+    expect(lost.seenTo).toBe(watched.to);
+
+    await reach(t, slowed.arrivesAt);
+    expect((await t.run((ctx) => ctx.db.get(movementId)))?.heldAt).toBe(slowed.arrivesAt);
+    expect((await rowOf(t, germany, movementId)).seenOn?.resumed).toEqual(slowed.resumed);
+    expect((await arcsOf(t, germany)).find((arc) => arc.id === movementId)).toEqual(lost);
+  });
+
+  /**
+   * **Retenue au repos, puis sur place** : l'observateur qui l'a vue se tenir à la frontière et
+   * l'a perdue avant la présence garde la retenue (`heldAt`). Relue sans elle, la colonne debout
+   * au bout du fil marchait encore, au milieu de sa route.
+   */
+  it('keeps the rest hold of the route it saw when the plunder starts its presence after', async () => {
+    const t = boot();
+    const { france, ussr, germany } = await launchedSeason(t, [
+      'france',
+      'ussr',
+      'germany',
+    ] as const);
+    const ussrId = await playerOf(t, ussr);
+    await t.run((ctx) =>
+      ctx.db.patch(ussrId, { restWindow: { startMinutes: 0, endMinutes: 1439 } }),
+    );
+    const PSKOV = 'RUS-2335';
+    const site = pointOfRegion(PSKOV);
+    const warehouseId = await t.run((ctx) =>
+      ctx.db.insert('buildings', {
+        seasonId: ussr.seasonId,
+        playerId: ussrId,
+        key: 'warehouse',
+        regionId: PSKOV,
+        point: site,
+        level: 1,
+      }),
+    );
+    const franceId = await playerOf(t, france);
+    await t.run((ctx) =>
+      fileSurvey(ctx, franceId, [{ point: regionFacts(PSKOV)!.point, radiusKm: 1 }], Date.now()),
+    );
+    const start = { lon: site.lon - 1.5, lat: site.lat };
+    const infantry = await postAt(t, france, 'infantry', start);
+    await t.mutation(api.movements.plunder, {
+      ...france,
+      origin: { kind: 'point', point: start },
+      troopIds: [infantry],
+      buildingId: warehouseId,
+    });
+    const outbound = (await movementCarrying(t, infantry))!;
+    await reach(t, outbound.arrivesAt);
+    const held = (await t.run((ctx) => ctx.db.get(outbound._id)))!;
+    expect(held.heldAt).toBe(outbound.arrivesAt);
+    expect(held.plunder?.phase).toBe('outbound');
+
+    /** Une colonne allemande passe au nord du site pendant la retenue, et s'en éloigne. */
+    const north = { lon: site.lon - 1, lat: site.lat + 0.4 };
+    const passer = await postAt(t, germany, 'infantry', north);
+    await t.mutation(api.movements.marchTo, {
+      ...germany,
+      origin: { kind: 'point', point: north },
+      troopIds: [passer],
+      point: { lon: site.lon + 1, lat: site.lat + 0.4 },
+    });
+    const watched = await rowOf(t, germany, outbound._id);
+    expect(watched.from).toBeGreaterThan(held.heldAt!);
+    expect(watched.to).toBeLessThan(held.arrivesAt);
+    await reach(t, watched.to + 1);
+    const lost = (await arcsOf(t, germany)).find((arc) => arc.id === outbound._id)!;
+    expect(lost.seenTo).toBe(watched.to);
+
+    await reach(t, held.arrivesAt);
+    expect((await t.run((ctx) => ctx.db.get(outbound._id)))?.plunder?.phase).toBe('presence');
+    expect((await rowOf(t, germany, outbound._id)).seenOn?.heldAt).toBe(held.heldAt);
+    expect((await arcsOf(t, germany)).find((arc) => arc.id === outbound._id)).toEqual(lost);
+  });
 });
