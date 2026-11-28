@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 5c7fecc -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 6e3874e -->
 
 # Les constantes à mesurer
 
@@ -152,10 +152,10 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `HEARD_ON_RETURN` | `3` | `src/domain/front-sound.ts:149` | six en file, trois au retour, six secondes entre deux phrases (maquette D) |
 | `PHRASE_GAP_MS` | `6_000` | `src/domain/front-sound.ts:150` | six en file, trois au retour, six secondes entre deux phrases (maquette D) |
 | `GLIDE_MS` | `80` | `src/domain/indicators.ts:295` | How long a token takes to close most of the way to its place (ms). |
-| `FLAG_SWAP_MS` | `1600` | `src/domain/ink-bursts.ts:72` | `storyboard-moments/commun/scenes.js`, un des Sept — le drapeau descend puis |
-| `SEAL_HOLD_MS` | `3400` | `src/domain/ink-bursts.ts:73` | `storyboard-moments/commun/scenes.js`, un des Sept — le drapeau descend puis |
-| `TWIN_DEGREES` | `0.5` | `src/domain/ink-bursts.ts:76` | la capture que la prise d'un point ou la chute d'un QG dit déjà, au même instant |
-| `TAKEN_UP_MS` | `250` | `src/domain/ink-bursts.ts:79` | un geste lève tout en 0,25 s (#439, la maquette « la tournée »). |
+| `FLAG_SWAP_MS` | `1600` | `src/domain/ink-bursts.ts:76` | `storyboard-moments/commun/scenes.js`, un des Sept — le drapeau descend puis |
+| `SEAL_HOLD_MS` | `3400` | `src/domain/ink-bursts.ts:77` | `storyboard-moments/commun/scenes.js`, un des Sept — le drapeau descend puis |
+| `TWIN_DEGREES` | `0.5` | `src/domain/ink-bursts.ts:80` | la capture que la prise d'un point ou la chute d'un QG dit déjà, au même instant |
+| `TAKEN_UP_MS` | `250` | `src/domain/ink-bursts.ts:83` | un geste lève tout en 0,25 s (#439, la maquette « la tournée »). |
 | `LEVEL_SPEEDUP` | `0.2` | `src/domain/level-speed.ts:12` | 0,20 depuis le modèle de #158, jamais joué |
 | `LEVEL_SPEED_FLOOR` | `0.4` | `src/domain/level-speed.ts:15` | la durée ne descend jamais sous cette part de la base |
 | `LISTED_MINIMUM` | `4` | `src/domain/listing.ts:16` | la moitié des huit nations, aucune saison publique jouée |

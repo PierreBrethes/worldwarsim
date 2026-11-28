@@ -221,7 +221,8 @@
  *
  * `--absence` (#439) rend au Royaume-Uni (compte b) une absence de neuf heures : douze dépêches à
  * lieu autour de Londres, son rejeu jamais vu, ses premiers pas passés (`absence`). À rejouer sans
- * refonder : `npx convex run dev:absenceScene '{"playerId":"…"}'`.
+ * refonder : `npx convex run dev:absenceScene '{"playerId":"…"}'`. `--absence-prise <nation|neutre>` (#702)
+ * ne laisse qu'un arrêt : Narvik pris à cette nation, pour voir la flamme changer d'encre.
  *
  * `--moments` (#442) pose les QG de Paris et de Londres et donne à la France Narvik, Istanbul et
  * Bakou (`moments` cadre les Sept, `tanger`, `narvik`, `londres`), puis écrit les commandes qui
@@ -2615,9 +2616,13 @@ for (let salvo = 0; salvo < salvoes && shelling.length > 0; salvo++) {
   console.log(`Salve ${salvo + 1}/${salvoes} tirée à ${new Date().toISOString()}`);
 }
 
-/** `--absence` : la scène du rejeu, et son lieu, la capitale. */
+/** `--absence` : la scène du rejeu, et son lieu, la capitale. Avec `--absence-prise <nation|neutre>`, un seul arrêt : Narvik pris à cette nation (#702). */
 function absenceScene(playerId) {
-  const answer = cli(['run', 'dev:absenceScene', JSON.stringify({ playerId })]);
+  const at = process.argv.indexOf('--absence-prise');
+  const former = at < 0 ? null : process.argv[at + 1];
+  const taken =
+    at < 0 ? {} : { taken: { key: 'narvik', former: former === 'neutre' ? null : former } };
+  const answer = cli(['run', 'dev:absenceScene', JSON.stringify({ playerId, ...taken })]);
   places.absence = JSON.parse(answer.match(/\[[\s\S]*\]/)[0]);
 }
 
