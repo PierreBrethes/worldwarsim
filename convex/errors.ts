@@ -99,6 +99,12 @@ export type ErrorCode =
   /** Un bâtiment qu'on ne bâtit qu'une fois (`UNIQUE_BUILDINGS`) : le Centre de recherche. */
   | 'ALREADY_BUILT'
   | 'HQ_FIRST'
+  /** La relève du QG tombé (ADR 0048, `hqRaiseRefusalOf`) : `at` l'heure où elle s'ouvre,
+   *  `country` le pays où elle se pose. */
+  | 'HQ_RAISE_TOO_EARLY'
+  | 'HQ_RAISE_HOME_HELD'
+  | 'HQ_RAISE_OFF_HOME'
+  | 'HQ_RAISE_REGION_HELD'
   | 'UNKNOWN_BUILDING'
   /** Raser (demande du 15/09) : le mât visé n'est pas à soi, ou c'est le quartier général. */
   | 'NOT_YOURS'

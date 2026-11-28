@@ -285,6 +285,12 @@ const ofTheNation = (nation: string): string => {
       : `de ${the}`;
 };
 
+/** `de la France` depuis son code de pays : le serveur parle en pays, la phrase en nation. */
+const ofTheCountry = (adm0: string): string => {
+  const nation = NATION_BY_ADM0.get(adm0);
+  return nation === undefined ? `de ${countryLabel(adm0)}` : ofTheNation(nation);
+};
+
 /** Le verbe s'accorde à un sujet pluriel : les États-Unis, les irréguliers. */
 const agrees = (nation: string, one: string, many: string): string =>
   nation === 'usa' || nation === 'irregular' ? many : one;
@@ -939,6 +945,16 @@ export const fr = {
     /** **Le QG d'abord** (décision 1b du 13/09) : rien ne se bâtit avant lui, et la phrase dit
      *  l'ordre plutôt qu'un palier. */
     HQ_FIRST: () => 'posez d’abord votre quartier général — rien ne se bâtit avant lui',
+    /** **La relève** (ADR 0048) : douze heures au plus séparent la chute de l'heure dite, l'heure
+     *  seule suffit. */
+    HQ_RAISE_TOO_EARLY: (d) =>
+      `votre quartier général se relève à ${fr.table.hour(Number(d.at))}, douze heures après sa chute`,
+    HQ_RAISE_HOME_HELD: (d) =>
+      `tout le sol ${ofTheCountry(str(d.country))} est tenu par d’autres — reprenez-en une région pour y relever votre quartier général`,
+    HQ_RAISE_OFF_HOME: (d) =>
+      `hors de votre sol — votre quartier général se relève sur une région libre ${ofTheCountry(str(d.country))}`,
+    HQ_RAISE_REGION_HELD: (d) =>
+      `cette région est tenue par un autre — relevez votre quartier général sur une région libre ${ofTheCountry(str(d.country))}`,
     UNKNOWN_BUILDING: () => 'bâtiment inconnu',
     NOT_YOURS: () => 'ce bâtiment n’est pas à vous',
     /** **Le QG ne se rase pas** (question 39, 15/09) : sa destruction serait une révision de
