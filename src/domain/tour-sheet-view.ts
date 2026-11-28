@@ -1,6 +1,6 @@
 import type { LonLat } from './geo';
 import { RESOURCES } from './ids';
-import { emptyLoad } from './logistics';
+import { emptyLoad, loopBaseOf } from './logistics';
 import { loadingPlaceOf } from './compass-logistics';
 import { currentStock, type PlayerView, type TroopView } from './player-view';
 import { suppliesOf } from './supplies';
@@ -29,6 +29,9 @@ export type SheetReading = {
   readonly candidates: ReadonlyArray<SheetStop>;
   /** Où et comment le point de chargement se nomme. */
   readonly baseName: string;
+  /** Le bâtiment d'où part un transport qui boucle ailleurs (la caserne) ; `null` : il part du
+   *  point de chargement même. */
+  readonly departure: string | null;
   readonly nameOf: (stop: { readonly kind: 'depot' | 'site'; readonly id: string }) => string;
   readonly pointOf: (stop: { readonly kind: 'depot' | 'site'; readonly id: string }) => LonLat;
 };
@@ -52,8 +55,16 @@ export function readSheet(
   const carrier = view.me.troops.find((troop) => troop.id === carrierId);
   if (view.mode === 'blitz' || carrier === undefined) return null;
   const { me } = view;
-  /** Une tournée en cours a son point de chargement à elle : le transport peut être en route. */
-  const baseId = carrier.tour?.baseId;
+  /** Une tournée en cours a son point de chargement à elle : le transport peut être en route.
+   *  Posé à la caserne, il boucle depuis le QG ou l'entrepôt le plus proche (`loopBaseOf`). */
+  const standing = carrier.stationedAt;
+  const barracks =
+    carrier.tour === undefined && standing.kind === 'building'
+      ? me.buildings.find((b) => b.id === standing.buildingId)
+      : undefined;
+  const setsOutFrom =
+    barracks === undefined ? null : loopBaseOf(carrier.role, barracks, me.buildings);
+  const baseId = carrier.tour?.baseId ?? setsOutFrom?.id;
   const at: TroopView['stationedAt'] =
     baseId === undefined
       ? carrier.stationedAt
@@ -73,6 +84,7 @@ export function readSheet(
     me.regions.find((region) => region.id === regionId)?.site?.outpostId === null ? home : null;
   const baseName =
     baseBuilding?.name ?? (baseOutpost === undefined ? '' : outpostNameIn(me, baseOutpost.id));
+  const departure = setsOutFrom === null ? null : (barracks?.name ?? null);
 
   const stockRoom = emptyStocks();
   for (const key of RESOURCES)
@@ -139,6 +151,7 @@ export function readSheet(
     carrier,
     candidates,
     baseName,
+    departure,
     nameOf: (stop) => names.get(`${stop.kind}:${stop.id}`) ?? '',
     pointOf: (stop) => points.get(`${stop.kind}:${stop.id}`) ?? base,
     sheet: {

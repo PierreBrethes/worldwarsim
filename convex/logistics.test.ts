@@ -787,8 +787,9 @@ describe('the supply tour', () => {
   it('refuses a tour away from a loading point, or past four stops', async () => {
     const t = boot();
     const { seat } = await launchedSeason(t);
-    const barracks = await raise(t, seat, 'barracks', MARNE);
-    const truck = await form(t, seat, 'landTransport', barracks);
+    // The barracks now sets a truck out (28/11): a farm is no loading point.
+    const farm = await raise(t, seat, 'farm', MARNE);
+    const truck = await form(t, seat, 'landTransport', farm);
     await t.run(async (ctx) => ctx.db.patch(truck, { load: { ammunition: 60, oil: 0, coal: 0 } }));
     const stop = await plant(t, seat, ESSEN, 1, GERMANY);
 

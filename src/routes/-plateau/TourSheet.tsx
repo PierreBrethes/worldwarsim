@@ -46,7 +46,12 @@ export function TourSheet({ sheet }: { sheet: TourSheetState }) {
   const narrow = useNarrowScreen();
   const { reading } = sheet;
   if (reading === null) return null;
-  const title = fr.tourSheet.eyebrow(roleLabel(reading.carrier.role, 1), reading.baseName);
+  const title = fr.tourSheet.eyebrow(
+    roleLabel(reading.carrier.role, 1),
+    reading.departure === null
+      ? reading.baseName
+      : fr.tourSheet.setsOut(reading.departure, reading.baseName),
+  );
   const body = <SheetBody sheet={sheet} />;
   if (narrow)
     return (

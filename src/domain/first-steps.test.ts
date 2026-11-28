@@ -174,21 +174,20 @@ describe('cueOf', () => {
         }),
       ),
     ).toEqual({ kind: 'map', station: at, say: 'harvest' });
-    // Formé à la caserne, il n'y part pas en tournée : la bulle le renvoie au QG (27/11).
+    // Formé à la caserne, il en part en tournée quand un QG la boucle (28/11) ; sans QG ni
+    // entrepôt, la bulle le renvoie à un point de chargement.
     const barracks = { kind: 'building', buildingId: 'B-1' } as const;
     const formed = troop({ role: 'landTransport', stationedAt: barracks });
-    const sites = [farm, { id: 'B-1', key: 'barracks' }, { id: 'HQ', key: 'hq' }] as never;
+    const barracksSite = { id: 'B-1', key: 'barracks', point: [2, 48] };
+    const sites = [farm, barracksSite, { id: 'HQ', key: 'hq', point: [2.3, 48.8] }] as never;
     expect(cueOf('harvest', view({ buildings: sites, troops: [formed] }))).toEqual({
       kind: 'map',
       station: barracks,
-      say: 'toLoading',
+      say: 'harvest',
     });
     expect(
-      cueOf(
-        'harvest',
-        view({ buildings: sites, troops: [formed, troop({ id: 'T-2', role: 'landTransport' })] }),
-      ),
-    ).toEqual({ kind: 'map', station: at, say: 'harvest' });
+      cueOf('harvest', view({ buildings: [farm, barracksSite] as never, troops: [formed] })),
+    ).toEqual({ kind: 'map', station: barracks, say: 'toLoading' });
     expect(cueOf('harvest', view({ buildings: [farm as never] }))).toEqual({
       kind: 'rack',
       rack: 'tiles',

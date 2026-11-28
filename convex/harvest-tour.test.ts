@@ -203,6 +203,48 @@ describe('the pickup tour', () => {
     expect(await noticesOf(t, 'tourWaiting')).toEqual([]);
   });
 
+  it('sets out from the barracks that formed the truck, and loops from the HQ (28/11)', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    const hq = await building(t, seat, 'hq');
+    const barracks = await exploitation(t, seat, MARNE, { key: 'barracks' });
+    const truck = await form(t, seat, 'landTransport', barracks);
+    const mine = await heaped(t, seat);
+
+    await t.mutation(api.tours.start, { ...seat, troopId: truck, stops: [site(mine)] });
+    // Straight to the heap: the barracks loads nothing and is no stop of the loop.
+    expect(await flying(t)).toMatchObject([
+      { tourLeg: 'stop', pickup: { buildingId: mine }, fromBuildingId: barracks },
+    ]);
+    expect((await get(t, truck))!.tour).toMatchObject({ base: hq, stops: [site(mine)] });
+
+    await arriveNext(t);
+    expect(await flying(t)).toMatchObject([{ tourLeg: 'base', target: { buildingId: hq } }]);
+    await arriveNext(t);
+    expect((await get(t, truck))!.stationedAt).toBe(hq);
+    expect((await get(t, truck))!.harvest).toBeUndefined();
+    expect(await noticesOf(t, 'harvestReturned')).toMatchObject([{ delivered: { coal: 200 } }]);
+    expect(await flying(t)).toMatchObject([{ tourLeg: 'stop', pickup: { buildingId: mine } }]);
+  });
+
+  it('heads for the HQ first when nothing is worth picking up yet, and refuses without one', async () => {
+    const t = boot();
+    const { seat } = await launched(t);
+    const hq = await building(t, seat, 'hq');
+    const barracks = await exploitation(t, seat, MARNE, { key: 'barracks' });
+    const truck = await form(t, seat, 'landTransport', barracks);
+    const mine = await exploitation(t, seat, MOSELLE);
+
+    await t.mutation(api.tours.start, { ...seat, troopId: truck, stops: [site(mine)] });
+    expect(await flying(t)).toMatchObject([{ tourLeg: 'base', target: { buildingId: hq } }]);
+
+    const other = await form(t, seat, 'landTransport', barracks);
+    await t.run((ctx) => ctx.db.delete(hq));
+    await expect(
+      t.mutation(api.tours.start, { ...seat, troopId: other, stops: [site(mine)] }),
+    ).rejects.toThrow(/TOUR_NOT_AT_LOADING_POINT/);
+  });
+
   it('delivers a depot and picks up in the order drawn, and the depot gets no harvest', async () => {
     const t = boot();
     const { seat } = await launched(t);

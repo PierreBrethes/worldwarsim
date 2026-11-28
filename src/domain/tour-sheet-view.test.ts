@@ -79,6 +79,20 @@ describe('reading a transport sheet from the view', () => {
     expect(read.sheet.base).toEqual([2.35, 48.86]);
   });
 
+  it('reads a truck at the barracks as leaving from there and looping from the nearest HQ or warehouse', () => {
+    const barracks = { id: 'B', key: 'barracks', name: 'Caserne', point: [5, 47] };
+    const warehouse = { id: 'W', key: 'warehouse', name: 'Entrepôt', point: [5.2, 47.1] };
+    const formed = view({}, [barracks, warehouse]);
+    const carrier = formed.me.troops[0] as unknown as Record<string, unknown>;
+    carrier.stationedAt = { kind: 'building', buildingId: 'B' };
+    const read = readSheet(formed, 'T', [], world, NOW)!;
+    expect(read).toMatchObject({ baseName: 'Entrepôt', departure: 'Caserne' });
+    expect(read.sheet.base).toEqual([5.2, 47.1]);
+    expect(read.sheet.rules.place).toEqual({ kind: 'building', key: 'warehouse' });
+    expect(read.candidates.map((stop) => stop.id)).not.toContain('B');
+    expect(readSheet(view(), 'T', [], world, NOW)!.departure).toBeNull();
+  });
+
   it('reads a running tour from its own consigne and base, not from what is aboard now', () => {
     const running = view({}, [mine('a')]);
     const carrier = running.me.troops[0] as unknown as Record<string, unknown>;
