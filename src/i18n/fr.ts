@@ -2114,8 +2114,6 @@ export const fr = {
             : ' Halifax : votre premier mouvement maritime ne prendra pas de slot.'
       }`,
     nationSheet: (nation: string) => `${nation} — fiche de nation`,
-    site: 'chantier',
-    siteTitle: (name: string, region: string) => `${name} — ${region}`,
   },
 
   /**

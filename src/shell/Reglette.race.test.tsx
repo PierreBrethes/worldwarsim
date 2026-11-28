@@ -82,7 +82,7 @@ async function mount(shown: PlayerView) {
     history: createMemoryHistory({ initialEntries: ['/plateau'] }),
   });
   render(<RouterProvider router={router} />);
-  await screen.findByTitle(/^mouvements en vol/);
+  await screen.findByText(fr.resourceBand.slots);
 }
 
 /** **La course aux Sept sur la réglette** (#670) : la cellule ouvre la Presse, dit le compte à

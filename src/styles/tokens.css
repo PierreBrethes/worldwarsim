@@ -19,6 +19,8 @@
      grey beside it; raised to the same floor, the two became one colour. Paper only: on the desk
      it falls near 3:1, and --paper-dim is the grey there. */
   --ink-note: #6b5b3b;
+  /* The sheet of the march schedule and its tab, one step lighter than the band they hang from. */
+  --paper-hi: #ece2ca;
   --paper-pile: #cfc09e;
   --paper-pile-2: #b8ab8c;
   --sea: #a9c5cd;
