@@ -584,10 +584,9 @@ function BoardContent({
   );
   const endSweep = useCallback(() => setSweep(null), []);
   const [sweepStatus, setSweepStatus] = useState<string | null>(null);
-  const sweepButton = (icon: boolean) =>
-    blitz ? null : (
-      <SweepButton species={sweepSpecies} onSweep={launchSweep} status={sweepStatus} icon={icon} />
-    );
+  const sweepButton = blitz ? null : (
+    <SweepButton species={sweepSpecies} onSweep={launchSweep} status={sweepStatus} />
+  );
   /** Les cases cochées du panneau de garnison ouvert — remontées pour la seule mise en avant :
    *  la composition reste au panneau, qui seul la soumet. */
   const [garrisonPicked, setGarrisonPicked] = useState<ReadonlyArray<string>>([]);
@@ -3509,7 +3508,6 @@ function BoardContent({
       todo={narrow ? nextActions('sheet') : replay === null && nextActions('card')}
       onShowBriefing={showBriefing}
       onResumeSteps={resumeSteps}
-      sweep={replay === null ? sweepButton(false) : null}
       underway={underway}
       onLocate={locateUnderway}
       covered={coversUnderway}
@@ -3921,7 +3919,7 @@ function BoardContent({
             gauche de la pile des boutons, bas alignés, au même écart et à la même marge que la
             colonne des surfaces en face (`--table-gap`, `--table-margin`). Sous le seuil, les
             boutons passent en bas à gauche, au-dessus de la barre basse. */}
-                <div className="pointer-events-none absolute right-(--table-margin) bottom-(--table-margin) z-[var(--z-indicator)] flex items-end gap-(--table-gap) [&>*]:pointer-events-auto">
+                <div className="pointer-events-none absolute right-(--table-margin) bottom-(--table-margin) z-[var(--z-indicator)] has-[[role=menu]]:z-[calc(var(--z-notice)+1)] flex items-end gap-(--table-gap) [&>*]:pointer-events-auto">
                   {/* En visée sous le seuil, toucher le sol nomme une destination : la feuille du sol
               prendrait la place de la visée et la désarmerait. */}
                   {!aimingOnPhone && (
@@ -3972,6 +3970,7 @@ function BoardContent({
                           layers={view.mode !== 'blitz'}
                           onRecenter={recenterOnHome}
                           onCorner={setCorner}
+                          sweep={sweepButton}
                         />
                       )}
                     </div>
@@ -3991,7 +3990,7 @@ function BoardContent({
                       layers={view.mode !== 'blitz'}
                       onRecenter={recenterOnHome}
                       onCorner={setCorner}
-                      sweep={sweepButton(true)}
+                      sweep={sweepButton}
                     />
                   </div>
                 )}

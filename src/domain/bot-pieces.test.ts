@@ -700,7 +700,122 @@ describe('le bot facile ravitaille', () => {
   });
 
   it('ne bouge pas un camion en tournée', () => {
-    const touring = troop('c1', inBuilding('hq-1'), 'landTransport', { tour: {} as never });
+    const touring = troop('c1', inBuilding('hq-1'), 'landTransport', {
+      tour: { stops: [] } as never,
+    });
     expect(turn(viewOf({ troops: [touring], outposts: [outpost(10)] }))).toEqual([]);
+  });
+});
+
+describe('le bot facile rapporte le tas de chacune de ses exploitations (#684)', () => {
+  const farm = (id: string, amount: number) => ({
+    id,
+    key: 'farm',
+    regionId: `R-${id}`,
+    point: [3, 47] as const,
+    level: 1,
+    heap: { resource: 'food', amount },
+  });
+  const touring = (id: string, site: string) =>
+    troop(id, inBuilding('hq-1'), 'landTransport', {
+      tour: { stops: [{ kind: 'site', id: site }] } as never,
+    });
+  const free = (id: string) => troop(id, inBuilding('hq-1'), 'landTransport');
+  const site = (id: string) => ({ kind: 'site' as const, id });
+
+  it("envoie le camion libre au tas qu'aucune tournée ne dessert, pas au plus gros déjà servi", () => {
+    const view = viewOf({
+      buildings: [hq, barracks, farm('farm-1', 300), farm('farm-2', 100)],
+      troops: [touring('c1', 'farm-1'), free('c2')],
+    });
+    expect(turn(view)).toEqual([
+      { fn: 'tours.start', args: { troopId: 'c2', stops: [site('farm-2')] } },
+    ]);
+  });
+
+  it('refait la tournée avec tous les tas en attente, dans la limite des arrêts', () => {
+    const farms = ['a', 'b', 'c', 'd', 'e'].map((id, i) => farm(`farm-${id}`, 100 + i));
+    const view = viewOf({ buildings: [hq, barracks, ...farms], troops: [free('c1')] });
+    const [order] = turn(view);
+    expect(order).toMatchObject({ fn: 'tours.start', args: { troopId: 'c1' } });
+    expect((order as unknown as { args: { stops: unknown[] } }).args.stops).toHaveLength(4);
+  });
+
+  it("rappelle la tournée qui a de la place quand un tas attend et qu'aucun camion n'est libre", () => {
+    const view = viewOf({
+      buildings: [hq, barracks, farm('farm-1', 300), farm('farm-2', 100)],
+      troops: [touring('c1', 'farm-1')],
+    });
+    expect(turn(view)).toEqual([{ fn: 'tours.recall', args: { troopId: 'c1' } }]);
+  });
+
+  it('ne rappelle pas une tournée déjà rappelée, ni ne la rappelle en boucle une fois pleine', () => {
+    const farms = ['a', 'b', 'c', 'd', 'e'].map((id) => farm(`farm-${id}`, 100));
+    const stops = farms.slice(0, 4).map(({ id }) => site(id));
+    const full = troop('c1', inBuilding('hq-1'), 'landTransport', { tour: { stops } as never });
+    expect(turn(viewOf({ buildings: [hq, barracks, ...farms], troops: [full] }))).toEqual([]);
+    const recalled = troop('c1', inBuilding('hq-1'), 'landTransport', {
+      tour: { stops: [site('farm-a')], recalled: true } as never,
+    });
+    expect(turn(viewOf({ buildings: [hq, barracks, ...farms], troops: [recalled] }))).toEqual([]);
+  });
+
+  it('forme un camion de plus quand les tas dépassent ce que les camions emportent', () => {
+    const farms = ['a', 'b', 'c', 'd', 'e'].map((id) => farm(`farm-${id}`, 100));
+    const stops = farms.slice(0, 4).map(({ id }) => site(id));
+    const view = viewOf({
+      buildings: [hq, barracks, ...farms],
+      troops: [troop('c1', inBuilding('hq-1'), 'landTransport', { tour: { stops } as never })],
+    });
+    const workshop: BotWorkshop = {
+      troopsInService: BOT_ARMY_TARGET + 1,
+      troopsQueued: 0,
+      facilities: [{ id: 'b-1', key: 'barracks', queue: [] }],
+      roster: [{ role: 'landTransport' }] as never,
+      grid: [
+        { role: 'infantry', unit: { costs: { steel: 5 } } },
+        { role: 'landTransport', unit: { costs: { steel: 8 } } },
+      ] as never,
+    };
+    expect(
+      decideTurn({ view, workshop, world: world(), now: NOW } satisfies BotContext),
+    ).toContainEqual({
+      fn: 'troops.recruit',
+      args: { buildingId: 'b-1', role: 'landTransport', tier: 1 },
+    });
+  });
+});
+
+describe('la tournée de ravitaillement emporte les tas (#684)', () => {
+  it("part vers le dépôt et passe aussi par le tas qu'aucune tournée ne dessert", () => {
+    const outpost = {
+      id: 'o-1',
+      regionId: 'BEL-1',
+      lonLat: BELGIUM,
+      level: 1,
+      standsAt: null,
+      disabledMinutesLeft: null,
+      depot: { ammunition: 10, oil: 0, coal: 0 },
+      depotCapacity: 100,
+    };
+    const farm = {
+      id: 'farm-1',
+      key: 'farm',
+      regionId: 'R-1',
+      point: [3, 47] as const,
+      level: 1,
+      heap: { resource: 'food', amount: 100 },
+    };
+    const lorry = troop('c1', inBuilding('hq-1'), 'landTransport', {
+      load: { ammunition: 20, oil: 0, coal: 0 },
+    });
+    expect(
+      turn(viewOf({ buildings: [hq, barracks, farm], troops: [lorry], outposts: [outpost] })),
+    ).toEqual([
+      {
+        fn: 'tours.start',
+        args: { troopId: 'c1', stops: ['o-1', { kind: 'site', id: 'farm-1' }] },
+      },
+    ]);
   });
 });

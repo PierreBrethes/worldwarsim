@@ -741,6 +741,14 @@ export const fr = {
       countdown: (nation: string, left: string) =>
         `${nation} tient quatre des Sept : victoire dans ${left} si rien ne bouge.`,
       contested: 'contesté',
+      /** La cellule de la réglette (#670) : « Les Sept », le compte du joueur, et la phrase. */
+      cell: 'Les Sept',
+      mine: (held: number) => `${num(held)} / ${RACE_TO_WIN}`,
+      you: 'Vous',
+      within: (left: string) => `victoire dans ${left}`,
+      phrase: (who: string, left: string) => `${who} · ${fr.points.race.within(left)}`,
+      cellTitle: (mine: string, phrase: string | null) =>
+        `${fr.points.race.title} — ${mine}${phrase === null ? '' : ` — ${phrase}`}. Ouvrir la presse.`,
       palmares: 'Le palmarès — qui a tenu chaque lieu le plus longtemps',
       neverHeld: 'jamais tenu',
     },
@@ -5529,11 +5537,10 @@ export const fr = {
   },
 
   /**
-   * **Sonder la carte** (#249) : le bouton de la réglette, son menu d'espèces, les cartouches que
+   * **Sonder la carte** (#249) : le bouton au pied des boutons de carte, son menu d'espèces, les cartouches que
    * l'onde pose sur les gisements atteints, et la dépêche quand elle n'en trouve aucun.
    */
   sweep: {
-    button: 'Sonder',
     launch: (deposit: DepositKey) => `Sonder la carte : ${fr.deposits[deposit]} (S)`,
     choose: 'Choisir l’espèce',
     menu: 'Sonder pour',
@@ -5987,6 +5994,22 @@ export function countdownLabel(milliseconds: number): string {
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours} h ${String(minutes % 60).padStart(2, '0')}`;
   return `${Math.floor(hours / 24)} j ${String(hours % 24).padStart(2, '0')} h`;
+}
+
+/** « 23 h 12 », puis « 12 min 04 s » sous l'heure : le compte à rebours de la course aux Sept,
+ *  que la réglette et la Presse lisent du même formateur. */
+export function raceClockLabel(milliseconds: number): string {
+  if (milliseconds >= 3_600_000) return countdownLabel(milliseconds);
+  const seconds = Math.max(0, Math.floor(milliseconds / 1000));
+  return `${Math.floor(seconds / 60)} min ${String(seconds % 60).padStart(2, '0')} s`;
+}
+
+/** La même durée, pour la bande étroite du téléphone : la minute seule sous l'heure (« 47 min »),
+ *  les secondes sous la minute (« 52 s »). */
+export function raceClockShortLabel(milliseconds: number): string {
+  if (milliseconds >= 3_600_000) return countdownLabel(milliseconds);
+  const seconds = Math.max(0, Math.floor(milliseconds / 1000));
+  return seconds < 60 ? `${seconds} s` : `${Math.floor(seconds / 60)} min`;
 }
 
 const str = (value: unknown): string => (typeof value === 'string' ? value : '—');
