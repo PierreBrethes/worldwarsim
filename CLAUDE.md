@@ -64,7 +64,8 @@ deploiement/     docker compose (Convex auto-hébergé + front), guide VPS et CI
   réécrit sur place (même id, route ou heures neuves : un coude de poursuite, la présence d'un
   pillage, une retenue au Fort ou au repos) appelle `keepSeenRoutes`
   (`convex/movement/detection.ts`) : une fenêtre close garde la route où elle a été vue
-  (`sightings.seenOn`), sinon sa dernière position connue suit la colonne.
+  (`sightings.seenOn`), sinon sa dernière position connue suit la colonne. Seules les scènes de
+  démo de `convex/dev.ts` (`internalMutation` lancées à la main) réécrivent exprès sans geler.
   Chaque joueur lit son propre index de relevés (`sightings`, `campSightings`,
   `regionSightings`), jamais un filtre sur une table de vérité
   (`WWS/docs/technique/brouillard-et-fanout.md`). Toute mutation qui change un détecteur ou une
