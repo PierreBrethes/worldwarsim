@@ -285,12 +285,6 @@ async function capturing(
 const holderOf = async (t: Bench, buildingId: Id<'buildings'>) =>
   (await t.run((ctx) => ctx.db.get(buildingId)))?.playerId;
 
-/** Le prochain job du planificateur, à son heure. */
-const nextJob = async (t: Bench) => {
-  vi.advanceTimersToNextTimer();
-  await t.finishInProgressScheduledFunctions();
-};
-
 /** L'arc de ce mouvement, vivant ou figé : un souvenir se sert sous l'id de sa ligne. */
 async function arcOf(t: Bench, seat: Seat, movementId: Id<'movements'>) {
   const rows = (await rowsOf(t, seat)).filter((row) => row.movementId === movementId);
