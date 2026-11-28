@@ -205,7 +205,8 @@ describe('marchScheduleOf', () => {
 
   it('puts a work that starts after the horizon beyond, and one that straddles it inside', () => {
     const view = board({
-      construction: head(11 * 60),
+      // The head ends ten minutes short of the horizon: W-1 straddles it, W-2 starts past it.
+      construction: head(11 * 60 + 50),
       constructionQueue: [queued('W-1', 'mine', 3), queued('W-2', 'mine', 3)],
     });
     const { works } = marchScheduleOf(view, LOADED)!;
