@@ -43,6 +43,7 @@ const view = (
 ) =>
   ({
     mode: 'mondiale',
+    arcs: [],
     loadedAt: Date.now(),
     journal: [],
     strategicPoints: points,
@@ -57,7 +58,10 @@ const view = (
     me: {
       nation: 'france',
       defeated: false,
+      hqLevel: 1,
+      outposts: [],
       construction: null,
+      constructionQueue: [],
       slots: { total: 2, used: 0 },
       research: { researched: [], running: null, queue: [] },
       chains: [],
@@ -82,7 +86,7 @@ async function mount(shown: PlayerView) {
     history: createMemoryHistory({ initialEntries: ['/plateau'] }),
   });
   render(<RouterProvider router={router} />);
-  await screen.findByTitle(/^mouvements en vol/);
+  await screen.findByText(fr.resourceBand.slots);
 }
 
 /** **La course aux Sept sur la réglette** (#670) : la cellule ouvre la Presse, dit le compte à

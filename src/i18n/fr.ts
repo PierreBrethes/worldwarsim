@@ -2114,8 +2114,6 @@ export const fr = {
             : ' Halifax : votre premier mouvement maritime ne prendra pas de slot.'
       }`,
     nationSheet: (nation: string) => `${nation} — fiche de nation`,
-    site: 'chantier',
-    siteTitle: (name: string, region: string) => `${name} — ${region}`,
   },
 
   /**
@@ -2578,23 +2576,51 @@ export const fr = {
     foundation: (country: string) => `fondation · ${country}`,
     recruitment: (region: string) => `recrutement · ${region}`,
     lot: (ordered: number, resource: string) => `lot · ${num(ordered)} ${resource}`,
-    /** **Le volet « En cours » du bureau**, ouvert par le compteur de slots de la réglette (#615). */
-    drawer: {
-      title: 'En cours',
-      count: (count: number) => `${count} échéance${plural(count, '', 's')}`,
-      close: 'Fermer',
-      empty: 'Rien ne court.',
-      movements: 'mouvements',
-      slots: (used: number, total: number) => `slots ${used} / ${total}`,
-      rest: 'chantiers, recrutements, lots',
-      holdsSlot: 'tient un slot de mouvement',
+    /** **Le refus des slots** (ADR 0015), dit dans la ligne des mouvements du tableau de marche. */
+    slotsRefusal: {
       /** « Les deux slots sont engagés » : le nombre suit la vue, deux au départ. */
       allEngaged: (total: number) =>
         `${total === 2 ? 'Les deux' : `Les ${num(total)}`} slots sont engagés`,
-      /** Suivie du temps qui reste, que le volet fait battre, puis d'un point. */
+      /** Suivie du temps qui reste, puis d'un point. */
       freesAt: (total: number, label: string) =>
         `${total === 2 ? 'Les deux' : `Les ${num(total)}`} slots sont engagés : le prochain mouvement part quand « ${label} » arrive, dans `,
     },
+  },
+
+  /**
+   * **Le tableau de marche** (#733) : l'onglet de la réglette et la feuille des échéances sur douze
+   * heures. Ce que le titre du compteur de slots disait au survol se lit en clair dans la ligne
+   * des mouvements (`banner.slotsTitle`).
+   */
+  march: {
+    tab: 'Tableau de marche',
+    tabShort: 'Marche',
+    /** L'onglet déplié : combien d'échéances la feuille place. */
+    count: (count: number) => `${count} échéance${plural(count, '', 's')}`,
+    none: 'rien en cours',
+    /** Des lignes existent, mais aucune ne tombe dans les douze heures. */
+    nothingSoon: 'rien avant 12 h',
+    /** Joueur vaincu ou saison conclue : l'onglet reste, et le dit. */
+    over: 'plus rien ne court',
+    more: (count: number) => `+${count}`,
+    now: 'maintenant',
+    sheet: 'Tableau de marche — les échéances des douze prochaines heures',
+    ruler: 'Dans',
+    movements: 'Mouvements',
+    works: 'Chantiers',
+    stocks: 'Stocks',
+    other: 'Autres',
+    /** Sous le nom d'une ligne : ce qui tombe après l'horizon, compté et non placé. */
+    beyond: (count: number) => `+${count} après 12 h`,
+    edition: (time: string) => `Édition ${time}`,
+    /** La prochaine édition dans l'onglet replié. */
+    editionDue: 'édition de la presse',
+    queueEmpty: (time: string) => `file vide à ${time}`,
+    dry: (resource: string) => `${resource} à sec`,
+    perHour: (amount: string) => `${amount} par heure`,
+    dryIn: (span: string) => `à sec dans ${span}`,
+    minutes: (count: number) => `${count} min`,
+    hours: (count: number) => `${count} h`,
   },
 
   /**
