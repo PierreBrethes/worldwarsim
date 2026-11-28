@@ -1232,6 +1232,8 @@ function portSite({ view, world }: BotContext): { regionId: string; point: LonLa
   const reaches = reachesOf(view, () => 0);
   const goals = neutralPoints(view);
   // La mer n'est pas la ligne droite : une île a sa bonne côte, que la route de mer du cargo dit.
+  // Le repli `2×distance` ne vaut que pour un point refusé d'emblée (`blocked`) ou si aucun ne se
+  // joint ; un point que la recherche ne joint pas, quand un autre l'est, n'a plus de repli (#728).
   const gap = (point: LonLat) => {
     const { km, blocked } = world.landRouteToNearest(
       point,

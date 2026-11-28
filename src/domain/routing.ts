@@ -873,9 +873,11 @@ export function computeRouteToAny(
 /**
  * **The cheapest of several destinations, in one search.** `computeRoute` toward each of `goals`
  * and keeping the least costly is as many Dijkstras; this runs one toward every goal cell, and
- * prices the winner as `computeRoute` would (`pinEnd`). `blocked` lists the goals `computeRoute`
- * would refuse outright (a lake, a land end the mode cannot walk), so a caller that bills them
- * another way keeps its rule; `best` is `null` when no goal is left or none is joined.
+ * prices the winner as `computeRoute` would (`pinEnd`). `blocked` lists only the goals
+ * `computeRoute` refuses outright (a lake, a land end the mode cannot walk), or every goal when the
+ * search joins none. A goal that is merely out of reach while another is reached is **not** listed:
+ * it is dropped, where one `computeRoute` per goal would have let the caller bill it another way.
+ * `best` is `null` when no goal is left or none is joined.
  */
 export function computeRouteToNearest(
   grid: RouteGrid,
