@@ -58,6 +58,7 @@ export function GroundPanel({
   suspendedUntil,
   view,
   onDeselect,
+  onOpen,
 }: {
   selected: string | null;
   hoveredCountry: string | null;
@@ -73,6 +74,8 @@ export function GroundPanel({
   view: PlayerView;
   /** Sous le seuil le panneau est une feuille, et « fermer » y défait la sélection qui l'a ouvert. */
   onDeselect: () => void;
+  /** Dit si la fiche est posée et dépliée : la barrette ne redit pas le sol tant qu'elle l'est (#725). */
+  onOpen?: (open: boolean) => void;
 }) {
   const coastal = useCoastalRegions();
   const narrow = useNarrowScreen();
@@ -145,6 +148,7 @@ export function GroundPanel({
         marker={marker}
         heading={countryLabel(country)}
         onDeselect={onDeselect}
+        onOpen={onOpen}
       >
         {countryLines}
       </GroundCard>
@@ -171,7 +175,13 @@ export function GroundPanel({
      « détails ». */
   if (narrow) {
     return (
-      <GroundCard title={title} marker={marker} heading={hovered.name} onDeselect={onDeselect}>
+      <GroundCard
+        title={title}
+        marker={marker}
+        heading={hovered.name}
+        onDeselect={onDeselect}
+        onOpen={onOpen}
+      >
         <p className={QUIET}>
           {countryLabel(country)} — <TerrainIcon type={hovered.type} size={14} />{' '}
           {fr.regionTypes[hovered.type]}
@@ -197,6 +207,7 @@ export function GroundPanel({
       marker={marker}
       heading={countryLabel(country)}
       onDeselect={onDeselect}
+      onOpen={onOpen}
     >
       <p className={QUIET}>
         <TerrainIcon type={hovered.type} size={16} />{' '}
@@ -218,6 +229,7 @@ function GroundCard({
   marker,
   heading,
   onDeselect,
+  onOpen,
   children,
 }: {
   title: string;
@@ -225,6 +237,7 @@ function GroundCard({
   marker: string;
   heading: string;
   onDeselect: () => void;
+  onOpen: ((open: boolean) => void) | undefined;
   children: ReactNode;
 }) {
   return (
@@ -236,6 +249,7 @@ function GroundCard({
       width={236}
       onClose={onDeselect}
       compact
+      {...(onOpen === undefined ? {} : { onOpen })}
     >
       <div className="grid gap-[5px] text-[13px] leading-[1.25] text-[var(--ink)]">
         <h3 className="font-(family-name:--font-display) text-[18px] leading-[1.05] font-bold">

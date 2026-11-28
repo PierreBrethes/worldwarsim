@@ -55,12 +55,16 @@ export function PlaceStrip({
   loadPlaces,
   onGo,
   reading,
+  groundOpen,
   scale,
 }: {
   /** The places, asked for when the field is first used: 5 000 names are not read at the board's start. */
   loadPlaces: () => Promise<ReadonlyArray<Place>>;
   onGo: (place: Place) => void;
   reading: CursorReading | null;
+  /** La fiche de survol du sol est dépliée (#725) : elle est la référence, « sous le curseur »
+   *  ne la redit pas. Repliée ou absente, il reparaît. */
+  groundOpen: boolean;
   /** `null` where the scale would lie (the Blitz scales its theatre). */
   scale: ScaleStore | null;
 }) {
@@ -81,7 +85,7 @@ export function PlaceStrip({
         right: 'calc(var(--table-margin) / var(--hud-scale))',
       }}
     >
-      <Finder loadPlaces={loadPlaces} onGo={onGo} reading={reading} />
+      <Finder loadPlaces={loadPlaces} onGo={onGo} reading={groundOpen ? null : reading} />
       {scale !== null && <Scale store={scale} />}
     </div>
   );

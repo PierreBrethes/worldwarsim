@@ -7,18 +7,25 @@ import { dashPitch, Ribbon, RibbonMaterial, ribbonWidth } from './route-ribbon';
 /** **Une boucle de tournée** (ADR 0028) : le chargement, ses dépôts dans l'ordre — ceux que ce
  *  tour saute, pleins, marqués —, et retour. En tracé, elle est encore à l'encre pointillée. */
 export type TourLoop = {
+  /** La troupe qui la court ; aucune tant qu'on la trace. */
+  readonly troopId?: string;
   readonly base: LonLat;
   readonly stops: ReadonlyArray<{ readonly at: LonLat; readonly skipped: boolean }>;
   readonly tracing: boolean;
 };
 
 /** **Les boucles à poser** : calque éteint (#723), seule la boucle qu'on trace reste dessinée, on
- *  ne trace pas à l'aveugle. */
+ *  ne trace pas à l'aveugle ; et celle du transport sélectionné (#725), qu'on regarde. */
 export function inkedLoops(
   loops: ReadonlyArray<TourLoop>,
   shown: boolean,
+  selected: ReadonlyArray<string> = [],
 ): ReadonlyArray<TourLoop> {
-  return shown ? loops : loops.filter((loop) => loop.tracing);
+  return shown
+    ? loops
+    : loops.filter(
+        (loop) => loop.tracing || (loop.troopId !== undefined && selected.includes(loop.troopId)),
+      );
 }
 
 type Stroke = { readonly points: ReadonlyArray<LonLat>; readonly dashed: boolean };

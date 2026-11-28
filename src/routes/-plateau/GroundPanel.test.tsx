@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { PlayerView } from '@/domain/player-view';
 import { GroundPanel } from './GroundPanel';
@@ -72,4 +72,27 @@ it("reads an opponent's asset on its country, and nothing for one without", () =
   cleanup();
   over('ITA');
   expect(screen.queryByText('atout')).toBeNull();
+});
+
+/** **La barrette en dépend** (#725) : la fiche dit si elle est dépliée, repliée ou partie. */
+it('tells whether it is unfolded, folded or gone', () => {
+  const open = vi.fn();
+  const props = {
+    selected: null,
+    hoveredCountry: 'CHE',
+    hoveredRegion: { id: 'r-1', country: 'CHE', name: 'Valais', type: 'mountain' as const },
+    holding: null,
+    suspendedUntil: null,
+    view,
+    onDeselect: () => {},
+    onOpen: open,
+  };
+  const { rerender } = render(<GroundPanel {...props} />);
+  expect(open).toHaveBeenLastCalledWith(true);
+  fireEvent.click(screen.getByRole('button', { name: '–' }));
+  expect(open).toHaveBeenLastCalledWith(false);
+  fireEvent.click(screen.getByRole('button', { name: '+' }));
+  expect(open).toHaveBeenLastCalledWith(true);
+  rerender(<GroundPanel {...props} hoveredCountry={null} hoveredRegion={null} />);
+  expect(open).toHaveBeenLastCalledWith(false);
 });

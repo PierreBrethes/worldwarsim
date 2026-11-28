@@ -44,7 +44,12 @@ describe('strokesOf', () => {
 });
 
 describe('inkedLoops', () => {
-  const running: TourLoop = { base, stops: [{ at: lille, skipped: false }], tracing: false };
+  const running: TourLoop = {
+    troopId: 't1',
+    base,
+    stops: [{ at: lille, skipped: false }],
+    tracing: false,
+  };
   const tracing: TourLoop = { base, stops: [{ at: brussels, skipped: false }], tracing: true };
 
   it('keeps every loop while the layer is on', () => {
@@ -53,5 +58,11 @@ describe('inkedLoops', () => {
 
   it('drops the loops laid down once the layer is off, but never one being traced', () => {
     expect(inkedLoops([running, tracing], false)).toEqual([tracing]);
+  });
+
+  it('keeps the loop of the selected transport once the layer is off, and no other', () => {
+    const other: TourLoop = { ...running, troopId: 't2' };
+    expect(inkedLoops([running, other, tracing], false, ['t1'])).toEqual([running, tracing]);
+    expect(inkedLoops([running, other], false, ['t3'])).toEqual([]);
   });
 });
