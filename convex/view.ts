@@ -1455,8 +1455,9 @@ function placed(notice: Doc<'notices'>) {
  *
  * **Ultra breaks it once** (ADR 0047 §3), the third breach after Lisbon and the Lend-Lease
  * dispatch: a naval column a British station has heard carries its `destination`, a field of its
- * own — the point and the name its owner reads, nothing else — served past `ultraFrom` and only
- * on the British observer's own row. The row writes it; this reads it and filters nothing.
+ * own — the point and the name its owner reads, nothing else — as the station heard it, and only
+ * on the British observer's own row. The row writes it while a station listens
+ * (`heardDestination`); this reads it and filters nothing, never the movement's live one.
  *
  * `headingAtMe` is the third ink of design sheet 04 and, Ultra or not, an **estimate**:
  * the heading is prolonged over what the column has left to walk, and the ink turns critical if
@@ -1568,9 +1569,9 @@ async function detectedArcs(
       detector: sighting.detector,
       detectorRegion: await regionOfStation(ctx, sighting),
       ...lisbonNation(nationOf, movement.playerId),
-      ...(sighting.ultraFrom !== undefined && sighting.ultraFrom <= now
-        ? { destination: destinationOf(movement) }
-        : {}),
+      ...(sighting.heardDestination === undefined
+        ? {}
+        : { destination: sighting.heardDestination }),
       identification: compositionOf(sighting),
     });
   }

@@ -1461,6 +1461,13 @@ export default defineSchema({
      */
     ultraFrom: v.optional(v.number()),
     ultraJobId: v.optional(v.id('_scheduled_functions')),
+    /**
+     * **Ce que la station a entendu** (#726) : la destination à l'instant où une station l'écoutait,
+     * jamais celle du moment où elle est sourde. Un coude de poursuite réécrit le mouvement sur
+     * place ; relire sa destination en direct servait chaque cible choisie hors d'écoute. Absente
+     * sur une ligne écrite avant elle : rien n'est servi.
+     */
+    heardDestination: v.optional(v.object({ point: LON_LAT, name: v.string() })),
     /** A future window takes one cancellable appointment to file its dispatch at opening. */
     revealJobId: v.optional(v.id('_scheduled_functions')),
     noticeFiled: v.optional(v.boolean()),

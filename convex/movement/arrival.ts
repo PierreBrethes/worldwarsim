@@ -40,7 +40,6 @@ import { reportChange, scheduleRestore, settleBeforeChange } from '../production
 import { regionAtPoint } from '../regionGeometry';
 import { capitalRegionOf, pointOfBuilding, regionFacts } from '../regions';
 import { hostAtPoint, routeBetween } from '../routes';
-import { destinationOf } from '../placeNames';
 import {
   asPoint,
   defenceOf,
@@ -133,8 +132,6 @@ async function dropMovement(
     const closedAt = Math.min(served.to, now);
     const segment = seenSegment(marchingForce(movement), served.from, closedAt);
     const { readAt } = lostReading(sighting, closedAt);
-    /** **Ce qui a été entendu reste su** (Ultra, ADR 0047 §3) : la destination de l'instant. */
-    const heard = sighting.ultraFrom !== undefined && sighting.ultraFrom <= now;
     await ctx.db.patch(sighting._id, {
       to: closedAt,
       windows: storedWindows(sighting.from, [{ from: served.from, to: closedAt }]),
@@ -152,7 +149,11 @@ async function dropMovement(
         costUnits: segment.costUnits,
         headingDegrees: segment.headingDegrees,
         closedAt,
-        ...(heard ? { destination: destinationOf(movement) } : {}),
+        /** **Ce qui a été entendu reste su** (Ultra, ADR 0047 §3) : ce que la station a entendu,
+         *  jamais la destination du moment (#726). */
+        ...(sighting.heardDestination === undefined
+          ? {}
+          : { destination: sighting.heardDestination }),
       },
     });
   }

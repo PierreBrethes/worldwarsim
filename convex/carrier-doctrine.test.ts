@@ -243,7 +243,8 @@ describe('the carrier doctrine (ADR 0039 §4)', () => {
     expect(seen.map((one) => one.movementId)).toContain(turned.movementId);
   });
 
-  /** **Ultra** (ADR 0047 §3) : la destination est celle du moment, et l'ancienne reste au souvenir. */
+  /** **Ultra** (ADR 0047 §3) : la destination est celle que la station entend au coude, et
+   *  l'ancienne reste au souvenir. */
   it('reads the new destination to a British station, the old one kept on the frozen arc', async () => {
     const t = boot();
     const { japan, france: uk } = await launchedSeason(t, 'uk');
@@ -263,7 +264,9 @@ describe('the carrier doctrine (ADR 0039 §4)', () => {
       });
       await reassessDetection(ctx, uk.seasonId, Date.now(), ukId);
     });
-    vi.setSystemTime(quarter);
+    /** La station écrit ce qu'elle entend à son réveil : le planificateur le joue (#726). */
+    vi.advanceTimersByTime(quarter - Date.now());
+    await t.finishInProgressScheduledFunctions();
     const heard = async () => (await t.query(api.view.playerView, uk)).detected ?? [];
     expect((await heard()).map((arc) => arc.destination?.point)).toEqual([EAST]);
 

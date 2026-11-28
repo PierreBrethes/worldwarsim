@@ -155,6 +155,12 @@ async function ownDestination(t: Bench, seat: Seat, movement: Doc<'movements'>) 
 
 const at = (time: number) => vi.setSystemTime(time);
 
+/** L'heure qui passe, le planificateur jouant ses jobs : Ultra s'écrit à son réveil (#726). */
+async function reach(t: Bench, time: number) {
+  vi.advanceTimersByTime(time - Date.now());
+  await t.finishInProgressScheduledFunctions();
+}
+
 describe('Ultra (ADR 0047 §3)', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -177,12 +183,12 @@ describe('Ultra (ADR 0047 §3)', () => {
     expect(row!.ultraFrom).toBe(windows[1]!.from);
 
     /** Sous la seule vigie : le tronçon, sans destination. */
-    at(windows[0]!.from + 1);
+    await reach(t, windows[0]!.from + 1);
     expect((await arcsOf(t, uk))[0]).not.toHaveProperty('destination');
-    at(row!.ultraFrom! - 1);
+    await reach(t, row!.ultraFrom! - 1);
     expect((await arcsOf(t, uk))[0]).not.toHaveProperty('destination');
 
-    at(row!.ultraFrom!);
+    await reach(t, row!.ultraFrom!);
     const [heard] = await arcsOf(t, uk);
     expect(heard!.destination).toEqual(await ownDestination(t, france, movement));
     expect(heard).toMatchObject({ detector: 'outpost' });
@@ -203,7 +209,7 @@ describe('Ultra (ADR 0047 §3)', () => {
     const [row] = await rowsOf(t, uk);
     expect(row!._id).toBe(open!._id);
     expect(row!.ultraFrom).toBe(windowsOf(row!)[1]!.from);
-    at(row!.ultraFrom!);
+    await reach(t, row!.ultraFrom!);
     expect((await arcsOf(t, uk))[0]!.destination).toEqual(
       await ownDestination(t, france, movement),
     );
@@ -360,7 +366,7 @@ describe('Ultra (ADR 0047 §3)', () => {
     await reassess(t, uk);
     const destination = await ownDestination(t, france, movement);
     const [row] = await rowsOf(t, uk);
-    at(row!.from + (row!.to - row!.from) / 2);
+    await reach(t, row!.from + (row!.to - row!.from) / 2);
 
     await t.run((ctx) => forgetMovement(ctx, movement._id, Date.now()));
 
@@ -422,7 +428,7 @@ describe('Ultra (ADR 0047 §3)', () => {
     const british = await station(t, uk, along(0.5, 30), 'uk');
     await reassess(t, uk);
     const [row] = await rowsOf(t, uk);
-    at(row!.to + 1);
+    await reach(t, row!.to + 1);
 
     await t.run((ctx) => ctx.db.patch(british, { playerId: germanyId }));
     await reassess(t, uk, [ukId, germanyId]);
@@ -442,7 +448,7 @@ describe('Ultra (ADR 0047 §3)', () => {
     await station(t, germany, along(0.5, -30), 'germany');
     await reassess(t, uk);
     const [row] = await rowsOf(t, uk);
-    at(row!.from + 1);
+    await reach(t, row!.from + 1);
 
     expect((await arcsOf(t, uk))[0]).toHaveProperty('destination');
     expect(await arcsOf(t, germany)).toHaveLength(1);
@@ -508,5 +514,29 @@ describe('Ultra (ADR 0047 §3)', () => {
 
     expect(await rowsOf(t, uk)).toEqual(before);
     expect((await jobs()).length).toBe(scheduled);
+  });
+
+  /** Une station qui écoute à l'instant relit la destination à chaque passe : la même ne se
+   *  réécrit pas, sans quoi chaque vue britannique se recalcule pour rien. */
+  it('rewrites no destination the station already heard at the same instant', async () => {
+    const t = boot();
+    const { uk, france } = await launchedSeason(t);
+    const { movement, along } = await sailing(t, france);
+    await station(t, uk, along(0, 30), 'uk');
+    at(movement.departedAt);
+    await reassess(t, uk);
+    const [row] = await rowsOf(t, uk);
+    expect(row!.heardDestination).toEqual(await ownDestination(t, france, movement));
+
+    const patched: Array<string> = [];
+    await t.run(async (ctx) => {
+      const patch = ctx.db.patch.bind(ctx.db);
+      ctx.db.patch = (async (id: Id<'sightings'>, value: Partial<Doc<'sightings'>>) => {
+        if (id === row!._id) patched.push(Object.keys(value).join());
+        return patch(id, value);
+      }) as typeof ctx.db.patch;
+      await reassessDetection(ctx, uk.seasonId, Date.now());
+    });
+    expect(patched).toEqual([]);
   });
 });
