@@ -67,7 +67,7 @@ const BEAM_BREATH_PACE = 1.6;
 /** The column cut motion stands: the same one, paler and still. @a-mesurer */
 const BEAM_PALE = 0.55;
 /** A short fade as the race starts or falls (`LookoutBeams`' own), and what one image may advance it. */
-const BEAM_FADE_MS = 250;
+export const BEAM_FADE_MS = 250;
 const BEAM_STEP_MS = 50;
 const BEAM_ROWS = 6;
 /** Its strength across: soft shoulders, a full core. */
@@ -241,8 +241,8 @@ function dashedRing(): BufferGeometry {
 
 /**
  * The beam of the race (#678): a column of height 1 on the mast's own axis, to be set on its head
- * and stretched to its rise (`orient`): up, in the leader's ink and
- * fading out upward and toward its edges. Five vertices across, `BEAM_ROWS` up; `aAlpha` is each
+ * and stretched to its rise (`orient`). It rises in the leader's ink and fades out upward and
+ * toward its edges. Five vertices across, `BEAM_ROWS` up; `aAlpha` is each
  * vertex's own strength, where the instance's `aLevel` (its fade and breath) is read in `beamed`.
  */
 function beamGeometry(): BufferGeometry {
@@ -566,7 +566,10 @@ export class StrategicMasts implements AmbientLayer {
    */
   orient(eye: Vector3, distance: number, screenHeight: number, fov: number, night: number): void {
     const { points } = this;
-    // Not a draw while no mast is in the field: the five draws are for a mast seen.
+    // Not a draw while no mast is in the field: the draws are for a mast seen. The beam rides on
+    // its mast's box, so it cuts off when the foot leaves the field though its column reaches
+    // further: widening the test costs the ambience a read per beam, and #745 (the edge mark)
+    // is where a mast out of the field is told.
     this.object.visible = points.some((point) => this.sees(point.box, 0));
     if (points.length === 0) return;
     const unitsPerPixel = (2 * Math.tan((fov * Math.PI) / 360) * distance) / screenHeight;

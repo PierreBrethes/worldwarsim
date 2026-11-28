@@ -611,7 +611,21 @@ describe('the beam of the race leader (#678)', () => {
     expect(Math.max(a, b)).toBeLessThanOrEqual(rest + 1e-9);
   });
 
-  it('keeps a beam out of the draw while no mast is in the field and asks the ambience for nothing more', () => {
+  it('asks the ambience for no frame at reduced or cut motion, with a beam lit and in the field', () => {
+    const { layer } = setup();
+    const ambience = new Ambience(new Set(['sites']));
+    ambience.add(layer);
+    layer.show([lit('a', 1)]);
+    for (const motion of ['reduced', 'off'] as const) {
+      ambience.motion = motion;
+      layer.frame(0.5, motion);
+      orient(layer);
+      expect(beamMesh(layer).count).toBe(1);
+      expect(ambience.advance(10_000)).toBe(false);
+    }
+  });
+
+  it('keeps a beam out of the draw while no mast is in the field', () => {
     const { layer } = setup({ sees: false });
     layer.show([lit('a', 1)]);
     orient(layer);
