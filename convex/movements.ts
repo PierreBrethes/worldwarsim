@@ -96,6 +96,7 @@ import { arriveOnPatrol } from './patrols';
 import { pacedMinutes } from './movement/pace';
 import {
   fileCrossing as fileScheduledCrossing,
+  keepSeenRoutes,
   reassessDetection,
   revealSighting as revealScheduledSighting,
   wakeSighting as wakeSightingAt,
@@ -1307,6 +1308,8 @@ export const arrive = internalMutation({
       });
       /** Retenue, la colonne reste plus longtemps au bout de son fil : rien d'autre ne bouge. */
       await reassessDetection(ctx, movement.seasonId, now, movement.playerId);
+      /** Ni l'heure de qui l'a perdue en route (#727). */
+      await keepSeenRoutes(ctx, movement, now);
       return;
     }
 

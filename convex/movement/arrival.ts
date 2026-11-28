@@ -30,7 +30,7 @@ import {
 import { resolveContact } from '../combat';
 import { collapseIfAbandoned } from '../outposts';
 import { seenSegment } from '../../src/domain/sighting-segment';
-import { marchingForce } from './detection';
+import { seenForceOf } from './detection';
 import {
   CARRY_CAPACITY_BY_ROLE,
   OUTPOST_DISABLED_HOURS,
@@ -130,7 +130,7 @@ async function dropMovement(
       continue;
     }
     const closedAt = Math.min(served.to, now);
-    const segment = seenSegment(marchingForce(movement), served.from, closedAt);
+    const segment = seenSegment(seenForceOf(sighting, movement, served), served.from, closedAt);
     const { readAt } = lostReading(sighting, closedAt);
     await ctx.db.patch(sighting._id, {
       to: closedAt,
@@ -141,6 +141,7 @@ async function dropMovement(
       readJobAt: undefined,
       ultraJobId: undefined,
       reads: undefined,
+      seenOn: undefined,
       ...(readAt === undefined ? {} : { readAt }),
       frozen: {
         points: segment.points.map(asPoint),

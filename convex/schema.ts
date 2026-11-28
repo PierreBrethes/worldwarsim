@@ -1468,6 +1468,27 @@ export default defineSchema({
      * sur une ligne écrite avant elle : rien n'est servi.
      */
     heardDestination: v.optional(v.object({ point: LON_LAT, name: v.string() })),
+    /**
+     * **La route sur laquelle la fenêtre servie a été vue** (#727), écrite quand le mouvement se
+     * réécrit sur place (un coude de poursuite, la présence d'un pillage, une retenue au Fort ou
+     * au repos) alors que la fenêtre est close : la vue relisait le tronçon et l'heure sur la route
+     * neuve, et la dernière position connue suivait la colonne. Ne vaut que pour la fenêtre `from`–`to` ; une autre se lit sur le mouvement.
+     * Jamais servie telle quelle : la vue en coupe le tronçon vu, comme sur le mouvement.
+     */
+    seenOn: v.optional(
+      v.object({
+        from: v.number(),
+        to: v.number(),
+        points: v.array(LON_LAT),
+        legs: v.array(ROUTE_LEG),
+        distanceUnits: v.number(),
+        landCost: v.optional(v.number()),
+        departedAt: v.number(),
+        arrivesAt: v.number(),
+        resumed: v.optional(v.object({ at: v.number(), share: v.number() })),
+        heldAt: v.optional(v.number()),
+      }),
+    ),
     /** A future window takes one cancellable appointment to file its dispatch at opening. */
     revealJobId: v.optional(v.id('_scheduled_functions')),
     noticeFiled: v.optional(v.boolean()),

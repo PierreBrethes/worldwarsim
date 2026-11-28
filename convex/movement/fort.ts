@@ -29,7 +29,7 @@ import { hostAtPoint } from '../routes';
 import { cancelJob } from '../scheduledJobs';
 import { seasonStillPlays } from '../seats';
 import { holdsPoint } from '../strategicPoints';
-import { marchingForce, reassessDetection } from './detection';
+import { keepSeenRoutes, marchingForce, reassessDetection } from './detection';
 import { asPoint, pointOf, seasonOutposts } from './forces';
 import { liaisonRelaysOf } from './pace';
 
@@ -143,6 +143,8 @@ export async function holdAtFort(
     arrivesAt,
   });
   await reassessDetection(ctx, movement.seasonId, now, movement.playerId);
+  /** **L'heure rechiffrée sur place** (#727) : qui ne voit plus la colonne garde celle qu'il a vue. */
+  await keepSeenRoutes(ctx, movement, now);
 
   const held = marchingForce((await ctx.db.get(movementId))!);
   const rows = await ctx.db

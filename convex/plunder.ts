@@ -17,6 +17,7 @@ import { resolveContact } from './combat';
 import { heldOver } from './holding';
 import { plunderTargetAt } from './movement/orders';
 import { defenceOf, pointOf, restampServed, troopsCarriedBy } from './movement/forces';
+import { keepSeenRoutes } from './movement/detection';
 import { forgetMovement, walkHome } from './movement/arrival';
 import { clipToStorage, creditToStorage, debit, economyOf } from './resources';
 import { scheduleRestore, settleBeforeChange } from './production';
@@ -108,6 +109,9 @@ async function startPresence(
     roles: troops.map((troop) => troop.role),
     now,
   });
+  /** **Le même mouvement, une route neuve : le site** (#727). À l'arrivée, toute fenêtre de la
+   *  marche est close ; qui ne voit pas le site garde le tronçon qu'il a vu. */
+  await keepSeenRoutes(ctx, movement, now);
   await ctx.db.patch(movement._id, {
     troopIds: troops.map((troop) => troop._id),
     from: movement.to,

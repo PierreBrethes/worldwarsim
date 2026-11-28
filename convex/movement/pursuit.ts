@@ -18,7 +18,7 @@ import { resolveContact } from '../combat';
 import { fail } from '../errors';
 import { hostAtPoint, routeBetween } from '../routes';
 import { forgetMovement, retainStandingDefence, standAt, walkHome } from './arrival';
-import { marchingForce, reassessDetection } from './detection';
+import { keepSeenRoutes, marchingForce, reassessDetection } from './detection';
 import {
   asPoint,
   movementsOf,
@@ -214,7 +214,6 @@ export async function pursue(
         await loseSight(ctx, movement, now, false);
         return;
       }
-      await reassessDetection(ctx, movement.seasonId, now, movement.playerId);
     }
     await schedulePursuit(ctx, (await ctx.db.get(movement._id))!, now);
   }
@@ -248,6 +247,10 @@ async function bendTowards(
     arrivesAt: now + minutes * 60_000,
   });
   await restampServed(ctx, movement.seasonId, movement._id);
+  await reassessDetection(ctx, movement.seasonId, now, movement.playerId);
+  /** **Le même mouvement, une route neuve** (#727) : qui ne la voit pas garde celle qu'il a vue,
+   *  fenêtre fermée par ce coude comprise. */
+  await keepSeenRoutes(ctx, movement, now);
   return true;
 }
 

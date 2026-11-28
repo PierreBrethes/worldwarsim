@@ -78,7 +78,7 @@ import {
 import { engagementsOf } from './combat';
 import { isReached, sitesOf, type Site, type Sites } from './sites';
 import { movementsOf, outpostsOf, pointOf, isServed } from './movement/forces';
-import { marchingForce } from './movement/detection';
+import { seenForceOf } from './movement/detection';
 import { groundOf, linkedOn } from './holding';
 import { destinationOf, regionNameAt } from './placeNames';
 import { restHoldOf } from './movement/rest';
@@ -1543,7 +1543,9 @@ async function detectedArcs(
       });
       continue;
     }
-    const force = marchingForce(movement);
+    /** **La route où la fenêtre a été vue** (#727) : un coude pris sous une fenêtre close ne la
+     *  déplace pas. */
+    const force = seenForceOf(sighting, movement, window);
     const segment = seenSegment(force, window.from, window.to);
     const exit = segment.points[segment.points.length - 1]!;
     seen.push({
@@ -1556,8 +1558,8 @@ async function detectedArcs(
       legs: segment.legs,
       distanceUnits: segment.distanceUnits,
       costUnits: segment.costUnits,
-      landCost: movement.landCost,
-      arrivesAt: movement.arrivesAt,
+      landCost: force.landCost,
+      arrivesAt: force.arrivesAt,
       headingDegrees: segment.headingDegrees,
       headingAtMe: headingReachesMe(force, exit, segment.headingDegrees, window.to, home, anchors),
       seenFrom: window.from,

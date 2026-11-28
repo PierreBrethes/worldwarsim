@@ -31,6 +31,7 @@ import {
   prunedWindows,
   relaidWindows,
   sameWindows,
+  servedWindow,
   storedWindows,
   windowAt,
   windowsOf,
@@ -359,6 +360,73 @@ export const marchingForce = (movement: Doc<'movements'>): MarchingForce => ({
   ...(movement.resumed === undefined ? {} : { resumed: movement.resumed }),
   ...(movement.heldAt === undefined ? {} : { heldAt: movement.heldAt }),
 });
+
+/**
+ * **La route sur laquelle l'observateur a vu la fenêtre servie** (#727) : celle que la ligne a
+ * gardée quand le mouvement s'est réécrit sur place sous une fenêtre close, ou celle du mouvement.
+ * Le tronçon vu, le cap, l'heure et « cap sur moi » s'y lisent tous, sans quoi la dernière
+ * position connue suivait la colonne à chaque coude.
+ */
+export function seenForceOf(
+  row: Pick<Doc<'sightings'>, 'seenOn'>,
+  movement: Doc<'movements'>,
+  window: SightWindow,
+): MarchingForce {
+  const seen = row.seenOn;
+  if (seen === undefined || seen.from !== window.from || seen.to !== window.to)
+    return marchingForce(movement);
+  return {
+    id: movement._id,
+    points: seen.points.map(pointOf),
+    legs: seen.legs,
+    distanceUnits: seen.distanceUnits,
+    ...(seen.landCost === undefined ? {} : { landCost: seen.landCost }),
+    departedAt: seen.departedAt,
+    arrivesAt: seen.arrivesAt,
+    ...(seen.resumed === undefined ? {} : { resumed: seen.resumed }),
+    ...(seen.heldAt === undefined ? {} : { heldAt: seen.heldAt }),
+  };
+}
+
+/**
+ * **Figer le tronçon vu avant qu'une réécriture ne le déplace** (#727, option a) : un mouvement
+ * réécrit sur place garde son id — un coude de poursuite, la présence d'un pillage, une arrivée
+ * rechiffrée par un Fort ou par le repos —, et chaque ligne dont la fenêtre servie est close à
+ * l'instant garde la route d'avant, `before`, ses heures comprises. Une ligne qui la tient déjà
+ * pour cette fenêtre la garde : `before` est alors une route qu'elle n'a pas vue. Une fenêtre
+ * ouverte suit la route neuve : la colonne est vue. Appelé après la réévaluation de l'instant, il
+ * fige aussi la fenêtre qu'elle vient de fermer ; à une arrivée, toute fenêtre de la marche est
+ * déjà close, et l'appel peut précéder la réécriture.
+ */
+export async function keepSeenRoutes(
+  ctx: MutationCtx,
+  before: Doc<'movements'>,
+  now: number,
+): Promise<void> {
+  const { points, legs, distanceUnits, landCost, departedAt, arrivesAt, resumed, heldAt } = before;
+  for (const row of await ctx.db
+    .query('sightings')
+    .withIndex('byMovement', (q) => q.eq('movementId', before._id))
+    .collect()) {
+    const window = servedWindow(windowsOf(row), now);
+    if (window === null || window.to > now) continue;
+    if (row.seenOn?.from === window.from && row.seenOn.to === window.to) continue;
+    await ctx.db.patch(row._id, {
+      seenOn: {
+        from: window.from,
+        to: window.to,
+        points,
+        legs,
+        distanceUnits,
+        ...(landCost === undefined ? {} : { landCost }),
+        departedAt,
+        arrivesAt,
+        ...(resumed === undefined ? {} : { resumed }),
+        ...(heldAt === undefined ? {} : { heldAt }),
+      },
+    });
+  }
+}
 
 async function detectionBoard(
   ctx: MutationCtx,
