@@ -3360,6 +3360,8 @@ export const fr = {
     close: 'fermer',
     eyebrow: (role: string, from: string) =>
       `Feuille de route · ${role}${from === '' ? '' : ` · ${from}`}`,
+    /** Un camion posé à la caserne : il en part, mais boucle depuis le QG ou l'entrepôt. */
+    setsOut: (from: string, base: string) => `part de ${from}, boucle depuis ${base}`,
     titleTracing: (stops: number) => `Tournée à tracer · ${stops} arrêt${plural(stops, '', 's')}`,
     titleRunning: (stops: number) => `En tournée · ${stops} arrêt${plural(stops, '', 's')}`,
     hintTracing: (touch: boolean) =>

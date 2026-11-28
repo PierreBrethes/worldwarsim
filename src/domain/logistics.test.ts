@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  loopBaseOf,
   depotRefundOf,
   onTourRefusalOf,
   tourRefusalOf,
@@ -167,6 +168,25 @@ describe('which depot a column may deliver to (lend-lease, ADR 0039 §3)', () =>
       kind: 'refused',
       refusal: { code: 'NOTHING_TO_DELIVER' },
     });
+  });
+});
+
+describe('where a tour set out from the barracks loops (28/11)', () => {
+  const barracks = { id: 'B', key: 'barracks', point: [5, 47] } as const;
+  const hq = { id: 'H', key: 'hq', point: [2.35, 48.86] } as const;
+  const warehouse = { id: 'W', key: 'warehouse', point: [5.2, 47.1] } as const;
+
+  it('takes the nearest loading point of a truck at the barracks', () => {
+    expect(loopBaseOf('landTransport', barracks, [barracks, hq, warehouse])).toBe(warehouse);
+    expect(loopBaseOf('landTransport', barracks, [barracks, hq])).toBe(hq);
+    expect(loopBaseOf('landTransport', barracks, [barracks])).toBeNull();
+  });
+
+  it('leaves alone a truck elsewhere, and a transport whose formation building loads it', () => {
+    expect(loopBaseOf('landTransport', hq, [barracks, hq])).toBeNull();
+    const airfield = { id: 'A', key: 'airfield', point: [5, 47] } as const;
+    expect(loopBaseOf('airTransport', airfield, [airfield, hq])).toBeNull();
+    expect(loopBaseOf('infantry', barracks, [barracks, hq])).toBeNull();
   });
 });
 
