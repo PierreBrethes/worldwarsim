@@ -1952,8 +1952,13 @@ function BoardContent({
     view.season.outcome.concludedAt !== null,
   );
   const strategicMasts = useMemo(
-    () => mastPointsOf(view.strategicPoints, view.season.outcome.concludedAt !== null),
-    [view.strategicPoints, view.season.outcome.concludedAt],
+    () =>
+      mastPointsOf(
+        view.strategicPoints,
+        view.season.outcome.concludedAt !== null,
+        view.season.race,
+      ),
+    [view.strategicPoints, view.season.outcome.concludedAt, view.season.race],
   );
   const raceLead = useMemo(
     () =>

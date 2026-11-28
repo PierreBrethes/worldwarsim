@@ -96,7 +96,7 @@ describe('winding', () => {
 });
 
 describe('the strategic masts layer', () => {
-  it('draws every point in five instanced draws, none per nation, with no shadow', () => {
+  it('draws every point in five instanced draws, a sixth only for a beam, none per nation, with no shadow', () => {
     const { layer } = setup();
     layer.show([
       stand('a', 1, { holder: { nation: 'germany', heldMs: 0 } }),
@@ -105,13 +105,11 @@ describe('the strategic masts layer', () => {
     ]);
     orient(layer);
     const drawn = meshes(layer);
-    expect(drawn).toHaveLength(5);
+    expect(drawn).toHaveLength(6);
     expect(drawn.every((mesh) => mesh.isInstancedMesh)).toBe(true);
     expect(drawn.filter((mesh) => mesh.count > 0).length).toBeLessThanOrEqual(5);
     expect(drawn.every((mesh) => !mesh.castShadow && !mesh.receiveShadow)).toBe(true);
-    expect(drawn.map((mesh) => mesh.count)).toEqual(
-      [3, 0, 3, 3, 3].map((n, k) => (k === 1 ? 0 : n)),
-    );
+    expect(drawn.map((mesh) => mesh.count)).toEqual([3, 0, 3, 3, 3, 0]);
   });
 
   it('hides the group while no mast is in the field', () => {
@@ -136,7 +134,7 @@ describe('the strategic masts layer', () => {
     // The shaft, the pomme and the socle's fill keep the pen.
     expect(colorOf(mast!, 0).getHex()).toBe(colorOf(socle, 0).getHex());
     expect(colorOf(mast!, 0).getHex()).not.toBe(colorOf(rim!, 1).getHex());
-    expect(meshes(layer)).toHaveLength(5);
+    expect(meshes(layer)).toHaveLength(6);
   });
 
   it('draws nothing, and is hidden, with no point', () => {
@@ -496,6 +494,117 @@ describe('the strategic masts layer', () => {
     expect(baseRadiusOf(1)).toBe(MAST_UNITS.baseRadius);
     const far = 6;
     expect(baseRadiusOf(far)).toBeCloseTo(MAST_PX.baseMinShare * MAST_UNITS.height * far, 8);
+  });
+});
+
+describe('the beam of the race leader (#678)', () => {
+  const lit = (id: string, lon: number, ink = '#aa2222'): MastPoint => ({
+    ...stand(id, lon, { holder: { nation: 'germany', heldMs: 0 } }),
+    beam: ink,
+  });
+  const beamMesh = (layer: StrategicMasts) => meshes(layer)[5]!;
+  const alphaOf = (layer: StrategicMasts, k: number) =>
+    (beamMesh(layer).geometry.getAttribute('aLevel') as { getX(i: number): number }).getX(k);
+  const STEP = 50;
+  const settle = (layer: StrategicMasts, clock: { ms: number }, ms: number) => {
+    for (let at = 0; at < ms; at += STEP) {
+      clock.ms += STEP;
+      orient(layer);
+    }
+  };
+
+  it('rises from the head of each lit mast only, in the leader ink, hidden by day or night alike', () => {
+    const { layer } = setup();
+    layer.show([lit('a', 1), stand('b', 2), lit('c', 3, '#2266aa')]);
+    orient(layer);
+    expect(beamMesh(layer).count).toBe(2);
+    const day = [colorOf(beamMesh(layer), 0), colorOf(beamMesh(layer), 1)];
+    expect(day[0]!.getHexString()).toBe('aa2222');
+    expect(day[1]!.getHexString()).toBe('2266aa');
+    orient(layer, 40, 1);
+    expect(colorOf(beamMesh(layer), 0).getHexString()).not.toBe('aa2222');
+  });
+
+  it('starts at the top of the pomme and rises over several masts, as the mast is sized', () => {
+    const { layer } = setup();
+    layer.show([lit('a', 1)]);
+    orient(layer);
+    const position = beamMesh(layer).geometry.getAttribute('position');
+    const ys = Array.from({ length: position.count }, (_, i) => position.getY(i));
+    expect(Math.min(...ys)).toBeCloseTo(MAST_UNITS.height, 5);
+    expect(Math.max(...ys)).toBeGreaterThan(2 * MAST_UNITS.height);
+    expect(matrixOf(beamMesh(layer), 0).toArray()).toEqual(
+      matrixOf(meshes(layer)[2]!, 0).toArray(),
+    );
+  });
+
+  it('is there at once on the first view, and fades out, in a short fade, when the race falls', () => {
+    const { layer, clock } = setup();
+    layer.frame(0, 'full');
+    layer.show([lit('a', 1)]);
+    orient(layer);
+    expect(alphaOf(layer, 0)).toBeGreaterThan(0.5);
+    layer.show([stand('a', 1, { holder: { nation: 'germany', heldMs: 0 } })]);
+    settle(layer, clock, 100);
+    expect(beamMesh(layer).count).toBe(1);
+    expect(alphaOf(layer, 0)).toBeGreaterThan(0);
+    expect(alphaOf(layer, 0)).toBeLessThan(0.5);
+    settle(layer, clock, 1000);
+    expect(beamMesh(layer).count).toBe(0);
+  });
+
+  it('fades in when the race starts on a point already standing', () => {
+    const { layer, clock } = setup();
+    layer.frame(0, 'full');
+    layer.show([stand('a', 1, { holder: { nation: 'germany', heldMs: 0 } })]);
+    orient(layer);
+    expect(beamMesh(layer).count).toBe(0);
+    layer.show([lit('a', 1)]);
+    settle(layer, clock, 50);
+    expect(beamMesh(layer).count).toBe(1);
+    expect(alphaOf(layer, 0)).toBeLessThan(0.3);
+    settle(layer, clock, 1000);
+    expect(alphaOf(layer, 0)).toBeGreaterThan(0.5);
+  });
+
+  it('is gone at once in reduced and cut motion, which animate nothing', () => {
+    for (const motion of ['reduced', 'off'] as const) {
+      const { layer } = setup();
+      layer.frame(0, motion);
+      layer.show([lit('a', 1)]);
+      orient(layer);
+      layer.show([stand('a', 1)]);
+      orient(layer);
+      expect(beamMesh(layer).count).toBe(0);
+    }
+  });
+
+  it('breathes at full motion, holds still at reduced, and stands a paler fixed column when cut', () => {
+    const { layer } = setup();
+    layer.show([lit('a', 1)]);
+    const seen = (motion: 'full' | 'reduced' | 'off', time: number) => {
+      layer.frame(time, motion);
+      orient(layer);
+      return alphaOf(layer, 0);
+    };
+    const a = seen('full', 0.3);
+    const b = seen('full', 1.9);
+    expect(a).not.toBeCloseTo(b, 3);
+    const rest = seen('reduced', 0.3);
+    expect(seen('reduced', 1.9)).toBe(rest);
+    const cut = seen('off', 0.3);
+    expect(seen('off', 1.9)).toBe(cut);
+    expect(cut).toBeLessThan(rest);
+    expect(cut).toBeGreaterThan(0);
+    expect(Math.max(a, b)).toBeLessThanOrEqual(rest + 1e-9);
+  });
+
+  it('keeps a beam out of the draw while no mast is in the field and asks the ambience for nothing more', () => {
+    const { layer } = setup({ sees: false });
+    layer.show([lit('a', 1)]);
+    orient(layer);
+    expect(layer.object.visible).toBe(false);
+    expect(layer.idle()).toBe(true);
   });
 });
 

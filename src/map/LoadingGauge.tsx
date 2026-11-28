@@ -2,9 +2,9 @@ import { progressAt, type CaptureClock } from '@/domain/capture';
 import type { CaptureView } from '@/domain/player-view';
 import { captureSaid } from '@/domain/capture-said';
 import { loadingAt } from '@/domain/loading';
-import { fr } from '@/i18n/fr';
+import { fr, raceClockLabel } from '@/i18n/fr';
 import { RACE_HOLD_HOURS } from '@/domain/strategic-points';
-import { useClock } from '@/shell/clock';
+import { useClock, useClockReading } from '@/shell/clock';
 import { useNarrowScreen } from '@/shell/viewport';
 
 /**
@@ -146,9 +146,10 @@ export function RaceGauge({
   /** Parti entre deux vues (`useRaceRings`) : tracé tant qu'il l'est, même sous un mât déjà posé. */
   fresh: boolean;
 }) {
-  const now = useClock(60_000);
-  const left = Math.max(0, endsAt - now);
-  const said = fr.points.raceLeft(left);
+  // The ruler's formatter (#670): the seconds show under the hour, so the text beats each second
+  // and is rendered only when it changes.
+  const said = useClockReading(1000, (now) => raceClockLabel(Math.max(0, endsAt - now)));
+  const left = Math.max(0, endsAt - Date.now());
   return (
     <div
       className={`label-line race-gauge${fresh ? ' race-gauge--traced' : ''}${fading ? ' race-gauge--fading' : ''}`}
