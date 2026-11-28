@@ -525,17 +525,28 @@ describe('the beam of the race leader (#678)', () => {
     expect(colorOf(beamMesh(layer), 0).getHexString()).not.toBe('aa2222');
   });
 
-  it('starts at the top of the pomme and rises over several masts, as the mast is sized', () => {
+  it('starts at the head of the mast, along its lean, and rises as high as its pixels ask, over a few masts at least', () => {
     const { layer } = setup();
     layer.show([lit('a', 1)]);
-    orient(layer);
-    const position = beamMesh(layer).geometry.getAttribute('position');
-    const ys = Array.from({ length: position.count }, (_, i) => position.getY(i));
-    expect(Math.min(...ys)).toBeCloseTo(MAST_UNITS.height, 5);
-    expect(Math.max(...ys)).toBeGreaterThan(2 * MAST_UNITS.height);
-    expect(matrixOf(beamMesh(layer), 0).toArray()).toEqual(
-      matrixOf(meshes(layer)[2]!, 0).toArray(),
-    );
+    const rise = (distance: number) => {
+      orient(layer, distance);
+      const position = beamMesh(layer).geometry.getAttribute('position');
+      const ys = Array.from({ length: position.count }, (_, i) => position.getY(i));
+      const at = (y: number) => new Vector3(0, y, 0).applyMatrix4(matrixOf(beamMesh(layer), 0));
+      const head = new Vector3(0, MAST_UNITS.height, 0).applyMatrix4(
+        matrixOf(meshes(layer)[2]!, 0),
+      );
+      expect(at(Math.min(...ys)).distanceTo(head)).toBeLessThan(1e-4);
+      return {
+        length: at(Math.max(...ys)).distanceTo(at(Math.min(...ys))),
+        mast: head.distanceTo(new Vector3().setFromMatrixPosition(matrixOf(meshes(layer)[2]!, 0))),
+      };
+    };
+    const far = rise(150);
+    expect(far.length).toBeGreaterThan(3 * far.mast * 0.99);
+    expect(far.length / far.mast).toBeGreaterThan(5);
+    const close = rise(3);
+    expect(close.length / close.mast).toBeCloseTo(3, 3);
   });
 
   it('is there at once on the first view, and fades out, in a short fade, when the race falls', () => {
@@ -543,12 +554,13 @@ describe('the beam of the race leader (#678)', () => {
     layer.frame(0, 'full');
     layer.show([lit('a', 1)]);
     orient(layer);
-    expect(alphaOf(layer, 0)).toBeGreaterThan(0.5);
+    const lit0 = alphaOf(layer, 0);
+    expect(lit0).toBeGreaterThan(0.5);
     layer.show([stand('a', 1, { holder: { nation: 'germany', heldMs: 0 } })]);
     settle(layer, clock, 100);
     expect(beamMesh(layer).count).toBe(1);
     expect(alphaOf(layer, 0)).toBeGreaterThan(0);
-    expect(alphaOf(layer, 0)).toBeLessThan(0.5);
+    expect(alphaOf(layer, 0)).toBeLessThan(0.75 * lit0);
     settle(layer, clock, 1000);
     expect(beamMesh(layer).count).toBe(0);
   });

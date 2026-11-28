@@ -52,11 +52,16 @@ const RING_TURN = 0.08;
 const SWAY = 0.13;
 const SWAY_PACE = 2.4;
 
-/** @a-mesurer lavis.html (cap #668): the race beam's width, and its rise in masts, from the pomme */
-const BEAM_WIDTH = 0.1;
-const BEAM_RISE = 3.2;
+/**
+ * @a-mesurer lavis.html (cap #668): the race beam's width (board units), and its rise from the
+ * pomme: `BEAM_PX` on screen, as high as `BEAM_MASTS` masts at least. The mast keeps to its floor
+ * far off, and a rise in masts alone would hide behind the cartouche that hangs from its head.
+ */
+const BEAM_WIDTH = 0.24;
+const BEAM_PX = 320;
+const BEAM_MASTS = 3;
 /** Its strength at the foot, how much it breathes (a share of it) at full motion and the pace of it. @a-mesurer */
-const BEAM_PEAK = 0.8;
+const BEAM_PEAK = 1;
 const BEAM_BREATH = 0.3;
 const BEAM_BREATH_PACE = 1.6;
 /** The column cut motion stands: the same one, paler and still. @a-mesurer */
@@ -65,6 +70,8 @@ const BEAM_PALE = 0.55;
 const BEAM_FADE_MS = 250;
 const BEAM_STEP_MS = 50;
 const BEAM_ROWS = 6;
+/** Its strength across: soft shoulders, a full core. */
+const BEAM_PROFILE = [0, 0.85, 1, 0.85, 0] as const;
 
 /** A point whose mast stands: the marker's id (what a click answers to), its place, what it shows. */
 export type MastPoint = {
@@ -233,26 +240,27 @@ function dashedRing(): BufferGeometry {
 }
 
 /**
- * The beam of the race (#678): a column from the head of the mast, up, in the leader's ink and
- * fading out upward and toward its edges. Three vertices across, `BEAM_ROWS` up; `aAlpha` is each
+ * The beam of the race (#678): a column of height 1 on the mast's own axis, to be set on its head
+ * and stretched to its rise (`orient`): up, in the leader's ink and
+ * fading out upward and toward its edges. Five vertices across, `BEAM_ROWS` up; `aAlpha` is each
  * vertex's own strength, where the instance's `aLevel` (its fade and breath) is read in `beamed`.
  */
 function beamGeometry(): BufferGeometry {
-  const height = MAST_UNITS.height;
   const positions: number[] = [];
   const alphas: number[] = [];
   const index: number[] = [];
   for (let row = 0; row <= BEAM_ROWS; row++) {
     const share = row / BEAM_ROWS;
-    for (let column = 0; column < 3; column++) {
-      positions.push(((column - 1) * BEAM_WIDTH) / 2, height + share * BEAM_RISE * height, 0);
-      alphas.push(column === 1 ? (1 - share) ** 1.2 : 0);
+    for (let column = 0; column < BEAM_PROFILE.length; column++) {
+      positions.push((column / (BEAM_PROFILE.length - 1) - 0.5) * BEAM_WIDTH, share, 0);
+      alphas.push(BEAM_PROFILE[column]! * (1 - share) ** 0.6);
     }
   }
+  const across = BEAM_PROFILE.length;
   for (let row = 0; row < BEAM_ROWS; row++) {
-    for (let column = 0; column < 2; column++) {
-      const a = row * 3 + column;
-      index.push(a, a + 1, a + 4, a, a + 4, a + 3);
+    for (let column = 0; column < across - 1; column++) {
+      const a = row * across + column;
+      index.push(a, a + 1, a + across + 1, a, a + across + 1, a + across);
     }
   }
   return flat(positions, index, alphas, 'aAlpha');
@@ -562,7 +570,10 @@ export class StrategicMasts implements AmbientLayer {
     this.object.visible = points.some((point) => this.sees(point.box, 0));
     if (points.length === 0) return;
     const unitsPerPixel = (2 * Math.tan((fov * Math.PI) / 360) * distance) / screenHeight;
-    const scale = mastScale(mastPx(distance, this.touch, screenHeight, fov), unitsPerPixel);
+    const px = mastPx(distance, this.touch, screenHeight, fov);
+    const scale = mastScale(px, unitsPerPixel);
+    // The beam's rise in mast-local units: its own pixels, or at least a few masts.
+    const rise = MAST_UNITS.height * Math.max(BEAM_MASTS, BEAM_PX / px);
     const baseRadius = baseRadiusOf(scale);
     let rings = 0;
     let beams = 0;
@@ -593,7 +604,8 @@ export class StrategicMasts implements AmbientLayer {
       this.mast.setMatrixAt(k, object.matrix);
       this.starAttribute.setX(k, point.star ? 1 : 0);
       if (point.level > 0) {
-        this.beam.setMatrixAt(beams, object.matrix);
+        local.makeTranslation(0, MAST_UNITS.height, 0).scale(spot.set(1, rise, 1));
+        this.beam.setMatrixAt(beams, scratch.multiplyMatrices(object.matrix, local));
         this.beam.setColorAt(beams, nightInk(point.beamInk, night, paint));
         this.levelAttribute.setX(beams, this.strengthOf(point.level, k));
         beams += 1;
