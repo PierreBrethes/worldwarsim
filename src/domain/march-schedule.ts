@@ -279,7 +279,7 @@ export function marchScheduleOf(
 }
 
 /** Les largeurs d'une étiquette d'heure (« 11 h ») et de l'air qu'elle garde, en pixels d'écran :
- *  mesurées sur la règle de la feuille. @a-mesurer */
+ *  mesurées sur la règle de la feuille. */
 const HOUR_LABEL_PX = 29;
 const HOUR_LABEL_AIR = 24;
 
