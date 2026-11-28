@@ -1,4 +1,4 @@
-import { useMemo, type CSSProperties, type Ref } from 'react';
+import { useId, useMemo, useState, type CSSProperties, type Ref } from 'react';
 import { Link, useSearch } from '@tanstack/react-router';
 import { fr, nationLabel } from '@/i18n/fr';
 import { HalifaxMark } from './HalifaxMark';
@@ -10,46 +10,67 @@ import { Flag, FlagWatermark } from '@/emblems/Flag';
 import { withWindow, type BoardSearch } from '@/routes/-plateau/board-search';
 import { Odometer, ReserveTag, useAnnouncedStock } from './ReserveCell';
 import { Stamp } from './Stamp';
-import type { Underway } from '@/domain/underway';
+import { marchScheduleOf } from '@/domain/march-schedule';
+import { underwayOf, type RecruitmentDue, type UnderwayPlace } from '@/domain/underway';
+import { keepMarchFolded, readMarchFolded } from '@/data/settings';
+import { MarchSheet, MarchTab } from './MarchSheet';
 import { SurfaceTabs } from './SurfaceColumn';
 import { useClock } from './clock';
 import { RaceMarks } from './RaceMarks';
 import { raceMarkOf, type RaceMarkReading } from '@/domain/race-mark';
 
 /**
- * **La réglette** (table plein écran, décision de Pierre du 13/10) : une bande de papier posée en
- * haut de la carte, avec sa marge et son ombre, à la place du bandeau sombre et de la ligne des
- * ressources. Qui je suis, ce qui se bâtit, les mouvements libres, la prochaine édition, et à droite
- * le journal, la presse et le télégraphe (`SurfaceTabs`, 20/10). **Les réserves en sont parties aussi** (#179) :
- * elles vivent dans la ligne repliée du plateau personnel (`ReserveCell`), qui porte l'alerte
- * « à sec » ; la réglette garde les fonds de la Blitz.
+ * **La réglette** (table plein écran, décision de Pierre du 13/10) : une bande de papier collée au
+ * haut, à gauche et à droite de l'écran (#733), à la place du bandeau sombre et de la ligne des
+ * ressources. Qui je suis, les mouvements libres (une lecture), la course aux Sept, l'onglet du
+ * tableau de marche qui déplie sa feuille sous la barre (`MarchSheet`), la prochaine édition, et à
+ * droite le journal, la presse et le télégraphe (`SurfaceTabs`, 20/10). **Les réserves en sont
+ * parties aussi** (#179) : elles vivent dans la ligne repliée du plateau personnel (`ReserveCell`),
+ * qui porte l'alerte « à sec » ; la réglette garde les fonds de la Blitz.
  */
 export function Reglette({
   view,
   telegraphUnread,
+  recruitments = [],
+  onLocate = () => {},
   ref,
 }: {
   view: PlayerView;
   telegraphUnread: number;
-  /** Les lignes « en cours » et la fiche ouverte n'y sont plus lues : voir `MarchSheet`. */
-  underway?: ReadonlyArray<Underway>;
-  onLocate?: (line: Underway) => void;
-  covered?: boolean;
+  /** Les recrutements que l'atelier date : la vue ne les porte pas, et le tableau de marche les lit. */
+  recruitments?: ReadonlyArray<RecruitmentDue>;
+  /** Un clic sur une barre de la feuille recentre la carte. */
+  onLocate?: (place: UnderwayPlace) => void;
+  /** Le conteneur de la barre et de la feuille : ce que `Shell` mesure pour les bords du plateau. */
   ref?: Ref<HTMLElement>;
 }) {
   const { me } = view;
   const search = useSearch({ strict: false }) as BoardSearch;
   const now = useClock();
+  const sheetId = useId();
+  /** Le pli est un choix de la main, mémorisé ; une fiche ouverte ne le touche pas. */
+  const [folded, setFolded] = useState(readMarchFolded);
+  const fold = (next: boolean) => {
+    setFolded(next);
+    keepMarchFolded(next);
+  };
+  const schedule = useMemo(
+    () => marchScheduleOf(view, now, recruitments),
+    [view, now, recruitments],
+  );
+  const lines = useMemo(() => underwayOf(view, recruitments), [view, recruitments]);
+  const over = me.defeated || view.season.outcome.concludedAt !== null;
 
   return (
     <header
       ref={ref}
       // Collée au haut, à gauche et à droite : un filet d'encre en bas, ni marge de table ni ombre.
+      // Elle porte la barre et la feuille : `Shell` mesure le tout, la feuille déplie le bas de bande.
       className="hud absolute inset-x-0 top-0 z-[var(--z-band)] text-[var(--ink)]"
       style={{ fontFamily: 'var(--font-body)' }}
     >
       <div
-        className="paper-grain relative flex items-stretch border-b border-[var(--ink)]"
+        className="@container/bar paper-grain relative flex items-stretch border-b border-[var(--ink)]"
         style={{ height: RULE_HEIGHT }}
       >
         {/* Le drapeau en fondu, comme au bandeau sombre (Pierre, 13/10) : il touche le bord de la
@@ -109,15 +130,28 @@ export function Reglette({
             <span className="font-(family-name:--font-mono) text-[13px] leading-none font-medium tabular-nums">
               {fr.banner.slotsCount(me.slots.used, me.slots.total)}
             </span>
-            <HalifaxMark slots={me.slots} />
+            <span className="@max-[900px]/bar:hidden">
+              <HalifaxMark slots={me.slots} />
+            </span>
           </div>
         )}
 
         <RaceCell reading={raceMarkOf(view, now)} search={search} />
 
+        {schedule !== null && (
+          <MarchTab
+            schedule={schedule}
+            over={over}
+            folded={folded}
+            sheetId={sheetId}
+            onToggle={() => fold(!folded)}
+            onEscape={() => fold(true)}
+          />
+        )}
+
         {/* Sans fonds ni édition, la marge vide ne vole pas ses 32 px aux onglets. */}
         {me.funds !== null || view.press?.next != null ? (
-          <div className="ml-auto flex min-w-0 items-center gap-[18px] px-[16px]">
+          <div className="ml-auto flex min-w-0 items-center overflow-hidden @max-[800px]/bar:hidden gap-[18px] px-[16px] @max-[900px]/bar:gap-[8px] @max-[900px]/bar:px-[8px]">
             {me.funds !== null && <FundsCell funds={me.funds} loadedAt={view.loadedAt} now={now} />}
             <EditionMark view={view} />
           </div>
@@ -126,6 +160,17 @@ export function Reglette({
         )}
         <SurfaceTabs view={view} telegraphUnread={telegraphUnread} />
       </div>
+      {schedule !== null && !folded && (
+        <MarchSheet
+          id={sheetId}
+          schedule={schedule}
+          view={view}
+          lines={lines}
+          over={over}
+          onLocate={onLocate}
+          onEscape={() => fold(true)}
+        />
+      )}
     </header>
   );
 }

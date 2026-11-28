@@ -27,11 +27,12 @@ const insetsWith = (
   card: HTMLElement | null,
   chips: HTMLElement | null = null,
   strip: HTMLElement | null = null,
+  band: HTMLElement = box(0, 1440, 0, 60),
 ) =>
   renderHook(() =>
     usePublishedEdges(
       { current: box(0, 1440) },
-      { current: box(0, 1440, 0, 60) },
+      { current: band },
       { current: box(0, 75, 700, 900) },
       null,
       false,
@@ -62,5 +63,19 @@ describe('the board insets', () => {
     insetsWith(null, null, box(20, 1420, 72, 118));
     expect(document.documentElement.style.getPropertyValue('--board-top')).toBe('118px');
     expect(document.documentElement.style.getPropertyValue('--band-bottom')).toBe('60px');
+  });
+
+  it('count the bar stuck to the top and the unfolded march sheet as one band (#733)', () => {
+    // The measured box holds the bar and its sheet: 58 px of bar, 160 px of sheet under it.
+    const stuck = box(0, 1440, 0, 58);
+    const unfolded = box(0, 1440, 0, 218);
+    expect(insetsWith(null, null, null, stuck)).toMatchObject({ top: 58 });
+    expect(insetsWith(null, null, null, unfolded)).toMatchObject({ top: 218 });
+    expect(document.documentElement.style.getPropertyValue('--board-top')).toBe('218px');
+    expect(document.documentElement.style.getPropertyValue('--band-bottom')).toBe('218px');
+    // The place strip hangs under the sheet, and the sheets and windows under the strip.
+    insetsWith(null, null, box(20, 1420, 226, 272), unfolded);
+    expect(document.documentElement.style.getPropertyValue('--band-bottom')).toBe('218px');
+    expect(document.documentElement.style.getPropertyValue('--board-top')).toBe('272px');
   });
 });

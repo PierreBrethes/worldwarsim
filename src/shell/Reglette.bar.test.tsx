@@ -31,6 +31,7 @@ afterEach(cleanup);
 const view = (used: number, over: Record<string, unknown> = {}) =>
   ({
     mode: 'mondiale',
+    arcs: [],
     loadedAt: Date.now(),
     journal: [],
     strategicPoints: [],
@@ -39,6 +40,9 @@ const view = (used: number, over: Record<string, unknown> = {}) =>
     me: {
       nation: 'france',
       defeated: false,
+      hqLevel: 1,
+      outposts: [],
+      constructionQueue: [],
       construction: {
         id: 'W-0',
         name: 'Mine',

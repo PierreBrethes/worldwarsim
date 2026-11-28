@@ -246,14 +246,14 @@ export function marchScheduleOf(
       .map((one) => ({
         family: 'stock' as const,
         id: one.resource,
-        label: fr.resources[one.resource],
+        label: fr.march.dry(fr.resources[one.resource]),
         at: one.dryAt,
       })),
     ...other
       .filter((one) => one.placed)
       .map((one) => ({ family: 'other' as const, id: one.id, label: one.label, at: one.endsAt })),
     ...(edition !== null && edition <= horizonAt
-      ? [{ family: 'edition' as const, id: 'edition', label: fr.banner.edition, at: edition }]
+      ? [{ family: 'edition' as const, id: 'edition', label: fr.march.editionDue, at: edition }]
       : []),
   ].sort((first, second) => first.at - second.at);
 

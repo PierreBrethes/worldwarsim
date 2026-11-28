@@ -3394,28 +3394,6 @@ function BoardContent({
   );
   const underway = useMemo(() => underwayOf(view, recruitments), [view, recruitments]);
 
-  /** **Le volet « En cours » du bureau cède devant** une fiche, une fenêtre ou une pile en main
-   *  (#615, même règle que #619). */
-  const coversUnderway =
-    windows.length > 0 ||
-    country != null ||
-    focused != null ||
-    report != null ||
-    hand.kind !== 'empty' ||
-    garrison !== null ||
-    demolition !== null ||
-    dismantling !== null ||
-    selectedLoot !== null ||
-    selectedCamp !== null ||
-    selectedObjective !== null ||
-    selectedPoint !== null ||
-    selectedRumorId !== null ||
-    selection.length > 0 ||
-    selectionSheet !== null ||
-    heldRose !== null ||
-    resting !== null ||
-    briefing;
-
   /** **Un bâtiment se cadre même calque éteint** : sans le calque, son mât n'existe pas et la
    *  carte n'aurait rien à rejoindre — on vise alors le point de sa région. */
   const focusBuilding = useCallback(
@@ -3429,7 +3407,7 @@ function BoardContent({
   );
 
   const locateUnderway = useCallback(
-    (line: Underway) => {
+    (line: Pick<Underway, 'place'>) => {
       const { place } = line;
       if (place.kind === 'movement') setFocus({ ids: [place.arcId], nonce: Date.now() });
       else if (place.kind === 'outpost')
@@ -3508,9 +3486,8 @@ function BoardContent({
       todo={narrow ? nextActions('sheet') : replay === null && nextActions('card')}
       onShowBriefing={showBriefing}
       onResumeSteps={resumeSteps}
-      underway={underway}
-      onLocate={locateUnderway}
-      covered={coversUnderway}
+      recruitments={recruitments}
+      onLocate={(place) => locateUnderway({ place })}
     >
       <SelectionSheetReport.Provider value={sheetPorts}>
         <SheetCount.Provider value={countSheet}>
