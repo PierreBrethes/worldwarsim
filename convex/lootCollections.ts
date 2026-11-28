@@ -15,6 +15,7 @@ import { forgetMovement, walkHome } from './movement/arrival';
 import { pointOf, troopsCarriedBy } from './movement/forces';
 import { aimOf, march, type MarchOrigin } from './movement/orders';
 import { restHold } from './movement/rest';
+import { keepSeenRoutes } from './movement/detection';
 import { requirePlayable, seasonStillPlays } from './seats';
 import { resupplyInPassing } from './supplies';
 import { surveyAlongRoute } from './surveys';
@@ -222,6 +223,9 @@ export async function resolveDueLootCollectionMissions(
   for (const movement of due) {
     const held = await restHold(ctx, movement.playerId, movement.hostCountry, now);
     if (held !== null) {
+      /** À l'arrivée, toute fenêtre de la marche est close : qui l'a perdue en route garde
+       *  l'heure qu'il a vue (#727). */
+      await keepSeenRoutes(ctx, movement, now);
       await ctx.db.patch(movement._id, { arrivesAt: held, heldAt: now });
       await ctx.scheduler.runAt(held, internal.movements.arrive, { movementId: movement._id });
       await ctx.db.insert('notices', {

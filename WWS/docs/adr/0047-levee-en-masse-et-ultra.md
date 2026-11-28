@@ -1,5 +1,10 @@
 # ADR 0047 — Deux atouts de plus : la Levée en masse (Chine) et Ultra (Royaume-Uni)
 
+> **Précisée le 28/11/2026 (#726)** : §3, « la destination est celle du moment » se lit *du moment
+> où la station entend*. Une flotte qui poursuit recourbe sa route sur place ; la cible qu'elle
+> choisit hors d'écoute n'est pas servie, et l'observateur garde la dernière destination entendue.
+> Un coude de la Doctrine du porte-avions, entendu, sert la nouvelle comme avant.
+
 **Statut :** acceptée (26/11/2026). Pierre a rouvert l'ADR 0039 (« oui pour les atouts », 25/11),
 jugé la première liste « un peu forte », puis validé les versions resserrées et l'ordre « deux
 d'abord » (26/11). **Mondiale seule** (`assetOf` rend `null` en Blitz). Issue #649.

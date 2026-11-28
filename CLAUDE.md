@@ -59,8 +59,13 @@ deploiement/     docker compose (Convex auto-hébergé + front), guide VPS et CI
   cargaison, ni nation — sauf la nation, au seul teneur de Lisbonne (P11, `convex/view.ts`) et
   au receveur d'un Prêt-bail, dans sa dépêche `lendLeaseReceived` (ADR 0039 §3,
   `convex/logistics.ts`). Un arc relevé ne sert pas la destination (`to` est le bout du tronçon
-  vu), sauf `destination`, à l'observateur britannique qu'une station a entendu (Ultra,
-  `sightings.ultraFrom`, ADR 0047 §3).
+  vu), sauf `destination`, à l'observateur britannique, telle que sa station l'a entendue (Ultra,
+  `sightings.heardDestination`, ADR 0047 §3), jamais relue sur le mouvement. Un mouvement
+  réécrit sur place (même id, route ou heures neuves : un coude de poursuite, la présence d'un
+  pillage, une retenue au Fort ou au repos) appelle `keepSeenRoutes`
+  (`convex/movement/detection.ts`) : une fenêtre close garde la route où elle a été vue
+  (`sightings.seenOn`), sinon sa dernière position connue suit la colonne. Seules les scènes de
+  démo de `convex/dev.ts` (`internalMutation` lancées à la main) réécrivent exprès sans geler.
   Chaque joueur lit son propre index de relevés (`sightings`, `campSightings`,
   `regionSightings`), jamais un filtre sur une table de vérité
   (`WWS/docs/technique/brouillard-et-fanout.md`). Toute mutation qui change un détecteur ou une

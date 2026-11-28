@@ -30,7 +30,7 @@ import {
 import { resolveContact } from '../combat';
 import { collapseIfAbandoned } from '../outposts';
 import { seenSegment } from '../../src/domain/sighting-segment';
-import { marchingForce } from './detection';
+import { seenForceOf } from './detection';
 import {
   CARRY_CAPACITY_BY_ROLE,
   OUTPOST_DISABLED_HOURS,
@@ -40,7 +40,6 @@ import { reportChange, scheduleRestore, settleBeforeChange } from '../production
 import { regionAtPoint } from '../regionGeometry';
 import { capitalRegionOf, pointOfBuilding, regionFacts } from '../regions';
 import { hostAtPoint, routeBetween } from '../routes';
-import { destinationOf } from '../placeNames';
 import {
   asPoint,
   defenceOf,
@@ -131,10 +130,8 @@ async function dropMovement(
       continue;
     }
     const closedAt = Math.min(served.to, now);
-    const segment = seenSegment(marchingForce(movement), served.from, closedAt);
+    const segment = seenSegment(seenForceOf(sighting, movement, served), served.from, closedAt);
     const { readAt } = lostReading(sighting, closedAt);
-    /** **Ce qui a été entendu reste su** (Ultra, ADR 0047 §3) : la destination de l'instant. */
-    const heard = sighting.ultraFrom !== undefined && sighting.ultraFrom <= now;
     await ctx.db.patch(sighting._id, {
       to: closedAt,
       windows: storedWindows(sighting.from, [{ from: served.from, to: closedAt }]),
@@ -143,7 +140,9 @@ async function dropMovement(
       readJobId: undefined,
       readJobAt: undefined,
       ultraJobId: undefined,
+      ultraJobAt: undefined,
       reads: undefined,
+      seenOn: undefined,
       ...(readAt === undefined ? {} : { readAt }),
       frozen: {
         points: segment.points.map(asPoint),
@@ -152,7 +151,11 @@ async function dropMovement(
         costUnits: segment.costUnits,
         headingDegrees: segment.headingDegrees,
         closedAt,
-        ...(heard ? { destination: destinationOf(movement) } : {}),
+        /** **Ce qui a été entendu reste su** (Ultra, ADR 0047 §3) : ce que la station a entendu,
+         *  jamais la destination du moment (#726). */
+        ...(sighting.heardDestination === undefined
+          ? {}
+          : { destination: sighting.heardDestination }),
       },
     });
   }

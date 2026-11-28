@@ -78,7 +78,7 @@ import {
 import { engagementsOf } from './combat';
 import { isReached, sitesOf, type Site, type Sites } from './sites';
 import { movementsOf, outpostsOf, pointOf, isServed } from './movement/forces';
-import { marchingForce } from './movement/detection';
+import { seenForceOf } from './movement/detection';
 import { groundOf, linkedOn } from './holding';
 import { destinationOf, regionNameAt } from './placeNames';
 import { restHoldOf } from './movement/rest';
@@ -1455,8 +1455,9 @@ function placed(notice: Doc<'notices'>) {
  *
  * **Ultra breaks it once** (ADR 0047 §3), the third breach after Lisbon and the Lend-Lease
  * dispatch: a naval column a British station has heard carries its `destination`, a field of its
- * own — the point and the name its owner reads, nothing else — served past `ultraFrom` and only
- * on the British observer's own row. The row writes it; this reads it and filters nothing.
+ * own — the point and the name its owner reads, nothing else — as the station heard it, and only
+ * on the British observer's own row. The row writes it while a station listens
+ * (`heardDestination`); this reads it and filters nothing, never the movement's live one.
  *
  * `headingAtMe` is the third ink of design sheet 04 and, Ultra or not, an **estimate**:
  * the heading is prolonged over what the column has left to walk, and the ink turns critical if
@@ -1542,7 +1543,9 @@ async function detectedArcs(
       });
       continue;
     }
-    const force = marchingForce(movement);
+    /** **La route où la fenêtre a été vue** (#727) : un coude pris sous une fenêtre close ne la
+     *  déplace pas. */
+    const force = seenForceOf(sighting, movement, window);
     const segment = seenSegment(force, window.from, window.to);
     const exit = segment.points[segment.points.length - 1]!;
     seen.push({
@@ -1555,8 +1558,8 @@ async function detectedArcs(
       legs: segment.legs,
       distanceUnits: segment.distanceUnits,
       costUnits: segment.costUnits,
-      landCost: movement.landCost,
-      arrivesAt: movement.arrivesAt,
+      landCost: force.landCost,
+      arrivesAt: force.arrivesAt,
       headingDegrees: segment.headingDegrees,
       headingAtMe: headingReachesMe(force, exit, segment.headingDegrees, window.to, home, anchors),
       seenFrom: window.from,
@@ -1568,9 +1571,9 @@ async function detectedArcs(
       detector: sighting.detector,
       detectorRegion: await regionOfStation(ctx, sighting),
       ...lisbonNation(nationOf, movement.playerId),
-      ...(sighting.ultraFrom !== undefined && sighting.ultraFrom <= now
-        ? { destination: destinationOf(movement) }
-        : {}),
+      ...(sighting.heardDestination === undefined
+        ? {}
+        : { destination: sighting.heardDestination }),
       identification: compositionOf(sighting),
     });
   }
