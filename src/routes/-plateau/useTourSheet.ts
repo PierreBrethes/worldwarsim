@@ -300,7 +300,7 @@ export function useTourSheet(
         const at = pointOfStation(stop.id);
         return at === undefined ? [] : [{ at, skipped: troop.tour!.skipped.includes(stop.id) }];
       });
-      return [{ base, stops: points, tracing: false }];
+      return [{ troopId: troop.id, base, stops: points, tracing: false }];
     });
     const tracing =
       reading === null || touring || stops.length === 0
