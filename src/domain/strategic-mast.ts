@@ -1,5 +1,5 @@
 import { nationInk } from './nations';
-import type { StrategicPointView } from './player-view';
+import type { RaceCountdown, StrategicPointView } from './player-view';
 
 /** Neutral point: white flame and fringe. */
 export const NEUTRAL_INK = '#ffffff';
@@ -26,6 +26,21 @@ export function mastOf(point: StrategicPointView, concluded: boolean): Mast {
     ring: point.contested && !concluded,
     star: point.mine,
   };
+}
+
+/**
+ * **The beam of the race** (#678): the ink of the leader's beam on a point it holds, `null` on any
+ * other. Read from `season.race` and the holders the view serves, as the ruler and the rings do:
+ * no race, no beam (a holder of four who is eliminated, a point retaken, a Blitz); a concluded
+ * season has none either.
+ */
+export function raceBeamInk(
+  point: StrategicPointView,
+  race: RaceCountdown | null,
+  concluded: boolean,
+): string | null {
+  if (race === null || concluded || point.holder?.nation !== race.leaderNation) return null;
+  return nationInk(race.leaderNation);
 }
 
 /**

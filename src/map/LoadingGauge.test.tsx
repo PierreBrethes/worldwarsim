@@ -165,6 +165,15 @@ describe('RaceGauge', () => {
     expect(markup).not.toContain('race-gauge--traced');
   });
 
+  it('counts the seconds under the hour, as the ruler does (#678)', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    const markup = renderToStaticMarkup(
+      <RaceGauge endsAt={NOW + (12 * 60 + 4) * 1000} ink="#2b6974" fading={false} fresh={false} />,
+    );
+    expect(markup).toContain('12 min 04 s');
+  });
+
   it('is traced when the count started under the eyes, and fades when it falls', () => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);

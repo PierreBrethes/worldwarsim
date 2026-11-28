@@ -52,11 +52,34 @@ const RING_TURN = 0.08;
 const SWAY = 0.13;
 const SWAY_PACE = 2.4;
 
+/**
+ * @a-mesurer lavis.html (cap #668): the race beam's width (board units), and its rise from the
+ * pomme: `BEAM_PX` on screen, as high as `BEAM_MASTS` masts at least. The mast keeps to its floor
+ * far off, and a rise in masts alone would hide behind the cartouche that hangs from its head.
+ */
+const BEAM_WIDTH = 0.24;
+const BEAM_PX = 320;
+const BEAM_MASTS = 3;
+/** Its strength at the foot, how much it breathes (a share of it) at full motion and the pace of it. @a-mesurer */
+const BEAM_PEAK = 1;
+const BEAM_BREATH = 0.3;
+const BEAM_BREATH_PACE = 1.6;
+/** The column cut motion stands: the same one, paler and still. @a-mesurer */
+const BEAM_PALE = 0.55;
+/** A short fade as the race starts or falls (`LookoutBeams`' own), and what one image may advance it. */
+export const BEAM_FADE_MS = 250;
+const BEAM_STEP_MS = 50;
+const BEAM_ROWS = 6;
+/** Its strength across: soft shoulders, a full core. */
+const BEAM_PROFILE = [0, 0.85, 1, 0.85, 0] as const;
+
 /** A point whose mast stands: the marker's id (what a click answers to), its place, what it shows. */
 export type MastPoint = {
   readonly id: string;
   readonly lonLat: LonLat;
   readonly mast: Mast;
+  /** The ink of the race leader's beam on this point, `null` or absent when it rises none (#678). */
+  readonly beam?: string | null;
 };
 
 /** The inked share of the mast the screen is asked for: board units per pixel and the mast's scale. */
@@ -92,11 +115,16 @@ const PENNANT: ReadonlyArray<readonly [number, number]> = [
 ];
 const PENNANT_TRIANGLES = [0, 1, 3, 0, 3, 4, 1, 2, 3];
 
-function flat(positions: number[], index: number[], extra?: number[]): BufferGeometry {
+function flat(
+  positions: number[],
+  index: number[],
+  extra?: number[],
+  name = 'aPart',
+): BufferGeometry {
   const geometry = new BufferGeometry();
   geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
   geometry.setIndex(index);
-  if (extra) geometry.setAttribute('aPart', new Float32BufferAttribute(extra, 1));
+  if (extra) geometry.setAttribute(name, new Float32BufferAttribute(extra, 1));
   return geometry;
 }
 
@@ -211,6 +239,33 @@ function dashedRing(): BufferGeometry {
   return flat(positions, index);
 }
 
+/**
+ * The beam of the race (#678): a column of height 1 on the mast's own axis, to be set on its head
+ * and stretched to its rise (`orient`). It rises in the leader's ink and fades out upward and
+ * toward its edges. Five vertices across, `BEAM_ROWS` up; `aAlpha` is each
+ * vertex's own strength, where the instance's `aLevel` (its fade and breath) is read in `beamed`.
+ */
+function beamGeometry(): BufferGeometry {
+  const positions: number[] = [];
+  const alphas: number[] = [];
+  const index: number[] = [];
+  for (let row = 0; row <= BEAM_ROWS; row++) {
+    const share = row / BEAM_ROWS;
+    for (let column = 0; column < BEAM_PROFILE.length; column++) {
+      positions.push((column / (BEAM_PROFILE.length - 1) - 0.5) * BEAM_WIDTH, share, 0);
+      alphas.push(BEAM_PROFILE[column]! * (1 - share) ** 0.6);
+    }
+  }
+  const across = BEAM_PROFILE.length;
+  for (let row = 0; row < BEAM_ROWS; row++) {
+    for (let column = 0; column < across - 1; column++) {
+      const a = row * across + column;
+      index.push(a, a + 1, a + across + 1, a, a + across + 1, a + across);
+    }
+  }
+  return flat(positions, index, alphas, 'aAlpha');
+}
+
 function material(): MeshBasicMaterial {
   return new MeshBasicMaterial({
     // Flat, never lit: the inks are set per instance, and by night raised on the CPU.
@@ -233,6 +288,21 @@ function starred(mat: MeshBasicMaterial): MeshBasicMaterial {
       );
   };
   mat.customProgramCacheKey = () => 'strategic-mast-star';
+  return mat;
+}
+
+/** The beam's strength rides on the vertex (`aAlpha`) and on the instance (`aLevel`), as the star does. */
+function beamed(mat: MeshBasicMaterial): MeshBasicMaterial {
+  mat.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader.replace(
+      'void main() {',
+      'attribute float aAlpha;\nattribute float aLevel;\nvarying float vBeam;\nvoid main() {\nvBeam = aAlpha * aLevel;',
+    );
+    shader.fragmentShader = shader.fragmentShader
+      .replace('void main() {', 'varying float vBeam;\nvoid main() {')
+      .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.a *= vBeam;');
+  };
+  mat.customProgramCacheKey = () => 'strategic-mast-beam';
   return mat;
 }
 
@@ -276,6 +346,11 @@ type Placed = {
   ink: Color;
   /** Set when a `show` serves another holder; cleared by `orient` once the flame has risen. */
   swap: Swap | null;
+  /** The race beam (#678): the ink it is asked in (`null` unlit), the ink it is drawn in (kept
+   *  while it fades out) and where it stands in its fade, 0 out to 1 lit. */
+  beam: Color | null;
+  beamInk: Color;
+  level: number;
   /** Where it stands and how big as last drawn: what a click and the idle check read. */
   foot: Vector3;
   /** The mast's own up as last drawn: it leans toward the eye, so it is not the world's. */
@@ -316,6 +391,9 @@ export class StrategicMasts implements AmbientLayer {
   private readonly rim: InstancedMesh<BufferGeometry, MeshBasicMaterial>;
   private readonly socle: InstancedMesh<BufferGeometry, MeshBasicMaterial>;
   private readonly ring: InstancedMesh<BufferGeometry, MeshBasicMaterial>;
+  private readonly beam: InstancedMesh<BufferGeometry, MeshBasicMaterial>;
+  private readonly levelAttribute = new InstancedBufferAttribute(new Float32Array(CAPACITY), 1);
+  private last = 0;
   private readonly starAttribute = new InstancedBufferAttribute(new Float32Array(CAPACITY), 1);
   private points: ReadonlyArray<Placed> = [];
   private clock = 0;
@@ -329,8 +407,16 @@ export class StrategicMasts implements AmbientLayer {
     private readonly touch: boolean,
     private readonly now: () => number = () => performance.now(),
   ) {
-    this.geometries = [mastGeometry(), pennant(PENNANT), rim(), socle(), dashedRing()];
-    const [mastShape, flameShape, rimShape, socleShape, ringShape] = this.geometries as [
+    this.geometries = [
+      mastGeometry(),
+      pennant(PENNANT),
+      rim(),
+      socle(),
+      dashedRing(),
+      beamGeometry(),
+    ];
+    const [mastShape, flameShape, rimShape, socleShape, ringShape, beamShape] = this.geometries as [
+      BufferGeometry,
       BufferGeometry,
       BufferGeometry,
       BufferGeometry,
@@ -338,12 +424,14 @@ export class StrategicMasts implements AmbientLayer {
       BufferGeometry,
     ];
     mastShape.setAttribute('aStar', this.starAttribute);
+    beamShape.setAttribute('aLevel', this.levelAttribute);
     this.socle = instanced(socleShape, material(), RANK);
     this.ring = instanced(ringShape, material(), RANK + 0.05);
     this.mast = instanced(mastShape, starred(material()), RANK + 0.1);
     this.rim = instanced(rimShape, material(), RANK + 0.02);
     this.flame = instanced(flameShape, material(), RANK + 0.2);
-    this.object.add(this.socle, this.ring, this.mast, this.rim, this.flame);
+    this.beam = instanced(beamShape, beamed(material()), RANK + 0.07);
+    this.object.add(this.socle, this.ring, this.mast, this.rim, this.flame, this.beam);
     this.object.visible = false;
   }
 
@@ -358,6 +446,7 @@ export class StrategicMasts implements AmbientLayer {
     const now = this.now();
     this.points = points.slice(0, CAPACITY).map((point) => {
       const ink = new Color(point.mast.ink);
+      const beam = point.beam === undefined || point.beam === null ? null : new Color(point.beam);
       const old = before.get(point.id);
       // Another holder mid-swap starts from what the screen shows, not from the target it left.
       const swap =
@@ -379,6 +468,10 @@ export class StrategicMasts implements AmbientLayer {
         flameAt: point.mast.flameAt,
         ink,
         swap,
+        beam,
+        beamInk: beam ?? old?.beamInk ?? ink,
+        // A beam already standing keeps its fade; a mast new to the view shows its beam as it is.
+        level: old === undefined ? (beam === null ? 0 : 1) : old.level,
         foot: at.clone(),
         lean: new Vector3(0, 1, 0),
         height: MAST_UNITS.height,
@@ -434,6 +527,33 @@ export class StrategicMasts implements AmbientLayer {
     return this.points.some((point) => point.swap !== null);
   }
 
+  /**
+   * The beams move toward lit or out by an image's step; only full motion fades, the rest is at
+   * once. The fade is under `SETTLE_MS`: the `invalidate()` of the `show` that starts it draws it.
+   */
+  private fade(now: number): void {
+    const step = Math.min(now - this.last, BEAM_STEP_MS) / BEAM_FADE_MS;
+    this.last = now;
+    for (const point of this.points) {
+      const target = point.beam === null ? 0 : 1;
+      point.level =
+        this.motion === 'full'
+          ? target > point.level
+            ? Math.min(target, point.level + step)
+            : Math.max(target, point.level - step)
+          : target;
+    }
+  }
+
+  /** What the beam's instance asks of the shader: its fade, and its breath or its pale column. */
+  private strengthOf(level: number, k: number): number {
+    if (this.motion === 'off') return level * BEAM_PEAK * BEAM_PALE;
+    const breath = this.moving
+      ? 1 - BEAM_BREATH * (0.5 + 0.5 * Math.sin(this.clock * BEAM_BREATH_PACE + k))
+      : 1;
+    return level * BEAM_PEAK * breath;
+  }
+
   frame(time: number, motion: MapMotion): void {
     this.motion = motion;
     this.moving = motion === 'full';
@@ -446,14 +566,22 @@ export class StrategicMasts implements AmbientLayer {
    */
   orient(eye: Vector3, distance: number, screenHeight: number, fov: number, night: number): void {
     const { points } = this;
-    // Not a draw while no mast is in the field: the five draws are for a mast seen.
+    // Not a draw while no mast is in the field: the draws are for a mast seen. The beam rides on
+    // its mast's box, so it cuts off when the foot leaves the field though its column reaches
+    // further: widening the test costs the ambience a read per beam, and #745 (the edge mark)
+    // is where a mast out of the field is told.
     this.object.visible = points.some((point) => this.sees(point.box, 0));
     if (points.length === 0) return;
     const unitsPerPixel = (2 * Math.tan((fov * Math.PI) / 360) * distance) / screenHeight;
-    const scale = mastScale(mastPx(distance, this.touch, screenHeight, fov), unitsPerPixel);
+    const px = mastPx(distance, this.touch, screenHeight, fov);
+    const scale = mastScale(px, unitsPerPixel);
+    // The beam's rise in mast-local units: its own pixels, or at least a few masts.
+    const rise = MAST_UNITS.height * Math.max(BEAM_MASTS, BEAM_PX / px);
     const baseRadius = baseRadiusOf(scale);
     let rings = 0;
+    let beams = 0;
     const now = this.now();
+    this.fade(now);
     points.forEach((point, k) => {
       const { fromAt: flameAt, fromInk: flameInk } = this.shown(point, now);
       // Past the socle and past the ring a camp wears, so that a garrison stays in front.
@@ -478,6 +606,13 @@ export class StrategicMasts implements AmbientLayer {
       object.updateMatrix();
       this.mast.setMatrixAt(k, object.matrix);
       this.starAttribute.setX(k, point.star ? 1 : 0);
+      if (point.level > 0) {
+        local.makeTranslation(0, MAST_UNITS.height, 0).scale(spot.set(1, rise, 1));
+        this.beam.setMatrixAt(beams, scratch.multiplyMatrices(object.matrix, local));
+        this.beam.setColorAt(beams, nightInk(point.beamInk, night, paint));
+        this.levelAttribute.setX(beams, this.strengthOf(point.level, k));
+        beams += 1;
+      }
 
       // The pennant hangs from `flameAt` of the mast, swaying about where it is fixed.
       const sway = this.moving ? Math.sin(this.clock * SWAY_PACE + k) * SWAY : 0;
@@ -510,7 +645,9 @@ export class StrategicMasts implements AmbientLayer {
     });
     this.mast.count = this.flame.count = this.rim.count = this.socle.count = points.length;
     this.ring.count = rings;
-    for (const mesh of [this.mast, this.flame, this.rim, this.socle, this.ring]) {
+    this.beam.count = beams;
+    this.levelAttribute.needsUpdate = true;
+    for (const mesh of [this.mast, this.flame, this.rim, this.socle, this.ring, this.beam]) {
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     }
@@ -562,7 +699,7 @@ export class StrategicMasts implements AmbientLayer {
   }
 
   dispose(): void {
-    for (const mesh of [this.mast, this.flame, this.rim, this.socle, this.ring]) {
+    for (const mesh of [this.mast, this.flame, this.rim, this.socle, this.ring, this.beam]) {
       mesh.material.dispose();
       mesh.dispose();
     }

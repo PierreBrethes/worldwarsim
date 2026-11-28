@@ -1,5 +1,5 @@
-import type { StrategicPointView } from '@/domain/player-view';
-import { mastOf } from '@/domain/strategic-mast';
+import type { RaceCountdown, StrategicPointView } from '@/domain/player-view';
+import { mastOf, raceBeamInk } from '@/domain/strategic-mast';
 import type { MastPoint } from '@/map/engine/strategic-masts';
 import { pileSupplies } from '@/domain/supplies';
 import { cargoTagsOf } from '@/domain/cargo-tag';
@@ -643,15 +643,18 @@ export const objectiveMarkerId = (objectiveId: string): string => `objective-${o
 export const strategicMarkerId = (pointId: string): string => `strategic-${pointId}`;
 
 /** **Un mât par point stratégique** (#683), tous, relevés ou non : il ne dit rien d'une garnison
- *  (ADR 0043 §5). Il porte l'id du marqueur, celui que le clic et le cartouche reconnaissent. */
+ *  (ADR 0043 §5). Il porte l'id du marqueur, celui que le clic et le cartouche reconnaissent, et le
+ *  faisceau de la course (#678) quand le meneur tient le point. */
 export const mastPointsOf = (
   points: ReadonlyArray<StrategicPointView>,
   concluded: boolean,
+  race: RaceCountdown | null,
 ): ReadonlyArray<MastPoint> =>
   points.map((point) => ({
     id: strategicMarkerId(point.id),
     lonLat: point.point,
     mast: mastOf(point, concluded),
+    beam: raceBeamInk(point, race, concluded),
   }));
 
 /** Where a station stands on the board, as the label layer names it. A building answers with

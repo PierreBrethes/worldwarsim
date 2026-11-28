@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { stationKeyOf } from '@/domain/troops';
 import { depositHolders } from '@/domain/construction';
+import { nationInk } from '@/domain/nations';
 import { DEPOSIT_POINTS } from '@/domain/world';
 import {
   buildingsOfMaquette,
@@ -411,6 +412,7 @@ describe('the masts of the seven points', () => {
     const masts = mastPointsOf(
       [point('a'), point('b', { holder: { nation: 'germany', heldMs: 0 } })],
       false,
+      null,
     );
     expect(masts.map(({ id }) => id)).toEqual([strategicMarkerId('a'), strategicMarkerId('b')]);
     expect(masts[0]!.lonLat).toEqual([-9, 38]);
@@ -418,8 +420,28 @@ describe('the masts of the seven points', () => {
   });
 
   it('takes the ring away once the season is concluded, and stands nothing without points', () => {
-    expect(mastPointsOf([point('a', { contested: true })], false)[0]!.mast.ring).toBe(true);
-    expect(mastPointsOf([point('a', { contested: true })], true)[0]!.mast.ring).toBe(false);
-    expect(mastPointsOf([], false)).toEqual([]);
+    expect(mastPointsOf([point('a', { contested: true })], false, null)[0]!.mast.ring).toBe(true);
+    expect(mastPointsOf([point('a', { contested: true })], true, null)[0]!.mast.ring).toBe(false);
+    expect(mastPointsOf([], false, null)).toEqual([]);
+  });
+
+  it('lights the beam of the leader holdings only, while the race runs (#678)', () => {
+    const race = { leaderNation: 'germany', endsAt: 5 };
+    const points = [
+      point('a', { holder: { nation: 'germany', heldMs: 0 } }),
+      point('b', { holder: { nation: 'britain', heldMs: 0 } }),
+      point('c'),
+    ];
+    expect(mastPointsOf(points, false, race).map(({ beam }) => beam ?? null)).toEqual([
+      nationInk('germany'),
+      null,
+      null,
+    ]);
+    expect(mastPointsOf(points, false, null).every(({ beam }) => (beam ?? null) === null)).toBe(
+      true,
+    );
+    expect(mastPointsOf(points, true, race).every(({ beam }) => (beam ?? null) === null)).toBe(
+      true,
+    );
   });
 });

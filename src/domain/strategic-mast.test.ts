@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { StrategicPointView } from './player-view';
 import { nationInk } from './nations';
 import { STRATEGIC_POINT_KEYS, STRATEGIC_POINTS } from './strategic-points';
-import { MAST_PX, MAST_UNITS, mastOf, mastPx } from './strategic-mast';
+import { MAST_PX, MAST_UNITS, mastOf, mastPx, raceBeamInk } from './strategic-mast';
 
 const point = (over: Partial<StrategicPointView> = {}): StrategicPointView => ({
   id: 'p',
@@ -82,5 +82,27 @@ describe('mastPx', () => {
   it('exports the sizes', () => {
     expect(MAST_UNITS.height).toBe(0.46);
     expect(MAST_PX.near).toBe(56);
+  });
+});
+
+describe('raceBeamInk (#678)', () => {
+  const race = { leaderNation: 'germany', endsAt: 9_000 };
+  it('lights the beam in the leader ink on each point the leader holds, read from the holders served', () => {
+    expect(raceBeamInk(point({ holder: held('germany') }), race, false)).toBe(nationInk('germany'));
+  });
+  it('lights nothing on a point another nation holds, or no one', () => {
+    expect(raceBeamInk(point({ holder: held('britain') }), race, false)).toBeNull();
+    expect(raceBeamInk(point(), race, false)).toBeNull();
+  });
+  it('lights nothing while no race runs: an eliminated holder of four, nor a point retaken', () => {
+    expect(raceBeamInk(point({ holder: held('germany') }), null, false)).toBeNull();
+  });
+  it('lights nothing once the season is concluded', () => {
+    expect(raceBeamInk(point({ holder: held('germany') }), race, true)).toBeNull();
+  });
+  it('stays lit on a contested point the leader still holds', () => {
+    expect(raceBeamInk(point({ holder: held('germany'), contested: true }), race, false)).toBe(
+      nationInk('germany'),
+    );
   });
 });
