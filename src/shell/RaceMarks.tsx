@@ -11,7 +11,13 @@ const HATCH = { held: 'var(--paper)', neutral: 'color-mix(in srgb, var(--ink) 55
  * neutre ; un point contesté garde l'encre de son teneur et gagne des hachures, sans jamais dire
  * qui l'attaque.
  */
-export function RaceMarks({ marks, size }: { marks: ReadonlyArray<RaceMark>; size: number }) {
+export function RaceMarks({
+  marks,
+  size,
+}: {
+  marks: ReadonlyArray<RaceMark>;
+  size: number | string;
+}) {
   return (
     <span className="flex gap-[3px]">
       {marks.map((mark) => (

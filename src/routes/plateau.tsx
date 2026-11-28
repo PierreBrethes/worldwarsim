@@ -3919,7 +3919,7 @@ function BoardContent({
             gauche de la pile des boutons, bas alignés, au même écart et à la même marge que la
             colonne des surfaces en face (`--table-gap`, `--table-margin`). Sous le seuil, les
             boutons passent en bas à gauche, au-dessus de la barre basse. */}
-                <div className="pointer-events-none absolute right-(--table-margin) bottom-(--table-margin) z-[var(--z-indicator)] flex items-end gap-(--table-gap) [&>*]:pointer-events-auto">
+                <div className="pointer-events-none absolute right-(--table-margin) bottom-(--table-margin) z-[var(--z-indicator)] has-[[role=menu]]:z-[calc(var(--z-notice)+1)] flex items-end gap-(--table-gap) [&>*]:pointer-events-auto">
                   {/* En visée sous le seuil, toucher le sol nomme une destination : la feuille du sol
               prendrait la place de la visée et la désarmerait. */}
                   {!aimingOnPhone && (

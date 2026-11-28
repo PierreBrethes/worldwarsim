@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type Ref } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type Ref } from 'react';
 import { Link, useSearch } from '@tanstack/react-router';
 import { fr, nationLabel } from '@/i18n/fr';
 import { isOutpostWork } from '@/domain/ids';
@@ -9,7 +9,7 @@ import { currentStock, workMinutesLeft, type PlayerView } from '@/domain/player-
 import { displayedStock } from '@/domain/reserve-counter';
 import { useMapMotion } from '@/data/mapMotion';
 import { asClockTime, asDuration } from '@/domain/duration';
-import { FlagWatermark } from '@/emblems/Flag';
+import { Flag, FlagWatermark } from '@/emblems/Flag';
 import { BuildingPlate } from '@/emblems/Plate';
 import { withWindow, type BoardSearch } from '@/routes/-plateau/board-search';
 import { Odometer, ReserveTag, useAnnouncedStock } from './ReserveCell';
@@ -182,10 +182,15 @@ export function Reglette({
 
       <RaceCell reading={raceMarkOf(view, now)} search={search} />
 
-      <div className="ml-auto flex min-w-0 items-center gap-[18px] px-[16px]">
-        {me.funds !== null && <FundsCell funds={me.funds} loadedAt={view.loadedAt} now={now} />}
-        <EditionMark view={view} />
-      </div>
+      {/* Sans fonds ni édition, la marge vide ne vole pas ses 32 px aux onglets. */}
+      {me.funds !== null || view.press?.next != null ? (
+        <div className="ml-auto flex min-w-0 items-center gap-[18px] px-[16px]">
+          {me.funds !== null && <FundsCell funds={me.funds} loadedAt={view.loadedAt} now={now} />}
+          <EditionMark view={view} />
+        </div>
+      ) : (
+        <span className="ml-auto" />
+      )}
       <SurfaceTabs view={view} telegraphUnread={telegraphUnread} />
     </header>
   );
@@ -203,10 +208,17 @@ const AIR_AFTER_WATERMARK = 6;
 
 /**
  * **La course aux Sept** (#670) : sept marques à l'encre de leur teneur, le compte du joueur
- * (« 2 / 4 ») et, quand la course court, sa phrase — la cellule passe alors en alerte (en ocre
- * quand c'est le joueur qui mène). Un clic ouvre la Presse, où la course se lit repliée. Trois
- * replis : le compte seul sous 1350 px ; « victoire dans X » dès 1350 ; « LES SEPT » dès 1440 ;
- * la nation dès 1500 (elle reste au `title`). Elle rétrécit avant de pousser les onglets.
+ * (« 2 / 4 ») et, quand la course court, son compte à rebours — la cellule passe alors en alerte
+ * (en ocre quand c'est le joueur qui mène). Un clic ouvre la Presse, où la course se lit repliée.
+ *
+ * **Elle prend la place libre entre les slots et les onglets et choisit son niveau par sa propre
+ * largeur** (requête de conteneur, comme `JournalWindow`) : elle retire, dans cet ordre, la nation,
+ * « LES SEPT », puis « victoire dans ». Les marques, le compte et le compte à rebours ne se coupent
+ * jamais ; le drapeau du meneur tient la place de sa nation (rien pour un meneur sans nation).
+ * @a-mesurer : les seuils (385, 435, 555 px) sont les largeurs du pire texte de chaque niveau,
+ * mesurées au navigateur (sept marques ; px du conteneur, la réglette étant zoomée de 1,2) : le compte
+ * à rebours seul 256 (275 avec le drapeau), + « victoire dans » 107 (363, 382), + « LES SEPT » 52
+ * (415, 434), + la nation à la place du drapeau (≈ 132 pour la plus longue : 554).
  */
 function RaceCell({ reading, search }: { reading: RaceMarkReading | null; search: BoardSearch }) {
   if (reading === null) return null;
@@ -219,35 +231,57 @@ function RaceCell({ reading, search }: { reading: RaceMarkReading | null; search
     phrase === null
       ? ''
       : `bg-[color-mix(in_srgb,var(${phrase.you ? '--notable' : '--critical'})_9%,transparent)]`;
+  const flagged = phrase?.nation != null;
   return (
     <Link
       to="/plateau"
       search={withWindow(search, 'press')}
       title={fr.points.race.cellTitle(mine, said)}
-      className={`${CELL.replace('shrink-0', 'min-w-0 overflow-hidden')} cursor-pointer gap-[9px] whitespace-nowrap hover:bg-[var(--paper-clair)] ${tint}`}
+      style={floorStyle(RACE_CELL_FLOOR(phrase !== null, flagged))}
+      className="@container flex min-w-[var(--floor-compact)] flex-1 min-[1350px]:min-w-[var(--floor)] cursor-pointer items-stretch overflow-hidden border-r border-(color:--ink)/20 hover:bg-[var(--paper-clair)]"
     >
-      <span className="text-[8.5px] leading-none font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase max-[1439px]:hidden">
-        {fr.points.race.cell}
-      </span>
-      <span className="shrink-0">
-        <RaceMarks marks={reading.marks} size={11} />
-      </span>
       <span
-        className={`shrink-0 font-(family-name:--font-mono) text-[13px] leading-none font-medium tabular-nums ${alert}`}
+        className={`flex shrink-0 items-center gap-[5px] px-[4px] whitespace-nowrap min-[1350px]:gap-[9px] min-[1350px]:px-[13px] ${tint}`}
       >
-        {mine}
-      </span>
-      {phrase !== null && (
-        <span
-          className={`truncate font-(family-name:--font-mono) text-[13px] leading-none font-semibold tabular-nums max-[1349px]:hidden ${alert}`}
-        >
-          <span className="max-[1499px]:hidden">{phrase.who} · </span>
-          {fr.points.race.within(phrase.left)}
+        <span className="hidden text-[8.5px] leading-none font-semibold tracking-[.16em] text-[var(--ink-soft)] uppercase @[435px]:inline">
+          {fr.points.race.cell}
         </span>
-      )}
+        <span className="[--mark:9px] min-[1350px]:[--mark:11px]">
+          <RaceMarks marks={reading.marks} size="var(--mark)" />
+        </span>
+        <span
+          className={`font-(family-name:--font-mono) text-[13px] leading-none font-medium tabular-nums ${alert}`}
+        >
+          {mine}
+        </span>
+        {phrase !== null && (
+          <span
+            className={`flex items-center gap-[7px] font-(family-name:--font-mono) text-[13px] leading-none font-semibold tabular-nums ${alert}`}
+          >
+            {flagged && (
+              <span className="@[555px]:hidden">
+                <Flag nation={phrase.nation!} width={16} onPaper />
+              </span>
+            )}
+            <span className="hidden @[555px]:inline">{phrase.who} · </span>
+            <span className="hidden @[385px]:inline">{fr.points.race.within('')}</span>
+            {phrase.left}
+          </span>
+        )}
+      </span>
     </Link>
   );
 }
+
+/** Le plancher de la cellule, en deux largeurs : sous 1350 px les marques, les marges et les écarts
+ *  sont resserrés (32 px de moins). */
+const floorStyle = (floor: number) =>
+  ({ '--floor': `${floor}px`, '--floor-compact': `${floor - 32}px` }) as CSSProperties;
+
+/** Ce que la cellule ne rend jamais plus étroit : les marques et le compte, puis le compte à
+ *  rebours, et le drapeau d'un autre meneur. @a-mesurer */
+const RACE_CELL_FLOOR = (running: boolean, flagged: boolean): number =>
+  160 + (running ? 96 : 0) + (flagged ? 19 : 0);
 
 /** **La prochaine édition de la presse**, en heure ronde : ce qui bat la saison, d'un coup d'œil.
  *  Rien sur une édition finale ou avant la première. */
