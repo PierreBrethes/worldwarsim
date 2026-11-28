@@ -32,6 +32,7 @@ const world = (over: Partial<BotWorld> = {}): BotWorld => ({
   coastalAt: () => false,
   walkableAt: () => true,
   landRoute: () => ({ km: 100 }),
+  landRouteToNearest: () => ({ km: 100, blocked: [] }),
   regions,
   nearestRegionId: (point) => regions.find((r) => r.point === point)?.id ?? null,
   coastNear: () => null,

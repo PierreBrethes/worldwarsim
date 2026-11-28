@@ -870,6 +870,54 @@ export function computeRouteToAny(
     : pinStart(grid, routeSearchOf(grid, path, mode, landCost), from, start);
 }
 
+/**
+ * **The cheapest of several destinations, in one search.** `computeRoute` toward each of `goals`
+ * and keeping the least costly is as many Dijkstras; this runs one toward every goal cell, and
+ * prices the winner as `computeRoute` would (`pinEnd`). `blocked` lists the goals `computeRoute`
+ * would refuse outright (a lake, a land end the mode cannot walk), so a caller that bills them
+ * another way keeps its rule; `best` is `null` when no goal is left or none is joined.
+ */
+export function computeRouteToNearest(
+  grid: RouteGrid,
+  from: LonLat,
+  goals: ReadonlyArray<LonLat>,
+  mode: RouteMode,
+  landCost: number = COST_BY_MEDIUM.land,
+): { readonly best: { index: number; route: ComputedRoute } | null; readonly blocked: number[] } {
+  if (mode === 'air') {
+    const routes = goals.map((to) => airRoute(grid, from, to));
+    let best: { index: number; route: ComputedRoute } | null = null;
+    routes.forEach((route, index) => {
+      if (best === null || route.distanceUnits < best.route.distanceUnits) best = { index, route };
+    });
+    return { best, blocked: [] };
+  }
+
+  const blocked: number[] = [];
+  const cellOf = new Map<number, number[]>();
+  goals.forEach((to, index) => {
+    const refused =
+      (mode === 'land' && !isWalkableCell(grid, to)) ||
+      grid.cells[projectOnGrid(grid, to)] === LAKE ||
+      (mode === 'naval' && isLandCell(grid, to) && !isCoastCell(grid, to));
+    const cell = refused ? null : nearestCell(grid, projectOnGrid(grid, to), mode);
+    if (cell === null) {
+      blocked.push(index);
+      return;
+    }
+    cellOf.set(cell, [...(cellOf.get(cell) ?? []), index]);
+  });
+
+  const search = computeRouteToAny(grid, from, new Set(cellOf.keys()), mode, landCost);
+  if (search === null) return { best: null, blocked: goals.map((_, index) => index) };
+  let best: { index: number; route: ComputedRoute } | null = null;
+  for (const index of cellOf.get(search.goalCell) ?? []) {
+    const route = pinEnd(grid, search, goals[index]!, search.goalCell);
+    if (best === null || route.distanceUnits < best.route.distanceUnits) best = { index, route };
+  }
+  return { best, blocked };
+}
+
 /** Reprices the exact prefix rather than prorating totals detached from their route legs. */
 export function truncateRouteSearch(
   grid: RouteGrid,

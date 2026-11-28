@@ -236,11 +236,13 @@ describe("le bot d'une île", () => {
       });
     }, 120_000);
 
+    // Le port suit la route la moins chère (coût pondéré, la mer coûte moins que la terre), que le
+    // cargo emprunte, et non la plus courte en km : avant #728 Tokyo choisissait JPN-1867.
     it('Tokyo, huit points neutres', () => {
       expect(portOf('japan', EIGHT_POINTS)).toEqual({
         building: 'port',
-        regionId: 'JPN-1867',
-        point: { lon: 139.1361597925416, lat: 37.95814088333485 },
+        regionId: 'JPN-1845',
+        point: { lon: 138.3292302762525, lat: 34.853488892547844 },
       });
     }, 120_000);
   });
