@@ -362,6 +362,19 @@ describe('the journal', () => {
 
   /** **Le cachet des Sept** (#442) se lit sur la dépêche de la prise, et sur elle seule : la
    *  capture qu'une copie de Hong Kong rapporte est de la même sorte, sans cachet. */
+  /** **L'ancien teneur** (#702) : la flamme du rejeu descend à son encre. Neutre se dit `null` ;
+   *  une dépêche d'avant, qui ne l'a pas, n'en invente pas. */
+  it('carries the former holder of a point, null when it was neutral, none when unknown', () => {
+    const [fromUssr, fromNeutral, old] = journalDispatches([], null, [
+      { kind: 'pointTaken', at: NOON, key: 'narvik', nation: 'germany', held: 4, former: 'ussr' },
+      { kind: 'pointTaken', at: NOON, key: 'lisbon', nation: 'germany', held: 1, former: null },
+      { kind: 'pointTaken', at: NOON, key: 'dakar', nation: 'germany', held: 2 },
+    ]);
+    expect(fromUssr!.point).toEqual({ key: 'narvik', nation: 'germany', held: 4, from: 'ussr' });
+    expect(fromNeutral!.point).toEqual({ key: 'lisbon', nation: 'germany', held: 1, from: null });
+    expect(old!.point).not.toHaveProperty('from');
+  });
+
   it('carries the point, its taker and his count for the seal, on a point taken only', () => {
     const [taken, captured] = journalDispatches([], null, [
       { kind: 'pointTaken', at: NOON, key: 'narvik', nation: 'germany', held: 4 },

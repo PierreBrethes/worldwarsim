@@ -239,7 +239,7 @@ describe('taking a strategic point', () => {
     for (const who of [seat, guest]) {
       const served = (await t.query(api.view.playerView, who)).notices;
       expect(served.filter((notice) => notice.kind === 'pointTaken')).toMatchObject([
-        { key: 'lisbon', nation: 'france', held: 2 },
+        { key: 'lisbon', nation: 'france', held: 2, former: null },
       ]);
     }
   });
@@ -1326,7 +1326,7 @@ describe('Hong Kong', () => {
     ]);
     // The taker reads the plain public dispatch, no more.
     const plain = await told(t, seat);
-    expect(plain).toMatchObject([{ key: 'lisbon', nation: 'france' }]);
+    expect(plain).toMatchObject([{ key: 'lisbon', nation: 'france', former: 'ussr' }]);
     expect(plain[0]).not.toHaveProperty('hongKong');
     expect(plain[0]).not.toHaveProperty('from');
   });

@@ -800,6 +800,9 @@ export const NOTICE = v.union(
      *  (absent : neutre). `hongKong` la fait lire « dépêche de Hong Kong ». */
     hongKong: v.optional(v.literal(true)),
     from: v.optional(v.string()),
+    /** **Le teneur d'avant** (#702), public comme celui de chaque point : la nation, ou `null`
+     *  s'il était neutre ; absent des dépêches d'avant, dont le rejeu n'invente rien. */
+    former: v.optional(v.union(v.string(), v.null())),
   }),
   /** **Hong Kong lit les captures** : un bâtiment ou un avant-poste change de main, et son teneur
    *  l'apprend même s'il ne le voit pas — qui, quoi, où, et rien de plus. */

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { STAMP_MS, inkBursts, stampAt } from './ink-bursts';
+import { nationInk } from './nations';
 import type { CombatReport, JournalDispatch } from './player-view';
 
 const combat = { id: 'c1', point: { lon: 2, lat: 49 }, won: false } as CombatReport;
@@ -54,6 +55,18 @@ describe('inkBursts', () => {
       // Above its point, as the storyboard has it, but where the count runs: its cartouche is there.
       ...(held < 4 ? { over: true } : {}),
       delayMs: 1600,
+    });
+
+    /** **La flamme part de l'encre d'avant** (#702) : celle de l'ancien teneur, blanche s'il était
+     *  neutre ; une dépêche sans l'ancien teneur ne dit rien. */
+    it('carries the ink the flame goes down in: the former holder, white when neutral', () => {
+      const from = (value: string | null): JournalDispatch => ({
+        ...taken(3),
+        point: { key: 'narvik', nation: 'germany', held: 3, from: value },
+      });
+      expect(inkBursts([from('ussr')], 10, [])[0]).toMatchObject({ fromInk: nationInk('ussr') });
+      expect(inkBursts([from(null)], 10, [])[0]).toMatchObject({ fromInk: '#ffffff' });
+      expect(inkBursts([taken(3)], 10, [])[0]).not.toHaveProperty('fromInk');
     });
 
     it('presses the seal of the Seven, « IV » on the fourth alone', () => {

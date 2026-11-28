@@ -730,6 +730,7 @@ async function takePoint(
       nation: taker?.nation ?? taker?.nickname ?? '',
       point: point.point,
       held,
+      former: former === null ? null : (former.nation ?? former.nickname),
       /** **Hong Kong** : son teneur lit la même dépêche, avec le nom de celui à qui on le prend. */
       ...((await holdsPoint(ctx, seat, 'hongKong'))
         ? {
