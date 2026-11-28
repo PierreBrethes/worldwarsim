@@ -699,7 +699,6 @@ async function conclude(
           kind: 'playerEliminated',
           by: capturer.nation ?? capturer.nickname,
           capturerId: capturer._id,
-          irregulars: false,
         },
       );
   }
@@ -844,10 +843,9 @@ async function seizeAboveTheSeal(
 }
 
 /**
- * **Les sièges des biens de l'éliminé suivent leur nouveau propriétaire** — le capteur en Blitz,
- * le siège irrégulier en Mondiale. Celui que mène ce nouveau propriétaire s'efface sans bruit, le
- * site lui revient déjà ; celui d'un autre continue contre lui, et un joueur l'apprend comme une
- * capture qui s'ouvre.
+ * **Les sièges des biens de l'éliminé suivent leur capteur** (Blitz). Celui que mène le capteur
+ * s'efface sans bruit, le site lui revient déjà ; celui d'un autre continue contre lui, et il
+ * l'apprend comme une capture qui s'ouvre.
  */
 async function handOverSieges(
   ctx: MutationCtx,
@@ -855,7 +853,6 @@ async function handOverSieges(
   heirId: Id<'players'>,
   now: number,
 ): Promise<void> {
-  const heir = await ctx.db.get(heirId);
   for (const siege of await ctx.db
     .query('captures')
     .withIndex('byDefender', (q) => q.eq('defenderId', fall.defenderId))
@@ -866,15 +863,7 @@ async function handOverSieges(
       continue;
     }
     await ctx.db.patch(siege._id, { defenderId: heirId });
-    /** **Le siège irrégulier ne dort pas** (M15) : la capture qu'il hérite ne se fige plus aux
-     *  heures de l'éliminé, et son échéance se reprend d'ici. */
-    if (heir?.irregular === true && siege.rest !== null && siege.stoppedAt === undefined) {
-      const progress = progressAt(clockOf(siege), now);
-      const due = completesAt({ ...clockOf(siege), progress, at: now, rest: null });
-      await ctx.db.patch(siege._id, { rest: null, progress, progressAt: now, completesAt: due });
-      await schedule(ctx, siege._id, due);
-    }
-    if (siege.stoppedAt !== undefined || heir?.irregular === true) continue;
+    if (siege.stoppedAt !== undefined) continue;
     await ctx.db.insert('notices', {
       playerId: heirId,
       at: now,

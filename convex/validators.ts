@@ -321,6 +321,8 @@ export const PATROL_END = v.union(
   v.literal('withdrawn'),
   v.literal('routed'),
   v.literal('road'),
+  /** Plus écrit depuis l'ADR 0048 (la chute n'a plus d'héritier irrégulier) ; gardé pour les
+   *  dépêches des saisons d'avant. */
   v.literal('irregular'),
 );
 
@@ -781,10 +783,10 @@ export const NOTICE = v.union(
     kind: v.literal('playerEliminated'),
     nation: v.string(),
     by: v.optional(v.string()),
-    /** En Mondiale, ce qu'il tenait passe au siège irrégulier (M16) ; absent en Blitz. */
+    /** Les dépêches d'avant l'ADR 0048, quand une chute en Mondiale éliminait : ce qu'il tenait
+     *  passait au siège irrégulier (M16), et le lieu se disait à qui l'avait relevé (#442). Plus
+     *  écrits, gardés pour les saisons qui les ont. */
     irregulars: v.optional(v.literal(true)),
-    /** **Où le QG est tombé** (#442, Mondiale) : à l'éliminé, au preneur, et à qui l'avait
-     *  déjà relevé ; absent ailleurs. */
     point: v.optional(LON_LAT),
   }),
   /** **Un QG tombé en Mondiale** (ADR 0048) : son joueur reste en guerre. Public, sur le patron de

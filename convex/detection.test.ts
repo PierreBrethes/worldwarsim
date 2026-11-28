@@ -2279,7 +2279,7 @@ describe('a column held at the end of its road', () => {
     );
     expect(seen).toMatchObject([{ until: null }]);
 
-    // Un éliminé pendant la retenue laisse ses troupes là (`toIrregulars`).
+    // La colonne retenue n'a pas bougé de son coude.
     expect(distanceKm(positionAt(marchingForce(held), Date.now()), end)).toBeLessThan(0.001);
   });
 });
