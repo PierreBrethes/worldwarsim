@@ -1214,6 +1214,18 @@
   --label-sink: 0px;
 }
 
+/* **Au loin, un des Sept contesté ou en course garde son nom et sa ligne** (#701) : l'alerte se lit
+   du zoom monde, la carte reste calme (un point calme n'a pas de cartouche, `cartoucheShown`).
+   Le repli générique effaçait le bloc entier ; ici seule la ligne d'état tombe, et la capture ou le
+   compte de la course (#678) restent. */
+.label--strategic.label--capturing.label--glyph .label-block {
+  opacity: 1;
+}
+
+.label--strategic.label--capturing.label--glyph .label-line--figures {
+  display: none;
+}
+
 /* **Au loin, un signe pèse ce que pèse une épingle** (#234) : le coffre d'un objectif et le
    drapeau d'une arrivée prennent la taille d'une épingle de bâtiment,
    à l'encre, sans flaque ni mât. Lisibles, ils ne dominent plus les pièces. */
