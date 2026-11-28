@@ -539,4 +539,62 @@ describe('Ultra (ADR 0047 §3)', () => {
     });
     expect(patched).toEqual([]);
   });
+
+  /** Entre deux échantillons de la grille, une station qui entend déjà la colonne l'entend à
+   *  l'instant : sa destination s'écrit tout de suite, pas au prochain échantillon. */
+  it('hears at the instant a column already inside a station it comes to have', async () => {
+    const t = boot();
+    const { uk, france } = await launchedSeason(t);
+    const { movement, along } = await sailing(t, france);
+    const step = (movement.arrivesAt - movement.departedAt) / 240;
+    at(movement.departedAt + step * 120.5);
+    await station(t, uk, along(0.5, 30), 'uk');
+    await reassess(t, uk);
+
+    const [row] = await rowsOf(t, uk);
+    expect(row!.ultraFrom).toBe(Date.now());
+    expect(row!.heardDestination).toEqual(await ownDestination(t, france, movement));
+  });
+
+  /** **Les lignes d'avant `ultraJobAt`** : un réveil posé visait `ultraFrom`, et il réveille
+   *  encore ; une ligne sans réveil reçoit le sien à sa première réécriture. */
+  it('wakes a row written before its wake carried its hour, and mends one that has none', async () => {
+    const t = boot();
+    const { uk, france } = await launchedSeason(t);
+    const { movement, along } = await sailing(t, france);
+    await vigie(t, uk, along(0.2));
+    await station(t, uk, along(0.6, 50), 'uk');
+    await reassess(t, uk);
+    const [row] = await rowsOf(t, uk);
+    await t.run((ctx) => ctx.db.patch(row!._id, { ultraJobAt: undefined }));
+    at(row!.ultraFrom!);
+    await t.mutation(internal.movements.wakeUltra, {
+      sightingId: row!._id,
+      expectedAt: row!.ultraFrom!,
+    });
+    expect((await rowsOf(t, uk))[0]!.heardDestination).toEqual(
+      await ownDestination(t, france, movement),
+    );
+
+    const t2 = boot();
+    const seats = await launchedSeason(t2);
+    const sailed = await sailing(t2, seats.france);
+    await vigie(t2, seats.uk, sailed.along(0.2));
+    await station(t2, seats.uk, sailed.along(0.6, 50), 'uk');
+    await reassess(t2, seats.uk);
+    const [old] = await rowsOf(t2, seats.uk);
+    await t2.run(async (ctx) => {
+      await ctx.scheduler.cancel(old!.ultraJobId!);
+      await ctx.db.patch(old!._id, {
+        ultraJobId: undefined,
+        ultraJobAt: undefined,
+      });
+    });
+    await reassess(t2, seats.uk);
+    const [mended] = await rowsOf(t2, seats.uk);
+    expect(await t2.run((ctx) => ctx.db.system.get(mended!.ultraJobId!))).toMatchObject({
+      name: 'movements:wakeUltra',
+      scheduledTime: old!.ultraFrom,
+    });
+  });
 });

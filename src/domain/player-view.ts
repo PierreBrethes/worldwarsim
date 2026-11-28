@@ -155,7 +155,8 @@ export type ArcView =
       readonly detectorRegion: string | null;
       /** La nation de la colonne, servie au seul teneur de Lisbonne (P11). */
       readonly nation?: string;
-      /** **Ultra** : sa destination, à l'observateur britannique qu'une station a entendu. */
+      /** **Ultra** : la dernière destination qu'une station a entendue, au seul observateur
+       *  britannique (`sightings.heardDestination`) ; jamais celle du moment. */
       readonly destination?: ArcDestination;
       /** Where the column was pointing **as it left the radius**, which is what a window's close
        *  reveals: the far end of the thread served is not a destination. */
@@ -188,7 +189,8 @@ export type ArcView =
       readonly detector: Detector;
       readonly detectorRegion: string | null;
       readonly nation?: string;
-      /** Ce qui a été entendu reste su : la destination de l'instant où le fil s'est figé. */
+      /** Ce qui a été entendu reste su : la dernière destination qu'une station a entendue,
+       *  figée avec le fil (`sightings.heardDestination`). */
       readonly destination?: ArcDestination;
       readonly headingDegrees: number;
       /** La dernière pile qu'un Guet a lue, figée avec le fil. */

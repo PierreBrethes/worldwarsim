@@ -140,6 +140,7 @@ async function dropMovement(
       readJobId: undefined,
       readJobAt: undefined,
       ultraJobId: undefined,
+      ultraJobAt: undefined,
       reads: undefined,
       seenOn: undefined,
       ...(readAt === undefined ? {} : { readAt }),

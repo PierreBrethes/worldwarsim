@@ -1461,6 +1461,8 @@ export default defineSchema({
      */
     ultraFrom: v.optional(v.number()),
     ultraJobId: v.optional(v.id('_scheduled_functions')),
+    /** L'heure que vise `ultraJobId` ; absente, c'est `ultraFrom` (un réveil d'avant ce champ). */
+    ultraJobAt: v.optional(v.number()),
     /**
      * **Ce que la station a entendu** (#726) : la destination à l'instant où une station l'écoutait,
      * jamais celle du moment où elle est sourde. Un coude de poursuite réécrit le mouvement sur

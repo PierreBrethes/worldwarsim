@@ -5,10 +5,11 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { LonLat } from '../src/domain/geo';
 import { distanceKm } from '../src/domain/geo';
 import type { Nation, UnitRole } from '../src/domain/ids';
-import { positionAt } from '../src/domain/interception';
+import { INTERCEPTION_SAMPLES, positionAt } from '../src/domain/interception';
 import { LAST_KNOWN_HOURS, LISTENING_STATION_RADIUS_KM, nominalStrength } from './constants';
 import { marchingForce } from './movement/detection';
 import { capitalRegionOf, pointOfBuilding } from './regions';
+import { gridStepOf } from '../src/domain/sighting-windows';
 import schema from './schema';
 import { modules } from './test.setup';
 import {
@@ -319,7 +320,9 @@ describe('Ultra, de bout en bout (#726)', () => {
       scheduledTime: row!.ultraFrom,
     });
 
-    await reach(t, row!.ultraFrom! - 1);
+    /** Deux pas de grille avant : hors de portée. Entre deux échantillons, une réévaluation peut
+     *  déjà l'entendre à l'instant, et c'est juste. */
+    await reach(t, row!.ultraFrom! - 2 * gridStepOf(movement));
     expect((await arcOf(t, uk, movement._id))?.destination).toBeUndefined();
     expect(await rowOf(t, uk, movement._id)).not.toHaveProperty('heardDestination');
     await reach(t, row!.ultraFrom!);
@@ -595,16 +598,20 @@ describe('Ultra, de bout en bout (#726)', () => {
 
   /**
    * **9. La poursuite navale** : la flotte qui poursuit recourbe sa route sur place, à chaque
-   * réveil. La station l'entend au départ, puis la perd ; chaque coude d'après est un ordre
-   * qu'elle n'a pas entendu. Ne se teste ici que la destination, pas l'arc (#727).
+   * réveil. Une station l'entend au départ, puis la perd ; chaque coude d'après est un ordre
+   * qu'elle n'a pas entendu. Plus loin, une seconde station l'entend de nouveau, au milieu d'une
+   * jambe : elle entend la route de l'instant. Ne se teste ici que la destination, pas l'arc.
    */
-  it('9. stops serving a pursuing fleet new destinations once its station has gone deaf', async () => {
+  it('9. serves a pursuing fleet the destination of the last leg a station heard', async () => {
     const t = boot();
     const { uk, france, germany } = await launchedSeason(t);
     const FR = { lon: -19.5, lat: 45 };
     const DE = { lon: -17.3, lat: 45 };
-    const listening: LonLat = [FR.lon, FR.lat + 0.3];
-    await standingStation(t, uk, listening, 'uk');
+    const stations: ReadonlyArray<LonLat> = [
+      [FR.lon, FR.lat + 0.3],
+      [-15.5, 45.35],
+    ];
+    for (const at of stations) await standingStation(t, uk, at, 'uk');
     const hunters = [await postAt(t, france, 'carrier', FR), await postAt(t, france, 'escort', FR)];
     const cargo = await postAt(t, germany, 'cargo', DE);
     await t.mutation(api.movements.marchTo, {
@@ -631,35 +638,69 @@ describe('Ultra, de bout en bout (#726)', () => {
       );
     const chase0 = (await chaseOf())!;
 
-    /** Un coude se prend du point où la flotte est : la station l'entend s'il tombe dans son
-     *  rayon, et seulement alors. */
-    const hears = (at: { lon: number; lat: number }) =>
-      distanceKm([at.lon, at.lat], listening) <= LISTENING_STATION_RADIUS_KM;
-    expect(hears(chase0.from)).toBe(true);
-    let heard = chase0.to;
-    let bend = chase0.departedAt;
-    let unheardBends = 0;
-    let served = 0;
-    for (let step = 0; step < 400; step += 1) {
-      const chase = await chaseOf();
-      if (chase?.pursuit === undefined) break;
-      await nextJob(t);
-      const after = await chaseOf();
-      if (after !== null && after.departedAt !== bend) {
-        bend = after.departedAt;
-        if (hears(after.from)) heard = after.to;
-        else if (distanceKm([after.to.lon, after.to.lat], [heard.lon, heard.lat]) > 1)
-          unheardBends += 1;
+    /**
+     * **Une jambe entendue** : un échantillon de sa grille, depuis son départ et jusqu'à `until`,
+     * tombe sous une station. C'est la grille de la détection ; l'instant où la jambe est entendue
+     * pour la première fois, ou `null`.
+     */
+    const legs = [chase0];
+    const heardAt = (index: number, until: number): number | null => {
+      const leg = legs[index]!;
+      const end = Math.min(until, legs[index + 1]?.departedAt ?? Infinity);
+      const step = (leg.arrivesAt - leg.departedAt) / INTERCEPTION_SAMPLES;
+      for (let sample = 0; sample <= INTERCEPTION_SAMPLES; sample += 1) {
+        const at = leg.departedAt + sample * step;
+        if (at > end) return null;
+        const here = positionAt(marchingForce(leg), at);
+        if (stations.some((station) => distanceKm(here, station) <= LISTENING_STATION_RADIUS_KM))
+          return at;
       }
+      return null;
+    };
+    /** La destination de la dernière jambe entendue à l'instant. */
+    const heardTo = () => {
+      for (let index = legs.length - 1; index >= 0; index -= 1)
+        if (heardAt(index, Date.now()) !== null) return legs[index]!.to;
+      return null;
+    };
+    expect(heardAt(0, chase0.departedAt)).toBe(chase0.departedAt);
+
+    let served = 0;
+    let stale = 0;
+    for (let step = 0; step < 2000; step += 1) {
+      if ((await chaseOf())?.pursuit === undefined) break;
+      /** Le prochain job, ou cinq minutes : on regarde aussi entre deux coudes. */
+      const next = await t.run(async (ctx) =>
+        Math.min(
+          ...(await ctx.db.system.query('_scheduled_functions').collect())
+            .filter((one) => one.state.kind === 'pending')
+            .map((one) => one.scheduledTime),
+        ),
+      );
+      await reach(t, Math.min(next, Date.now() + 5 * MINUTE));
+      const after = await chaseOf();
+      if (after !== null && after.departedAt !== legs.at(-1)!.departedAt) legs.push(after);
       const arc = await arcOf(t, uk, chase0._id);
       if (arc?.destination === undefined) continue;
       served += 1;
-      expect(arc.destination.point).toEqual(heard);
+      const expected = heardTo();
+      if (
+        distanceKm([expected!.lon, expected!.lat], [legs.at(-1)!.to.lon, legs.at(-1)!.to.lat]) > 1
+      )
+        stale += 1;
+      expect(arc.destination.point).toEqual(expected);
     }
-    /** La scène prouve quelque chose : la flotte a tourné hors d'écoute, sous un arc servi. */
-    expect(unheardBends).toBeGreaterThan(0);
+    /** La scène prouve quelque chose : la flotte a tourné hors d'écoute sous un arc servi, et une
+     *  station l'a reprise au milieu d'une jambe, loin de tout coude. */
     expect(served).toBeGreaterThan(0);
+    expect(stale).toBeGreaterThan(0);
+    const late = legs.filter((leg, index) => {
+      const at = heardAt(index, Infinity);
+      return at !== null && at > leg.departedAt;
+    });
+    expect(late.length).toBeGreaterThan(0);
   });
+
   it('10. keeps the destination through the arrival, and forgets it with the last position', async () => {
     const t = boot();
     const { uk, france } = await launchedSeason(t);
