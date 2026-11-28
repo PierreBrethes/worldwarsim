@@ -1,4 +1,4 @@
-<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 7704716 -->
+<!-- Généré par `node scripts/generate-a-mesurer.mjs` depuis les marqueurs `@a-mesurer` — ne pas éditer à la main. Empreinte du contenu source : 5c7fecc -->
 
 # Les constantes à mesurer
 
@@ -113,25 +113,25 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `CRATER_STEPS` | `[10, 40, 100, 250] as const` | `src/domain/battle-traces.ts:17` | ordre de grandeur, sans mesure des pertes d'un combat type |
 | `MAX_CRATERS` | `CRATER_STEPS.length + 1` | `src/domain/battle-traces.ts:18` | ordre de grandeur, sans mesure des pertes d'un combat type |
 | `BLITZ_CROSSING_MINUTES` | `14.4` | `src/domain/blitz.ts:152` | the decision says 15 to 20 minutes, sped up by a quarter; nothing has played one yet |
-| `BOT_ORDERS_PER_TURN` | `2` | `src/domain/bot.ts:278` | combien d'ordres un passage garde ; peu, pour qu'un bot reste facile (ADR 0042 §5). |
-| `BOT_POINT_COLUMN` | `9` | `src/domain/bot.ts:284` | les infanteries d'une colonne qui prend un point neutre. Au banc de `convex` (ADR 0043), |
-| `BOT_ARMY_TARGET` | `BOT_POINT_COLUMN + 3` | `src/domain/bot.ts:289` | l'armée libre (sans la garnison des avant-postes), debout et en file, à partir de |
-| `BOT_FOOD_HORIZON_HOURS` | `12` | `src/domain/bot.ts:295` | le bot nourrit son armée (#652) quand ses vivres tomberont à zéro dans moins de ces |
-| `BOT_HARVEST_MIN` | `40` | `src/domain/bot.ts:297` | sous ce tas, un camion ne part pas le ramasser (ADR 0041) : le trajet coûterait plus. |
-| `BOT_FOOD_LOW` | `60` | `src/domain/bot.ts:298` | sous ce tas, un camion ne part pas le ramasser (ADR 0041) : le trajet coûterait plus. |
-| `BOT_RAISE_RESERVE` | `0.5` | `src/domain/bot.ts:303` | la part de son plafond d'acier que le bot garde après une élévation. Il n'élève |
-| `BOT_POINT_CANDIDATES` | `3` | `src/domain/bot.ts:305` | les points neutres essayés par escouade, du plus proche ; chaque essai coûte une route. |
-| `BOT_HQ_ALERT_KM` | `400` | `src/domain/bot.ts:308` | à moins de ce rayon du QG, un camp relevé est une menace (ADR 0042 §2, urgence). |
-| `BOT_SQUAD_SIZE` | `2` | `src/domain/bot.ts:310` | l'escouade qui avance ; le reste de la garnison tient le QG. |
-| `BOT_ADVANCE_CANDIDATES` | `5` | `src/domain/bot.ts:312` | les régions étrangères essayées par passage, de la plus proche ; chaque essai coûte une route. |
-| `BOT_CONVOY_LOAD` | `100` | `src/domain/bot.ts:314` | ce qu'un camion charge d'un coup, sous sa capacité et le stock. |
-| `BOT_PORT_KM` | `300` | `src/domain/bot.ts:317` | le port se cherche dans les régions nationales à ce rayon du QG, et sur leur côte à ce rayon de leur pôle. |
-| `BOT_LANDING_KM` | `200` | `src/domain/bot.ts:319` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
-| `BOT_LANDING_STEP_KM` | `12.5` | `src/domain/bot.ts:320` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
-| `BOT_LANDING_BEARINGS` | `16` | `src/domain/bot.ts:321` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
-| `BOT_LANDING_CANDIDATES` | `80` | `src/domain/bot.ts:323` | les plages essayées par point neutre, de la plus proche : la plus proche est souvent hors de portée du plein du cargo. |
-| `BOT_LANDING_FOOT_TRIES` | `6` | `src/domain/bot.ts:325` | les routes à pied cherchées par point neutre ; un échec explore toute la grille. |
-| `BOT_TRUCKS_MAX` | `3` | `src/domain/bot.ts:632` | les camions que le bot forme pour ses tas ; au-delà, une tournée refaite les rassemble. |
+| `BOT_ORDERS_PER_TURN` | `2` | `src/domain/bot.ts:305` | combien d'ordres un passage garde ; peu, pour qu'un bot reste facile (ADR 0042 §5). |
+| `BOT_POINT_COLUMN` | `9` | `src/domain/bot.ts:311` | les infanteries d'une colonne qui prend un point neutre. Au banc de `convex` (ADR 0043), |
+| `BOT_ARMY_TARGET` | `BOT_POINT_COLUMN + 3` | `src/domain/bot.ts:316` | l'armée libre (sans la garnison des avant-postes), debout et en file, à partir de |
+| `BOT_FOOD_HORIZON_HOURS` | `12` | `src/domain/bot.ts:322` | le bot nourrit son armée (#652) quand ses vivres tomberont à zéro dans moins de ces |
+| `BOT_HARVEST_MIN` | `40` | `src/domain/bot.ts:324` | sous ce tas, un camion ne part pas le ramasser (ADR 0041) : le trajet coûterait plus. |
+| `BOT_FOOD_LOW` | `60` | `src/domain/bot.ts:325` | sous ce tas, un camion ne part pas le ramasser (ADR 0041) : le trajet coûterait plus. |
+| `BOT_RAISE_RESERVE` | `0.5` | `src/domain/bot.ts:330` | la part de son plafond d'acier que le bot garde après une élévation. Il n'élève |
+| `BOT_POINT_CANDIDATES` | `3` | `src/domain/bot.ts:332` | les points neutres essayés par escouade, du plus proche ; chaque essai coûte une route. |
+| `BOT_HQ_ALERT_KM` | `400` | `src/domain/bot.ts:335` | à moins de ce rayon du QG, un camp relevé est une menace (ADR 0042 §2, urgence). |
+| `BOT_SQUAD_SIZE` | `2` | `src/domain/bot.ts:337` | l'escouade qui avance ; le reste de la garnison tient le QG. |
+| `BOT_ADVANCE_CANDIDATES` | `5` | `src/domain/bot.ts:339` | les régions étrangères essayées par passage, de la plus proche ; chaque essai coûte une route. |
+| `BOT_CONVOY_LOAD` | `100` | `src/domain/bot.ts:341` | ce qu'un camion charge d'un coup, sous sa capacité et le stock. |
+| `BOT_PORT_KM` | `300` | `src/domain/bot.ts:344` | le port se cherche dans les régions nationales à ce rayon du QG, et sur leur côte à ce rayon de leur pôle. |
+| `BOT_LANDING_KM` | `200` | `src/domain/bot.ts:346` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
+| `BOT_LANDING_STEP_KM` | `12.5` | `src/domain/bot.ts:347` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
+| `BOT_LANDING_BEARINGS` | `16` | `src/domain/bot.ts:348` | jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. |
+| `BOT_LANDING_CANDIDATES` | `80` | `src/domain/bot.ts:350` | les plages essayées par point neutre, de la plus proche : la plus proche est souvent hors de portée du plein du cargo. |
+| `BOT_LANDING_FOOT_TRIES` | `6` | `src/domain/bot.ts:352` | les routes à pied cherchées par point neutre ; un échec explore toute la grille. |
+| `BOT_TRUCKS_MAX` | `3` | `src/domain/bot.ts:659` | les camions que le bot forme pour ses tas ; au-delà, une tournée refaite les rassemble. |
 | `STALE_MARGIN_MS` | `30_000` | `src/domain/combat-on-map.ts:28` | un |
 | `FINAL_POSE_MS` | `STEP_MS['compte-rendu']` | `src/domain/combat-on-map.ts:32` | le temps du compte-rendu, assez pour lire qui reste debout ? |
 | `REPORT_HOLD_MS` | `STEP_MS['compte-rendu'] + 6000` | `src/domain/combat-on-map.ts:200` | le temps de lire « nos pièces » et de l'ouvrir. |
@@ -204,7 +204,7 @@ exhaustive par table. Le registre sert les valeurs que rien ne mesure encore.
 | `STRIKE_MS` | `1600` | `src/domain/replay.ts:265` | l'étiquette de places se barre 1,6 s après le début de la coulée (storyboard : `sink[0] + 1,6`) |
 | `DRY_SOON_HOURS` | `24` | `src/domain/resource-band.ts:72` | a day ahead: one evening's glance covers the night. |
 | `COST_BY_MEDIUM` | `{ land: 1.6, landMotorized: 1.15, sea: 1.0 }` | `src/domain/routing.ts:93` | relative prices chosen for their ordering; only the foot pace behind them is measured |
-| `THREAD_PIECE_CELLS` | `2` | `src/domain/routing.ts:978` | measured against the medium on 340 routes (#231), not against a play need |
+| `THREAD_PIECE_CELLS` | `2` | `src/domain/routing.ts:1026` | measured against the medium on 340 routes (#231), not against a play need |
 | `CONTESTED_FLAME_AT` | `0.42` | `src/domain/strategic-mast.ts:20` | lavis.html (cap #668): where a contested flame sits on the mast |
 | `MAST_UNITS` | `{ height: 0.46, flame: 0.6 * 0.32, baseRadius: 0.17 }` | `src/domain/strategic-mast.ts:35` | lavis.html (cap #668): `flame` (0.6 x 0.32 of the mast) and `baseRadius` |
 | `MAST_PX` | `{ near: 56, nearDistance: 53, far: 30, farDistance: 136, phone: 0.7, baseMinShare: 0.16 }` | `src/domain/strategic-mast.ts:46` | lavis.html (cap #668): `near` (floor up to |
