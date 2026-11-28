@@ -837,7 +837,13 @@ async function refusalFor(
   const reached = isReached(lonLat, region, sites);
   const hqDisabled = hqDisabledIn(buildings, Date.now());
 
-  if (building === 'hq' && buildings.some((held) => held.key === 'hq' && held !== standing)) {
+  /** Un QG capturé n'est pas le sien (ADR 0048 §4), comme pour le fantôme (`spotAt.already`). */
+  if (
+    building === 'hq' &&
+    buildings.some(
+      (held) => held.key === 'hq' && held.capturedAt === undefined && held !== standing,
+    )
+  ) {
     return { code: 'HQ_ALREADY_BUILT' };
   }
 

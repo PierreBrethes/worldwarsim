@@ -1075,6 +1075,29 @@ describe('placement', () => {
     ).rejects.toThrow('HQ_ALREADY_BUILT');
   });
 
+  /** **Un QG capturé n'est pas le sien** (ADR 0048 §4) : l'ancien QG repris ne barre pas la pose,
+   *  comme il ne la barre pas au fantôme (`spotAt.already`). */
+  it('does not count a captured headquarters as his own', async () => {
+    const t = boot();
+    const seat = await launchedSeason(t);
+    await t.run(async (ctx) => {
+      const hq = (await ctx.db.query('buildings').collect()).find((held) => held.key === 'hq')!;
+      await ctx.db.patch(hq._id, { capturedAt: Date.now() });
+    });
+    const refused = await t
+      .mutation(api.constructions.start, {
+        ...seat,
+        building: 'hq',
+        regionId: ARDENNES,
+        point: pointIn(ARDENNES),
+      })
+      .then(
+        () => null,
+        (error: unknown) => String(error),
+      );
+    expect(refused ?? '').not.toContain('HQ_ALREADY_BUILT');
+  });
+
   /** Abroad without an outpost, the refusal names the reach rather than falling silent —
    *  `movements.test.ts` holds the other half, the region an outpost does open. */
   it('refuses to build outside the nation with no outpost in reach', async () => {

@@ -607,7 +607,13 @@ async function conclude(
    *  (`leaveTheWar`, plus bas). En Blitz il emporte tout : ses bâtiments passent au capteur,
    *  ses troupes disparaissent. En Mondiale le capteur ne prend que le QG et le stock au-dessus
    *  du seuil scellé ; le reste passe au siège irrégulier (`toIrregulars`). */
-  const falls = isBuilding(site) && site.homeOf === loser._id;
+  /** Son ancien QG repris porte encore `homeOf`, mais il est une prise (`capturedAt`) : le
+   *  reperdre ne fait pas tomber le QG relevé debout (ADR 0048 §6). En Blitz, le QG de départ
+   *  porte un `capturedAt` dès sa pose (`blitz.place`), et rien ne s'y relève. */
+  const falls =
+    isBuilding(site) &&
+    site.homeOf === loser._id &&
+    (mode === 'blitz' || site.capturedAt === undefined);
   /** Les sièges dont un détecteur change : le capteur — la saisie peut rallumer ses stations —,
    *  le défenseur, et le siège irrégulier qui hérite d'un vaincu. */
   const touched = [capture.playerId, loser._id];

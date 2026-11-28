@@ -1487,6 +1487,76 @@ describe('a Mondiale headquarters', () => {
     );
     expect((await playerOf(t, seat)).defeated).not.toBe(true);
   });
+
+  /** **Le QG relevé** (ADR 0048 §6) : posé sur son sol avec `homeOf`, l'ancien repris porte un
+   *  `capturedAt`. Ni l'un ni l'autre ne passe encore par une partie : la relève vient à #738. */
+  async function raisedBeside(t: Bench, seat: Seat, hq: Doc<'buildings'>) {
+    const owner = await playerOf(t, seat);
+    return t.run((ctx) =>
+      ctx.db.insert('buildings', {
+        seasonId: owner.seasonId,
+        playerId: owner._id,
+        key: 'hq',
+        regionId: PSKOV,
+        point: pointOfRegion(PSKOV),
+        level: 1,
+        outpostId: null,
+        homeOf: hq.homeOf!,
+      }),
+    );
+  }
+
+  it('does not fall again when its player took his old headquarters back and loses it', async () => {
+    const t = boot();
+    const { seat, guest } = await threeAtTable(t);
+    const old = await headquartersOf(t, guest);
+    const raised = await raisedBeside(t, guest, old);
+    await t.run((ctx) => ctx.db.patch(old._id, { capturedAt: MIDDAY - HOUR }));
+
+    await take(t, seat, old);
+    await finish(t);
+
+    const loser = await playerOf(t, guest);
+    expect(loser.defeated).not.toBe(true);
+    expect((await t.run((ctx) => ctx.db.get(raised)))!.playerId).toBe(loser._id);
+  });
+
+  it('falls again once raised: the raised headquarters is his home', async () => {
+    const t = boot();
+    const { seat, guest } = await threeAtTable(t);
+    const old = await headquartersOf(t, guest);
+    const winner = await playerOf(t, seat);
+    await t.run((ctx) =>
+      ctx.db.patch(old._id, { playerId: winner._id, capturedAt: MIDDAY - HOUR }),
+    );
+    const raisedId = await raisedBeside(t, guest, old);
+    const raised = (await t.run((ctx) => ctx.db.get(raisedId)))!;
+    const loser = await playerOf(t, guest);
+    await t.run(async (ctx) => {
+      const food = (
+        await ctx.db
+          .query('resources')
+          .withIndex('byPlayer', (q) => q.eq('playerId', loser._id))
+          .collect()
+      ).find((row) => row.key === 'food')!;
+      await ctx.db.patch(food._id, { stock: 1000, updatedAt: MIDDAY });
+    });
+
+    await take(t, seat, raised);
+    await finish(t);
+
+    const food = await t.run(
+      async (ctx) =>
+        (
+          await ctx.db
+            .query('resources')
+            .withIndex('byPlayer', (q) => q.eq('playerId', loser._id))
+            .collect()
+        ).find((row) => row.key === 'food')!.stock,
+    );
+    expect((await t.run((ctx) => ctx.db.get(raised._id)))!.playerId).toBe(winner._id);
+    expect(food).toBeLessThanOrEqual(400);
+  });
 });
 
 /**
