@@ -277,3 +277,26 @@ export function marchScheduleOf(
     },
   };
 }
+
+/** Les largeurs d'une étiquette d'heure (« 11 h ») et de l'air qu'elle garde, en pixels d'écran :
+ *  mesurées sur la règle de la feuille. @a-mesurer */
+const HOUR_LABEL_PX = 29;
+const HOUR_LABEL_AIR = 24;
+
+/**
+ * **Les heures que la règle étiquette**, d'après le pas d'une heure en pixels d'écran (`0` : pas
+ * encore mesuré, toutes). L'heure 1 ferme la zone teintée et la 12 ferme la règle : elles se lisent
+ * toujours, et quand deux voisines se chevaucheraient, celle de 12 h gagne. Sous un pas de deux
+ * étiquettes, une sur deux.
+ */
+export function hourLabelsOf(hourStepPx: number): ReadonlyArray<number> {
+  const hours = Array.from({ length: 12 }, (_, rank) => rank + 1);
+  if (hourStepPx <= 0) return hours;
+  const thin = hourStepPx < 2 * HOUR_LABEL_PX + 4;
+  return hours.filter((hour) => {
+    if (hour === 1 || hour === 12) return true;
+    // « 12 h » est calée sur le bord, « 11 h » sur son trait : un pas court les superpose.
+    if (hour === 11 && hourStepPx < 2 * HOUR_LABEL_PX + HOUR_LABEL_AIR) return false;
+    return !thin || hour % 2 === 0;
+  });
+}

@@ -3,6 +3,7 @@ import {
   FIRST_HOUR_SHARE,
   MARCH_FIRST_HOUR_MS,
   MARCH_HORIZON_MS,
+  hourLabelsOf,
   marchIdleOf,
   marchScheduleOf,
   positionOf,
@@ -327,5 +328,22 @@ describe('positionOf', () => {
   it('holds at the ends: nothing before now, nothing past the horizon', () => {
     expect(positionOf(-HOUR)).toBe(0);
     expect(positionOf(MARCH_HORIZON_MS * 3)).toBe(1);
+  });
+});
+
+describe('hourLabelsOf', () => {
+  it('labels every hour when nothing is measured or the step is wide', () => {
+    expect(hourLabelsOf(0)).toHaveLength(12);
+    expect(hourLabelsOf(120)).toHaveLength(12);
+  });
+
+  it('lets 12 h win over 11 h when their labels would touch, and keeps 1 h and 12 h always', () => {
+    const at75 = hourLabelsOf(75);
+    expect(at75).toContain(12);
+    expect(at75).not.toContain(11);
+    expect(at75).toContain(10);
+    expect(at75).toContain(1);
+    const narrow = hourLabelsOf(50);
+    expect(narrow).toEqual([1, 2, 4, 6, 8, 10, 12]);
   });
 });

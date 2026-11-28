@@ -11,6 +11,7 @@ import { asClockTime, asDatedClock, asSpan } from '@/domain/duration';
 import {
   MARCH_FIRST_HOUR_MS,
   MARCH_HORIZON_MS,
+  hourLabelsOf,
   marchIdleOf,
   positionOf,
   type MarchSchedule,
@@ -174,12 +175,8 @@ export function MarchSheet({
   const refusal = slotsRefusalOf(view.me.slots, lines);
 
   const hours = Array.from({ length: 12 }, (_, rank) => rank + 1);
-  // Une étiquette sur deux quand le pas d'une heure passe sous 72 px d'écran : « 11 h » et « 12 h »,
-  // de 29 px chacune avec leur air, se chevauchent déjà à 68 px. @a-mesurer
   const hourStep = (trackWidth * (1 - positionOf(MARCH_FIRST_HOUR_MS))) / 11;
-  const thin = trackWidth > 0 && hourStep < 72;
-  /** L'heure 1 ferme la zone teintée, la 12 ferme la règle : elles se lisent toujours. */
-  const labelled = (hour: number) => hour === 1 || hour === 12 || !thin || hour % 2 === 0;
+  const labelledHours = hourLabelsOf(hourStep);
 
   const editionAt = schedule.edition;
   const editionFraction = editionAt === null ? null : at(editionAt);
@@ -231,7 +228,7 @@ export function MarchSheet({
             ))}
           {hours.map(
             (hour) =>
-              labelled(hour) &&
+              labelledHours.includes(hour) &&
               (hour === 12 || !underChip(positionOf(hour * 3_600_000))) && (
                 <span
                   key={hour}
