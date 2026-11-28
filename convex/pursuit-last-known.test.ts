@@ -2,9 +2,12 @@ import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
-import { distanceKm } from '../src/domain/geo';
+import { distanceKm, type LonLat } from '../src/domain/geo';
+import { INTERCEPTION_SAMPLES, positionAt } from '../src/domain/interception';
+import { seenSegment } from '../src/domain/sighting-segment';
 import type { Nation, UnitRole } from '../src/domain/ids';
-import { nominalStrength } from './constants';
+import { LISTENING_STATION_RADIUS_KM, nominalStrength } from './constants';
+import { marchingForce } from './movement/detection';
 import { capitalRegionOf, pointOfRegion, regionFacts } from './regions';
 import schema from './schema';
 import { fileSurvey } from './surveys';
@@ -211,6 +214,52 @@ const stretchOf = ({ from, to, points, legs, headingDegrees, seenFrom, seenTo }:
   seenFrom,
   seenTo,
 });
+
+/**
+ * **La poursuite de la flotte française sur le cargo allemand**, plein ouest de l'Atlantique : la
+ * même partie à chaque appel, les stations de `listening` posées avant tout départ. Rend les
+ * sièges, la flotte, et le mouvement de la poursuite.
+ */
+async function atlanticChase(
+  t: Bench,
+  listening: ReadonlyArray<{ lon: number; lat: number }> = [],
+) {
+  const seats = await launchedSeason(t, ['france', 'germany', 'italy'] as const);
+  for (const point of listening) await station(t, seats.italy, point);
+  const FR = { lon: -19.5, lat: 45 };
+  const DE = { lon: -17.3, lat: 45 };
+  const hunters = [
+    await postAt(t, seats.france, 'carrier', FR),
+    await postAt(t, seats.france, 'escort', FR),
+  ];
+  const cargo = await postAt(t, seats.germany, 'cargo', DE);
+  await t.mutation(api.movements.marchTo, {
+    ...seats.germany,
+    origin: { kind: 'point', point: DE },
+    troopIds: [cargo],
+    point: { lon: -8, lat: 45 },
+  });
+  const track = (await arcsOf(t, seats.france)).find((arc) => arc.seenTo >= Date.now())!;
+  await t.mutation(api.movements.attack, {
+    ...seats.france,
+    origin: { kind: 'point', point: FR },
+    troopIds: hunters,
+    target: { kind: 'track', movementId: track.id as Id<'movements'> },
+  });
+  const chase = (await movementCarrying(t, hunters[0]!))!;
+  return { ...seats, chase };
+}
+
+/** Le point du parallèle de `at`, à l'ouest, à `km` de lui. */
+function westOf(at: LonLat, km: number): { lon: number; lat: number } {
+  let [near, far] = [0, 10];
+  for (let step = 0; step < 60; step += 1) {
+    const middle = (near + far) / 2;
+    if (distanceKm(at, [at[0] - middle, at[1]]) < km) near = middle;
+    else far = middle;
+  }
+  return { lon: at[0] - (near + far) / 2, lat: at[1] };
+}
 
 describe('the last known position of a column rewritten in place (#727)', () => {
   beforeEach(() => {
@@ -516,5 +565,53 @@ describe('the last known position of a column rewritten in place (#727)', () => 
     );
     expect((await t.run((ctx) => ctx.db.get(movementId)))?.heldAt).toBe(outbound.arrivesAt);
     expect((await arcsOf(t, germany)).find((arc) => arc.id === movementId)).toEqual(seen);
+  });
+  /**
+   * **Le coude qui ferme la fenêtre** : la station italienne posée pour que la flotte, à son
+   * premier coude, soit au bord de son rayon. La route d'avant y restait encore un échantillon, la
+   * route neuve en sort au suivant : la réévaluation du coude clôt la fenêtre à l'instant même, et
+   * c'est le gel d'après qui la garde, sur la route d'avant.
+   */
+  it('keeps the route of a window the bend itself closes', async () => {
+    /** Une première partie, sans la station, dit où et quand le premier coude tombe. */
+    const dry = boot();
+    const { chase: before } = await atlanticChase(dry);
+    await reach(dry, before.pursuit!.checkAt);
+    const bent = (await dry.run((ctx) => ctx.db.get(before._id)))!;
+    const now = bent.departedAt;
+    expect(now).toBe(before.pursuit!.checkAt);
+    const oldForce = marchingForce(before);
+    const here = positionAt(oldForce, now);
+    const oldStep = (before.arrivesAt - before.departedAt) / INTERCEPTION_SAMPLES;
+    const oldNext =
+      before.departedAt + Math.floor((now - before.departedAt) / oldStep + 1) * oldStep;
+    const oldAhead = distanceKm(here, positionAt(oldForce, oldNext));
+    const newStep = (bent.arrivesAt - now) / INTERCEPTION_SAMPLES;
+    const newAhead = distanceKm(here, positionAt(marchingForce(bent), now + newStep));
+    /** Les deux routes filent à l'est sur le même parallèle : la route d'avant tient son
+     *  échantillon suivant dans le rayon, la neuve sort au sien. */
+    expect(oldAhead).toBeLessThan(newAhead);
+    const edge = LISTENING_STATION_RADIUS_KM - (oldAhead + newAhead) / 2;
+
+    vi.clearAllTimers();
+    vi.setSystemTime(MIDDAY);
+    const t = boot();
+    const { italy, chase } = await atlanticChase(t, [westOf(here, edge)]);
+    expect(chase.departedAt).toBe(before.departedAt);
+    const open = (await arcsOf(t, italy)).find((arc) => arc.id === chase._id)!;
+    expect(open.seenTo).toBeGreaterThan(now);
+    await reach(t, now);
+    expect((await t.run((ctx) => ctx.db.get(chase._id)))!.departedAt).toBe(now);
+
+    const row = await rowOf(t, italy, chase._id);
+    expect(row.seenOn).toMatchObject({ from: open.seenFrom, to: now });
+    const seen = seenSegment(oldForce, open.seenFrom, now);
+    const arc = (await arcsOf(t, italy)).find((one) => one.id === chase._id)!;
+    expect(arc).toMatchObject({
+      seenTo: now,
+      points: seen.points.map(([lon, lat]) => ({ lon, lat })),
+      headingDegrees: seen.headingDegrees,
+      arrivesAt: before.arrivesAt,
+    });
   });
 });

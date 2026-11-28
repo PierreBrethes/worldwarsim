@@ -1292,6 +1292,9 @@ export const arrive = internalMutation({
 
     const held = await restHold(ctx, movement.playerId, movement.hostCountry, now);
     if (held !== null) {
+      /** À l'arrivée, toute fenêtre de la marche est close : qui l'a perdue en route garde
+       *  l'heure qu'il a vue (#727). */
+      await keepSeenRoutes(ctx, movement, now);
       await ctx.db.patch(movementId, { arrivesAt: held, heldAt: now });
       /** Retenue par le repos, la colonne ne s'arrête qu'à `held` : le plein se compte d'alors. */
       for (const troopId of movement.troopIds) await ctx.db.patch(troopId, { fuelAt: held });
@@ -1308,8 +1311,6 @@ export const arrive = internalMutation({
       });
       /** Retenue, la colonne reste plus longtemps au bout de son fil : rien d'autre ne bouge. */
       await reassessDetection(ctx, movement.seasonId, now, movement.playerId);
-      /** Ni l'heure de qui l'a perdue en route (#727). */
-      await keepSeenRoutes(ctx, movement, now);
       return;
     }
 
