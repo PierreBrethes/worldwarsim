@@ -1214,6 +1214,8 @@ type NoticeBody =
       /** Hong Kong : la copie de son teneur seul, avec le détenteur d'avant (absent : neutre). */
       readonly hongKong?: true;
       readonly from?: string;
+      /** Le teneur d'avant (#702) : `null` s'il était neutre ; absent des dépêches d'avant. */
+      readonly former?: string | null;
     }
   /** **Hong Kong lit une capture** de bâtiment ou d'avant-poste : qui, quoi, où. */
   | {
@@ -1449,6 +1451,9 @@ export type JournalDispatch = {
     readonly key: StrategicPointKey;
     readonly nation: string;
     readonly held: number;
+    /** **Le teneur d'avant** (#702) : la flamme du rejeu descend à son encre. `null` : il était
+     *  neutre ; absent : la dépêche d'avant ne le dit pas. */
+    readonly from?: string | null;
   };
 };
 

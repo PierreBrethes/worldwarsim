@@ -7,6 +7,7 @@ export const noGeography: Pick<
   | 'coastalAt'
   | 'walkableAt'
   | 'landRoute'
+  | 'landRouteToNearest'
   | 'regions'
   | 'nearestRegionId'
   | 'coastNear'
@@ -15,6 +16,7 @@ export const noGeography: Pick<
   coastalAt: () => false,
   walkableAt: () => true,
   landRoute: () => null,
+  landRouteToNearest: (_from, to) => ({ km: null, blocked: to.map((_, index) => index) }),
   regions: [],
   nearestRegionId: () => null,
   coastNear: () => null,

@@ -2,7 +2,7 @@ import { nationInk } from './nations';
 import type { StrategicPointView } from './player-view';
 
 /** Neutral point: white flame and fringe. */
-const NEUTRAL_INK = '#ffffff';
+export const NEUTRAL_INK = '#ffffff';
 
 /**
  * What a strategic point's mast shows, read from its view and nothing else: no name, no nation,

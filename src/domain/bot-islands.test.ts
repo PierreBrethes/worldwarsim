@@ -42,7 +42,7 @@ const idle: BotWorkshop = {
 const LISBON = [-9.14, 38.72] as const;
 
 const viewOf = (
-  nation: 'france' | 'uk',
+  nation: 'france' | 'uk' | 'japan',
   extra: Record<string, unknown> = {},
   built: Array<{ id: string; key: BuildingKey }> = [],
 ) => {
@@ -109,6 +109,32 @@ const neutral = {
   strategicPoints: [
     { id: 'sp-lisbon', point: LISBON, holder: null, mine: false, contested: false },
   ],
+};
+
+const EIGHT_POINTS = [
+  [-9.14, 38.72],
+  [12.5, 41.9],
+  [2.35, 48.85],
+  [-3.7, 40.4],
+  [23.7, 37.98],
+  [28.97, 41.0],
+  [-6.26, 53.35],
+  [10.75, 59.9],
+].map((point, rank) => ({
+  id: `sp-${rank}`,
+  point,
+  holder: null,
+  mine: false,
+  contested: false,
+}));
+
+/** Le quai que le bot pose, tel que l'ordre le dit. */
+const portOf = (nation: 'uk' | 'japan', strategicPoints: unknown[]) => {
+  const view = viewOf(nation, { strategicPoints }, [{ id: 'b-1', key: 'barracks' }]);
+  const order = decideTurn(context(view)).find(
+    (candidate) => candidate.fn === 'constructions.start',
+  );
+  return order === undefined ? null : order.args;
 };
 
 describe("le bot d'une île", () => {
@@ -191,5 +217,33 @@ describe("le bot d'une île", () => {
       const arcs = [{ state: 'mine', troopIds: ['c-1'] }];
       expect(recruitsCargo(turnFor([...infantry(BOT_POINT_COLUMN), hull], arcs))).toBe(false);
     }, 60_000);
+  });
+
+  describe('le port choisi ne dépend pas de la façon de chercher (#728)', () => {
+    it('Londres, un point neutre', () => {
+      expect(portOf('uk', neutral.strategicPoints)).toEqual({
+        building: 'port',
+        regionId: 'GBR-2048',
+        point: { lon: -3.4591651628630666, lat: 50.67822585567351 },
+      });
+    }, 120_000);
+
+    it('Londres, huit points neutres', () => {
+      expect(portOf('uk', EIGHT_POINTS)).toEqual({
+        building: 'port',
+        regionId: 'GBR-2105',
+        point: { lon: -4.13371447086743, lat: 52.33737607528467 },
+      });
+    }, 120_000);
+
+    // Le port suit la route la moins chère (coût pondéré, la mer coûte moins que la terre), que le
+    // cargo emprunte, et non la plus courte en km : avant #728 Tokyo choisissait JPN-1867.
+    it('Tokyo, huit points neutres', () => {
+      expect(portOf('japan', EIGHT_POINTS)).toEqual({
+        building: 'port',
+        regionId: 'JPN-1845',
+        point: { lon: 138.3292302762525, lat: 34.853488892547844 },
+      });
+    }, 120_000);
   });
 });

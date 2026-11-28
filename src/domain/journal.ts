@@ -685,7 +685,14 @@ function written(notice: Notice, viewerNation: string | null): Written {
             : fr.points.taken(nationName(notice.nation), notice.key),
         ...(notice.held === undefined
           ? {}
-          : { point: { key: notice.key, nation: notice.nation, held: notice.held } }),
+          : {
+              point: {
+                key: notice.key,
+                nation: notice.nation,
+                held: notice.held,
+                ...(notice.former === undefined ? {} : { from: notice.former }),
+              },
+            }),
       };
     case 'captureDispatch':
       return {

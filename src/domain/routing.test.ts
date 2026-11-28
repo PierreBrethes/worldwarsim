@@ -14,6 +14,7 @@ import {
   coastCellsIn,
   computeRoute,
   computeRouteToAny,
+  computeRouteToNearest,
   decodeGrid,
   type GridWorld,
   type RouteMode,
@@ -861,5 +862,75 @@ describe('the thread follows the pile', () => {
       Math.floor((x - baked.sphere.minX) / baked.step);
     const search = computeRouteToAny(baked, from, new Set([goal]), 'naval')!;
     expect(search.rawPoints[0]).toEqual(from);
+  });
+});
+
+/**
+ * **Une recherche pour plusieurs buts** (#728) : sur la vraie grille, `computeRouteToNearest` rend
+ * ce que `computeRoute` rendrait vers le but qu'elle retient, et dit les buts qu'il refuse d'emblée.
+ */
+describe('computeRouteToNearest', () => {
+  const baked = decodeGrid(gridAsset, projectionAsset as unknown as Projection);
+  const BREST: LonLat = [-4.5, 48.4];
+  const PARIS: LonLat = [2.35, 48.85];
+  const LISBON: LonLat = [-9.14, 38.72];
+  const MADRID: LonLat = [-3.7, 40.4];
+  const ROME: LonLat = [12.5, 41.9];
+  const TOKYO: LonLat = [139.69, 35.69];
+  const VICTORIA: LonLat = [32.9, -1.3];
+  const SUPERIOR: LonLat = [-87.5, 47.5];
+  const ATLANTIC: LonLat = [-30, 40];
+
+  it('lists a lake among the refused goals and still joins the others', () => {
+    const { best, blocked } = computeRouteToNearest(baked, BREST, [VICTORIA, MADRID], 'combined');
+    expect(blocked).toEqual([0]);
+    expect(best?.index).toBe(1);
+  });
+
+  it('refuses open water as a goal in land mode', () => {
+    const { best, blocked } = computeRouteToNearest(baked, PARIS, [ATLANTIC, MADRID], 'land');
+    expect(blocked).toEqual([0]);
+    expect(best?.index).toBe(1);
+  });
+
+  it('refuses an inland end in naval mode', () => {
+    const { best, blocked } = computeRouteToNearest(baked, BREST, [MADRID, ATLANTIC], 'naval');
+    expect(blocked).toEqual([0]);
+    expect(best?.index).toBe(1);
+  });
+
+  it('joins nothing when every goal is refused: no best, all blocked', () => {
+    expect(computeRouteToNearest(baked, BREST, [VICTORIA, SUPERIOR], 'combined')).toEqual({
+      best: null,
+      blocked: [0, 1],
+    });
+  });
+
+  it('prices the winner as computeRoute does toward that goal', () => {
+    const goals = [LISBON, MADRID, ROME];
+    for (const from of [PARIS, BREST]) {
+      const { best } = computeRouteToNearest(baked, from, goals, 'combined');
+      expect(best).not.toBeNull();
+      const alone = computeRoute(baked, from, goals[best!.index]!, 'combined');
+      expect(best!.route.distanceUnits).toBe(alone!.distanceUnits);
+    }
+  });
+
+  it('keeps the least distance among goals that fall in one cell', () => {
+    const near: LonLat = [-3.701, 40.401];
+    const { best } = computeRouteToNearest(baked, PARIS, [MADRID, near], 'combined');
+    const each = [MADRID, near].map(
+      (goal) => computeRoute(baked, PARIS, goal, 'combined')!.distanceUnits,
+    );
+    expect(best!.route.distanceUnits).toBe(Math.min(...each));
+  });
+
+  it('never beats the straight line: the floor the port search sorts by', () => {
+    const goals = [LISBON, MADRID, ROME, TOKYO];
+    for (const from of [PARIS, BREST, LISBON]) {
+      const { best } = computeRouteToNearest(baked, from, goals, 'combined');
+      const floor = Math.min(...goals.map((goal) => distanceKm(from, goal)));
+      expect(floor).toBeLessThanOrEqual(kmOf(best!.route.distanceUnits));
+    }
   });
 });

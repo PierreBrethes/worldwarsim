@@ -60,6 +60,7 @@ import { currentStock, type Building, type PlayerView, type TroopView } from './
 import { decodeRegionRaster, type RegionRasterAsset } from './region-raster';
 import {
   computeRoute,
+  computeRouteToNearest,
   decodeGrid,
   isWalkableCell,
   kmOf,
@@ -200,6 +201,15 @@ export type BotWorld = {
     to: LonLat,
     roles: ReadonlyArray<UnitRole>,
   ) => { readonly km: number } | null;
+  /**
+   * La plus courte des routes vers l'un de ces points, en une recherche : sa longueur, ou `null`
+   * quand aucun ne se joint ; `blocked` dit les points que `landRoute` refuserait d'emblée.
+   */
+  readonly landRouteToNearest: (
+    from: LonLat,
+    to: ReadonlyArray<LonLat>,
+    roles: ReadonlyArray<UnitRole>,
+  ) => { readonly km: number | null; readonly blocked: ReadonlyArray<number> };
   /** Toutes les régions de `region-index.json`, pour viser une région étrangère. */
   readonly regions: ReadonlyArray<{
     readonly id: string;
@@ -233,6 +243,7 @@ export function worldFrom(files: BotWorldFiles): BotWorld {
   const raster = decodeRegionRaster(files.regionGrid, files.projection);
   const { country, point: pole } = files.regionIndex;
   const routes = new Map<string, { readonly km: number } | null>();
+  const nearest = new Map<string, ReturnType<BotWorld['landRouteToNearest']>>();
   const regions = Object.keys(pole).flatMap((id) =>
     country[id] === undefined ? [] : [{ id, country: country[id]!, point: pole[id]! }],
   );
@@ -251,6 +262,22 @@ export function worldFrom(files: BotWorldFiles): BotWorld {
       const found = route === null ? null : { km: kmOf(route.distanceUnits) };
       if (routes.size >= ROUTE_MEMO) routes.clear();
       routes.set(key, found);
+      return found;
+    },
+    landRouteToNearest: (from, to, roles) => {
+      const key = `${from.join(',')}>${to.map((point) => point.join(',')).join(';')}|${routeModeOf(roles)}|${landCostOf(roles)}`;
+      const known = nearest.get(key);
+      if (known !== undefined) return known;
+      const { best, blocked } = computeRouteToNearest(
+        grid,
+        from,
+        to,
+        routeModeOf(roles),
+        landCostOf(roles),
+      );
+      const found = { km: best === null ? null : kmOf(best.route.distanceUnits), blocked };
+      if (nearest.size >= ROUTE_MEMO) nearest.clear();
+      nearest.set(key, found);
       return found;
     },
     regions,
@@ -315,6 +342,8 @@ const BOT_CONVOY_LOAD = 100;
 
 /** @a-mesurer : le port se cherche dans les régions nationales à ce rayon du QG, et sur leur côte à ce rayon de leur pôle. */
 const BOT_PORT_KM = 300;
+/** Le grand cercle peut dépasser les km projetés de la grille d'environ 0,2 % à l'équateur : la borne basse d'une côte garde cette marge. */
+const FLOOR_SLACK = 1.01;
 /** @a-mesurer : jusqu'où d'un point neutre on cherche une plage, de demi-maille (la grille fait 25 km) en demi-maille. */
 const BOT_LANDING_KM = 200;
 const BOT_LANDING_STEP_KM = 12.5;
@@ -1205,26 +1234,41 @@ function portSite({ view, world }: BotContext): { regionId: string; point: LonLa
   const reaches = reachesOf(view, () => 0);
   const goals = neutralPoints(view);
   // La mer n'est pas la ligne droite : une île a sa bonne côte, que la route de mer du cargo dit.
-  const gap = (point: LonLat) =>
+  // Le repli `2×distance` ne vaut que pour un point refusé d'emblée (`blocked`) ou si aucun ne se
+  // joint ; un point que la recherche ne joint pas, quand un autre l'est, n'a plus de repli (#728).
+  const gap = (point: LonLat) => {
+    const { km, blocked } = world.landRouteToNearest(
+      point,
+      goals.map((goal) => goal.point),
+      ['cargo', 'infantry'],
+    );
+    return Math.min(
+      km ?? Number.POSITIVE_INFINITY,
+      ...blocked.map((index) => distanceKm(point, goals[index]!.point) * 2),
+    );
+  };
+  // Une route ne raccourcit pas la droite : la droite borne le trajet par le bas, et une côte qui
+  // ne peut plus battre la meilleure se saute sans chercher.
+  const floor = (point: LonLat) =>
     goals.length === 0
       ? distanceKm(point, hq.point)
-      : Math.min(
-          ...goals.map(
-            (goal) =>
-              world.landRoute(point, goal.point, ['cargo', 'infantry'])?.km ??
-              distanceKm(point, goal.point) * 2,
-          ),
-        );
-  let best: { regionId: string; point: LonLat; km: number } | null = null;
-  for (const region of world.regions.filter(
-    (candidate) =>
-      candidate.country === home && distanceKm(candidate.point, hq.point) <= BOT_PORT_KM,
-  )) {
-    const shore = world.coastNear(region.point, BOT_PORT_KM, region.id);
-    // Un quai où l'infanterie ne marche pas ne serait jamais chargé : la garnison doit pouvoir y venir à pied.
-    if (shore === null || !world.walkableAt(shore) || !world.carriesBuilding(shore)) continue;
-    const km = gap(shore);
-    if (best !== null && km >= best.km) continue;
+      : Math.min(...goals.map((goal) => distanceKm(point, goal.point)));
+  const coasts = world.regions
+    .flatMap((candidate, rank) => {
+      if (candidate.country !== home || distanceKm(candidate.point, hq.point) > BOT_PORT_KM)
+        return [];
+      const shore = world.coastNear(candidate.point, BOT_PORT_KM, candidate.id);
+      // Un quai où l'infanterie ne marche pas ne serait jamais chargé : la garnison doit pouvoir y venir à pied.
+      if (shore === null || !world.walkableAt(shore) || !world.carriesBuilding(shore)) return [];
+      return [{ region: candidate, shore, rank, floor: floor(shore) }];
+    })
+    .sort((a, b) => a.floor - b.floor || a.rank - b.rank);
+  let best: { regionId: string; point: LonLat; km: number; rank: number } | null = null;
+  for (const { region, shore, rank, floor: bound } of coasts) {
+    if (best !== null && bound > best.km * FLOOR_SLACK) break;
+    const km = goals.length === 0 ? bound : gap(shore);
+    // À égalité, la première région de `world.regions` l'emporte.
+    if (best !== null && (km > best.km || (km === best.km && rank > best.rank))) continue;
     const aim: Aim = {
       lonLat: shore,
       region: { id: region.id, name: '', country: region.country },
@@ -1235,7 +1279,7 @@ function portSite({ view, world }: BotContext): { regionId: string; point: LonLa
       aimVerdict(view, 'port', aim, reaches).refusal === null &&
       world.landRoute(hq.point, shore, ['infantry']) !== null
     )
-      best = { regionId: region.id, point: shore, km };
+      best = { regionId: region.id, point: shore, km, rank };
   }
   return best === null ? null : { regionId: best.regionId, point: best.point };
 }

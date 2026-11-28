@@ -1015,10 +1015,20 @@ export const reviewScene = internalMutation({
  * tombées depuis, en couronne autour de sa capitale ; ce qui était tombé depuis recule d'autant,
  * avant la fermeture. Rejouable à volonté :
  * `npx convex run dev:absenceScene '{"playerId":"…"}'`. Rend le point de la capitale.
+ *
+ * Avec `taken` (#702), la couronne se tait : un seul arrêt, la prise d'un des Sept par le joueur,
+ * à qui `former` l'a prise (`null` : neutre), pour voir la flamme changer d'encre au rejeu. Elle
+ * rend alors le lieu de ce point, non celui de la capitale.
  */
 export const absenceScene = internalMutation({
-  args: { playerId: v.id('players'), hours: v.optional(v.number()) },
-  handler: async (ctx, { playerId, hours = 9 }) => {
+  args: {
+    playerId: v.id('players'),
+    hours: v.optional(v.number()),
+    taken: v.optional(
+      v.object({ key: STRATEGIC_POINT_KEY, former: v.union(v.string(), v.null()) }),
+    ),
+  },
+  handler: async (ctx, { playerId, hours = 9, taken }) => {
     const player = await ctx.db.get(playerId);
     if (player === null || !isNation(player.nation)) throw new Error('no such nation');
     const capital = pointOfRegion(capitalRegionOf(player.nation));
@@ -1038,7 +1048,24 @@ export const absenceScene = internalMutation({
     for (const notice of since) await ctx.db.patch(notice._id, { at: notice.at - (now - away) });
     await stampReadMark(ctx, playerId, { journalReadAt: away });
     await stampReadMark(ctx, playerId, { firstSteps: { done: [], shown: 'skipped' } });
-    for (let k = 0; k < 12; k++) {
+    let placeOfScene: [number, number] = [capital.lon, capital.lat];
+    if (taken !== undefined) {
+      const point = await layPoint(ctx, player.seasonId, taken.key);
+      if (point === null) throw new Error(`no region under ${taken.key}`);
+      await ctx.db.patch(point._id, { holderId: playerId, heldSince: now - 60_000 });
+      await ctx.db.insert('notices', {
+        playerId,
+        at: now - 60_000,
+        kind: 'pointTaken',
+        key: taken.key,
+        nation: player.nation,
+        point: point.point,
+        held: 1,
+        former: taken.former,
+      });
+      placeOfScene = [point.point.lon, point.point.lat];
+    }
+    for (let k = 0; k < (taken === undefined ? 12 : 0); k++) {
       const turn = (k / 12) * 2 * Math.PI;
       const reach = 0.7 + (k % 3) * 0.35;
       const point = {
@@ -1063,7 +1090,7 @@ export const absenceScene = internalMutation({
       ] as const;
       await ctx.db.insert('notices', { ...head, ...rows[k % rows.length]! });
     }
-    return [capital.lon, capital.lat] as [number, number];
+    return placeOfScene;
   },
 });
 

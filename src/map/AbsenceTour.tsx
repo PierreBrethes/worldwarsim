@@ -123,8 +123,9 @@ export function useAbsenceTour(
       } else if (does === 'stamp')
         for (const burst of stop.stamps) {
           engine.inkBurst(burst);
-          // The map serves the new holder already: the flame still goes down and up under the seal.
-          if (burst.kind === 'seal') engine.swapMast(burst.at, null);
+          // The map serves the new holder already: the flame goes down in the old holder's ink,
+          // when the dispatch says it, and up under the seal.
+          if (burst.kind === 'seal') engine.swapMast(burst.at, burst.fromInk ?? null);
         }
       else if (does === 'return') {
         // Over from here: a gesture over the end band stops nothing, and marks nothing twice.

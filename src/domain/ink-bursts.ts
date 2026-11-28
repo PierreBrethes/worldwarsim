@@ -6,6 +6,7 @@ import { LOSS_INK, nationInk } from './nations';
 import type { JournalDispatch } from './player-view';
 import type { RaceLead } from './race-rings';
 import { RACE_TO_WIN } from './strategic-points';
+import { NEUTRAL_INK } from './strategic-mast';
 
 /** What a stamp says: a word and the hour, the prototype's `★ 14:32 ★`. */
 export type StampWords = { readonly word: string; readonly hour: string };
@@ -41,6 +42,9 @@ export type InkBurst = {
   /** **Le cachet** : combien de pastilles sont pleines, et « IV » au quatrième seul. */
   readonly held?: number;
   readonly roman?: string;
+  /** **L'encre d'où la flamme descend** (#702) : celle de l'ancien teneur, blanche s'il était neutre ;
+   *  absente, la flamme garde l'encre qu'elle porte. */
+  readonly fromInk?: string;
   /** **Sa taille**, part de celle d'un cachet seul : la victoire en pose quatre côte à côte. */
   readonly scale?: number;
   /** Pressed just above its point rather than beside it: the absence tour has no piece there to
@@ -231,7 +235,7 @@ export function placedBursts(
   if (dispatch.kind === 'captured' || dispatch.kind === 'siteLost')
     return [{ kind: 'captured', at, words: stamped(fr.stamps.captured, dispatch.at) }];
   if (dispatch.kind === 'pointTaken' && dispatch.point !== undefined) {
-    const { key, nation, held } = dispatch.point;
+    const { key, nation, held, from } = dispatch.point;
     return [
       {
         kind: 'seal',
@@ -240,6 +244,7 @@ export function placedBursts(
         ink: nationInk(nation),
         held,
         ...(held === 4 ? { roman: 'IV' } : {}),
+        ...(from === undefined ? {} : { fromInk: from === null ? NEUTRAL_INK : nationInk(from) }),
         holdMs: SEAL_HOLD_MS,
         // Where the count starts or runs, the mast's cartouche stands above the point.
         ...(held < RACE_TO_WIN ? { over: true as const } : {}),

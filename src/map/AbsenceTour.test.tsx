@@ -139,10 +139,10 @@ describe('useAbsenceTour', () => {
   });
 
   /** The view it replays already serves the new holder: the taken point's flame is pressed at its
-   *  stamp, with no old ink the dispatch does not carry. */
+   *  stamp, in the old holder's ink when the dispatch carries it. */
   it('presses the flame of a taken point when its seal lands, and of no other stamp', () => {
     const engine = fakeEngine();
-    const seal = { kind: 'seal', at: [5, 45] } as const;
+    const seal = { kind: 'seal', at: [5, 45], fromInk: '#336699' } as const;
     const taken: AbsenceTour = {
       ...tour,
       stops: [tour.stops[0]!, { ...tour.stops[1]!, stamps: [seal] }],
@@ -151,6 +151,17 @@ describe('useAbsenceTour', () => {
     act(() => void vi.advanceTimersByTime(1400 + 700));
     expect(engine.swapMast).not.toHaveBeenCalled();
     act(() => void vi.advanceTimersByTime(1600));
+    expect(engine.swapMast).toHaveBeenCalledExactlyOnceWith([5, 45], '#336699');
+  });
+
+  it('presses a flame in the ink it wears when the dispatch names no former holder', () => {
+    const engine = fakeEngine();
+    const taken: AbsenceTour = {
+      ...tour,
+      stops: [tour.stops[0]!, { ...tour.stops[1]!, stamps: [{ kind: 'seal', at: [5, 45] }] }],
+    };
+    play(engine, { queue: vi.fn(() => taken) });
+    act(() => void vi.advanceTimersByTime(1400 + 700 + 1600));
     expect(engine.swapMast).toHaveBeenCalledExactlyOnceWith([5, 45], null);
   });
 
