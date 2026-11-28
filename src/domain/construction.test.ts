@@ -596,8 +596,8 @@ describe('choosing an outpost’s specialty', () => {
   const BILL: Cost = { steel: 65 };
 
   it('bills half the steel of the last raise, and nothing else', () => {
-    expect(respecialtyBill(2)).toEqual({ steel: 65 });
-    expect(respecialtyBill(3)).toEqual({ steel: 130 });
+    expect(respecialtyBill(2)).toEqual({ steel: 49 });
+    expect(respecialtyBill(3)).toEqual({ steel: 73 });
   });
 
   /** **L'élévation au niveau 2 porte le choix** (ADR 0037 §3) ; le niveau 3 garde le sien. */

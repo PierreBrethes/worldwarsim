@@ -230,6 +230,9 @@
  * points se joue à part, sur une scène refondée : Tanger prise, puis la course close. Avec
  * `--huit`, un tiers les lit aussi.
  *
+ * `--course <3|4> [secondes]` (#670) donne à la France trois ou quatre des Sept (`course` les cadre) ;
+ * à quatre la course court, et `secondes` la clôt dans ce délai pour lire le compte sous l'heure.
+ *
  * `--saboteur` (#432) ajoute à `--sites` (qu'il sous-entend) une seconde mine de charbon, sabotée
  * douze heures, à six cents mètres de celle de Lorraine, dans la même région : seule la première
  * doit s'animer (`saboteur`).
@@ -292,6 +295,11 @@ const held = process.argv.includes('--sans-depart');
 const rangoon = process.argv.includes('--rangoun');
 /** `--poste` (#475) : des chasseurs et des coques de plus, pour remplir l'aire et le môle. */
 const crowded = process.argv.includes('--poste');
+/** `--course <3|4> [secondes]` (#670) : la France tient trois ou quatre des Sept ; à quatre la course
+ *  court, et `secondes` la clôt dans ce délai (`dev:raceEndsSoon`) pour lire le compte sous l'heure. */
+const courseAt = process.argv.indexOf('--course');
+const courseHeld = courseAt < 0 ? null : Number(process.argv[courseAt + 1]) === 3 ? 3 : 4;
+const courseIn = courseAt < 0 ? null : Number(process.argv[courseAt + 2]) || null;
 /** `--piste-mole [s]` (#269, #270) : des avions et des coques qui sortent, se posent, partent. */
 const runwayAt = process.argv.indexOf('--piste-mole');
 const runwayIn = runwayAt < 0 ? null : Number(process.argv[runwayAt + 1]) || 40;
@@ -782,6 +790,7 @@ if (!bare) {
   if (process.argv.includes('--absence') && scene.b !== null) absenceScene(scene.b);
   if (process.argv.includes('--moments') && scene.a !== null && scene.b !== null)
     await momentsScene();
+  if (courseHeld !== null && scene.a !== null) await courseScene();
   /** `--pile-mixte` : un camion, un chasseur et deux fantassins sur un même point (#286). */
   if (process.argv.includes('--pile-mixte') && scene.a !== null)
     for (const [role, count] of [
@@ -2653,6 +2662,17 @@ async function momentsScene() {
       `  1. Tanger prise, comme plus haut, puis la victoire aux points : ${run('raceEndsSoon', { seasonId, inSeconds: 20 })}`,
     ].join('\n'),
   );
+}
+
+/** `--course` (#670) : trois des Sept à la France, un quatrième avec lui ; `courseIn` clôt la course.
+ *  Les Sept sont ceux du tirage de la saison, lus sur la vue : un point hors tirage en ferait dix. */
+async function courseScene() {
+  const { strategicPoints } = await client.query(api.view.playerView, { token: tokenA, seasonId });
+  for (const { key } of strategicPoints.slice(0, courseHeld))
+    cli(['run', 'dev:holdPoint', JSON.stringify({ playerId: scene.a, key })]);
+  if (courseHeld === 4 && courseIn !== null)
+    cli(['run', 'dev:raceEndsSoon', JSON.stringify({ seasonId, inSeconds: courseIn })]);
+  places.course = [20, 40];
 }
 
 /** The stacks of `--accrochages` (#441): each French one stands within sight of a British one. */

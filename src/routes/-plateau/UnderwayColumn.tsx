@@ -1,11 +1,9 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { fr } from '@/i18n/fr';
 import { asDuration, asShortDuration } from '@/domain/duration';
-import { underwayLeftMs, type Underway, type UnderwayFace } from '@/domain/underway';
+import { underwayLeftMs, type Underway } from '@/domain/underway';
 import { keepUnderwayFolded, readUnderwayFolded } from '@/data/settings';
-import { BuildingPlate } from '@/emblems/Plate';
-import { UnitSprite } from '@/emblems/UnitSprite';
-import { Pictogram } from '@/shell/IndicatorGlyph';
+import { FaceIcon } from '@/shell/UnderwayFace';
 import { useClock } from '@/shell/clock';
 import { crowdedBy } from './underway-room';
 
@@ -126,7 +124,7 @@ export function UnderwayColumn({
             className={`flex h-[44px] cursor-pointer items-center gap-[7px] pr-[8px] pl-[4px] text-left float ${isFresh ? 'border-2 border-[var(--ink)] bg-[color-mix(in_srgb,var(--paper),white_45%)]' : 'paper-grain border border-[var(--ink)]'}`}
           >
             <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center">
-              <Face face={line.face} nation={nation} />
+              <FaceIcon face={line.face} nation={nation} />
             </span>
             <span
               className={`flex min-w-0 flex-col gap-[3px] font-(family-name:--font-mono) leading-none font-medium ${
@@ -159,19 +157,4 @@ export function UnderwayColumn({
       })}
     </section>
   );
-}
-
-export function Face({ face, nation }: { face: UnderwayFace; nation: string }) {
-  switch (face.kind) {
-    case 'unit':
-      return face.role === null ? (
-        <Pictogram pictogram="forces" weight={40} size={26} />
-      ) : (
-        <UnitSprite nation={nation} role={face.role} height={32} width={34} />
-      );
-    case 'building':
-      return <BuildingPlate building={face.key} height={30} />;
-    case 'outpost':
-      return <Pictogram pictogram="outpost" weight={40} size={26} />;
-  }
 }

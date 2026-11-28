@@ -1,7 +1,7 @@
 import { useState, type ReactNode, type Ref } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useSearch } from '@tanstack/react-router';
-import { fr, nationLabel } from '@/i18n/fr';
+import { fr, nationLabel, raceClockShortLabel } from '@/i18n/fr';
 import { LAYERS } from '@/domain/indicators';
 import { slotCardsOf } from '@/domain/research';
 import { halifaxNoteOf } from '@/domain/movement-orders';
@@ -17,6 +17,7 @@ import { BlitzClock, EditionMark, SlotBoxes } from './Reglette';
 import { Stamp } from './Stamp';
 import { UnreadDot } from './UnreadDot';
 import { useUnreadPatchnotes } from '@/data/patchnotes';
+import { raceMarkOf, type RaceMarkReading } from '@/domain/race-mark';
 import { useClock } from './clock';
 import { useSoleSurface } from './sole-surface';
 
@@ -53,24 +54,24 @@ export function NarrowBand({
       className="hud paper-grain float absolute top-[calc(6px/var(--hud-scale))] right-[calc(6px/var(--hud-scale))] left-[calc(6px/var(--hud-scale))] z-[var(--z-band)] border border-[var(--ink)] text-[var(--ink)]"
       style={{ fontFamily: 'var(--font-body)' }}
     >
-      <div className="flex h-[40px] items-center gap-[10px] overflow-hidden px-[12px]">
+      <div className="flex h-[40px] items-center gap-[6px] overflow-hidden px-[10px]">
         <button
           type="button"
           aria-expanded={surface === 'dossier'}
           title={fr.dossier.open(nationLabel(me.nation))}
           onClick={() => setSurface((open) => (open === 'dossier' ? null : 'dossier'))}
-          className="relative -ml-[6px] flex min-h-[40px] min-w-0 cursor-pointer items-center gap-[10px] px-[6px]"
+          className="relative -ml-[6px] flex min-h-[40px] min-w-0 cursor-pointer items-center gap-[8px] px-[6px]"
         >
           <Flag nation={me.nation} width={27} onPaper />
           {surface !== 'dossier' && unread.size > 0 && (
             <UnreadDot className="top-[2px] left-[28px]" />
           )}
-          <span className="min-w-0 truncate font-(family-name:--font-display) text-[20px] leading-none font-bold tracking-[.01em] uppercase">
+          <span className="min-w-0 truncate font-(family-name:--font-display) text-[20px] max-[420px]:text-[15px] leading-none font-bold tracking-[.01em] uppercase">
             {nationLabel(me.nation)}
           </span>
           <span
             aria-hidden
-            className="-ml-[4px] shrink-0 text-[11px] leading-none text-[var(--ink-soft)]"
+            className="-ml-[4px] shrink-0 text-[11px] leading-none text-[var(--ink-soft)] max-[420px]:hidden"
           >
             ▾
           </span>
@@ -93,11 +94,12 @@ export function NarrowBand({
             <span className="flex max-[420px]:hidden">
               <SlotBoxes used={me.slots.used} total={me.slots.total} />
             </span>
-            <span className="font-(family-name:--font-mono) text-[14px] leading-none font-medium tabular-nums">
+            <span className="font-(family-name:--font-mono) text-[14px] max-[420px]:text-[12.5px] leading-none font-medium tabular-nums">
               {fr.banner.slotsCount(me.slots.used, me.slots.total)}
             </span>
           </span>
         )}
+        <RaceTouch reading={raceMarkOf(view, now)} search={search} />
         <EditionMark view={view} />
       </div>
 
@@ -122,6 +124,36 @@ export function NarrowBand({
       )}
       {surface === 'layers' && <LayersSheet onClose={() => setSurface(null)} />}
     </header>
+  );
+}
+
+/**
+ * **La course aux Sept au téléphone** (#670) : le compte du joueur (« 2 / 4 ») et, quand la course
+ * court, le temps qui reste — la minute seule sous l'heure, les secondes sous la minute, pour que
+ * la nation tienne entière. Le drapeau du meneur précède le compte quand ce n'est pas le joueur ;
+ * en alerte, ocre si le joueur mène, rouge sinon. Un toucher ouvre la Presse ; la phrase entière se
+ * lit au `title`.
+ */
+function RaceTouch({ reading, search }: { reading: RaceMarkReading | null; search: BoardSearch }) {
+  if (reading === null) return null;
+  const { phrase } = reading;
+  const mine = fr.points.race.mine(reading.mine);
+  const said = phrase === null ? null : fr.points.race.phrase(phrase.who, phrase.left);
+  const alert =
+    phrase === null ? '' : phrase.you ? 'text-[var(--notable-paper)]' : 'text-[var(--critical)]';
+  return (
+    <Link
+      to="/plateau"
+      search={withWindow(search, 'press')}
+      title={fr.points.race.cellTitle(mine, said)}
+      className={`flex min-h-[40px] shrink-0 items-center gap-[6px] border-l border-(color:--ink)/25 pl-[7px] font-(family-name:--font-mono) text-[12.5px] max-[420px]:text-[12px] leading-none font-medium whitespace-nowrap tabular-nums ${alert}`}
+    >
+      {phrase?.nation != null && <Flag nation={phrase.nation} width={16} onPaper />}
+      {mine}
+      {phrase !== null && (
+        <span className="font-semibold">{raceClockShortLabel(phrase.leftMs)}</span>
+      )}
+    </Link>
   );
 }
 

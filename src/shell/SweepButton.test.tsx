@@ -52,17 +52,20 @@ describe('SweepButton', () => {
     expect(screen.getByRole('menu')).not.toBeNull();
   });
 
-  it('as an icon, is one 44 px square: a touch sweeps, the chevron opens the list to the left and up (#621)', () => {
+  it('is one 44 px square: a touch sweeps, the chevron opens the list up on a phone and to the left, at the foot of the stack, on a desk (#621, #670)', () => {
     const onSweep = vi.fn();
-    render(<SweepButton species="iron" onSweep={onSweep} status="Onde en route" icon />);
+    render(<SweepButton species="iron" onSweep={onSweep} status="Onde en route" />);
     const launch = screen.getByTitle(fr.sweep.launch('iron'));
     expect(launch.className).toContain('h-[44px] w-[44px]');
-    expect(launch.textContent).not.toContain(fr.sweep.button);
+    expect(launch.textContent).toBe('');
+    expect(launch.getAttribute('aria-keyshortcuts')).toBe('S');
     fireEvent.click(launch);
     expect(onSweep).toHaveBeenLastCalledWith('iron');
     expect(screen.getByRole('status').textContent).toBe('Onde en route');
     fireEvent.click(screen.getByLabelText(fr.sweep.choose));
-    expect(screen.getByRole('menu').className).toMatch(/right-0.*bottom-|bottom-.*right-0/);
+    const menu = screen.getByRole('menu').className;
+    expect(menu).toContain('right-0 bottom-[calc(100%+8px)]');
+    expect(menu).toContain('md:right-[calc(100%+8px)] md:bottom-0');
     fireEvent.click(screen.getAllByRole('menuitem')[0]!);
     expect(onSweep).toHaveBeenLastCalledWith('coal');
   });

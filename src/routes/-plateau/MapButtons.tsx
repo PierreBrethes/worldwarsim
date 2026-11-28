@@ -28,7 +28,7 @@ export function MapButtons({
   layers: boolean;
   onRecenter: () => void;
   onCorner: Dispatch<SetStateAction<Corner | null>>;
-  /** « Sonder » en icône, au téléphone : le moins touché des boutons, il garde le pied de la pile et laisse le pouce aux deux premiers (#621). */
+  /** « Sonder » en icône, au bureau comme au téléphone : le moins touché des boutons, il garde le pied de la pile et laisse le pouce aux deux premiers (#621, #670). */
   sweep?: ReactNode;
 }) {
   const unread = useUnreadPatchnotes();
