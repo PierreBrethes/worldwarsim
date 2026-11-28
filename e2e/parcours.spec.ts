@@ -214,12 +214,19 @@ test('fonder, rejoindre, poser le QG et envoyer un mouvement', async ({ browser 
   mark(`garnison à l'écran en ${x}, ${y}`);
   await carry(a, [x, y], [x - 220, y + 90]);
 
-  // L'écran : le compteur des slots de la réglette, puis son volet, disent le mouvement en cours.
-  // Le volet cède devant toute fenêtre (`coversUnderway`), le plateau personnel replié compris :
-  // le plateau se rouvre nu, et ce qu'il dit vient du serveur, pas de l'état du geste.
-  await expect(a.getByRole('button', { name: /mouvements/ }).first()).toContainText(/1 \/ \d+/, {
-    timeout: 15_000,
-  });
+  // L'écran : le compteur des slots de la réglette, puis la feuille du tableau de marche, disent
+  // le mouvement en cours. Le plateau se rouvre nu : ce qu'il dit vient du serveur, pas de l'état
+  // du geste.
+  const slotsOf = () => a.locator('div').filter({ hasText: /^mouvements/ }).last();
+  await expect(slotsOf()).toContainText(/1 \/ \d+/, { timeout: 15_000 });
+  mark('mouvement compté');
+  await a.goto('/plateau');
+  await expect(slotsOf()).toContainText(/1 \/ \d+/, { timeout: 60_000 });
+  const tab = a.getByRole('button', { name: /tableau de marche/i }).first();
+  await tab.click();
+  await expect(tab).toHaveAttribute('aria-expanded', 'true');
+  await expect(a.getByText(/mouvements en vol : 1 \/ \d+/)).toBeVisible();
+});
   mark('mouvement compté');
   await a.goto('/plateau');
   const slots = a.getByRole('button', { name: /mouvements/ }).first();
