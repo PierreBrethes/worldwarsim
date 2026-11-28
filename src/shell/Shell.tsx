@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import type { ResourceKey } from '@/domain/ids';
 import type { PlayerView } from '@/domain/player-view';
-import type { Underway } from '@/domain/underway';
+import type { RecruitmentDue, UnderwayPlace } from '@/domain/underway';
 import { ConsumptionTickets, MAX_TICKETS, pinToggled } from './ConsumptionTickets';
 import { FootBar, FootContext, type Foot } from './foot';
 import { NarrowBand } from './NarrowBand';
@@ -25,9 +25,8 @@ export function Shell({
   todo,
   onShowBriefing,
   onResumeSteps = null,
-  underway = [],
+  recruitments = [],
   onLocate = () => {},
-  covered = false,
   children,
 }: {
   view: PlayerView;
@@ -39,11 +38,10 @@ export function Shell({
   onShowBriefing: () => void;
   /** Reprendre les premiers pas repliés ou passés, depuis le dossier du téléphone. */
   onResumeSteps?: (() => void) | null;
-  /** Les échéances en cours : au bureau, le compteur de slots de la réglette les ouvre en volet. */
-  underway?: ReadonlyArray<Underway>;
-  onLocate?: (line: Underway) => void;
-  /** Une fiche, une fenêtre ou une pile en main est ouverte : le volet se ferme devant elle. */
-  covered?: boolean;
+  /** Les recrutements datés par l'atelier : au bureau, l'onglet de la réglette les lit avec le reste. */
+  recruitments?: ReadonlyArray<RecruitmentDue>;
+  /** Un clic sur une barre du tableau de marche recentre la carte. */
+  onLocate?: (place: UnderwayPlace) => void;
   children: ReactNode;
 }) {
   /** **La table plein écran** (décision de Pierre, 13/10) : la carte prend tout l'écran, et la
@@ -116,9 +114,8 @@ export function Shell({
             <Reglette
               view={view}
               telegraphUnread={telegraphUnread}
-              underway={underway}
+              recruitments={recruitments}
               onLocate={onLocate}
-              covered={covered}
               ref={top}
             />
             {tickets}

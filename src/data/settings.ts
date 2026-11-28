@@ -56,6 +56,16 @@ export const keepUnderwayFolded = (folded: boolean): void => {
   localStorage.setItem(UNDERWAY_KEY, folded ? 'folded' : 'open');
 };
 
+const MARCH_SHEET_KEY = 'wws-march-sheet';
+
+/** La feuille du tableau de marche se plie à l'onglet seul, et le pli survit au rechargement : elle
+ *  s'ouvre repliée, la barre ne prend de la carte que ce qu'on lui a demandé (#733). */
+export const readMarchFolded = (): boolean => localStorage.getItem(MARCH_SHEET_KEY) !== 'open';
+
+export const keepMarchFolded = (folded: boolean): void => {
+  localStorage.setItem(MARCH_SHEET_KEY, folded ? 'folded' : 'open');
+};
+
 const GESTURE_HINT_KEY = 'wws-gesture-hint';
 
 /**
