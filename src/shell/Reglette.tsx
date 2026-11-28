@@ -222,12 +222,12 @@ function RaceCell({ reading, search }: { reading: RaceMarkReading | null; search
       search={withWindow(search, 'press')}
       title={fr.points.race.cellTitle(mine, said)}
       style={floorStyle(RACE_CELL_FLOOR(phrase !== null, flagged))}
-      className="@container flex min-w-[var(--floor-compact)] flex-1 min-[1280px]:min-w-[calc(var(--floor-compact)+64px)] min-[1350px]:min-w-[calc(var(--floor)+64px)] cursor-pointer items-stretch overflow-hidden border-r border-(color:--ink)/20 hover:bg-[var(--paper-clair)]"
+      className="@container flex min-w-[var(--floor-compact)] flex-1 @min-[1060px]/bar:min-w-[calc(var(--floor-compact)+64px)] @min-[1125px]/bar:min-w-[calc(var(--floor)+64px)] cursor-pointer items-stretch overflow-hidden border-r border-(color:--ink)/20 hover:bg-[var(--paper-clair)]"
     >
       <span
         className={`flex shrink-0 items-center gap-[5px] px-[4px] whitespace-nowrap min-[1350px]:gap-[9px] min-[1350px]:px-[13px] ${tint}`}
       >
-        <span className={`hidden ${LABEL} @[435px]:inline min-[1280px]:inline`}>
+        <span className={`hidden ${LABEL} @[435px]:inline @min-[1060px]/bar:inline`}>
           {fr.points.race.cell}
         </span>
         <span className="[--mark:9px] min-[1350px]:[--mark:11px]">
@@ -248,7 +248,7 @@ function RaceCell({ reading, search }: { reading: RaceMarkReading | null; search
               </span>
             )}
             <span className="hidden @[555px]:inline">{phrase.who} · </span>
-            <span className="hidden @[385px]:inline min-[1280px]:hidden min-[1280px]:@[435px]:inline">
+            <span className="hidden @[385px]:inline @min-[1060px]/bar:hidden @min-[1060px]/bar:@[435px]:inline">
               {fr.points.race.within('')}
             </span>
             {phrase.left}
