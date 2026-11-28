@@ -722,7 +722,8 @@ describe('Ultra, de bout en bout (#726)', () => {
     expect(await arcOf(t, uk, movement._id)).toBeUndefined();
   });
 
-  it('11. forgets the future hearing of a fallen headquarters, keeps what it heard', async () => {
+  /** **Son QG tombé, sa station lui reste** (ADR 0048) : elle entend encore ce qu'elle allait entendre. */
+  it('11. keeps hearing when its headquarters falls: the station stays British', async () => {
     const t = boot();
     const { uk, france, germany } = await launchedSeason(t);
     const station = await builtStation(t, uk, CORNWALL);
@@ -748,14 +749,15 @@ describe('Ultra, de bout en bout (#726)', () => {
 
     await reach(t, capture.completesAt);
 
-    expect(await holderOf(t, station._id)).not.toBe(await playerOf(t, uk));
-    const fallen = (await rowsOf(t, uk)).find((one) => one.movementId === unheard._id);
-    expect(fallen).not.toHaveProperty('ultraFrom');
-    expect(await jobOf(t, future.ultraJobId!)).toMatchObject({ state: { kind: 'canceled' } });
+    expect(await holderOf(t, station._id)).toBe(await playerOf(t, uk));
+    const kept = (await rowsOf(t, uk)).find((one) => one.movementId === unheard._id);
+    expect(kept?.ultraFrom).toBe(future.ultraFrom);
+    expect(await jobOf(t, future.ultraJobId!)).not.toMatchObject({ state: { kind: 'canceled' } });
     expect((await arcOf(t, uk, heard._id))!.destination).toEqual(heardDestination);
-    await reach(t, unheard.arrivesAt);
-    expect((await arcOf(t, uk, heard._id))!.destination).toEqual(heardDestination);
-    expect((await arcOf(t, uk, unheard._id))?.destination).toBeUndefined();
+    await reach(t, future.ultraFrom! + 1);
+    expect((await arcOf(t, uk, unheard._id))!.destination).toEqual(
+      await ownDestination(t, france, unheard._id),
+    );
   });
 
   it('12. never hears in a season founded in Blitz', async () => {
