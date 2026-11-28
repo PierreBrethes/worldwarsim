@@ -217,7 +217,11 @@ test('fonder, rejoindre, poser le QG et envoyer un mouvement', async ({ browser 
   // L'écran : le compteur des slots de la réglette, puis la feuille du tableau de marche, disent
   // le mouvement en cours. Le plateau se rouvre nu : ce qu'il dit vient du serveur, pas de l'état
   // du geste.
-  const slotsOf = () => a.locator('div').filter({ hasText: /^mouvements/ }).last();
+  const slotsOf = () =>
+    a
+      .locator('div')
+      .filter({ hasText: /^mouvements/ })
+      .last();
   await expect(slotsOf()).toContainText(/1 \/ \d+/, { timeout: 15_000 });
   mark('mouvement compté');
   await a.goto('/plateau');
@@ -226,12 +230,4 @@ test('fonder, rejoindre, poser le QG et envoyer un mouvement', async ({ browser 
   await tab.click();
   await expect(tab).toHaveAttribute('aria-expanded', 'true');
   await expect(a.getByText(/mouvements en vol : 1 \/ \d+/)).toBeVisible();
-});
-  mark('mouvement compté');
-  await a.goto('/plateau');
-  const slots = a.getByRole('button', { name: /mouvements/ }).first();
-  await expect(slots).toContainText(/1 \/ \d+/, { timeout: 60_000 });
-  await slots.click();
-  await expect(slots).toHaveAttribute('aria-expanded', 'true');
-  await expect(a.getByText(/^slots 1 \/ \d+$/)).toBeVisible();
 });
