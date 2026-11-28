@@ -794,9 +794,20 @@ export function WorldMap({
   }, [readyEngine, cityNames]);
 
   const tourInk = indicators['tour-ink'];
+  /** Les troupes qu'on a en main : la pièce levée, et les piles choisies ensemble (#725). */
+  const heldTroops = useMemo(
+    () => [
+      ...(holding?.troopIds ?? []),
+      ...standing.flatMap((pile) => (selectedPiles.includes(pile.id) ? pile.pieces.troopIds : [])),
+    ],
+    [holding, standing, selectedPiles],
+  );
+  const heldTroopsKey = heldTroops.join();
   useEffect(() => {
-    readyEngine?.setTourInk(tourInk);
-  }, [readyEngine, tourInk]);
+    readyEngine?.setTourInk(tourInk, heldTroops);
+    // `heldTroops` is read through its key: `standing` is new at every refresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readyEngine, tourInk, heldTroopsKey]);
 
   useEffect(() => {
     if (engine.current) engine.current.onSelect = onSelect;

@@ -18,6 +18,7 @@ import {
   loadCapacityOf,
   loadTotal,
   loadsHere,
+  loopBaseOf,
   missingOf,
   roomAboard,
   takeFromHeap,
@@ -28,7 +29,7 @@ import {
   type TourStop,
 } from '../src/domain/logistics';
 import { emptyStocks } from '../src/domain/economy';
-import { RESOURCES } from '../src/domain/ids';
+import { RESOURCES, canonicalBuildingKey } from '../src/domain/ids';
 import { inService } from '../src/domain/loot';
 import { isStanding } from '../src/domain/outposts';
 import { refuelAtHeap, suppliesOf } from '../src/domain/supplies';
@@ -108,7 +109,10 @@ export const start = mutation({
     const troop = await ctx.db.get(troopId);
     if (troop === null || troop.playerId !== player._id) fail('UNKNOWN_TROOP', { troopId });
     const now = Date.now();
-    const at = await placeOf(ctx, troop, now);
+    /** Parti de la caserne, il boucle depuis son point de chargement : tout se lit de là. */
+    const loopBase = await loopBaseFor(ctx, troop);
+    const from = loopBase === null ? troop : { ...troop, stationedAt: loopBase._id };
+    const at = await placeOf(ctx, from, now);
     const stops = stored.map(stopOf);
     /** **Ce que le serveur sait d'une exploitation visée** : le client ne lui dit rien. Celle d'un
      *  autre se lit « pas à vous », comme un bâtiment qui n'existe pas. */
@@ -121,7 +125,7 @@ export const start = mutation({
         ours: building.playerId === player._id,
         exploitation: isExploitation(building),
         hasQuay: quayOfRegion(building.regionId, pointOfBuilding(building)) !== null,
-        routed: await isRouted(ctx, troop, building),
+        routed: await isRouted(ctx, from, building),
       });
     }
     const refusal = tourRefusalOf({
@@ -137,7 +141,7 @@ export const start = mutation({
       if (refusal.code === 'TOUR_PICKUP_NO_ROUTE')
         fail(
           refusal.code,
-          await noRouteDetails(ctx, troop, ctx.db.normalizeId('buildings', refusal.id)!),
+          await noRouteDetails(ctx, from, ctx.db.normalizeId('buildings', refusal.id)!),
         );
       const { code, ...details } = refusal;
       fail(code, details);
@@ -154,21 +158,71 @@ export const start = mutation({
       }
     }
     /** **Au pays, pas de slot** (#618) ; Halifax et le plafond restent ceux de `claimSlot`. */
-    if (await tourHoldsSlotFor(ctx, player, troop.stationedAt, stored))
+    if (await tourHoldsSlotFor(ctx, player, from.stationedAt, stored))
       await claimSlot(ctx, player._id, [troopId]);
     await ctx.db.patch(troopId, {
       tour: {
-        base: troop.stationedAt as Tour['base'],
+        base: from.stationedAt as Tour['base'],
         stops: stored,
         consigne: troop.load ?? emptyLoad(),
         next: 0,
       },
     });
-    await atBase(ctx, troopId, now);
+    if (loopBase === null) await atBase(ctx, troopId, now);
+    else await setOutFromBarracks(ctx, troopId, now);
     await reassessDetection(ctx, seasonId, now, player._id);
     return null;
   },
 });
+
+/** **Le point de chargement d'où boucle un camion posé à la caserne** (`loopBaseOf`), ou `null`
+ *  s'il part de là où il se tient. */
+async function loopBaseFor(ctx: QueryCtx, troop: Doc<'troops'>): Promise<Doc<'buildings'> | null> {
+  if (typeof troop.stationedAt !== 'string') return null;
+  const hereId = ctx.db.normalizeId('buildings', troop.stationedAt);
+  const here = hereId === null ? null : await ctx.db.get(hereId);
+  if (here === null || here.playerId !== troop.playerId) return null;
+  const mine = await playerBuildings(ctx, troop.playerId);
+  const read = (building: Doc<'buildings'>) => ({
+    id: building._id,
+    key: canonicalBuildingKey(building.key),
+    point: pointOfBuilding(building),
+  });
+  const base = loopBaseOf(troop.role, read(here), mine.map(read));
+  return base === null ? null : (mine.find((building) => building._id === base.id) ?? null);
+}
+
+/**
+ * **Le départ de la caserne** : rien ne s'y charge ni ne s'y verse. La tournée va droit à son
+ * premier arrêt utile avec ce qui est à bord ; sans arrêt utile ou sans route, elle gagne son
+ * point de chargement et boucle de là. Sans route vers lui non plus, elle finit sur place.
+ */
+async function setOutFromBarracks(
+  ctx: MutationCtx,
+  troopId: Id<'troops'>,
+  now: number,
+): Promise<void> {
+  const troop = (await ctx.db.get(troopId))!;
+  const tour = troop.tour!;
+  const plan = await planOf(
+    ctx,
+    troop,
+    troop.load ?? emptyLoad(),
+    await stopsOf(ctx, troop, tour, now),
+    now,
+  );
+  const first = plan.visit[0];
+  if (first !== undefined) {
+    const ready = {
+      ...troop,
+      tour: { ...tour, next: indexOfStop(tour, first) + 1, skipped: [...plan.skipped] },
+    };
+    await ctx.db.patch(troopId, { tour: ready.tour });
+    if (await leg(ctx, ready, { kind: 'stop', stop: first })) return;
+  }
+  const home = (await ctx.db.get(troopId))!;
+  if (!(await leg(ctx, home, { kind: 'base' }))) await stopTour(ctx, home, now, 'road');
+}
 
 /**
  * **Rappeler** : à l'arrêt, la tournée finit sur-le-champ et rend son slot ; en route, elle finit
@@ -344,13 +398,15 @@ export const pickups = query({
     if (await isBlitz(ctx, seasonId)) return [];
     const troop = await ctx.db.get(troopId);
     if (troop === null || troop.playerId !== player._id) return [];
+    const loopBase = await loopBaseFor(ctx, troop);
+    const from = loopBase === null ? troop : { ...troop, stationedAt: loopBase._id };
     const sites = [];
     for (const building of await playerBuildings(ctx, player._id)) {
       if (!isExploitation(building)) continue;
       const stopPoint = pickupPointOf(troop.role, building);
       sites.push({
         buildingId: building._id,
-        routed: await isRouted(ctx, troop, building),
+        routed: await isRouted(ctx, from, building),
         hasQuay: quayOfRegion(building.regionId, pointOfBuilding(building)) !== null,
         stopPoint: stopPoint === null ? null : { lon: stopPoint[0], lat: stopPoint[1] },
       });

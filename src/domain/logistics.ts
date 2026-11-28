@@ -2,7 +2,8 @@ import { AIR_STOP_LEVEL, LOAD_CAPACITY_BY_ROLE, TOUR_MAX_STOPS } from '../../con
 import { RESOURCES, type BuildingKey, type ResourceKey, type UnitRole } from './ids';
 import type { Asset } from './nation-assets';
 import { topUp, type Carrying, type Supplies, type SupplyStocks } from './supplies';
-import { carrierIn, type Seated } from './troops';
+import { distanceKm, type LonLat } from './geo';
+import { DOMAIN_BY_ROLE, PROJECTION_BY_DOMAIN, carrierIn, type Seated } from './troops';
 
 /**
  * **La logistique passe par les pièces** (ADR 0028 §4, Mondiale seule) : un dépôt d'avant-poste
@@ -141,6 +142,38 @@ export const loadsHere = (role: UnitRole, place: LoadingPlace) => {
     return { code: 'LOAD_NOT_HERE', role } as const;
   return null;
 };
+
+/** Un de mes bâtiments, tel que le départ d'une tournée le lit. */
+export type TourBuilding<I extends string = string> = {
+  readonly id: I;
+  readonly key: BuildingKey;
+  readonly point: LonLat;
+};
+
+/**
+ * **Le point de chargement d'une tournée qui part du bâtiment qui forme le transport** (Pierre,
+ * 28/11) : un camion posé à la caserne y part en tournée, mais la caserne n'est pas un lieu de
+ * tournée. Il ne s'y charge pas, va droit à son premier arrêt avec ce qu'il porte, puis boucle
+ * depuis le point de chargement le plus proche à vol d'oiseau (QG ou entrepôt). `null` : il n'est
+ * pas au bâtiment qui le forme, ce bâtiment le charge déjà (aérodrome, port), ou rien ne le charge.
+ */
+export function loopBaseOf<I extends string>(
+  role: UnitRole,
+  here: TourBuilding<I>,
+  buildings: ReadonlyArray<TourBuilding<I>>,
+): TourBuilding<I> | null {
+  const loads = loadsAt(role);
+  if (here.key !== PROJECTION_BY_DOMAIN[DOMAIN_BY_ROLE[role]] || loads.includes(here.key))
+    return null;
+  let best: TourBuilding<I> | null = null;
+  let bestKm = Infinity;
+  for (const building of buildings) {
+    if (!loads.includes(building.key)) continue;
+    const km = distanceKm(here.point, building.point);
+    if (km < bestKm) [best, bestKm] = [building, km];
+  }
+  return best;
+}
 
 /**
  * **Charger** (ADR 0028 §4) : on glisse des jetons sur un transport, là où il se charge, dans

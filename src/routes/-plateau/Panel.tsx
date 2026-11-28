@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { fr } from '@/i18n/fr';
 import { BottomSheet } from '@/shell/BottomSheet';
 import { useNarrowScreen } from '@/shell/viewport';
@@ -24,6 +24,7 @@ export function Panel({
   height,
   onClose,
   compact = false,
+  onOpen,
   children,
 }: {
   title: string;
@@ -45,10 +46,19 @@ export function Panel({
   /** Sous le seuil, la feuille s'ouvre à l'aperçu et épouse son contenu, pour que la carte qu'elle
    *  décrit reste visible au-dessus ; au bureau, sans effet. */
   compact?: boolean;
+  /** Au bureau, dit si le panneau est posé et déplié ; `false` dès qu'il se replie ou s'en va. */
+  onOpen?: (open: boolean) => void;
   children: ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const narrow = useNarrowScreen();
+  useEffect(() => {
+    if (narrow || collapsed) return;
+    onOpen?.(true);
+    return () => onOpen?.(false);
+    // `onOpen` is the caller's setter: its identity is not a reason to say it twice.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collapsed, narrow]);
   const header = (
     /* The header is the grab zone whenever a `Draggable` wraps this panel, and a plain header
        when nothing does — the handle reads the context rather than taking a callback, which

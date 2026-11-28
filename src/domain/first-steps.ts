@@ -1,5 +1,5 @@
 import { searcherLevel } from './research';
-import { loadCapacityOf, loadsAt } from './logistics';
+import { loadCapacityOf, loadsAt, loopBaseOf } from './logistics';
 import type { PlayerView, TroopStation, TroopView } from './player-view';
 import type { BuildingKey } from './ids';
 import { PROJECTION_BY_DOMAIN, isProjectionKey, marchingTroopIds, projectionKeyOf } from './troops';
@@ -167,16 +167,21 @@ export function cueOf(step: FirstStep, view: PlayerView): FirstStepCue | null {
       const heaping = heapingIds(view);
       if (heaping.size === 0)
         return { kind: 'rack', rack: 'tiles', say: 'exploitation', tile: 'farm' };
-      /** Une tournée part d'un point de chargement (`tourRefusalOf`) : un camion posé à la caserne
-       *  qui le forme doit d'abord rentrer, sans quoi la feuille de route refuse chaque arrêt. */
+      /** Une tournée part d'un point de chargement (`tourRefusalOf`), ou de la caserne quand un QG
+       *  ou un entrepôt la boucle (`loopBaseOf`) : sans eux, le camion doit d'abord rentrer. */
       const loads = new Set(
         view.me.buildings.flatMap((building) =>
           loadsAt('landTransport').includes(building.key) ? [building.id] : [],
         ),
       );
-      const ready = (troop: TroopView) =>
-        (troop.stationedAt.kind === 'building' && loads.has(troop.stationedAt.buildingId)) ||
-        troop.stationedAt.kind === 'outpost';
+      const ready = (troop: TroopView) => {
+        const at = troop.stationedAt;
+        if (at.kind === 'outpost') return true;
+        if (at.kind !== 'building') return false;
+        if (loads.has(at.buildingId)) return true;
+        const here = view.me.buildings.find((building) => building.id === at.buildingId);
+        return here !== undefined && loopBaseOf(troop.role, here, view.me.buildings) !== null;
+      };
       const truck = standing((troop) => troop.role === 'landTransport' && ready(troop));
       if (truck !== undefined) return onPiece(truck, 'harvest');
       const away = standing((troop) => troop.role === 'landTransport');

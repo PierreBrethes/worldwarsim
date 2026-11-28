@@ -715,6 +715,8 @@ export class MapEngine {
   /** Whether my tours' loops are inked (`setTourInk`, #723), and the last ones `showTours` got. */
   private tourInkShown = true;
   private tourLoops: ReadonlyArray<TourLoop> = [];
+  /** The troops the player has in hand, whose loop stays inked layer off (#725). */
+  private tourSelected: ReadonlyArray<string> = [];
   private tourRuns: ReadonlyArray<ReadonlyArray<LonLat>> = [];
   /** The atlas's cities where the board holds them, for their names (`nameSpots`). */
   private readonly cities: ReadonlyArray<City & { readonly at: Vector3 }>;
@@ -2039,17 +2041,19 @@ export class MapEngine {
     this.invalidate();
     this.tourLoops = loops;
     this.tourRuns = runs;
-    this.tourInk.show(inkedLoops(loops, this.tourInkShown), runs);
+    this.tourInk.show(inkedLoops(loops, this.tourInkShown, this.tourSelected), runs);
   }
 
   /**
    * **Le tracé des tournées** (#723) : éteint, les boucles posées disparaissent, le pion roule ;
-   * celle qu'on trace reste dessinée, et les routes courues avant un cap changé aussi.
+   * celle qu'on trace reste dessinée, et les routes courues avant un cap changé aussi, comme la
+   * boucle du transport qu'on a en main (`troopIds`, #725).
    */
-  setTourInk(shown: boolean): void {
+  setTourInk(shown: boolean, troopIds: ReadonlyArray<string> = []): void {
     this.invalidate();
     this.tourInkShown = shown;
-    this.tourInk.show(inkedLoops(this.tourLoops, shown), this.tourRuns);
+    this.tourSelected = troopIds;
+    this.tourInk.show(inkedLoops(this.tourLoops, shown, troopIds), this.tourRuns);
   }
 
   /** **The drop is refused**: the piece shakes its head before it goes home. */

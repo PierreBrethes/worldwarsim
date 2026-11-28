@@ -467,6 +467,8 @@ function BoardContent({
   const blitz = view.mode === 'blitz';
   /** A Blitz shows no ground card on hover alone; a country picked by click keeps its whole card. */
   const quietHover = blitz && country == null;
+  /** La fiche de survol du sol est dépliée (#725) : la barrette n'a plus à dire « sous le curseur ». */
+  const [groundOpen, setGroundOpen] = useState(false);
   const blitzTheatre = useMemo(
     () => playedTheatre({ mode: view.mode, theatre: view.theatre }),
     [view.mode, view.theatre],
@@ -3911,6 +3913,7 @@ function BoardContent({
                               hoveredRegion === null ? [] : depositsInRegion(hoveredRegion.id),
                           })
                     }
+                    groundOpen={groundOpen}
                     scale={blitz ? null : scaleStore}
                   />
                 )}
@@ -3939,6 +3942,7 @@ function BoardContent({
                         }
                         view={view}
                         onDeselect={() => select(null)}
+                        onOpen={setGroundOpen}
                       />
                     </div>
                   )}
