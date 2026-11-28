@@ -787,6 +787,17 @@ export const NOTICE = v.union(
      *  déjà relevé ; absent ailleurs. */
     point: v.optional(LON_LAT),
   }),
+  /** **Un QG tombé en Mondiale** (ADR 0048) : son joueur reste en guerre. Public, sur le patron de
+   *  `playerEliminated` : `by` au tombé et au preneur, `point` à qui connaissait déjà ce QG. */
+  v.object({
+    ...NOTICE_HEAD,
+    kind: v.literal('hqFallen'),
+    nation: v.string(),
+    by: v.optional(v.string()),
+    point: v.optional(LON_LAT),
+    /** **L'heure où la relève s'ouvre**, au tombé seul. */
+    raiseAt: v.optional(v.number()),
+  }),
   /** **Un point stratégique change de teneur** (P2) : public, déposé chez toute la table. */
   v.object({
     ...NOTICE_HEAD,

@@ -402,6 +402,27 @@ describe('the journal', () => {
     expect(mine!.text).toContain('irréguliers');
     expect(mine!.text).not.toContain('dissoutes');
   });
+
+  /** **Un QG tombé en Mondiale** (ADR 0048) : critique, il n'élimine pas ; le tombé lit l'heure
+   *  de sa relève, le preneur ce qu'il a pris, la table le fait seul. */
+  it('tells a Mondiale fall: the hour of the raise to the fallen, the taker to the two sides', () => {
+    const fall = { kind: 'hqFallen', at: NOON, nation: 'ussr' } as const;
+    const raiseAt = NOON + 12 * 3_600_000;
+    const [aside] = journalDispatches([], null, [fall]);
+    const [taker] = journalDispatches([], null, [{ ...fall, by: 'france' }]);
+    const [mine] = journalDispatches([], null, [{ ...fall, by: 'france', raiseAt }]);
+
+    for (const one of [aside, taker, mine]) {
+      expect(one).toMatchObject({ kind: 'hqFallen', severity: 'critical' });
+      expect(one!.text).not.toMatch(/HORS DE COMBAT|irréguliers/);
+    }
+    expect(aside!.text).not.toMatch(/France/);
+    expect(taker!.text).toMatch(/France/);
+    expect(mine!.text).toMatch(/France/);
+    const hour = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    expect(mine!.text).toContain(hour.format(new Date(raiseAt)));
+    expect(taker!.text).not.toContain(hour.format(new Date(raiseAt)));
+  });
 });
 
 /**

@@ -176,7 +176,7 @@ const twins = (a: JournalDispatch, b: JournalDispatch): boolean =>
 /** **Ce qu'une prise des Sept ou la chute d'un QG dit mieux que « capturé »** (#442). */
 const saysMore = (dispatch: JournalDispatch): boolean =>
   (dispatch.kind === 'pointTaken' && dispatch.point !== undefined) ||
-  (dispatch.kind === 'elimination' && dispatch.place !== null);
+  ((dispatch.kind === 'elimination' || dispatch.kind === 'hqFallen') && dispatch.place !== null);
 
 /** **La capture qu'une prise des Sept ou la chute d'un QG remplace** : même instant, même lieu. */
 export const twinnedCapture = (
@@ -252,23 +252,22 @@ export function placedBursts(
     ];
   }
   /** **Un QG tombé, servi avec son lieu** à qui le connaît : son preneur (sa capture l'escorte),
-   *  et qui l'avait relevé. Chez l'éliminé, que sa perte escorte, la scène de sa chute le dit. */
-  if (dispatch.kind === 'elimination') {
+   *  et qui l'avait relevé. Chez l'éliminé, que sa perte escorte, la scène de sa chute le dit ;
+   *  en Mondiale (`hqFallen`), qui le perd n'a pas de scène et lit le tampon. */
+  if (dispatch.kind === 'elimination' || dispatch.kind === 'hqFallen') {
     // Not any twin: the camps the fallen's territory sights as it falls share its hour and place.
     const escort = journal.find(
       (other) => (other.kind === 'captured' || other.kind === 'siteLost') && twins(dispatch, other),
     );
-    if (escort?.kind === 'siteLost') return [];
-    const words = stamped(
-      escort === undefined ? fr.stamps.hqFallen : fr.stamps.hqTaken,
-      dispatch.at,
-    );
+    if (escort?.kind === 'siteLost' && dispatch.kind === 'elimination') return [];
+    const taken = escort?.kind === 'captured';
+    const words = stamped(taken ? fr.stamps.hqTaken : fr.stamps.hqFallen, dispatch.at);
     return [
       {
         kind: 'captured',
         at,
         words,
-        ...(escort === undefined ? { ink: LOSS_INK } : {}),
+        ...(taken ? {} : { ink: LOSS_INK }),
         over: true,
       },
     ];

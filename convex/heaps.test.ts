@@ -15,7 +15,6 @@ import { coalDryAt, economyOf, type Economy } from './resources';
 import { recordLinkage } from './holding';
 import { reportChange, settleBeforeChange } from './production';
 import { handOver } from './strategicPoints';
-import { leaveTheWar } from './players';
 import { endowIrregular, irregularSeat } from './objectives';
 import { regionFacts } from './regions';
 import { surveyFoundation } from './surveys';
@@ -370,9 +369,14 @@ describe('the heap writes itself when its rate changes', () => {
     expect((await heapOf(t, seat, well))!.amount).toBeCloseTo(4 * OIL * NARVIK_UNLINKED_SHARE, 5);
   });
 
-  it.each(['surrender', 'fall'] as const)(
-    'settles at the old colour when a leaving player gives his points back (%s)',
-    async (how) => {
+  /** **Qui capitule rend ses points** et le tas repart à la couleur neuve ; **qui perd son QG en
+   *  Mondiale les garde** (ADR 0048) : la couleur ne bouge pas, le tas reste arrêté. */
+  it.each([
+    ['surrender', 2],
+    ['fall', 0],
+  ] as const)(
+    'settles at the old colour when a leaving player gives his points back, and only then (%s)',
+    async (how, resumedHours) => {
       const t = boot();
       const { seat, guest } = await launched(t);
       await outpostUnder(t, seat);
@@ -395,19 +399,35 @@ describe('the heap writes itself when its rate changes', () => {
       at(12);
       expect((await heapOf(t, seat, well))!.amount).toBeCloseTo(3 * OIL, 5);
       if (how === 'surrender') await t.mutation(api.players.surrender, guest);
-      else
-        await t.run(async (ctx) => {
-          const season = (await ctx.db.get(player.seasonId))!;
-          await leaveTheWar(ctx, season, (await ctx.db.get(leaver._id))!, Date.now(), {
-            kind: 'playerEliminated',
-            by: 'france',
-            capturerId: player._id,
-            irregulars: false,
+      else {
+        const captureId = await t.run(async (ctx) => {
+          const hq = (
+            await ctx.db
+              .query('buildings')
+              .withIndex('byPlayer', (q) => q.eq('playerId', leaver._id))
+              .collect()
+          ).find((held) => held.key === 'hq')!;
+          return ctx.db.insert('captures', {
+            seasonId: player.seasonId,
+            playerId: player._id,
+            target: { kind: 'building', buildingId: hq._id },
+            site: { kind: 'building', building: 'hq', regionId: hq.regionId },
+            point: hq.point,
+            defenderId: leaver._id,
+            progress: 1,
+            progressAt: Date.now(),
+            rate: 1,
+            durationMs: 0,
+            rest: null,
+            completesAt: Date.now(),
           });
         });
+        await t.mutation(internal.captures.complete, { captureId, expectedAt: Date.now() });
+        expect((await playerOf(t, guest)).hqFellAt).toBe(Date.now());
+      }
 
       at(14);
-      expect((await heapOf(t, seat, well))!.amount).toBeCloseTo(3 * OIL + 2 * OIL, 5);
+      expect((await heapOf(t, seat, well))!.amount).toBeCloseTo(3 * OIL + resumedHours * OIL, 5);
     },
   );
 

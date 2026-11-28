@@ -660,7 +660,8 @@ describe('dev.captureSoon and dev.raceEndsSoon', () => {
       vi.advanceTimersByTime(2_000);
       await t.finishInProgressScheduledFunctions();
       const fallen = await t.run((ctx) => ctx.db.get(guestId));
-      expect(fallen?.eliminatedAt).toEqual(expect.any(Number));
+      expect(fallen?.hqFellAt).toEqual(expect.any(Number));
+      expect(fallen?.eliminatedAt).toBeUndefined();
     } finally {
       vi.useRealTimers();
     }

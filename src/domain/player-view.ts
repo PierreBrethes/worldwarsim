@@ -842,6 +842,8 @@ export type DispatchKind =
   | 'foundNothing'
   | 'surrender'
   | 'elimination'
+  /** **Un QG tombé en Mondiale** (ADR 0048), sans élimination. */
+  | 'hqFallen'
   | 'command'
   /** L'édition du classement : le seul rendez-vous que tout le monde reçoit à la même heure. */
   | 'edition'
@@ -1201,6 +1203,15 @@ type NoticeBody =
       readonly by?: string;
       /** En Mondiale, ce qu'il tenait est passé au siège irrégulier (M16). */
       readonly irregulars?: true;
+    }
+  /** **Un QG tombé en Mondiale** (ADR 0048) : son joueur reste en guerre. `by` au tombé et au
+   *  preneur, `raiseAt` (l'heure où la relève s'ouvre) au tombé seul. */
+  | {
+      readonly kind: 'hqFallen';
+      readonly at: number;
+      readonly nation: string;
+      readonly by?: string;
+      readonly raiseAt?: number;
     }
   | { readonly kind: 'commandTransferred'; readonly at: number; readonly nation: string }
   /** Un point stratégique change de teneur (P2) : public, chez toute la table. */

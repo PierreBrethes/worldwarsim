@@ -154,6 +154,37 @@ describe('inkBursts', () => {
     });
   });
 
+  /** **Un QG tombé en Mondiale** (ADR 0048) : les mêmes tampons, et chez qui le perd « QG tombé »
+   *  en noir à la place de « capturé » — il reste en guerre, sans scène de chute. */
+  describe('a Mondiale headquarters that falls without eliminating', () => {
+    const rome = { lon: 12.5, lat: 41.9 };
+    const fall = { ...dispatch(20, 'hqFallen'), place: rome };
+    const twin = (kind: JournalDispatch['kind']) => ({ ...dispatch(20, kind), place: rome });
+    const fallen = {
+      kind: 'captured',
+      at: [12.5, 41.9],
+      words: { word: 'QG tombé', hour: hour(20) },
+      ink: '#2a2118',
+      over: true,
+    };
+
+    it('stamps « QG pris » for its taker, once', () => {
+      expect(inkBursts([fall, twin('captured')], 10, [])).toEqual([
+        {
+          kind: 'captured',
+          at: [12.5, 41.9],
+          words: { word: 'QG pris', hour: hour(20) },
+          over: true,
+        },
+      ]);
+    });
+
+    it('stamps « QG tombé » in black for the one who lost it, and for a third who knew it', () => {
+      expect(inkBursts([fall, twin('siteLost')], 10, [])).toEqual([fallen]);
+      expect(inkBursts([fall], 10, [])).toEqual([fallen]);
+    });
+  });
+
   it('stamps « largué » where a packet came down, and nothing for a delivery', () => {
     const at = (kind: JournalDispatch['kind']) => ({
       ...dispatch(20, kind),

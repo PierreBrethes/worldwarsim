@@ -2829,6 +2829,8 @@ export const fr = {
       foundNothing: 'bredouille',
       surrender: 'capitulation',
       elimination: 'QG tombé',
+      /** Distinct de l'élimination : le QG est perdu, la guerre continue. */
+      hqFallen: 'QG perdu',
       command: 'commandement',
       edition: 'édition',
       productionCut: 'production coupée',
@@ -2983,6 +2985,14 @@ export const fr = {
         irregulars
           ? `${nation.toUpperCase()} HORS DE COMBAT — son quartier général est tombé aux mains de ${by}, avec ses réserves au-dessus du seuil scellé. Le reste passe aux irréguliers : chacun peut le prendre ou le piller.`
           : `${nation.toUpperCase()} HORS DE COMBAT — son quartier général est tombé aux mains de ${by}. Ses bâtiments passent au vainqueur, ses troupes sont dissoutes.`,
+      /** **Un QG tombé en Mondiale** (ADR 0048) : son joueur reste en guerre. Au tombé, l'heure de
+       *  la relève ; au preneur, ce qu'il a pris ; aux autres, le fait seul. */
+      hqFallen: (nation: string, by: string | null, raiseAt: number | null) =>
+        raiseAt !== null
+          ? `VOTRE QUARTIER GÉNÉRAL EST TOMBÉ${by === null ? '' : ` aux mains de ${by}`}, avec vos réserves au-dessus du seuil scellé. Vos troupes et vos avant-postes tiennent : vous le relevez sur votre sol à partir de ${HOUR_MINUTE.format(new Date(raiseAt))}.`
+          : by !== null
+            ? `${nation.toUpperCase()} PERD SON QUARTIER GÉNÉRAL — pris par ${by}, avec ses réserves au-dessus du seuil scellé. Ses troupes tiennent : il le relèvera.`
+            : `${nation.toUpperCase()} PERD SON QUARTIER GÉNÉRAL — ses troupes tiennent : il le relèvera.`,
       /** Le rendez-vous de la table, à l'heure dite. Le rang, jamais un score : la page de
        *  presse est la lecture, cette ligne n'est que la convocation. */
       editionPublished: (time: string, rank: number) =>

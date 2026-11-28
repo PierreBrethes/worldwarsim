@@ -1,7 +1,5 @@
 import { v } from 'convex/values';
 import { followCenter } from './research';
-import { stopTour } from './tours';
-import { endPatrol } from './patrols';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation } from './_generated/server';
@@ -15,27 +13,26 @@ import {
 } from '../src/domain/capture';
 import { canonicalBuildingKey } from '../src/domain/ids';
 import { modeOf } from '../src/domain/season-mode';
+import { HQ_RAISE_DELAY_MS } from '../src/domain/hq-raise';
 import { settleFunds } from './blitz';
 import { releaseBuilding } from './buildings';
 import { resolveContact } from './combat';
 import { cancelRaisesOf, collapseIfAbandoned, groundGarrison } from './outposts';
 import { pointOfBuilding } from './regions';
-import { landAtPoint } from './routes';
 import { clipToStorage, creditToStorage, debit, economyOf } from './resources';
 import { lootFromSurplus } from '../src/domain/loot';
-import { positionAt } from '../src/domain/interception';
 import { BASE_CAP } from './constants';
-import { endowIrregular, irregularSeat } from './objectives';
+import { irregularSeat } from './objectives';
 import { handOver, holdsPoint, seasonPoints } from './strategicPoints';
 import { emptyLoad } from '../src/domain/logistics';
 import { reportChange, settleBeforeChange } from './production';
-import { passHeap, type Heaps } from './heaps';
+import { passHeap } from './heaps';
 import { seasonStillPlays, seatsOf } from './seats';
 import { notifyPlayer, notifyYourMove } from './notifications';
 import { journalUrl, push } from '../src/domain/push';
 import { surveyFromPoint } from './surveys';
 import { forgetMovement, forgetMovements, walkHome } from './movement/arrival';
-import { marchingForce, reassessDetection } from './movement/detection';
+import { reassessDetection } from './movement/detection';
 import { playerBuildings } from './buildingReads';
 import { leaveTheWar } from './players';
 import {
@@ -603,10 +600,10 @@ async function conclude(
     await settleFunds(ctx, loser._id, now);
   }
   const taken: Array<Doc<'buildings'>> = [];
-  /** **Un QG de départ tombé élimine son joueur** (B10, M2a), qui sort de la guerre
-   *  (`leaveTheWar`, plus bas). En Blitz il emporte tout : ses bâtiments passent au capteur,
-   *  ses troupes disparaissent. En Mondiale le capteur ne prend que le QG et le stock au-dessus
-   *  du seuil scellé ; le reste passe au siège irrégulier (`toIrregulars`). */
+  /** **Un QG de départ tombé** : en Blitz il élimine son joueur (B10, M2a), qui sort de la
+   *  guerre (`leaveTheWar`, plus bas) et emporte tout — ses bâtiments passent au capteur, ses
+   *  troupes disparaissent. En Mondiale son joueur reste en guerre (ADR 0048) : le capteur ne
+   *  prend que le QG et le stock au-dessus du seuil scellé, et le reste lui demeure. */
   /** Son ancien QG repris porte encore `homeOf`, mais il est une prise (`capturedAt`) : le
    *  reperdre ne fait pas tomber le QG relevé debout (ADR 0048 §6). En Blitz, le QG de départ
    *  porte un `capturedAt` dès sa pose (`blitz.place`), et rien ne s'y relève. */
@@ -614,8 +611,8 @@ async function conclude(
     isBuilding(site) &&
     site.homeOf === loser._id &&
     (mode === 'blitz' || site.capturedAt === undefined);
-  /** Les sièges dont un détecteur change : le capteur — la saisie peut rallumer ses stations —,
-   *  le défenseur, et le siège irrégulier qui hérite d'un vaincu. */
+  /** Les sièges dont un détecteur change : le capteur — la saisie peut rallumer ses stations —
+   *  et le défenseur. */
   const touched = [capture.playerId, loser._id];
   if (falls && mode === 'mondiale') {
     await releaseBuilding(ctx, loser, site, now);
@@ -628,7 +625,6 @@ async function conclude(
     taken.push(site);
     // La saisie à la chute du QG n'est pas un pillage : Dakar ne la bloque pas.
     await seizeAboveTheSeal(ctx, loser._id, capture.playerId, now);
-    touched.push(await toIrregulars(ctx, capture, loser, before.heaps, now));
   } else if (isPoint(site)) {
     await takePoint(ctx, site, capture.playerId, now);
   } else if (isBuilding(site)) {
@@ -688,24 +684,61 @@ async function conclude(
   /** Le QG pris rouvre des files au capteur : ce que le niveau d'avant bloquait repart. */
   await ctx.scheduler.runAfter(0, internal.constructions.resume, { playerId: capture.playerId });
   await reassessDetection(ctx, capture.seasonId, now, touched);
-  /** Un joueur qui avait capitulé perd son QG sans sortir une seconde fois de la guerre. */
+  /** Un joueur qui avait capitulé perd son QG sans sortir une seconde fois de la guerre, ni
+   *  rien relever. */
   if (falls && loser.defeated !== true) {
     const capturer = (await ctx.db.get(capture.playerId))!;
-    await leaveTheWar(
-      ctx,
-      (await ctx.db.get(capture.seasonId))!,
-      (await ctx.db.get(loser._id))!,
-      now,
-      {
-        kind: 'playerEliminated',
-        by: capturer.nation ?? capturer.nickname,
-        capturerId: capturer._id,
-        irregulars: mode === 'mondiale',
-        ...(mode === 'mondiale' && isBuilding(site)
-          ? { hq: { buildingId: site._id, regionId: site.regionId, point: site.point } }
-          : {}),
-      },
-    );
+    if (mode === 'mondiale' && isBuilding(site)) await tellTheFall(ctx, loser, capturer, site, now);
+    else
+      await leaveTheWar(
+        ctx,
+        (await ctx.db.get(capture.seasonId))!,
+        (await ctx.db.get(loser._id))!,
+        now,
+        {
+          kind: 'playerEliminated',
+          by: capturer.nation ?? capturer.nickname,
+          capturerId: capturer._id,
+          irregulars: false,
+        },
+      );
+  }
+}
+
+/**
+ * **Le QG tombé en Mondiale, daté et dit** (ADR 0048 §2) : `hqFellAt` ouvre la relève douze heures
+ * plus tard, et une chute suivante l'écrase. La dépêche suit le patron de `playerEliminated` :
+ * publique, le preneur dit au tombé et au preneur, le lieu à qui connaissait déjà ce QG, et
+ * l'heure de la relève au tombé seul.
+ */
+async function tellTheFall(
+  ctx: MutationCtx,
+  loser: Doc<'players'>,
+  capturer: Doc<'players'>,
+  hq: Doc<'buildings'>,
+  now: number,
+): Promise<void> {
+  await ctx.db.patch(loser._id, { hqFellAt: now });
+  const nameOf = (seat: Doc<'players'>) => seat.nation ?? seat.nickname;
+  /** Le lieu ne lève aucun brouillard : le tombé, le preneur, et qui a déjà ce QG à son relevé. */
+  const knowsTheHq = async (seat: Doc<'players'>) => {
+    if (seat._id === loser._id || seat._id === capturer._id) return true;
+    const row = await ctx.db
+      .query('regionSightings')
+      .withIndex('byPlayerRegion', (q) => q.eq('playerId', seat._id).eq('regionId', hq.regionId))
+      .unique();
+    return row?.installations?.some((seen) => seen.buildingId === hq._id) === true;
+  };
+  for (const seat of await seatsOf(ctx, loser.seasonId)) {
+    await ctx.db.insert('notices', {
+      playerId: seat._id,
+      at: now,
+      kind: 'hqFallen',
+      nation: nameOf(loser),
+      ...(seat._id === loser._id || seat._id === capturer._id ? { by: nameOf(capturer) } : {}),
+      ...((await knowsTheHq(seat)) ? { point: hq.point } : {}),
+      ...(seat._id === loser._id ? { raiseAt: now + HQ_RAISE_DELAY_MS } : {}),
+    });
   }
 }
 
@@ -808,77 +841,6 @@ async function seizeAboveTheSeal(
   );
   await debit(ctx, loserId, seized, now);
   await creditToStorage(ctx, capturerId, seized, now);
-}
-
-/**
- * **Le reste de l'éliminé devient un siège irrégulier** (M16) : ses bâtiments, ses avant-postes
- * et ses troupes passent au siège sans compte des objectifs neutres, qui ne joue pas et ne se
- * défend que sur place. Chacun peut les capturer et les piller. Une colonne en marche s'arrête
- * où elle est ; un bâtiment passé colore sa région pour le siège, comme une capture.
- */
-async function toIrregulars(
-  ctx: MutationCtx,
-  fall: Capture,
-  loser: Doc<'players'>,
-  heaps: Heaps,
-  now: number,
-): Promise<Id<'players'>> {
-  const irregularId = await irregularSeat(ctx, fall.seasonId);
-  for (const building of await playerBuildings(ctx, loser._id)) {
-    await releaseBuilding(ctx, loser, building, now);
-    await passHeap(ctx, building, heaps, irregularId, now);
-    await ctx.db.patch(building._id, {
-      playerId: irregularId,
-      capturedAt: now,
-      foundationMark: undefined,
-    });
-  }
-  for (const outpost of await ctx.db
-    .query('outposts')
-    .withIndex('byPlayer', (q) => q.eq('playerId', loser._id))
-    .collect()) {
-    await cancelRaisesOf(ctx, loser._id, outpost, now);
-    await ctx.db.patch(outpost._id, { playerId: irregularId });
-  }
-  /** Une colonne à terre s'arrête où elle est ; une colonne en mer sombre avec ses coques —
-   *  un siège irrégulier ne navigue pas, et personne ne capture le large. */
-  const marching = await movementsOf(ctx, loser._id);
-  for (const movement of marching) {
-    const [lon, lat] = positionAt(marchingForce(movement), now);
-    const ashore = landAtPoint([lon, lat]);
-    for (const troopId of movement.troopIds) {
-      if (ashore) await ctx.db.patch(troopId, { stationedAt: { lon, lat } });
-      else await ctx.db.delete(troopId);
-    }
-  }
-  await forgetMovements(
-    ctx,
-    fall.seasonId,
-    marching.map((movement) => movement._id),
-    now,
-  );
-  /** Ses chantiers tombent avec lui : un bâtiment ne se pose pas au nom d'un éliminé. */
-  for (const work of await ctx.db
-    .query('constructions')
-    .withIndex('byPlayer', (q) => q.eq('playerId', loser._id))
-    .collect()) {
-    await ctx.db.delete(work._id);
-  }
-  for (const troop of await ctx.db
-    .query('troops')
-    .withIndex('byPlayer', (q) => q.eq('playerId', loser._id))
-    .collect()) {
-    /** Sa tournée et ses rondes tombent avec lui : un siège irrégulier ne ravitaille personne. */
-    if (troop.tour !== undefined) await stopTour(ctx, troop, now, 'cut');
-    if (troop.patrol !== undefined) await endPatrol(ctx, troop, now, 'irregular');
-    await ctx.db.patch(troop._id, { playerId: irregularId });
-  }
-  await dropCapturesOf(ctx, loser._id, now);
-  await handOverSieges(ctx, fall, irregularId, now);
-  /** Un siège né à cette chute, sans objectif posé avant, reçoit sa dotation comme s'il naissait
-   *  avec ses garnisons (`objectives.ts`) : pillage et recharge lisent son plateau. */
-  await endowIrregular(ctx, irregularId, now);
-  return irregularId;
 }
 
 /**

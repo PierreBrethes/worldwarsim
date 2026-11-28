@@ -596,6 +596,11 @@ describe('la chute d’un QG (B10)', () => {
     expect((await playerOf(t, guest)).eliminatedAt).toBe(capture.completesAt);
     expect((await t.query(api.view.playerView, guest)).me.eliminatedAt).toBe(capture.completesAt);
     expect((await playerOf(t, seat)).eliminatedAt).toBeUndefined();
+    // La relève est propre à la Mondiale (ADR 0048) : ni date de chute, ni dépêche de chute.
+    expect((await playerOf(t, guest)).hqFellAt).toBeUndefined();
+    expect(
+      (await t.run((ctx) => ctx.db.query('notices').collect())).map((notice) => notice.kind),
+    ).not.toContain('hqFallen');
     const season = (await t.run((ctx) => ctx.db.get(seat.seasonId)))!;
     expect(season).toMatchObject({
       status: 'concluded',

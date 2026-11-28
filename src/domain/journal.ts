@@ -660,6 +660,17 @@ function written(notice: Notice, viewerNation: string | null): Written {
                 notice.irregulars === true,
               ),
       };
+    case 'hqFallen':
+      return {
+        at: notice.at,
+        severity: 'critical',
+        kind: 'hqFallen',
+        text: said.hqFallen(
+          nationName(notice.nation),
+          notice.by === undefined ? null : nationName(notice.by),
+          notice.raiseAt ?? null,
+        ),
+      };
     /** Sobre, et pas critique : le titre a changé de main, la guerre n'a pas bougé. */
     case 'commandTransferred':
       return {

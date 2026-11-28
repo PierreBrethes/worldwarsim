@@ -835,9 +835,9 @@ describe('ordering a capture', () => {
 });
 
 /**
- * **Le QG d'une Mondiale se capture, et sa chute élimine** (M2a, M15, M16). Le capteur prend le
+ * **Le QG d'une Mondiale se capture, et sa chute n'élimine pas** (ADR 0048). Le capteur prend le
  * QG, un niveau plus bas, et le stock du vaincu au-dessus du seuil scellé ; le reste — bâtiments,
- * avant-postes, troupes — passe au siège irrégulier, capturable et pillable par tous.
+ * avant-postes, troupes, colonnes, chantiers, sièges — demeure au joueur, qui reste en guerre.
  */
 describe('a Mondiale headquarters', () => {
   beforeEach(() => {
@@ -864,8 +864,7 @@ describe('a Mondiale headquarters', () => {
     return { seat, guest, third };
   }
 
-  /** Le QG du vaincu, et sa garnison de départ sortie dans un camp : elle doit passer au siège
-   *  irrégulier, pas disparaître. */
+  /** Le QG du vaincu, et sa garnison de départ sortie dans un camp : elle doit lui rester. */
   async function headquartersOf(t: Bench, seat: Seat) {
     const owner = await playerOf(t, seat);
     return t.run(async (ctx) => {
@@ -938,13 +937,13 @@ describe('a Mondiale headquarters', () => {
     expect(await markOf(t, mine)).toBe(false);
   });
 
-  it('wipes the mark of the exploitations a fallen nation hands to the irregulars', async () => {
+  it('keeps the mark of the exploitations of a nation whose headquarters falls: they stay his', async () => {
     const t = boot();
     const { seat, guest } = await threeAtTable(t);
     const mine = await marked(t, guest, PSKOV);
     await take(t, seat, await headquartersOf(t, guest));
     await finish(t);
-    expect(await markOf(t, mine)).toBe(false);
+    expect(await markOf(t, mine)).toBe(true);
   });
 
   it('takes the twelve hours the lobby set by default, or twenty-four', async () => {
@@ -961,8 +960,8 @@ describe('a Mondiale headquarters', () => {
     expect((await capturesOf(other))[0]!.completesAt).toBe(MIDDAY + 24 * HOUR);
   });
 
-  /** **Sa ronde ne perd pas un bout** (#376) : elle passe aux irréguliers, et la dépêche le dit. */
-  it('ends the fallen player’s patrol on its passing to the irregulars', async () => {
+  /** **Sa ronde ne perd pas un bout** (#376) : elle reste à lui, et continue. */
+  it('keeps the fallen player’s patrol going, still his', async () => {
     const t = boot();
     const { seat, guest } = await threeAtTable(t);
     const loser = await playerOf(t, guest);
@@ -986,9 +985,10 @@ describe('a Mondiale headquarters', () => {
     await finish(t);
 
     const notices = await t.run((ctx) => ctx.db.query('notices').collect());
-    expect(notices.find((notice) => notice.kind === 'patrolEnded')).toMatchObject({
+    expect(notices.find((notice) => notice.kind === 'patrolEnded')).toBeUndefined();
+    expect((await t.run((ctx) => ctx.db.get(rifles)))!).toMatchObject({
       playerId: loser._id,
-      why: 'irregular',
+      patrol: expect.anything(),
     });
   });
 
@@ -1061,30 +1061,30 @@ describe('a Mondiale headquarters', () => {
     expect(seasonReads).toBe(0);
   });
 
-  it('writes the heap of an exploitation of the fallen onto the irregulars that inherit it', async () => {
+  /** **Tas : seul le QG passe** (ADR 0041) — l'exploitation du tombé garde sa ligne à son nom. */
+  it('leaves the heap of an exploitation of the fallen on his own row', async () => {
     const t = boot();
     const { seat, guest } = await threeAtTable(t);
     const hq = await headquartersOf(t, guest);
     const mine = await building(t, guest, PSKOV, 1, 'mine');
+    const loser = await playerOf(t, guest);
 
     await take(t, seat, hq);
     await finish(t);
 
-    const irregular = (await t.run((ctx) => ctx.db.query('players').collect())).find(
-      (p) => p.irregular === true,
-    )!;
     const rows = await t.run((ctx) => ctx.db.query('heaps').collect());
-    expect(rows.find((row) => row.buildingId === mine)?.playerId).toBe(irregular._id);
+    expect(rows.filter((row) => row.buildingId === mine && row.playerId !== loser._id)).toEqual([]);
+    expect((await t.run((ctx) => ctx.db.get(mine)))!.playerId).toBe(loser._id);
   });
 
-  it('eliminates its player: the HQ and the stock above the seal to the capturer, the rest to the irregulars', async () => {
+  it('takes the HQ and the stock above the seal, and leaves him at war with all the rest', async () => {
     const t = boot();
-    const { seat, guest } = await threeAtTable(t);
+    const { seat, guest, third } = await threeAtTable(t);
     const hq = await headquartersOf(t, guest);
     const barracks = await building(t, guest, PSKOV);
     const loser = await playerOf(t, guest);
     const winner = await playerOf(t, seat);
-    await t.run(async (ctx) => {
+    const { outpost, work } = await t.run(async (ctx) => {
       for (const row of await ctx.db
         .query('resources')
         .withIndex('byPlayer', (q) => q.eq('playerId', loser._id))
@@ -1098,40 +1098,99 @@ describe('a Mondiale headquarters', () => {
         /** Nourri : une capture d'un capteur affamé n'aboutit pas (ADR 0044). */
         await ctx.db.patch(row._id, { stock: row.key === 'food' ? 5000 : 0, updatedAt: MIDDAY });
       }
+      const outpost = await ctx.db.insert('outposts', {
+        seasonId: loser.seasonId,
+        playerId: loser._id,
+        point: { lon: 30, lat: 57 },
+        hostCountry: 'RUS',
+        regionId: PSKOV,
+        level: 1,
+        foundedAt: MIDDAY - 1,
+        disabledUntil: null,
+        immuneUntil: null,
+      });
+      const work = await ctx.db.insert('constructions', {
+        playerId: loser._id,
+        building: 'farm',
+        regionId: 'RUS-2371',
+        level: 1,
+        rank: 0,
+        finishesAt: MIDDAY + 99 * HOUR,
+      });
+      return { outpost, work };
     });
+    // His own siege of a third side's barracks runs on.
+    const theirs = await building(t, third, MARNE);
+    await captureArrival(
+      t,
+      guest,
+      { kind: 'building', buildingId: theirs },
+      pointOfRegion(MARNE),
+      'FRA',
+      [await troop(t, guest, 'infantry', null)],
+    );
 
     await take(t, seat, hq);
-    await finish(t);
+    const fall = (await capturesOf(t)).find(
+      (capture) => capture.target.kind === 'building' && capture.target.buildingId === hq._id,
+    )!;
+    vi.setSystemTime(fall.completesAt);
+    await t.mutation(internal.captures.complete, {
+      captureId: fall._id,
+      expectedAt: fall.completesAt,
+    });
 
     const after = await t.run(async (ctx) => ({
       hq: (await ctx.db.get(hq._id))!,
       barracks: (await ctx.db.get(barracks))!,
+      outpost: (await ctx.db.get(outpost))!,
+      work: await ctx.db.get(work),
       loser: (await ctx.db.get(loser._id))!,
       irregular: (await ctx.db.query('players').collect()).find((p) => p.irregular === true),
       troops: await ctx.db.query('troops').collect(),
+      captures: await ctx.db.query('captures').collect(),
       stocks: await ctx.db.query('resources').collect(),
       season: (await ctx.db.get(loser.seasonId))!,
     }));
     expect(after.hq.playerId).toBe(winner._id);
+    expect(after.hq.capturedAt).toBe(fall.completesAt);
     expect(after.hq.level).toBe(Math.max(1, hq.level - 1));
-    expect(after.loser.defeated).toBe(true);
-    expect(after.loser.eliminatedAt).toBe(MIDDAY + 12 * HOUR);
-    expect(after.irregular).toBeDefined();
-    expect(after.barracks.playerId).toBe(after.irregular!._id);
-    expect(after.barracks.capturedAt).toBe(MIDDAY + 12 * HOUR);
-    expect(after.troops.filter((troop) => troop.playerId === loser._id)).toEqual([]);
-    expect(after.troops.some((troop) => troop.playerId === after.irregular!._id)).toBe(true);
+    expect(after.loser.defeated).not.toBe(true);
+    expect(after.loser.eliminatedAt).toBeUndefined();
+    expect(after.loser.hqFellAt).toBe(fall.completesAt);
+    expect(after.irregular).toBeUndefined();
+    expect(after.barracks).toMatchObject({ playerId: loser._id });
+    expect(after.barracks.capturedAt).toBeUndefined();
+    expect(after.outpost.playerId).toBe(loser._id);
+    expect(after.work).not.toBeNull();
+    expect(after.troops.filter((troop) => troop.playerId === loser._id).length).toBeGreaterThan(0);
+    expect(after.captures.filter((capture) => capture.playerId === loser._id)).toHaveLength(1);
     const food = (playerId: Id<'players'>) =>
       after.stocks.find((row) => row.playerId === playerId && row.key === 'food')!.stock;
     expect(food(loser._id)).toBeLessThanOrEqual(400);
     expect(food(winner._id)).toBeGreaterThan(0);
-    // A third belligerent stands: the season goes on.
     expect(after.season.status).toBe('launched');
   });
 
-  /** **Le QG tombé se voit où il est** (#442) : à l'éliminé, au preneur, et au tiers qui l'avait
+  /** **Les troupes postées au QG passent au sol** (`groundGarrison`) : à son point, toujours à lui. */
+  it('grounds the troops posted at the fallen headquarters, at its point, still his', async () => {
+    const t = boot();
+    const { seat, guest } = await threeAtTable(t);
+    const hq = await headquartersOf(t, guest);
+    const loser = await playerOf(t, guest);
+    await take(t, seat, hq);
+    const posted = await troop(t, guest, 'infantry', hq._id);
+    await finish(t);
+
+    expect((await t.run((ctx) => ctx.db.get(posted)))!).toMatchObject({
+      playerId: loser._id,
+      stationedAt: { lon: hq.point.lon, lat: hq.point.lat },
+    });
+  });
+
+  /** **Le QG tombé se voit où il est** (#442) : au tombé, au preneur, et au tiers qui l'avait
    *  déjà relevé — jamais au tiers qui ne le connaît pas, ni à qui n'a relevé que la région. Le
-   *  tiers ne lit toujours pas qui l'a pris. */
+   *  tiers ne lit toujours pas qui l'a pris ; l'heure de la relève n'est dite qu'au tombé. */
   it.each([
     ['who had surveyed it', 'hq', true],
     ['who surveyed its region without it', 'other', false],
@@ -1159,20 +1218,25 @@ describe('a Mondiale headquarters', () => {
       await finish(t);
 
       const place = { lon: hq.point.lon, lat: hq.point.lat };
-      for (const who of [seat, guest])
-        expect(await noticesOf(t, who, 'playerEliminated')).toMatchObject([
-          { nation: 'ussr', by: 'france', point: place },
-        ]);
-      const [aside] = await noticesOf(t, third, 'playerEliminated');
+      const fellAt = (await playerOf(t, guest)).hqFellAt!;
+      expect(await noticesOf(t, guest, 'hqFallen')).toMatchObject([
+        { at: fellAt, nation: 'ussr', by: 'france', point: place, raiseAt: fellAt + 12 * HOUR },
+      ]);
+      const [taker] = await noticesOf(t, seat, 'hqFallen');
+      expect(taker).toMatchObject({ nation: 'ussr', by: 'france', point: place });
+      expect(taker).not.toHaveProperty('raiseAt');
+      const [aside] = await noticesOf(t, third, 'hqFallen');
       expect(aside).not.toHaveProperty('by');
+      expect(aside).not.toHaveProperty('raiseAt');
       if (told) expect(aside).toMatchObject({ point: place });
       else expect(aside).not.toHaveProperty('point');
+      for (const who of [seat, guest, third])
+        expect(await noticesOf(t, who, 'playerEliminated')).toEqual([]);
     },
   );
 
-  /** **Une colonne à Malte est à terre** (#224) : elle s'arrête où elle est, au siège irrégulier,
-   *  au lieu de sombrer comme au large — la grille de 25 km n'y voit que la mer. */
-  it('keeps the column of the fallen that stands on Malta, and hands it over', async () => {
+  /** **Ses colonnes marchent encore** : celle qui file à Malte ne s'arrête ni ne change de main. */
+  it('keeps the columns of the fallen marching, his', async () => {
     const t = boot();
     const { seat, guest } = await threeAtTable(t);
     const hq = await headquartersOf(t, guest);
@@ -1180,7 +1244,7 @@ describe('a Mondiale headquarters', () => {
     const mosta = { lon: 14.421, lat: 35.906 };
     const attard = { lon: 14.423, lat: 35.888 };
     const column = await troop(t, guest, 'infantry', null);
-    await t.run((ctx) =>
+    const movementId = await t.run((ctx) =>
       ctx.db.insert('movements', {
         seasonId: loser.seasonId,
         playerId: loser._id,
@@ -1204,84 +1268,26 @@ describe('a Mondiale headquarters', () => {
     await finish(t);
 
     const kept = await t.run((ctx) => ctx.db.get(column));
-    expect(kept).not.toBeNull();
-    expect(kept!.playerId).not.toBe(loser._id);
+    expect(kept).toMatchObject({ playerId: loser._id, stationedAt: null });
+    expect(await t.run((ctx) => ctx.db.get(movementId))).toMatchObject({ playerId: loser._id });
   });
 
-  /** **Chacun peut piller ce que le siège irrégulier hérite** (M16), objectifs neutres posés ou
-   *  non : le siège né à la chute a son plateau, que le pillage lit. */
-  it('lets a third side plunder a warehouse the irregulars inherited', async () => {
-    const t = boot();
-    const { seat, guest, third } = await threeAtTable(t);
-    const hq = await headquartersOf(t, guest);
-    const warehouse = await building(t, guest, PSKOV, 1, 'warehouse');
-    await take(t, seat, hq);
-    await finish(t);
-
-    const raider = await playerOf(t, third);
-    const home = await t.run(
-      async (ctx) =>
-        (
-          await ctx.db
-            .query('buildings')
-            .withIndex('byPlayer', (q) => q.eq('playerId', raider._id))
-            .collect()
-        ).find((held) => held.key === 'hq')!._id,
-    );
-    const infantry = await troop(t, third, 'infantry', home);
-    const to = pointOfRegion(PSKOV);
-    const movementId = await t.run((ctx) =>
-      ctx.db.insert('movements', {
-        seasonId: raider.seasonId,
-        playerId: raider._id,
-        type: 'march',
-        fromBuildingId: home,
-        target: { kind: 'building', buildingId: warehouse },
-        from: { lon: to.lon - 1, lat: to.lat },
-        to,
-        hostCountry: 'RUS',
-        points: [{ lon: to.lon - 1, lat: to.lat }, to],
-        legs: [{ medium: 'land', distanceUnits: 1 }],
-        distanceUnits: 1,
-        costUnits: 1,
-        troopIds: [infantry],
-        departedAt: Date.now() - HOUR,
-        arrivesAt: Date.now(),
-        plunder: { phase: 'outbound', buildingId: warehouse },
-      }),
-    );
-    await t.mutation(internal.movements.arrive, { movementId });
-    const present = (await t.run((ctx) => ctx.db.get(movementId)))!.plunder;
-    if (present?.phase !== 'presence') throw new Error('presence not started');
-    vi.setSystemTime(present.until);
-    await t.mutation(internal.movements.completePlunderPresence, {
-      movementId,
-      expectedAt: present.until,
-    });
-
-    expect((await t.run((ctx) => ctx.db.get(warehouse)))!.disabledUntil).toBeGreaterThan(
-      present.until,
-    );
-  });
-
-  /** Le siège irrégulier n'a pas de stock : la station d'écoute qu'il hérite reste muette. */
-  it('hands his listening station to the irregulars, who hear nothing without coal', async () => {
+  /** **Ses bâtiments lui restent** : son entrepôt et sa station d'écoute ne passent à personne. */
+  it('keeps his warehouse and his listening station his', async () => {
     const t = boot();
     const { seat, guest } = await threeAtTable(t);
     const hq = await headquartersOf(t, guest);
-    const station = await building(t, guest, PSKOV, 1, 'listening');
+    const warehouse = await building(t, guest, PSKOV, 1, 'warehouse');
+    const station = await building(t, guest, 'RUS-2371', 1, 'listening');
+    const loser = await playerOf(t, guest);
     await take(t, seat, hq);
     await finish(t);
 
-    const after = await t.run(async (ctx) => ({
-      station: (await ctx.db.get(station))!,
-      irregular: (await ctx.db.query('players').collect()).find((p) => p.irregular === true)!,
-      heard: (await ctx.db.query('sightings').collect()).filter(
-        (row) => row.detector === 'station',
-      ),
-    }));
-    expect(after.station.playerId).toBe(after.irregular._id);
-    expect(after.heard).toEqual([]);
+    for (const id of [warehouse, station]) {
+      const kept = (await t.run((ctx) => ctx.db.get(id)))!;
+      expect(kept.playerId).toBe(loser._id);
+      expect(kept.capturedAt).toBeUndefined();
+    }
   });
 
   /** **Hong Kong lit la chute d'un QG** que son teneur ne voit pas : qui, quoi, où. */
@@ -1346,9 +1352,9 @@ describe('a Mondiale headquarters', () => {
     expect((await t.run((ctx) => ctx.db.get(loser._id)))!.researched).toEqual(['carrier']);
   });
 
-  /** Rien de lui ne lui survit : son chantier tombe, son sol perd sa couleur, et le siège
-   *  qu'un tiers menait contre lui ne dort plus à ses heures. */
-  it('leaves him no site under way, no ground, and no sleep to the sieges that outlive him', async () => {
+  /** Tout lui survit : son chantier court, son sol garde sa couleur, et le siège qu'un tiers
+   *  mène contre lui dort encore à ses heures. */
+  it('leaves him his site under way, his ground, and his sleep to the sieges against him', async () => {
     const t = boot();
     const { seat, guest, third } = await threeAtTable(t);
     const hq = await headquartersOf(t, guest);
@@ -1384,26 +1390,28 @@ describe('a Mondiale headquarters', () => {
       expectedAt: fall.completesAt,
     });
 
-    expect(await t.run((ctx) => ctx.db.query('constructions').collect())).toEqual([]);
+    expect(await t.run((ctx) => ctx.db.query('constructions').collect())).toHaveLength(1);
     const left = await capturesOf(t);
-    expect(left.every((capture) => capture.rest === null)).toBe(true);
+    expect(left).toMatchObject([{ defenderId: loser._id, rest: { startMinutes: 22 * 60 } }]);
     const ground = await t.run(
       async (ctx) =>
         (await heldOver(ctx, loser.seasonId, [regionFacts('RUS-2371')!], Date.now())).get(
           'RUS-2371',
         ) ?? null,
     );
-    expect(ground).toBeNull();
+    expect(ground).toBe(loser._id);
   });
 
-  it('lets the eliminated read and write the telegraph, and refuses him every order', async () => {
+  /** Ses ordres passent la porte du siège : sans QG, une pose se refuse par sa règle (`HQ_FIRST`),
+   *  jamais parce qu'il serait défait. */
+  it('keeps him at war: he is not eliminated, and his orders meet the rules, not PLAYER_DEFEATED', async () => {
     const t = boot();
     const { seat, guest } = await threeAtTable(t);
     await take(t, seat, await headquartersOf(t, guest));
     await finish(t);
 
-    await t.mutation(api.messages.post, { ...guest, text: 'je vous avais prévenus' });
-    expect((await t.query(api.view.playerView, guest)).me.eliminatedAt).not.toBeNull();
+    await t.mutation(api.messages.post, { ...guest, text: 'je reviendrai' });
+    expect((await t.query(api.view.playerView, guest)).me.eliminatedAt).toBeNull();
     await expect(
       t.mutation(api.constructions.start, {
         ...guest,
@@ -1411,28 +1419,29 @@ describe('a Mondiale headquarters', () => {
         regionId: MARNE,
         point: pointOfRegion(MARNE),
       }),
-    ).rejects.toThrow('PLAYER_DEFEATED');
+    ).rejects.toThrow('HQ_FIRST');
   });
 
-  it('crushes the season when the last headquarters falls', async () => {
+  /** **La fin par le QG est propre à la Blitz** (ADR 0048 §1, `blitz.test.ts` la garde). */
+  it('does not end a Mondiale of two when a headquarters falls', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
     await take(t, seat, await headquartersOf(t, guest));
     await finish(t);
 
     const season = await t.run(async (ctx) => ctx.db.get((await seatIn(ctx, seat)).seasonId));
-    expect(season!.status).toBe('concluded');
-    expect(season!.winnerId).toBe((await playerOf(t, seat))._id);
-    expect(season!.verdict?.reason).toBe('hqTaken');
+    expect(season!.status).toBe('launched');
+    expect(season!.verdict).toBeUndefined();
   });
 
-  /** **L'édition finale signe la chute** (#443) : le QG perdu, sa région, qui l'a pris. */
-  it('writes the fallen headquarters into the final edition, with its region and its taker', async () => {
+  /** **L'édition finale ne compte pas d'éliminé** : le tombé finit la saison debout. Ce que la une
+   *  raconte d'un QG tombé en Mondiale se tranche à #739. */
+  it('writes no elimination into the final edition: the fallen ends the season standing', async () => {
     const t = boot();
     const { seat, guest } = await launchedSeason(t);
-    const hq = await headquartersOf(t, guest);
-    await take(t, seat, hq);
+    await take(t, seat, await headquartersOf(t, guest));
     await finish(t);
+    await t.mutation(api.seasons.conclude, seat);
     for (let link = 0; link < 40; link++) {
       await vi.advanceTimersByTimeAsync(1);
       await t.finishInProgressScheduledFunctions();
@@ -1441,18 +1450,9 @@ describe('a Mondiale headquarters', () => {
     const read = await t.query(api.finalEdition.ofSeason, guest);
     if (read.state !== 'ready') throw new Error(read.state);
     const ussr = read.edition.nations.find((page) => page.nation === 'ussr')!;
-    expect(ussr.exit).toEqual({ kind: 'eliminated', at: MIDDAY + 12 * HOUR });
-    expect(ussr.losses.hq).toEqual({
-      at: MIDDAY + 12 * HOUR,
-      regionId: hq.regionId,
-      by: 'france',
-    });
-    expect(read.edition.moments).toContainEqual({
-      kind: 'hqTaken',
-      at: MIDDAY + 12 * HOUR,
-      regionId: hq.regionId,
-      nations: ['france', 'ussr'],
-    });
+    expect(ussr.exit).toBeNull();
+    expect(ussr.losses.hq).toBeNull();
+    expect(read.edition.moments.filter((moment) => moment.kind === 'hqTaken')).toEqual([]);
   });
 
   it('does not eliminate a capturer who loses a headquarters he had taken', async () => {
@@ -1486,6 +1486,8 @@ describe('a Mondiale headquarters', () => {
       (await playerOf(t, third))._id,
     );
     expect((await playerOf(t, seat)).defeated).not.toBe(true);
+    expect((await playerOf(t, seat)).hqFellAt).toBeUndefined();
+    expect(await noticesOf(t, seat, 'hqFallen')).toHaveLength(1);
   });
 
   /** **Le QG relevé** (ADR 0048 §6) : posé sur son sol avec `homeOf`, l'ancien repris porte un
@@ -1518,6 +1520,7 @@ describe('a Mondiale headquarters', () => {
 
     const loser = await playerOf(t, guest);
     expect(loser.defeated).not.toBe(true);
+    expect(loser.hqFellAt).toBeUndefined();
     expect((await t.run((ctx) => ctx.db.get(raised)))!.playerId).toBe(loser._id);
   });
 
@@ -1557,11 +1560,43 @@ describe('a Mondiale headquarters', () => {
     expect((await t.run((ctx) => ctx.db.get(raised._id)))!.playerId).toBe(winner._id);
     expect(food).toBeLessThanOrEqual(400);
   });
+
+  /** **Qui a capitulé ne relève rien** : son QG tombe sans date ni dépêche de chute. */
+  it('gives a player who surrendered neither a fall date nor a fall dispatch', async () => {
+    const t = boot();
+    const { seat, guest } = await threeAtTable(t);
+    const hq = await headquartersOf(t, guest);
+    await t.mutation(api.players.surrender, guest);
+    await take(t, seat, hq);
+    await finish(t);
+
+    expect((await t.run((ctx) => ctx.db.get(hq._id)))!.playerId).toBe(
+      (await playerOf(t, seat))._id,
+    );
+    expect((await playerOf(t, guest)).hqFellAt).toBeUndefined();
+    expect(await noticesOf(t, seat, 'hqFallen')).toEqual([]);
+  });
+
+  /** **Chaque chute écrase la précédente** (ADR 0048 §5) : `hqFellAt` date la dernière. */
+  it('dates every fall anew: a second fall overwrites the first', async () => {
+    const t = boot();
+    const { seat, guest } = await threeAtTable(t);
+    const old = await headquartersOf(t, guest);
+    await t.run(async (ctx) =>
+      ctx.db.patch((await seatIn(ctx, guest))._id, { hqFellAt: MIDDAY - 30 * HOUR }),
+    );
+    const raisedId = await raisedBeside(t, guest, old);
+    await t.run((ctx) => ctx.db.delete(old._id));
+
+    await take(t, seat, (await t.run((ctx) => ctx.db.get(raisedId)))!);
+    await finish(t);
+
+    expect((await playerOf(t, guest)).hqFellAt).toBe(MIDDAY + 12 * HOUR);
+  });
 });
 
 /**
- * **La chute d'un QG ne relit que les sièges qu'elle touche** (#171) : le capteur, l'éliminé et le
- * siège irrégulier. Une table pleine, des colonnes en vol de tous les côtés, Rangoun et deux
+ * **La chute d'un QG ne relit que les sièges qu'elle touche** (#171) : le capteur et le vaincu. Une table pleine, des colonnes en vol de tous les côtés, Rangoun et deux
  * autres points au vaincu, une station du capteur muette faute de charbon que la saisie rallume :
  * après la chute, une réévaluation entière n'a plus rien à changer.
  */
@@ -1611,8 +1646,9 @@ describe('a headquarters falling at a full table', () => {
       notices: (await ctx.db.query('notices').collect()).length,
     }));
 
-  /** Trois tables : une Mondiale ; la même, son vaincu en tournée quand il tient Rangoun ; une
-   *  Blitz, où le capteur prend tout et où les troupes du vaincu disparaissent. */
+  /** Trois tables : une Mondiale, où le vaincu garde tout sauf son QG ; la même, son vaincu en
+   *  tournée quand il tient Rangoun ; une Blitz, où le capteur prend tout et où les troupes du
+   *  vaincu disparaissent. */
   it.each([
     ['in a Mondiale', 'mondiale', false],
     ['in a Mondiale, its loser on tour while he holds Rangoon', 'mondiale', true],
@@ -1651,7 +1687,7 @@ describe('a headquarters falling at a full table', () => {
       }
       if (mode === 'mondiale') {
         /** La station du capteur au cœur du carré, à sec : la saisie du stock la rallume. Le
-         *  vaincu écoute aussi, d'une station et d'un avant-poste, qui passent au siège irrégulier. */
+         *  vaincu écoute aussi, d'une station et d'un avant-poste, qui lui restent. */
         const central = allRegions()
           .filter((region) => region.country === 'DEU')
           .sort((a, b) => distanceKm(a.point, [8, 50]) - distanceKm(b.point, [8, 50]));
@@ -1755,14 +1791,20 @@ describe('a headquarters falling at a full table', () => {
           (row) => row.playerId === capturerId && row.detector === 'station',
         ),
       }));
-      expect(after.loser.defeated).toBe(true);
-      expect(after.points.filter((point) => point.holderId === loserId)).toEqual([]);
-      expect(after.troops.filter((troop) => troop.playerId === loserId)).toEqual([]);
-      expect(after.buildings).toEqual([]);
       if (mode === 'mondiale') {
-        expect(after.troops.some((troop) => troop.playerId === after.irregular?._id)).toBe(true);
+        expect(after.loser.defeated).not.toBe(true);
+        expect(after.irregular).toBeUndefined();
+        expect(after.points.some((point) => point.holderId === loserId)).toBe(true);
+        expect(after.troops.some((troop) => troop.playerId === loserId)).toBe(true);
+        expect(after.buildings.map((held) => held.key)).not.toContain('hq');
+        expect(after.buildings.length).toBeGreaterThan(0);
         /** La station rallumée relève déjà : le capteur fait partie des sièges relus. */
         expect(after.heard.length).toBeGreaterThan(0);
+      } else {
+        expect(after.loser.defeated).toBe(true);
+        expect(after.points.filter((point) => point.holderId === loserId)).toEqual([]);
+        expect(after.troops.filter((troop) => troop.playerId === loserId)).toEqual([]);
+        expect(after.buildings).toEqual([]);
       }
 
       const fallen = await fog(t);

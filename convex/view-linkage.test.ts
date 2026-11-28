@@ -1,6 +1,6 @@
 import { convexTest } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { api } from './_generated/api';
+import { api, internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
 import type { LonLat } from '../src/domain/geo';
@@ -9,14 +9,21 @@ import type { PlayerView } from '../src/domain/player-view';
 import { NARVIK_UNLINKED_SHARE, nominalStrength, outpostReachKm } from './constants';
 import { collapseIfAbandoned } from './outposts';
 import { heldOver, recordLinkage } from './holding';
-import { leaveTheWar } from './players';
 import { reportChange, settleBeforeChange } from './production';
 import { economyOf } from './resources';
 import { regionFacts } from './regions';
 import schema from './schema';
 import { handOver } from './strategicPoints';
 import { modules } from './test.setup';
-import { foundSeat, joinSeat, neutralPoint, pointIn, seatDoc, seatIn } from './seats.fixture';
+import {
+  foundSeat,
+  joinSeat,
+  neutralPoint,
+  placeHq,
+  pointIn,
+  seatDoc,
+  seatIn,
+} from './seats.fixture';
 import type { Seat } from './seats.fixture';
 
 /**
@@ -280,23 +287,42 @@ describe('la vue rend la couleur de la vérité, partie après partie (#144)', (
     await holdsTheContract(t, guest);
   });
 
-  it('quand un adversaire est éliminé et que son sol cesse d’être le sien', async () => {
+  /** **Son QG tombé, son sol reste le sien** (ADR 0048 §1) : le point posé chez lui n'y relie rien. */
+  it('quand le QG d’un adversaire tombe, et que son sol reste le sien', async () => {
     const t = boot();
     const { seat, guest, third } = await launchedSeason(t);
+    await placeHq(t, guest);
     await plant(t, seat, point(RUSSIA));
     expect(linkedAt(await holdsTheContract(t, seat), RUSSIA)).toBe(false);
 
     const me = await seatDoc(t, seat);
-    await t.run(async (ctx) => {
+    const captureId = await t.run(async (ctx) => {
       const loser = await seatIn(ctx, guest);
-      await leaveTheWar(ctx, (await ctx.db.get(loser.seasonId))!, loser, Date.now(), {
-        kind: 'playerEliminated',
-        by: 'france',
-        capturerId: me._id,
-        irregulars: false,
+      const hq = (
+        await ctx.db
+          .query('buildings')
+          .withIndex('byPlayer', (q) => q.eq('playerId', loser._id))
+          .collect()
+      ).find((held) => held.key === 'hq')!;
+      return ctx.db.insert('captures', {
+        seasonId: me.seasonId,
+        playerId: me._id,
+        target: { kind: 'building', buildingId: hq._id },
+        site: { kind: 'building', building: 'hq', regionId: hq.regionId },
+        point: hq.point,
+        defenderId: loser._id,
+        progress: 1,
+        progressAt: Date.now(),
+        rate: 1,
+        durationMs: 0,
+        rest: null,
+        completesAt: Date.now(),
       });
     });
-    expect(linkedAt(await holdsTheContract(t, seat), RUSSIA)).toBe(true);
+    await t.mutation(internal.captures.complete, { captureId, expectedAt: Date.now() });
+    expect((await seatDoc(t, guest)).hqFellAt).toBe(Date.now());
+    expect(linkedAt(await holdsTheContract(t, seat), RUSSIA)).toBe(false);
+    await holdsTheContract(t, guest);
     await holdsTheContract(t, third);
   });
 

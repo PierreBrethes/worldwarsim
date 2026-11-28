@@ -287,6 +287,9 @@ export default defineSchema({
     defeated: v.optional(v.boolean()),
     /** **L'heure où son QG de départ est tombé** (Blitz) : jamais écrite par une capitulation. */
     eliminatedAt: v.optional(v.number()),
+    /** **L'heure où son QG est tombé** (Mondiale, ADR 0048) : la relève s'ouvre douze heures
+     *  après ; une chute suivante l'écrase. */
+    hqFellAt: v.optional(v.number()),
     /**
      * **La couleur de son sol, retenue au dernier changement de couleur** (#144). La vue la lit
      * au lieu de relire avant-postes, occupations et sièges de toute la saison : une écriture sur
