@@ -7,6 +7,7 @@ import {
   type BotWorld,
   type BotWorkshop,
 } from './bot';
+import { distanceKm } from './geo';
 import { BUILDINGS, RESOURCES, type BuildingKey, type UnitRole } from './ids';
 import type { BuildSpec, PlayerView, TroopView } from './player-view';
 
@@ -818,5 +819,94 @@ describe('la tournée de ravitaillement emporte les tas (#684)', () => {
         args: { troopId: 'c1', stops: ['o-1', { kind: 'site', id: 'farm-1' }] },
       },
     ]);
+  });
+});
+
+/**
+ * **Le quai d'un bot insulaire** (#728) : les côtes se trient par la droite jusqu'au point neutre,
+ * et une côte que la droite dit déjà trop loin ne se cherche pas. La géographie est fausse mais
+ * lisible : `km` dit ce que la mer coûte depuis chaque quai.
+ */
+describe('le bot insulaire choisit son quai', () => {
+  const goal = SPAIN;
+  const neutral = (id: string, point: readonly [number, number]) => ({
+    id,
+    key: 'lisbon',
+    regionId: 'ESP-1',
+    point,
+    holder: null,
+    heldSince: null,
+    mine: false,
+    contested: false,
+    longest: null,
+  });
+  const isle = [
+    { id: 'FRA-1', country: 'FRA', point: [2.5, 47.0] as const },
+    { id: 'FRA-2', country: 'FRA', point: [2.0, 47.4] as const },
+    { id: 'FRA-3', country: 'FRA', point: [2.8, 49.9] as const },
+    { id: 'BEL-1', country: 'BEL', point: BELGIUM },
+    { id: 'ESP-1', country: 'ESP', point: SPAIN },
+  ];
+
+  /** Le quai que le bot pose, et chaque quai dont la mer a été cherchée. */
+  const portAmong = (shores: Record<string, { at: readonly [number, number]; km: number }>) => {
+    const searched: string[] = [];
+    const byPoint = new Map(
+      Object.entries(shores).map(([id, { at, km }]) => [at.join(), { id, km }]),
+    );
+    const geography = world({
+      regions: isle,
+      coastNear: (_point, _within, regionId) => shores[regionId]?.at ?? null,
+      landRoute: (_from, to) =>
+        isle.some((r) => r.point === to && r.country !== 'FRA') ? null : { km: 1 },
+      landRouteToNearest: (from) => {
+        const shore = byPoint.get(from.join())!;
+        searched.push(shore.id);
+        return { km: shore.km, blocked: [] };
+      },
+    });
+    const orders = turn(
+      viewOf({ regions: [] }, { strategicPoints: [neutral('p-1', goal)] }),
+      geography,
+    );
+    const start = orders.find((order) => order.fn === 'constructions.start');
+    return { regionId: (start?.args as { regionId?: string } | undefined)?.regionId, searched };
+  };
+  const floorOf = (at: readonly [number, number]) => distanceKm(at, goal);
+
+  it('trie par la droite : une côte plus proche à vol d’oiseau mais plus chère ne l’emporte pas, une trop loin ne se cherche pas', () => {
+    const shores = {
+      'FRA-1': { at: [2.5, 46.5] as const, km: 1500 },
+      'FRA-2': { at: [1.5, 47.6] as const, km: 1000 },
+      'FRA-3': { at: [2.8, 49.9] as const, km: 5000 },
+    };
+    expect(floorOf(shores['FRA-1'].at)).toBeLessThan(floorOf(shores['FRA-2'].at));
+    expect(floorOf(shores['FRA-3'].at)).toBeGreaterThan(1000 * 1.01);
+    const { regionId, searched } = portAmong(shores);
+    expect(regionId).toBe('FRA-2');
+    expect(searched).toEqual(['FRA-1', 'FRA-2']);
+  });
+
+  it('à égalité de trajet, la première région de world.regions l’emporte, quel que soit le tri', () => {
+    const shores = {
+      'FRA-1': { at: [1.5, 47.6] as const, km: 1000 },
+      'FRA-2': { at: [2.5, 46.5] as const, km: 1000 },
+    };
+    // FRA-2 se trie en tête (sa droite est plus courte) : FRA-1 la reprend au rang.
+    expect(floorOf(shores['FRA-2'].at)).toBeLessThan(floorOf(shores['FRA-1'].at));
+    const { regionId, searched } = portAmong(shores);
+    expect(searched).toEqual(['FRA-2', 'FRA-1']);
+    expect(regionId).toBe('FRA-1');
+  });
+
+  it('à égalité de trajet, la région évaluée la première ne cède pas sa place à la suivante', () => {
+    const shores = {
+      'FRA-1': { at: [2.5, 46.5] as const, km: 1000 },
+      'FRA-2': { at: [1.5, 47.6] as const, km: 1000 },
+    };
+    expect(floorOf(shores['FRA-1'].at)).toBeLessThan(floorOf(shores['FRA-2'].at));
+    const { regionId, searched } = portAmong(shores);
+    expect(searched).toEqual(['FRA-1', 'FRA-2']);
+    expect(regionId).toBe('FRA-1');
   });
 });
