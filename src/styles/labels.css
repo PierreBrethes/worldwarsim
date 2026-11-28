@@ -1210,7 +1210,7 @@
 /* **Un des Sept est son mât de la toile** (#683) : le cartouche s'accroche 8 px au-dessus du
    sommet, que le moteur donne pour ancre ; ni fanion, ni mât, ni flaque ne sont à lui. */
 .label--strategic {
-  --label-callout: calc(8px + var(--label-stagger));
+  --label-callout: calc(8px / var(--hud-scale) + var(--label-stagger));
   --label-sink: 0px;
 }
 
