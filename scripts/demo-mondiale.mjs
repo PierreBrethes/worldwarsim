@@ -221,8 +221,8 @@
  *
  * `--absence` (#439) rend au Royaume-Uni (compte b) une absence de neuf heures : douze dépêches à
  * lieu autour de Londres, son rejeu jamais vu, ses premiers pas passés (`absence`). À rejouer sans
- * refonder : `npx convex run dev:absenceScene '{"playerId":"…"}'`. `--absence-prise <nation|neutre>` (#702)
- * ne laisse qu'un arrêt : Narvik pris à cette nation, pour voir la flamme changer d'encre.
+ * refonder : `npx convex run dev:absenceScene '{"playerId":"…"}'`. `--absence-prise <nation|neutre>` (#702, avec
+ * `--absence`) ne laisse qu'un arrêt : Narvik pris à cette nation, pour voir la flamme changer d'encre.
  *
  * `--moments` (#442) pose les QG de Paris et de Londres et donne à la France Narvik, Istanbul et
  * Bakou (`moments` cadre les Sept, `tanger`, `narvik`, `londres`), puis écrit les commandes qui

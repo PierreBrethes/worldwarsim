@@ -3,10 +3,10 @@ import { asClockTime } from './duration';
 import type { LonLat } from './geo';
 import type { MapMotion } from './map-motion';
 import { LOSS_INK, nationInk } from './nations';
-import { NEUTRAL_INK } from './strategic-mast';
 import type { JournalDispatch } from './player-view';
 import type { RaceLead } from './race-rings';
 import { RACE_TO_WIN } from './strategic-points';
+import { NEUTRAL_INK } from './strategic-mast';
 
 /** What a stamp says: a word and the hour, the prototype's `★ 14:32 ★`. */
 export type StampWords = { readonly word: string; readonly hour: string };

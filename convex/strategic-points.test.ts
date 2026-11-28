@@ -1322,13 +1322,40 @@ describe('Hong Kong', () => {
     await t.finishInProgressScheduledFunctions();
 
     expect(await told(t, guest)).toMatchObject([
-      { key: 'lisbon', nation: 'france', hongKong: true, from: 'ussr' },
+      { key: 'lisbon', nation: 'france', hongKong: true, from: 'ussr', former: 'ussr' },
     ]);
     // The taker reads the plain public dispatch, no more.
     const plain = await told(t, seat);
     expect(plain).toMatchObject([{ key: 'lisbon', nation: 'france', former: 'ussr' }]);
     expect(plain[0]).not.toHaveProperty('hongKong');
     expect(plain[0]).not.toHaveProperty('from');
+  });
+
+  /** **La reprise** (#702) : chaque prise dit à qui elle prend, la seconde à celui qui avait pris. */
+  it('names the former holder of each taking, a retaking included', async () => {
+    const t = boot();
+    const { seat, guest } = await launched(t);
+    await holdPoint(t, guest, 'lisbon');
+    const point = await pointCalled(t, 'lisbon');
+    await capture(t, seat, await postedAt(t, seat, point), point);
+    vi.advanceTimersByTime(7 * HOUR);
+    await t.finishInProgressScheduledFunctions();
+    // Nobody left to defend it, but the retaker.
+    await t.run(async (ctx) => {
+      for (const troop of await ctx.db.query('troops').collect())
+        if (typeof troop.stationedAt === 'object' && troop.stationedAt?.lon === point.point.lon)
+          await ctx.db.delete(troop._id);
+    });
+    await capture(t, guest, await postedAt(t, guest, point), point);
+    for (let hour = 0; hour < 24; hour++) {
+      vi.advanceTimersByTime(HOUR);
+      await t.finishInProgressScheduledFunctions();
+    }
+    const taken = (await told(t, seat)).sort((a, b) => a.at - b.at);
+    expect(taken).toMatchObject([
+      { key: 'lisbon', nation: 'france', former: 'ussr' },
+      { key: 'lisbon', nation: 'ussr', former: 'france' },
+    ]);
   });
 
   it('says a point was neutral when nobody held it, and stops with the point', async () => {

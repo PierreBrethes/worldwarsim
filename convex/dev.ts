@@ -1017,7 +1017,8 @@ export const reviewScene = internalMutation({
  * `npx convex run dev:absenceScene '{"playerId":"…"}'`. Rend le point de la capitale.
  *
  * Avec `taken` (#702), la couronne se tait : un seul arrêt, la prise d'un des Sept par le joueur,
- * à qui `former` l'a prise (`null` : neutre), pour voir la flamme changer d'encre au rejeu.
+ * à qui `former` l'a prise (`null` : neutre), pour voir la flamme changer d'encre au rejeu. Elle
+ * rend alors le lieu de ce point, non celui de la capitale.
  */
 export const absenceScene = internalMutation({
   args: {
@@ -1047,6 +1048,7 @@ export const absenceScene = internalMutation({
     for (const notice of since) await ctx.db.patch(notice._id, { at: notice.at - (now - away) });
     await stampReadMark(ctx, playerId, { journalReadAt: away });
     await stampReadMark(ctx, playerId, { firstSteps: { done: [], shown: 'skipped' } });
+    let placeOfScene: [number, number] = [capital.lon, capital.lat];
     if (taken !== undefined) {
       const point = await layPoint(ctx, player.seasonId, taken.key);
       if (point === null) throw new Error(`no region under ${taken.key}`);
@@ -1061,6 +1063,7 @@ export const absenceScene = internalMutation({
         held: 1,
         former: taken.former,
       });
+      placeOfScene = [point.point.lon, point.point.lat];
     }
     for (let k = 0; k < (taken === undefined ? 12 : 0); k++) {
       const turn = (k / 12) * 2 * Math.PI;
@@ -1087,7 +1090,7 @@ export const absenceScene = internalMutation({
       ] as const;
       await ctx.db.insert('notices', { ...head, ...rows[k % rows.length]! });
     }
-    return [capital.lon, capital.lat] as [number, number];
+    return placeOfScene;
   },
 });
 
