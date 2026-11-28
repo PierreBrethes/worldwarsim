@@ -261,6 +261,61 @@ function westOf(at: LonLat, km: number): { lon: number; lat: number } {
   return { lon: at[0] - (near + far) / 2, lat: at[1] };
 }
 
+/** **Le premier coude de la poursuite atlantique**, lu sur une partie sans station italienne : son
+ *  instant, son point, et ce que chaque route marche jusqu'à son échantillon suivant. */
+async function firstBend() {
+  const dry = boot();
+  const { chase: before } = await atlanticChase(dry);
+  await reach(dry, before.pursuit!.checkAt);
+  const bent = (await dry.run((ctx) => ctx.db.get(before._id)))!;
+  const now = bent.departedAt;
+  expect(now).toBe(before.pursuit!.checkAt);
+  const oldForce = marchingForce(before);
+  const here = positionAt(oldForce, now);
+  const oldStep = (before.arrivesAt - before.departedAt) / INTERCEPTION_SAMPLES;
+  const oldNext = before.departedAt + Math.floor((now - before.departedAt) / oldStep + 1) * oldStep;
+  const newStep = (bent.arrivesAt - now) / INTERCEPTION_SAMPLES;
+  vi.clearAllTimers();
+  vi.setSystemTime(MIDDAY);
+  return {
+    before,
+    now,
+    here,
+    oldAhead: distanceKm(here, positionAt(oldForce, oldNext)),
+    newAhead: distanceKm(here, positionAt(marchingForce(bent), now + newStep)),
+  };
+}
+
+/** La même partie, une station italienne à `km` à l'ouest du point du coude ; jouée jusqu'à lui. */
+async function bentUnder(bend: Awaited<ReturnType<typeof firstBend>>, km: number) {
+  const t = boot();
+  const { italy, chase } = await atlanticChase(t, [westOf(bend.here, km)]);
+  expect(chase.departedAt).toBe(bend.before.departedAt);
+  const open = (await arcsOf(t, italy)).find((arc) => arc.id === chase._id)!;
+  await reach(t, bend.now);
+  expect((await t.run((ctx) => ctx.db.get(chase._id)))!.departedAt).toBe(bend.now);
+  return { t, italy, chase, open };
+}
+
+/** La fenêtre close au coude, gardée sur la route d'avant : son tronçon jusqu'au point du coude,
+ *  son cap, son heure. */
+async function closedOnTheOldRoute(
+  t: Bench,
+  italy: Seat,
+  chaseId: Id<'movements'>,
+  bend: Awaited<ReturnType<typeof firstBend>>,
+  seenFrom: number,
+) {
+  expect((await rowOf(t, italy, chaseId)).seenOn).toMatchObject({ from: seenFrom, to: bend.now });
+  const seen = seenSegment(marchingForce(bend.before), seenFrom, bend.now);
+  expect((await arcsOf(t, italy)).find((one) => one.id === chaseId)).toMatchObject({
+    seenTo: bend.now,
+    points: seen.points.map(([lon, lat]) => ({ lon, lat })),
+    headingDegrees: seen.headingDegrees,
+    arrivesAt: bend.before.arrivesAt,
+  });
+}
+
 describe('the last known position of a column rewritten in place (#727)', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -573,46 +628,32 @@ describe('the last known position of a column rewritten in place (#727)', () => 
    * c'est le gel d'après qui la garde, sur la route d'avant.
    */
   it('keeps the route of a window the bend itself closes', async () => {
-    /** Une première partie, sans la station, dit où et quand le premier coude tombe. */
-    const dry = boot();
-    const { chase: before } = await atlanticChase(dry);
-    await reach(dry, before.pursuit!.checkAt);
-    const bent = (await dry.run((ctx) => ctx.db.get(before._id)))!;
-    const now = bent.departedAt;
-    expect(now).toBe(before.pursuit!.checkAt);
-    const oldForce = marchingForce(before);
-    const here = positionAt(oldForce, now);
-    const oldStep = (before.arrivesAt - before.departedAt) / INTERCEPTION_SAMPLES;
-    const oldNext =
-      before.departedAt + Math.floor((now - before.departedAt) / oldStep + 1) * oldStep;
-    const oldAhead = distanceKm(here, positionAt(oldForce, oldNext));
-    const newStep = (bent.arrivesAt - now) / INTERCEPTION_SAMPLES;
-    const newAhead = distanceKm(here, positionAt(marchingForce(bent), now + newStep));
-    /** Les deux routes filent à l'est sur le même parallèle : la route d'avant tient son
-     *  échantillon suivant dans le rayon, la neuve sort au sien. */
-    expect(oldAhead).toBeLessThan(newAhead);
-    const edge = LISTENING_STATION_RADIUS_KM - (oldAhead + newAhead) / 2;
+    const bend = await firstBend();
+    expect(bend.oldAhead).toBeLessThan(bend.newAhead);
+    const { t, italy, chase, open } = await bentUnder(
+      bend,
+      LISTENING_STATION_RADIUS_KM - (bend.oldAhead + bend.newAhead) / 2,
+    );
+    expect(open.seenTo).toBeGreaterThan(bend.now);
+    await closedOnTheOldRoute(t, italy, chase._id, bend, open.seenFrom);
+  });
 
-    vi.clearAllTimers();
-    vi.setSystemTime(MIDDAY);
-    const t = boot();
-    const { italy, chase } = await atlanticChase(t, [westOf(here, edge)]);
-    expect(chase.departedAt).toBe(before.departedAt);
-    const open = (await arcsOf(t, italy)).find((arc) => arc.id === chase._id)!;
-    expect(open.seenTo).toBeGreaterThan(now);
-    await reach(t, now);
-    expect((await t.run((ctx) => ctx.db.get(chase._id)))!.departedAt).toBe(now);
-
-    const row = await rowOf(t, italy, chase._id);
-    expect(row.seenOn).toMatchObject({ from: open.seenFrom, to: now });
-    const seen = seenSegment(oldForce, open.seenFrom, now);
-    const arc = (await arcsOf(t, italy)).find((one) => one.id === chase._id)!;
-    expect(arc).toMatchObject({
-      seenTo: now,
-      points: seen.points.map(([lon, lat]) => ({ lon, lat })),
-      headingDegrees: seen.headingDegrees,
-      arrivesAt: before.arrivesAt,
-    });
+  /**
+   * **La fenêtre close juste avant le coude, rouverte par lui** (`relaidWindows` les joint, à un
+   * pas de la route neuve) : la flotte a quitté le dernier échantillon de la route d'avant dans le
+   * rayon, mais se tient encore dedans au coude, et la route neuve l'y relève à l'instant. Le
+   * tronçon servi reste sur la route d'avant, jusqu'au point du coude — vu. Une fenêtre close plus
+   * tôt ne se joint jamais à la route neuve : son premier échantillon hors du rayon tombe un pas
+   * entier après le coude, au-delà de ce qui joint deux fenêtres.
+   */
+  it('keeps the route of a window closed just before the bend and joined by it', async () => {
+    const bend = await firstBend();
+    const { t, italy, chase, open } = await bentUnder(
+      bend,
+      LISTENING_STATION_RADIUS_KM - Math.min(bend.oldAhead, bend.newAhead) / 2,
+    );
+    expect(open.seenTo).toBeLessThan(bend.now);
+    await closedOnTheOldRoute(t, italy, chase._id, bend, open.seenFrom);
   });
   /**
    * **Deux réécritures de suite, l'observateur perdu entre les deux** : la route qu'il garde est
