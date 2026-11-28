@@ -298,6 +298,8 @@ const agrees = (nation: string, one: string, many: string): string =>
 /** `près de Kiev`, `près d’Oslo` ; sans région connue, le front. */
 const near = (place: string): string => (place === '' ? 'sur le front' : `près ${ofName(place)}`);
 
+/** « 03:00 » ; hors de `fr`, que ses propres entrées ne peuvent pas relire sans cycle de types. */
+const HOUR_MINUTE = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
 const EDITION_DAY = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' });
 const EDITION_WHEN = new Intl.DateTimeFormat('fr-FR', {
   weekday: 'short',
@@ -948,7 +950,7 @@ export const fr = {
     /** **La relève** (ADR 0048) : douze heures au plus séparent la chute de l'heure dite, l'heure
      *  seule suffit. */
     HQ_RAISE_TOO_EARLY: (d) =>
-      `votre quartier général se relève à ${fr.table.hour(Number(d.at))}, douze heures après sa chute`,
+      `votre quartier général se relève à ${HOUR_MINUTE.format(new Date(Number(d.at)))}, douze heures après sa chute`,
     HQ_RAISE_HOME_HELD: (d) =>
       `tout le sol ${ofTheCountry(str(d.country))} est tenu par d’autres — reprenez-en une région pour y relever votre quartier général`,
     HQ_RAISE_OFF_HOME: (d) =>
