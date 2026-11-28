@@ -14,7 +14,7 @@ import { keptLevelOf } from './construction';
  * plateau : il dit *quoi*, un mouvement, un mât ou un point, et le plateau sait quel marqueur le
  * dessine.
  */
-type UnderwayPlace =
+export type UnderwayPlace =
   | { readonly kind: 'movement'; readonly arcId: string }
   | {
       readonly kind: 'building';

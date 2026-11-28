@@ -1,8 +1,9 @@
 import { keptLevelOf } from './construction';
-import { RESOURCES, type ResourceKey } from './ids';
+import type { LonLat } from './geo';
+import { RESOURCES, isOutpostWork, type BuildCostKey, type ResourceKey } from './ids';
 import { worksMinutes } from './level-speed';
 import { currentStock, workMinutesLeft, type PlayerView } from './player-view';
-import { underwayOf } from './underway';
+import { underwayOf, type RecruitmentDue, type UnderwayPlace } from './underway';
 import { fr } from '@/i18n/fr';
 
 /** **Le tableau de marche** (#719) : la barre fine et la feuille qui montrent, sur douze heures, ce
@@ -29,12 +30,25 @@ export function positionOf(delayMs: number): number {
   );
 }
 
-/** `placed` : tombe dans l'horizon. Ce qui tombe après est compté (`MarchSchedule.beyond`), pas placé. */
+/** `placed` : tombe dans l'horizon. Ce qui tombe après est compté (`MarchSchedule.beyond`), pas placé.
+ *  `place` : où la carte va au clic, comme `Underway.place`. Une arrivée déjà passée se lit à
+ *  `now` : la durée a pour plancher « maintenant ». */
 type MarchMovement = {
   readonly id: string;
   readonly label: string;
   readonly arrivesAt: number;
   readonly placed: boolean;
+  readonly place: UnderwayPlace;
+};
+
+/** **Ce que la marche ne date pas d'elle-même** : recrutements, recherche, lots, fondations et
+ *  haltes de ronde, les lignes de `underwayOf` qui ne sont ni mouvement ni chantier. */
+type MarchOther = {
+  readonly id: string;
+  readonly label: string;
+  readonly endsAt: number;
+  readonly placed: boolean;
+  readonly place: UnderwayPlace;
 };
 
 /** Un chantier de la file : bout à bout avec le précédent. `placed` : il commence dans l'horizon ;
@@ -48,6 +62,7 @@ type MarchWork = {
   readonly startsAt: number;
   readonly endsAt: number;
   readonly placed: boolean;
+  readonly place: UnderwayPlace;
 };
 
 type MarchStock = {
@@ -59,7 +74,7 @@ type MarchStock = {
   readonly placed: boolean;
 };
 
-type MarchFamily = 'movement' | 'works' | 'stock' | 'edition';
+type MarchFamily = 'movement' | 'works' | 'stock' | 'edition' | 'other';
 
 /** Une échéance placée, toutes familles confondues : ce que l'onglet replié dit. */
 type MarchDue = {
@@ -80,32 +95,79 @@ export type MarchSchedule = {
   readonly queueEmptiesAt: number | null;
   /** Une entrée par ressource au débit négatif, de la plus proche de sa fin à la plus lointaine. */
   readonly stocks: ReadonlyArray<MarchStock>;
+  /** Recrutements, recherche, lots, fondations, haltes de ronde : du plus proche au plus lointain. */
+  readonly other: ReadonlyArray<MarchOther>;
   /** La prochaine édition de la presse ; `null` si finale, passée ou sans édition. */
   readonly edition: number | null;
+  /** La prochaine échéance placée. Une file figée n'y entre pas : sa fin recule avec l'horloge. */
   readonly next: MarchDue | null;
   /** Les échéances placées autres que `next`. */
   readonly others: number;
-  /** Ce qui tombe après l'horizon. */
-  readonly beyond: number;
+  /** Ce qui tombe après l'horizon, compté par famille : chaque ligne de la feuille dit le sien. */
+  readonly beyond: Readonly<Record<MarchFamily, number>>;
 };
 
+/** **Rien ne court** : aucune ligne, placée ou au-delà, et pas d'édition à venir. Ce que l'onglet
+ *  replié dit « rien en cours ». */
+export const marchIdleOf = (schedule: MarchSchedule): boolean =>
+  schedule.movements.length === 0 &&
+  schedule.works.length === 0 &&
+  schedule.stocks.length === 0 &&
+  schedule.other.length === 0 &&
+  schedule.edition === null;
+
+/** Où la carte va pour un chantier : l'avant-poste qu'il élève, ou le point du bâtiment. */
+const placeOfWork = (work: {
+  readonly id: string;
+  readonly key: BuildCostKey;
+  readonly outpostId: string | null;
+  readonly regionId: string;
+  readonly point: LonLat | null;
+}): UnderwayPlace =>
+  work.outpostId === null && !isOutpostWork(work.key)
+    ? { kind: 'building', regionId: work.regionId, key: work.key, point: work.point }
+    : { kind: 'outpost', outpostId: work.outpostId ?? work.id };
+
 /**
- * **Les échéances du joueur sur douze heures, par famille** (#719, Mondiale seule : `null` en
- * Blitz). Les recrutements ne s'y trouvent pas : la vue ne les date pas, l'atelier les sert à
- * part (`RecruitmentDue`).
+ * **Les échéances du joueur sur douze heures, par famille** (#719, #733 ; Mondiale seule : `null`
+ * en Blitz). Les recrutements ne sont pas dans la vue : l'atelier les date à part, et l'appelant
+ * les passe comme à `underwayOf`, dont les autres lignes (recherche, lots, fondations, haltes)
+ * forment la famille `other`.
  */
-export function marchScheduleOf(view: PlayerView, now: number): MarchSchedule | null {
+export function marchScheduleOf(
+  view: PlayerView,
+  now: number,
+  recruitments: ReadonlyArray<RecruitmentDue> = [],
+): MarchSchedule | null {
   if (view.mode === 'blitz') return null;
   const horizonAt = now + MARCH_HORIZON_MS;
+  const lines = underwayOf(view, recruitments);
 
-  const movements = underwayOf(view, [])
+  const movements = lines
     .filter((line) => line.place.kind === 'movement')
-    .map((line) => ({
-      id: line.id,
-      label: line.label,
-      arrivesAt: line.endsAt,
-      placed: line.endsAt <= horizonAt,
-    }));
+    .map((line) => {
+      const arrivesAt = Math.max(line.endsAt, now);
+      return {
+        id: line.id,
+        label: line.label,
+        arrivesAt,
+        placed: arrivesAt <= horizonAt,
+        place: line.place,
+      };
+    });
+
+  const other = lines
+    .filter((line) => line.place.kind !== 'movement' && !line.id.startsWith('construction-'))
+    .map((line) => {
+      const endsAt = Math.max(line.endsAt, now);
+      return {
+        id: line.id,
+        label: line.label,
+        endsAt,
+        placed: endsAt <= horizonAt,
+        place: line.place,
+      };
+    });
 
   const { construction, constructionQueue, hqLevel } = view.me;
   const works: MarchWork[] = [];
@@ -125,6 +187,7 @@ export function marchScheduleOf(view: PlayerView, now: number): MarchSchedule | 
       startsAt: now,
       endsAt,
       placed: now <= horizonAt,
+      place: placeOfWork(construction),
     });
     cursor = endsAt;
   }
@@ -138,6 +201,7 @@ export function marchScheduleOf(view: PlayerView, now: number): MarchSchedule | 
       startsAt: cursor,
       endsAt,
       placed: cursor < horizonAt,
+      place: placeOfWork(work),
     });
     cursor = endsAt;
   }
@@ -162,6 +226,9 @@ export function marchScheduleOf(view: PlayerView, now: number): MarchSchedule | 
   const next = view.press?.next ?? null;
   const edition = next !== null && next > now ? next : null;
 
+  /** Sous un QG désactivé la tête ne décompte pas, et la file derrière elle attend : aucune de
+   *  leurs fins n'est une échéance. */
+  const stalled = works[0]?.frozen === true;
   const dues: MarchDue[] = [
     ...movements
       .filter((one) => one.placed)
@@ -172,7 +239,7 @@ export function marchScheduleOf(view: PlayerView, now: number): MarchSchedule | 
         at: one.arrivesAt,
       })),
     ...works
-      .filter((one) => one.placed)
+      .filter((one) => one.placed && !stalled)
       .map((one) => ({ family: 'works' as const, id: one.id, label: one.label, at: one.endsAt })),
     ...stocks
       .filter((one) => one.placed)
@@ -182,16 +249,13 @@ export function marchScheduleOf(view: PlayerView, now: number): MarchSchedule | 
         label: fr.resources[one.resource],
         at: one.dryAt,
       })),
+    ...other
+      .filter((one) => one.placed)
+      .map((one) => ({ family: 'other' as const, id: one.id, label: one.label, at: one.endsAt })),
     ...(edition !== null && edition <= horizonAt
       ? [{ family: 'edition' as const, id: 'edition', label: fr.banner.edition, at: edition }]
       : []),
   ].sort((first, second) => first.at - second.at);
-
-  const unplaced =
-    movements.filter((one) => !one.placed).length +
-    works.filter((one) => !one.placed).length +
-    stocks.filter((one) => !one.placed).length +
-    (edition !== null && edition > horizonAt ? 1 : 0);
 
   return {
     now,
@@ -200,9 +264,16 @@ export function marchScheduleOf(view: PlayerView, now: number): MarchSchedule | 
     works,
     queueEmptiesAt: works.length === 0 ? null : cursor,
     stocks,
+    other,
     edition,
     next: dues[0] ?? null,
     others: Math.max(0, dues.length - 1),
-    beyond: unplaced,
+    beyond: {
+      movement: movements.filter((one) => !one.placed).length,
+      works: works.filter((one) => !one.placed).length,
+      stock: stocks.filter((one) => !one.placed).length,
+      other: other.filter((one) => !one.placed).length,
+      edition: edition !== null && edition > horizonAt ? 1 : 0,
+    },
   };
 }

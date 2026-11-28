@@ -3,6 +3,7 @@ import {
   FIRST_HOUR_SHARE,
   MARCH_FIRST_HOUR_MS,
   MARCH_HORIZON_MS,
+  marchIdleOf,
   marchScheduleOf,
   positionOf,
 } from './march-schedule';
@@ -91,7 +92,9 @@ describe('marchScheduleOf', () => {
     expect(schedule.edition).toBeNull();
     expect(schedule.next).toBeNull();
     expect(schedule.others).toBe(0);
-    expect(schedule.beyond).toBe(0);
+    expect(schedule.other).toEqual([]);
+    expect(schedule.beyond).toEqual({ movement: 0, works: 0, stock: 0, edition: 0, other: 0 });
+    expect(marchIdleOf(schedule)).toBe(true);
   });
 
   it('is Mondiale only', () => {
@@ -160,7 +163,7 @@ describe('marchScheduleOf', () => {
         placed: false,
       },
     ]);
-    expect(beyond).toBe(1);
+    expect(beyond.stock).toBe(1);
   });
 
   it('reads the stock at now, not at the reading', () => {
@@ -199,7 +202,7 @@ describe('marchScheduleOf', () => {
     expect(schedule.next).toMatchObject({ family: 'movement', at: minutes(20) });
     // movement M-1, works head, edition, food dry at 10 h: four placed; M-2 is beyond.
     expect(schedule.others).toBe(3);
-    expect(schedule.beyond).toBe(1);
+    expect(schedule.beyond.movement).toBe(1);
     expect(schedule.horizonAt).toBe(LOADED + MARCH_HORIZON_MS);
   });
 
@@ -211,6 +214,104 @@ describe('marchScheduleOf', () => {
     });
     const { works } = marchScheduleOf(view, LOADED)!;
     expect(works.map((work) => work.placed)).toEqual([true, true, false]);
+  });
+});
+
+describe('marchScheduleOf, #733', () => {
+  const recruitment = (minutesLeft: number, id = 'B-1') => ({
+    buildingId: id,
+    key: 'barracks' as const,
+    regionId: 'FRA-1',
+    regionName: 'Somme',
+    endsAt: minutes(minutesLeft),
+  });
+
+  it('reads recruitments, and the lines that are neither movement nor works, as the other family', () => {
+    const view = board({ construction: head(45) }, [march('M-1', 90)]);
+    const schedule = marchScheduleOf(view, LOADED, [recruitment(30), recruitment(13 * 60, 'B-2')])!;
+    expect(schedule.other.map((one) => [one.id, one.endsAt, one.placed])).toEqual([
+      ['recruitment-B-1', minutes(30), true],
+      ['recruitment-B-2', minutes(13 * 60), false],
+    ]);
+    expect(schedule.other[0]!.label).toBe('recrutement · Somme');
+    expect(schedule.beyond.other).toBe(1);
+  });
+
+  it('counts the other family in next and in the others', () => {
+    const schedule = marchScheduleOf(board({}, [march('M-1', 90)]), LOADED, [recruitment(30)])!;
+    expect(schedule.next).toMatchObject({
+      family: 'other',
+      id: 'recruitment-B-1',
+      at: minutes(30),
+    });
+    expect(schedule.others).toBe(1);
+  });
+
+  it('carries the place a click recentres on, for movements and every work, head and queue', () => {
+    const view = board({ construction: head(30), constructionQueue: [queued('W-1')] }, [
+      march('M-1', 20),
+    ]);
+    const { movements, works } = marchScheduleOf(view, LOADED)!;
+    expect(movements[0]!.place).toEqual({ kind: 'movement', arcId: 'M-1' });
+    for (const work of works)
+      expect(work.place).toEqual({
+        kind: 'building',
+        regionId: 'FRA-1',
+        key: 'mine',
+        point: [3, 50],
+      });
+  });
+
+  it('places an outpost raise on its outpost', () => {
+    const view = board({
+      construction: head(30, { key: 'outpost', outpostId: 'O-1', point: null }),
+    });
+    expect(marchScheduleOf(view, LOADED)!.works[0]!.place).toEqual({
+      kind: 'outpost',
+      outpostId: 'O-1',
+    });
+  });
+
+  it('counts what falls beyond the horizon family by family', () => {
+    const view = {
+      ...board(
+        {
+          construction: head(11 * 60 + 50),
+          constructionQueue: [queued('W-1', 'mine', 3), queued('W-2', 'mine', 3)],
+        },
+        [march('M-1', 13 * 60)],
+      ),
+      press: { at: LOADED, next: minutes(14 * 60), final: false },
+    } as PlayerView;
+    expect(marchScheduleOf(view, LOADED)!.beyond).toEqual({
+      movement: 1,
+      works: 1,
+      stock: 0,
+      edition: 1,
+      other: 0,
+    });
+  });
+
+  it('keeps a frozen head and the queue behind it out of next', () => {
+    const view = board(
+      { construction: head(30, { frozen: true }), constructionQueue: [queued('W-1')] },
+      [march('M-1', 90)],
+    );
+    const schedule = marchScheduleOf(view, LOADED)!;
+    expect(schedule.works[0]).toMatchObject({ frozen: true, placed: true });
+    expect(schedule.next).toMatchObject({ family: 'movement' });
+    expect(schedule.others).toBe(0);
+  });
+
+  it('floors an arrival already past at now', () => {
+    const [late] = marchScheduleOf(board({}, [march('M-1', -5)]), LOADED)!.movements;
+    expect(late).toMatchObject({ arrivesAt: LOADED, placed: true });
+  });
+
+  it('is idle only when nothing at all is listed, beyond the horizon included', () => {
+    expect(marchIdleOf(marchScheduleOf(board({}, [march('M-1', 13 * 60)]), LOADED)!)).toBe(false);
+    expect(marchIdleOf(marchScheduleOf(board(), LOADED, [recruitment(30)])!)).toBe(false);
+    expect(marchIdleOf(marchScheduleOf(board(), LOADED)!)).toBe(true);
   });
 });
 
